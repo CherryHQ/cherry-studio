@@ -196,7 +196,7 @@
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新話題 {{Command}}",
       "input.pause": "暫停",
-      "input.placeholder": "在此輸入您的訊息...",
+      "input.placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "input.send": "傳送",
       "input.settings": "設定",
       "input.topics": " 話題 ",
@@ -769,10 +769,11 @@
       },
       "footer": {
         "copy_last_message": "按 C 鍵複製",
+        "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
         "esc_close": "關閉視窗",
-        "backspace_clear": "按 Backspace 清空"
+        "esc_pause": "暫停"
       },
       "input": {
         "placeholder": {
@@ -820,7 +821,19 @@
         "vision": "視覺",
         "websearch": "網路搜尋"
       },
-      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
+      "price": {
+        "cost": "花費",
+        "currency": "幣種",
+        "custom": "自訂",
+        "custom_currency": "自訂幣種",
+        "custom_currency_placeholder": "請輸入自訂幣種",
+        "input": "輸入價格",
+        "million_tokens": "M Tokens",
+        "output": "輸出價格",
+        "price": "價格"
+      },
+      "reasoning": "推理"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -1037,7 +1050,8 @@
       "qiniu": "七牛雲 AI 推理",
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
-      "lanyun": "藍耘"
+      "lanyun": "藍耘",
+      "vertexai": "Vertex AI"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1087,7 +1101,25 @@
       "assistant.icon.type.none": "不顯示",
       "assistant.title": "預設助手",
       "data": {
-        "app_data": "應用程式資料",
+        "app_data": "應用數據",
+        "app_data.select": "修改目錄",
+        "app_data.select_title": "變更應用數據目錄",
+        "app_data.restart_notice": "變更數據目錄後需要重啟應用才能生效",
+        "app_data.copy_data_option": "複製數據, 開啟後會將原始目錄數據複製到新目錄",
+        "app_data.copy_time_notice": "複製數據將需要一些時間，複製期間不要關閉應用",
+        "app_data.path_changed_without_copy": "路徑已變更成功，但數據未複製",
+        "app_data.copying_warning": "數據複製中，不要強制退出應用",
+        "app_data.copying": "正在複製數據到新位置...",
+        "app_data.copy_success": "成功複製數據到新位置",
+        "app_data.copy_failed": "複製數據失敗",
+        "app_data.select_success": "數據目錄已變更，應用將重啟以應用變更",
+        "app_data.select_error": "變更數據目錄失敗",
+        "app_data.migration_title": "數據遷移",
+        "app_data.original_path": "原始路徑",
+        "app_data.new_path": "新路徑",
+        "app_data.select_error_root_path": "新路徑不能是根路徑",
+        "app_data.select_error_write_permission": "新路徑沒有寫入權限",
+        "app_data.stop_quit_app_reason": "應用目前正在遷移數據，不能退出",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",
@@ -1120,7 +1152,8 @@
           "obsidian": "匯出到Obsidian",
           "siyuan": "匯出到思源筆記",
           "joplin": "匯出到Joplin",
-          "docx": "匯出為Word"
+          "docx": "匯出為Word",
+          "plain_text": "複製為純文本"
         },
         "joplin": {
           "check": {
@@ -1211,8 +1244,6 @@
           "restore.confirm.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？",
           "restore.confirm.title": "復元確認",
           "restore.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？",
-          "restore.modal.select.placeholder": "請選擇要恢復的備份文件",
-          "restore.modal.title": "從 WebDAV 恢復",
           "restore.title": "從 WebDAV 恢復",
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
@@ -1606,6 +1637,10 @@
       "models.translate_model_prompt_title": "翻譯模型提示詞",
       "models.quick_assistant_model": "快捷助手模型",
       "models.quick_assistant_model_description": "快捷助手使用的預設模型",
+      "models.quick_assistant_selection": "選擇助手",
+      "models.quick_assistant_default_tag": "預設",
+      "models.use_model": "預設模型",
+      "models.use_assistant": "使用助手",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
       "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
@@ -1685,6 +1720,27 @@
         },
         "openai": {
           "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
+        },
+        "vertex_ai": {
+          "project_id": "專案ID",
+          "project_id_placeholder": "your-google-cloud-project-id",
+          "project_id_help": "您的 Google Cloud 專案 ID",
+          "location": "地區",
+          "location_help": "Vertex AI 服務地區，例如：us-central1",
+          "service_account": {
+            "title": "服務帳戶設定",
+            "private_key": "私密金鑰",
+            "private_key_placeholder": "輸入服務帳戶私密金鑰",
+            "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
+            "client_email": "Client Email",
+            "client_email_placeholder": "輸入服務帳戶 client email",
+            "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
+            "description": "使用服務帳戶進行身份驗證，適用於 ADC 不可用的環境",
+            "auth_success": "服務帳戶驗證成功",
+            "incomplete_config": "請先完成服務帳戶設定"
+          },
+          "documentation": "檢視官方文件以取得更多設定詳細資訊：",
+          "learn_more": "瞭解更多"
         }
       },
       "proxy": {
@@ -1873,7 +1929,8 @@
         "model_desc": "翻譯服務使用的模型",
         "bidirectional": "雙向翻譯設定",
         "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
-        "scroll_sync": "滾動同步設定"
+        "scroll_sync": "滾動同步設定",
+        "preview": "Markdown 預覽"
       },
       "title": "翻譯",
       "tooltip.newline": "換行",
@@ -1975,7 +2032,7 @@
           },
           "opacity": {
             "title": "透明度",
-            "description": "設置視窗的默認透明度，100%為完全不透明"
+            "description": "設置視窗的預設透明度，100%為完全不透明"
           }
         },
         "actions": {

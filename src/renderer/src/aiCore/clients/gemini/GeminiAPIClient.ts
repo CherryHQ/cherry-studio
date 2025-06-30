@@ -147,15 +147,12 @@ export class GeminiAPIClient extends BaseApiClient<
 
   override async getEmbeddingDimensions(model: Model): Promise<number> {
     const sdk = await this.getSdkInstance()
-    try {
-      const data = await sdk.models.embedContent({
-        model: model.id,
-        contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
-      })
-      return data.embeddings?.[0]?.values?.length || 0
-    } catch (e) {
-      return 0
-    }
+
+    const data = await sdk.models.embedContent({
+      model: model.id,
+      contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+    })
+    return data.embeddings?.[0]?.values?.length || 0
   }
 
   override async listModels(): Promise<GeminiModel[]> {
@@ -176,10 +173,21 @@ export class GeminiAPIClient extends BaseApiClient<
     this.sdkInstance = new GoogleGenAI({
       vertexai: false,
       apiKey: this.apiKey,
-      httpOptions: { baseUrl: this.getBaseURL() }
+      apiVersion: this.getApiVersion(),
+      httpOptions: {
+        baseUrl: this.getBaseURL(),
+        apiVersion: this.getApiVersion()
+      }
     })
 
     return this.sdkInstance
+  }
+
+  protected getApiVersion(): string {
+    if (this.provider.isVertex) {
+      return 'v1'
+    }
+    return 'v1beta'
   }
 
   /**
@@ -405,8 +413,9 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       }
 
-      const { max } = findTokenLimit(model.id) || { max: 0 }
-      const budget = Math.floor(max * effortRatio)
+      const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
+      // 计算 budgetTokens，确保不低于 min
+      const budget = Math.floor((max - min) * effortRatio + min)
 
       return {
         thinkingConfig: {
@@ -455,7 +464,7 @@ export class GeminiAPIClient extends BaseApiClient<
           systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
         }
 
-        let messageContents: Content
+        let messageContents: Content = { role: 'user', parts: [] } // Initialize messageContents
         const history: Content[] = []
         // 3. 处理用户消息
         if (typeof messages === 'string') {
@@ -464,10 +473,12 @@ export class GeminiAPIClient extends BaseApiClient<
             parts: [{ text: messages }]
           }
         } else {
-          const userLastMessage = messages.pop()!
-          messageContents = await this.convertMessageToSdkParam(userLastMessage)
-          for (const message of messages) {
-            history.push(await this.convertMessageToSdkParam(message))
+          const userLastMessage = messages.pop()
+          if (userLastMessage) {
+            messageContents = await this.convertMessageToSdkParam(userLastMessage)
+            for (const message of messages) {
+              history.push(await this.convertMessageToSdkParam(message))
+            }
           }
         }
 
@@ -480,6 +491,10 @@ export class GeminiAPIClient extends BaseApiClient<
         if (isGemmaModel(model) && assistant.prompt) {
           const isFirstMessage = history.length === 0
           if (isFirstMessage && messageContents) {
+            const userMessageText =
+              messageContents.parts && messageContents.parts.length > 0
+                ? (messageContents.parts[0] as Part).text || ''
+                : ''
             const systemMessage = [
               {
                 text:
@@ -487,7 +502,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   systemInstruction +
                   '<end_of_turn>\n' +
                   '<start_of_turn>user\n' +
-                  (messageContents?.parts?.[0] as Part).text +
+                  userMessageText +
                   '<end_of_turn>'
               }
             ] as Part[]
@@ -504,13 +519,7 @@ export class GeminiAPIClient extends BaseApiClient<
 
         const newMessageContents =
           isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
-            ? {
-                ...messageContents,
-                parts: [
-                  ...(messageContents.parts || []),
-                  ...(recursiveSdkMessages[recursiveSdkMessages.length - 1].parts || [])
-                ]
-              }
+            ? recursiveSdkMessages[recursiveSdkMessages.length - 1]
             : messageContents
 
         const generateContentConfig: GenerateContentConfig = {
@@ -544,7 +553,7 @@ export class GeminiAPIClient extends BaseApiClient<
   getResponseChunkTransformer(): ResponseChunkTransformer<GeminiSdkRawChunk> {
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        let toolCalls: FunctionCall[] = []
+        const toolCalls: FunctionCall[] = []
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {
@@ -572,6 +581,8 @@ export class GeminiAPIClient extends BaseApiClient<
                       ]
                     }
                   })
+                } else if (part.functionCall) {
+                  toolCalls.push(part.functionCall)
                 }
               })
             }
@@ -585,9 +596,6 @@ export class GeminiAPIClient extends BaseApiClient<
                     source: WebSearchSource.GEMINI
                   }
                 } as LLMWebSearchCompleteChunk)
-              }
-              if (chunk.functionCalls) {
-                toolCalls = toolCalls.concat(chunk.functionCalls)
               }
               controller.enqueue({
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
@@ -691,12 +699,11 @@ export class GeminiAPIClient extends BaseApiClient<
         .filter((p) => p !== undefined)
     )
 
-    const userMessage: Content = {
-      role: 'user',
-      parts: parts
+    const lastMessage = currentReqMessages[currentReqMessages.length - 1]
+    if (lastMessage) {
+      lastMessage.parts?.push(...parts)
     }
-
-    return [...currentReqMessages, userMessage]
+    return currentReqMessages
   }
 
   override estimateMessageTokens(message: GeminiSdkMessageParam): number {
@@ -723,7 +730,20 @@ export class GeminiAPIClient extends BaseApiClient<
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: GeminiSdkParams): GeminiSdkMessageParam[] {
-    return sdkPayload.history || []
+    const messageParam: GeminiSdkMessageParam = {
+      role: 'user',
+      parts: []
+    }
+    if (Array.isArray(sdkPayload.message)) {
+      sdkPayload.message.forEach((part) => {
+        if (typeof part === 'string') {
+          messageParam.parts?.push({ text: part })
+        } else if (typeof part === 'object') {
+          messageParam.parts?.push(part)
+        }
+      })
+    }
+    return [messageParam, ...(sdkPayload.history || [])]
   }
 
   private async uploadFile(file: FileType): Promise<File> {

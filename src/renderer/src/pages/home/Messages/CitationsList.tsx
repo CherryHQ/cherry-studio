@@ -318,7 +318,7 @@ const WebSearchCardContent = styled.div`
 `
 
 const PopoverContent = styled.div`
-  max-width: min(300px, 60vw);
+  max-width: min(340px, 60vw);
   max-height: 60vh;
   padding: 0 12px;
 `

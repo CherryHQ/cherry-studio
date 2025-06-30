@@ -27,9 +27,22 @@ import {
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Dropdown, Popconfirm, Tooltip } from 'antd'
+import { Dropdown, MenuProps, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Settings2, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import {
+  AtSign,
+  ChevronRight,
+  Copy,
+  Languages,
+  Menu,
+  RefreshCw,
+  Save,
+  Settings2,
+  Share,
+  Split,
+  ThumbsUp,
+  Trash
+} from 'lucide-react'
 import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -162,7 +175,7 @@ const MessageMenubar: FC<Props> = (props) => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
 
-  const dropdownItems = useMemo(
+  const dropdownItems = useMemo<MenuProps['items']>(
     () => [
       {
         label: t('chat.save'),
@@ -207,8 +220,9 @@ const MessageMenubar: FC<Props> = (props) => {
         label: t('chat.topics.export.title'),
         key: 'export',
         icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        expandIcon: <ChevronRight size={16} style={{ position: 'absolute', insetInlineEnd: 5, marginTop: 3 }} />,
         children: [
-          {
+          exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
             key: 'copy_message_plain_text',
             onClick: () => copyMessageAsPlainText(message)

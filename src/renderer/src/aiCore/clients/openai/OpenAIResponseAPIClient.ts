@@ -1,4 +1,5 @@
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
   isOpenAIChatCompletionOnlyModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -38,6 +39,7 @@ import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
+import { ResponseInput } from 'openai/resources/responses/responses'
 
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
@@ -225,17 +227,29 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return
   }
 
+  private convertResponseToMessageContent(response: OpenAI.Responses.Response): ResponseInput {
+    const content: OpenAI.Responses.ResponseInput = []
+    content.push(...response.output)
+    return content
+  }
+
   public buildSdkMessages(
     currentReqMessages: OpenAIResponseSdkMessageParam[],
-    output: string,
+    output: OpenAI.Responses.Response | undefined,
     toolResults: OpenAIResponseSdkMessageParam[],
     toolCalls: OpenAIResponseSdkToolCall[]
   ): OpenAIResponseSdkMessageParam[] {
-    const assistantMessage: OpenAIResponseSdkMessageParam = {
-      role: 'assistant',
-      content: [{ type: 'input_text', text: output }]
+    if (!output && toolCalls.length === 0) {
+      return [...currentReqMessages, ...toolResults]
     }
-    const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolCalls || []), ...(toolResults || [])]
+
+    if (!output) {
+      return [...currentReqMessages, ...(toolCalls || []), ...(toolResults || [])]
+    }
+
+    const content = this.convertResponseToMessageContent(output)
+
+    const newReqMessages = [...currentReqMessages, ...content, ...(toolResults || [])]
     return newReqMessages
   }
 
@@ -407,13 +421,17 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
   }
 
-  getResponseChunkTransformer(): ResponseChunkTransformer<OpenAIResponseSdkRawChunk> {
+  getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<OpenAIResponseSdkRawChunk> {
     const toolCalls: OpenAIResponseSdkToolCall[] = []
     const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
+    let hasBeenCollectedToolCalls = false
     return () => ({
       async transform(chunk: OpenAIResponseSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 处理chunk
         if ('output' in chunk) {
+          if (ctx._internal?.toolProcessingState) {
+            ctx._internal.toolProcessingState.output = chunk
+          }
           for (const output of chunk.output) {
             switch (output.type) {
               case 'message':
@@ -455,6 +473,22 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 })
             }
           }
+          if (toolCalls.length > 0) {
+            controller.enqueue({
+              type: ChunkType.MCP_TOOL_CREATED,
+              tool_calls: toolCalls
+            })
+          }
+          controller.enqueue({
+            type: ChunkType.LLM_RESPONSE_COMPLETE,
+            response: {
+              usage: {
+                prompt_tokens: chunk.usage?.input_tokens || 0,
+                completion_tokens: chunk.usage?.output_tokens || 0,
+                total_tokens: chunk.usage?.total_tokens || 0
+              }
+            }
+          })
         } else {
           switch (chunk.type) {
             case 'response.output_item.added':
@@ -502,7 +536,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 if (outputItem.type === 'function_call') {
                   toolCalls.push({
                     ...outputItem,
-                    arguments: chunk.arguments
+                    arguments: chunk.arguments,
+                    status: 'completed'
                   })
                 }
               }
@@ -518,15 +553,26 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                   }
                 })
               }
-              if (toolCalls.length > 0) {
+              if (toolCalls.length > 0 && !hasBeenCollectedToolCalls) {
                 controller.enqueue({
                   type: ChunkType.MCP_TOOL_CREATED,
                   tool_calls: toolCalls
                 })
+                hasBeenCollectedToolCalls = true
               }
               break
             }
             case 'response.completed': {
+              if (ctx._internal?.toolProcessingState) {
+                ctx._internal.toolProcessingState.output = chunk.response
+              }
+              if (toolCalls.length > 0 && !hasBeenCollectedToolCalls) {
+                controller.enqueue({
+                  type: ChunkType.MCP_TOOL_CREATED,
+                  tool_calls: toolCalls
+                })
+                hasBeenCollectedToolCalls = true
+              }
               const completion_tokens = chunk.response.usage?.output_tokens || 0
               const total_tokens = chunk.response.usage?.total_tokens || 0
               controller.enqueue({

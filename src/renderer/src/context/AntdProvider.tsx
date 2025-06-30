@@ -68,7 +68,13 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             trackBg: 'rgba(153,153,153,0.15)'
           },
           Switch: {
-            colorTextQuaternary: 'rgba(153,153,153,0.15)'
+            colorTextQuaternary: 'rgba(153,153,153,0.20)',
+            trackMinWidth: 40,
+            handleSize: 19,
+            trackMinWidthSM: 28,
+            trackHeightSM: 17,
+            handleSizeSM: 14,
+            trackPadding: 1.5
           },
           Dropdown: {
             controlPaddingHorizontal: 8,
@@ -77,12 +83,27 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           },
           Popover: {
             borderRadiusLG: 10
+          },
+          Slider: {
+            handleLineWidth: 1.5,
+            handleSize: 15,
+            handleSizeHover: 15,
+            dotSize: 7,
+            railSize: 5,
+            colorBgElevated: '#ffffff'
+          },
+          Modal: {
+            colorBgElevated: 'var(--modal-background)'
+          },
+          Divider: {
+            colorSplit: 'rgba(128,128,128,0.15)'
           }
         },
         token: {
           colorPrimary: colorPrimary,
           fontFamily: 'var(--font-family)',
-          colorBgMask: _theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)'
+          colorBgMask: _theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',
+          motionDurationMid: '100ms'
         }
       }}>
       {children}

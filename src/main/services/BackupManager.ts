@@ -9,6 +9,7 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
+import { getDataPath } from '../utils'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
@@ -253,7 +254,7 @@ class BackupManager {
       Logger.log('[backup] step 3: restore Data directory')
       // 恢复 Data 目录
       const sourcePath = path.join(this.tempDir, 'Data')
-      const destPath = path.join(app.getPath('userData'), 'Data')
+      const destPath = getDataPath()
 
       const dataExists = await fs.pathExists(sourcePath)
       const dataFiles = dataExists ? await fs.readdir(sourcePath) : []

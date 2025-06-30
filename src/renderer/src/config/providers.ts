@@ -42,6 +42,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
@@ -100,7 +101,8 @@ const PROVIDER_LOGO_MAP = {
   qiniu: QiniuProviderLogo,
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
-  lanyun: LanyunProviderLogo
+  lanyun: LanyunProviderLogo,
+  vertexai: VertexAIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -650,6 +652,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
       docs: 'https://archive.lanyun.net/maas/doc/',
       models: 'https://maas.lanyun.net/api/#/model/modelSquare'
+    }
+  },
+  vertexai: {
+    api: {
+      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
+    },
+    websites: {
+      official: 'https://cloud.google.com/vertex-ai',
+      apiKey: 'https://console.cloud.google.com/apis/credentials',
+      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
+      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
     }
   }
 }

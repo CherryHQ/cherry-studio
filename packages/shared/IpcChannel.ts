@@ -16,7 +16,12 @@ export enum IpcChannel {
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetFeedUrl = 'app:set-feed-url',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
-
+  App_Select = 'app:select',
+  App_HasWritePermission = 'app:has-write-permission',
+  App_Copy = 'app:copy',
+  App_SetStopQuitApp = 'app:set-stop-quit-app',
+  App_SetAppDataPath = 'app:set-app-data-path',
+  App_RelaunchApp = 'app:relaunch-app',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
@@ -86,6 +91,10 @@ export enum IpcChannel {
   Gemini_RetrieveFile = 'gemini:retrieve-file',
   Gemini_ListFiles = 'gemini:list-files',
   Gemini_DeleteFile = 'gemini:delete-file',
+
+  // VertexAI
+  VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',

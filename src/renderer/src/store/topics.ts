@@ -129,8 +129,12 @@ const topicsSlice = createSlice({
       // Remove topics from redux
       topicsAdapter.removeMany(state, topicIds)
 
+      state.topicIdsByAssistant[assistantId] = []
+
       // Create default topic
-      topicsActions.addDefaultTopic({ assistantId })
+      const defaultTopic = getDefaultTopic(assistantId)
+      topicsAdapter.addOne(state, defaultTopic)
+      state.topicIdsByAssistant[assistantId] = [defaultTopic.id]
     },
     moveTopic(state, action: PayloadAction<MoveTopicPayload>) {
       const { fromAssistantId, toAssistantId, topicId } = action.payload

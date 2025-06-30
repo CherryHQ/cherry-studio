@@ -2021,7 +2021,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/genai@npm:^1.0.1":
+"@google/genai@npm:1.0.1":
   version: 1.0.1
   resolution: "@google/genai@npm:1.0.1"
   dependencies:
@@ -2032,6 +2032,20 @@ __metadata:
   peerDependencies:
     "@modelcontextprotocol/sdk": ^1.11.0
   checksum: 10c0/1b908e4497ba6717598d93369ce54814059fb4879fb7fe9563059bae2298f4b8ceb50fd5ab3908b8fa04ccb90043d69ea824d530794e582476b8392c2d94303b
+  languageName: node
+  linkType: hard
+
+"@google/genai@patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch":
+  version: 1.0.1
+  resolution: "@google/genai@patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch::version=1.0.1&hash=b1e680"
+  dependencies:
+    google-auth-library: "npm:^9.14.2"
+    ws: "npm:^8.18.0"
+    zod: "npm:^3.22.4"
+    zod-to-json-schema: "npm:^3.22.4"
+  peerDependencies:
+    "@modelcontextprotocol/sdk": ^1.11.0
+  checksum: 10c0/aa38b73de3d84944f51c1f45a3945ea7578b6660276ea748f2349ed42106edc5c81c08872f7fb62cd6e158fc0517283cfe9cdbcce806eee3b62439f60b82496a
   languageName: node
   linkType: hard
 
@@ -5589,7 +5603,7 @@ __metadata:
     "@emotion/is-prop-valid": "npm:^1.3.1"
     "@eslint-react/eslint-plugin": "npm:^1.36.1"
     "@eslint/js": "npm:^9.22.0"
-    "@google/genai": "npm:^1.0.1"
+    "@google/genai": "patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch"
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
@@ -5662,6 +5676,7 @@ __metadata:
     framer-motion: "npm:^12.17.3"
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
+    google-auth-library: "npm:^9.15.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
@@ -10281,7 +10296,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"google-auth-library@npm:^9.14.2":
+"google-auth-library@npm:^9.14.2, google-auth-library@npm:^9.15.1":
   version: 9.15.1
   resolution: "google-auth-library@npm:9.15.1"
   dependencies:

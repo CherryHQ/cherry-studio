@@ -104,14 +104,18 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
           dispatch(
-            newMessagesActions.updateMessage({ topicId: m.topicId, messageId: m.id, updates: { foldSelected: true } })
+            newMessagesActions.updateMessage({
+              topicId: m.topicId,
+              messageId: m.id,
+              updates: { foldSelected: m.id === message.id }
+            })
           )
         }
 
         setTimeout(() => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            messageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
           }
         }, 100)
       }

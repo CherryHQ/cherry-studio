@@ -1,3 +1,4 @@
+import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { isMac, isWindows } from '@renderer/config/constant'
@@ -16,7 +17,7 @@ import {
   setShowTranslateConfirm
 } from '@renderer/store/settings'
 import { ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { InputNumber, Switch } from 'antd'
+import { Switch } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -67,7 +68,7 @@ const SettingsTab: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
-              <InputNumber
+              <EditableNumber
                 size="small"
                 min={500}
                 max={10000}

@@ -20,6 +20,7 @@ import {
   SdkToolCall
 } from '@renderer/types/sdk'
 
+import { CompletionsContext } from '../middleware/types'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
@@ -163,8 +164,8 @@ export class AihubmixAPIClient extends BaseApiClient {
     return this.currentClient.getRequestTransformer()
   }
 
-  getResponseChunkTransformer(): ResponseChunkTransformer<SdkRawChunk> {
-    return this.currentClient.getResponseChunkTransformer()
+  getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<SdkRawChunk> {
+    return this.currentClient.getResponseChunkTransformer(ctx)
   }
 
   convertMcpToolsToSdkTools(mcpTools: MCPTool[]): SdkTool[] {

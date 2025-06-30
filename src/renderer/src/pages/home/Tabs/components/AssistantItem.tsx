@@ -24,7 +24,7 @@ import { classNames, getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Button, Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
-import { AlignJustify, EllipsisVertical, Plus, Settings2, Tag, Tags } from 'lucide-react'
+import { AlignJustify, ChevronRight, EllipsisVertical, Plus, Settings2, Tag, Tags } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -345,6 +345,7 @@ function getMenuItems({
       label: t('assistants.icon.type'),
       key: 'icon-type',
       icon: <SmileOutlined />,
+      expandIcon: <ChevronRight size={16} style={{ position: 'absolute', insetInlineEnd: 5, marginTop: 3 }} />,
       children: [
         {
           label: t('settings.assistant.icon.type.model'),
@@ -370,6 +371,7 @@ function getMenuItems({
       label: t('assistants.tags.manage'),
       key: 'all-tags',
       icon: <PlusOutlined />,
+      expandIcon: <ChevronRight size={16} style={{ position: 'absolute', insetInlineEnd: 5, marginTop: 3 }} />,
       children: createTagMenuItems(allTags, assistant, assistants, updateAssistants, t)
     },
     {

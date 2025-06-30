@@ -1,4 +1,6 @@
+import { isMac, isWindows } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
+import type { SendMessageShortcut } from '@renderer/store/settings'
 import { FileType } from '@renderer/types'
 
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileType[]> => {
@@ -57,4 +59,48 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
       }
     })
   }
+}
+
+// convert send message shortcut to human readable label
+export const getSendMessageShortcutLabel = (shortcut: SendMessageShortcut) => {
+  switch (shortcut) {
+    case 'Enter':
+      return 'Enter'
+    case 'Ctrl+Enter':
+      return 'Ctrl + Enter'
+    case 'Alt+Enter':
+      return `${isMac ? '⌥' : 'Alt'} + Enter`
+    case 'Command+Enter':
+      return `${isMac ? '⌘' : isWindows ? 'Win' : 'Super'} + Enter`
+    case 'Shift+Enter':
+      return 'Shift + Enter'
+    default:
+      return shortcut
+  }
+}
+
+// check if the send message key is pressed in textarea
+export const isSendMessageKeyPressed = (
+  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  shortcut: SendMessageShortcut
+) => {
+  let isSendMessageKeyPressed = false
+  switch (shortcut) {
+    case 'Enter':
+      if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
+      break
+    case 'Ctrl+Enter':
+      if (event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
+      break
+    case 'Command+Enter':
+      if (event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey) isSendMessageKeyPressed = true
+      break
+    case 'Alt+Enter':
+      if (event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) isSendMessageKeyPressed = true
+      break
+    case 'Shift+Enter':
+      if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) isSendMessageKeyPressed = true
+      break
+  }
+  return isSendMessageKeyPressed
 }

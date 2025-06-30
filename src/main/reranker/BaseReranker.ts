@@ -61,6 +61,12 @@ export default abstract class BaseReranker {
           top_n: topN
         }
       }
+    } else if (provider?.includes('tei')) {
+      return {
+        query,
+        texts: documents,
+        return_text: true
+      }
     } else {
       return {
         model: this.base.rerankModel,
@@ -80,6 +86,13 @@ export default abstract class BaseReranker {
       return data.output.results
     } else if (provider === 'voyageai') {
       return data.data
+    } else if (provider === 'mis-tei') {
+      return data.map((item: any) => {
+        return {
+          index: item.index,
+          relevance_score: item.score
+        }
+      })
     } else {
       return data.results
     }

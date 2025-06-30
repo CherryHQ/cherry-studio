@@ -254,12 +254,20 @@ async function fetchExternalTool(
     const enabledMCPs = assistant.mcpServers
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        const toolPromises = enabledMCPs.map(async (mcpServer) => {
-          const tools = await window.api.mcp.listTools(mcpServer)
-          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
+          try {
+            const tools = await window.api.mcp.listTools(mcpServer)
+            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+          } catch (error) {
+            console.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            return []
+          }
         })
-        const results = await Promise.all(toolPromises)
-        mcpTools = results.flat() // Flatten the array of arrays
+        const results = await Promise.allSettled(toolPromises)
+        mcpTools = results
+          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .flat()
       } catch (toolError) {
         console.error('Error fetching MCP tools:', toolError)
       }
@@ -516,7 +524,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
 function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -538,14 +546,19 @@ export function checkApiProvider(provider: Provider): void {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
-  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
+  if (
+    provider.id !== 'ollama' &&
+    provider.id !== 'lmstudio' &&
+    provider.type !== 'vertexai' &&
+    provider.id !== 'copilot'
+  ) {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       throw new Error(i18n.t('message.error.enter.api.key'))
     }
   }
 
-  if (!provider.apiHost) {
+  if (!provider.apiHost && provider.type !== 'vertexai') {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
@@ -565,10 +578,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      const result = await ai.getEmbeddingDimensions(model)
-      if (result === 0) {
-        throw new Error(i18n.t('message.error.enter.model'))
-      }
+      await ai.getEmbeddingDimensions(model)
     } else {
       const params: CompletionsParams = {
         callType: 'check',
