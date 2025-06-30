@@ -1,5 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { FC, useEffect, useRef } from 'react'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 
 interface Props {
   onEmojiClick: (emoji: string) => void
@@ -8,6 +9,13 @@ interface Props {
 const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
   const { theme } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis(
+      'Twemoji Mozilla',
+      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
+    )
+  }, [])
 
   useEffect(() => {
     if (ref.current) {
