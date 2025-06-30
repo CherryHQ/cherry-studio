@@ -114,6 +114,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
+        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+          return {}
+        }
         return { reasoning: { enabled: false, exclude: true } }
       }
       if (isSupportedThinkingTokenQwenModel(model)) {
@@ -126,7 +129,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
         if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-          return { reasoning_effort: 'none' }
+          return {
+            extra_body: {
+              google: {
+                thinking_config: {
+                  thinking_budget: 0
+                }
+              }
+            }
+          }
         }
         return {}
       }
@@ -169,9 +180,34 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
       return {
         reasoning_effort: reasoningEffort
+      }
+    }
+
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      if (reasoningEffort === 'auto') {
+        return {
+          extra_body: {
+            google: {
+              thinking_config: {
+                thinking_budget: -1,
+                include_thoughts: true
+              }
+            }
+          }
+        }
+      }
+      return {
+        extra_body: {
+          google: {
+            thinking_config: {
+              thinking_budget: budgetTokens,
+              include_thoughts: true
+            }
+          }
+        }
       }
     }
 

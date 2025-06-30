@@ -2509,14 +2509,16 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return true
   }
 
-  if (model.id.includes('gemini-2.5')) {
+  if (isSupportedThinkingTokenGeminiModel(model)) {
     return true
   }
 
   return false
 }
 
-export const isSupportedThinkingTokenGeminiModel = isGeminiReasoningModel
+export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
+  return model.id.includes('gemini-2.5')
+}
 
 export function isQwenReasoningModel(model?: Model): boolean {
   if (!model) {

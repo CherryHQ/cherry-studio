@@ -11,11 +11,13 @@ export const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 // 不同模型的思考标签配置
 const reasoningTags: TagConfig[] = [
   { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
+  { openingTag: '<thought>', closingTag: '</thought>', separator: '\n' },
   { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
 ]
 
 const getAppropriateTag = (model?: Model): TagConfig => {
   if (model?.id?.includes('qwen3')) return reasoningTags[0]
+  if (model?.id?.includes('gemini-2.5')) return reasoningTags[1]
   // 可以在这里添加更多模型特定的标签配置
   return reasoningTags[0] // 默认使用 <think> 标签
 }

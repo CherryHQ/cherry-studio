@@ -53,6 +53,7 @@ export type ReasoningEffortOptionalParams = {
   enable_thinking?: boolean
   thinking_budget?: number
   enable_reasoning?: boolean
+  extra_body?: Record<string, any>
   // Add any other potential reasoning-related keys here if they exist
 }
 
