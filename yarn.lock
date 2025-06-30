@@ -3198,6 +3198,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opendal/lib-darwin-arm64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-arm64@npm:0.47.11"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-darwin-x64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-x64@npm:0.47.11"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-musl@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-musl@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-x64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-x64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-arm64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-arm64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-x64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-x64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@parcel/watcher-android-arm64@npm:2.5.1":
   version: 2.5.1
   resolution: "@parcel/watcher-android-arm64@npm:2.5.1"
@@ -5711,6 +5760,7 @@ __metadata:
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
+    opendal: "npm:0.47.11"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     playwright: "npm:^1.52.0"
@@ -14125,6 +14175,36 @@ __metadata:
   version: 12.1.3
   resolution: "openapi-types@npm:12.1.3"
   checksum: 10c0/4ad4eb91ea834c237edfa6ab31394e87e00c888fc2918009763389c00d02342345195d6f302d61c3fd807f17723cd48df29b47b538b68375b3827b3758cd520f
+  languageName: node
+  linkType: hard
+
+"opendal@npm:0.47.11":
+  version: 0.47.11
+  resolution: "opendal@npm:0.47.11"
+  dependencies:
+    "@opendal/lib-darwin-arm64": "npm:0.47.11"
+    "@opendal/lib-darwin-x64": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-gnu": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-musl": "npm:0.47.11"
+    "@opendal/lib-linux-x64-gnu": "npm:0.47.11"
+    "@opendal/lib-win32-arm64-msvc": "npm:0.47.11"
+    "@opendal/lib-win32-x64-msvc": "npm:0.47.11"
+  dependenciesMeta:
+    "@opendal/lib-darwin-arm64":
+      optional: true
+    "@opendal/lib-darwin-x64":
+      optional: true
+    "@opendal/lib-linux-arm64-gnu":
+      optional: true
+    "@opendal/lib-linux-arm64-musl":
+      optional: true
+    "@opendal/lib-linux-x64-gnu":
+      optional: true
+    "@opendal/lib-win32-arm64-msvc":
+      optional: true
+    "@opendal/lib-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/0783da2651bb27ac693ce38938d12b00124530fb965364517eef3de17b3ff898cdecf06260a79a7d70745d57c2ba952a753a4bab52e0831aa7232c3a69120225
   languageName: node
   linkType: hard
 

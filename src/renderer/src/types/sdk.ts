@@ -48,11 +48,12 @@ type OpenAIParamsWithoutReasoningEffort = Omit<OpenAI.Chat.Completions.ChatCompl
 
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
-  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string } | OpenAI.Reasoning
+  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
   enable_thinking?: boolean
   thinking_budget?: number
   enable_reasoning?: boolean
+  extra_body?: Record<string, any>
   // Add any other potential reasoning-related keys here if they exist
 }
 

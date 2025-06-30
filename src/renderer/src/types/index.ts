@@ -730,4 +730,16 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export type S3Config = {
+  endpoint: string
+  region: string
+  bucket: string
+  access_key_id: string
+  secret_access_key: string
+  root?: string
+  fileName?: string
+  skipBackupFile?: boolean
+}
+
 export type { Message } from './newMessage'

@@ -7,6 +7,7 @@ import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 
 /**
  * Factory for creating ApiClient instances based on provider configuration
@@ -29,6 +30,11 @@ export class ApiClientFactory {
     if (provider.id === 'aihubmix') {
       console.log(`[ApiClientFactory] Creating AihubmixAPIClient for provider: ${provider.id}`)
       instance = new AihubmixAPIClient(provider) as BaseApiClient
+      return instance
+    }
+    if (provider.id === 'ppio') {
+      console.log(`[ApiClientFactory] Creating PPIOAPIClient for provider: ${provider.id}`)
+      instance = new PPIOAPIClient(provider) as BaseApiClient
       return instance
     }
 
