@@ -3,6 +3,7 @@ import Logger from '@renderer/config/logger'
 import {
   isEmbeddingModel,
   isGenerateImageModel,
+  isOpenAIDeepResearchModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedDisableGenerationModel,
@@ -332,7 +333,13 @@ export async function fetchChatCompletion({
   // try {
   // NOTE: The search results are NOT added to the messages sent to the AI here.
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
-  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
+
+  const mcpTools: MCPTool[] = []
+  if (!isOpenAIDeepResearchModel(assistant.model || getDefaultModel())) {
+    const { mcpTools: tools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
+    mcpTools.push(...(tools || []))
+  }
+
   const model = assistant.model || getDefaultModel()
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)

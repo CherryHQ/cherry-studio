@@ -6,7 +6,12 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
+import type {
+  DeepResearchMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock,
+  TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
@@ -33,7 +38,7 @@ const DISALLOWED_ELEMENTS = ['iframe']
 
 interface Props {
   // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | DeepResearchMessageBlock
 }
 
 const Markdown: FC<Props> = ({ block }) => {

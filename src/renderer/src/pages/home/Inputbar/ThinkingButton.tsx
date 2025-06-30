@@ -8,6 +8,7 @@ import {
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   isDoubaoThinkingAutoModel,
+  isOpenAIDeepResearchModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
@@ -38,7 +39,8 @@ const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   grok: ['off', 'low', 'high'],
   gemini: ['off', 'low', 'medium', 'high', 'auto'],
   qwen: ['off', 'low', 'medium', 'high'],
-  doubao: ['off', 'auto', 'high']
+  doubao: ['off', 'auto', 'high'],
+  openai_deep_research: ['off', 'medium']
 }
 
 // 选项转换映射表：当选项不支持时使用的替代选项
@@ -46,7 +48,7 @@ const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
   off: 'off',
   low: 'high',
   medium: 'high', // medium -> high (for Grok models)
-  high: 'high',
+  high: 'medium',
   auto: 'high' // auto -> high (for non-Gemini models)
 }
 
@@ -59,6 +61,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const isGeminiModel = isSupportedThinkingTokenGeminiModel(model)
   const isQwenModel = isSupportedThinkingTokenQwenModel(model)
   const isDoubaoModel = isSupportedThinkingTokenDoubaoModel(model)
+  const isDeepResearchModel = isOpenAIDeepResearchModel(model)
 
   const currentReasoningEffort = useMemo(() => {
     return assistant.settings?.reasoning_effort || 'off'
@@ -70,8 +73,9 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     if (isGrokModel) return 'grok'
     if (isQwenModel) return 'qwen'
     if (isDoubaoModel) return 'doubao'
+    if (isDeepResearchModel) return 'openai_deep_research'
     return 'default'
-  }, [isGeminiModel, isGrokModel, isQwenModel, isDoubaoModel])
+  }, [isGeminiModel, isGrokModel, isQwenModel, isDoubaoModel, isDeepResearchModel])
 
   // 获取当前模型支持的选项
   const supportedOptions = useMemo(() => {

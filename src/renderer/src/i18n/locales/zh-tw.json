@@ -2220,6 +2220,16 @@
           "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
         }
       }
+    },
+    "research": {
+      "clarification": {
+        "title": "研究澄清"
+      },
+      "ready_to_start": "準備開始深度研究",
+      "retry": "重新澄清",
+      "continue_research": "繼續研究",
+      "supplement_info_label": "補充資訊 (可選)",
+      "supplement_info_placeholder": "您可以在此處提供補充資訊，幫助我們更好地理解您的需求..."
     }
   }
 }

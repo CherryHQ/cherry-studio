@@ -16,8 +16,8 @@ import {
   removeBlocksThunk,
   resendMessageThunk,
   resendUserMessageWithEditThunk,
-  updateMessageAndBlocksThunk,
-  updateTranslationBlockThunk
+  updateBlockThunk,
+  updateMessageAndBlocksThunk
 } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
@@ -25,6 +25,8 @@ import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage
 import { abortCompletion } from '@renderer/utils/abortController'
 import { throttle } from 'lodash'
 import { useCallback } from 'react'
+
+import { TopicManager } from './useTopic'
 
 const selectMessagesState = (state: RootState) => state.messages
 
@@ -232,7 +234,7 @@ export function useMessageOperations(topic: Topic) {
           }
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
-        await dispatch(updateTranslationBlockThunk(blockId, '', false))
+        await dispatch(updateBlockThunk(blockId, '', false))
       } else {
         blockId = await dispatch(
           initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
@@ -246,7 +248,7 @@ export function useMessageOperations(topic: Topic) {
 
       return throttle(
         (accumulatedText: string, isComplete: boolean = false) => {
-          dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
+          dispatch(updateBlockThunk(blockId!, accumulatedText, isComplete))
         },
         200,
         { leading: true, trailing: true }
@@ -451,4 +453,19 @@ export const useTopicMessages = (topicId: string) => {
 
 export const useTopicLoading = (topic: Topic) => {
   return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
+}
+
+export const getTopicByMessageId = async (messageId: string) => {
+  const state = store.getState()
+  const message = state.messages.entities[messageId]
+  if (!message) {
+    return null
+  }
+  const topicId = message.topicId
+  console.log('[getTopicByMessageId] topicId', topicId)
+  const topic = await TopicManager.getTopic(topicId)
+  if (!topic) {
+    return null
+  }
+  return topic
 }

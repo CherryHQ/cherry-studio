@@ -2053,6 +2053,16 @@
       "install": "Install",
       "noReleaseNotes": "No release notes"
     },
+    "research": {
+      "clarification": {
+        "title": "Research Clarification"
+      },
+      "ready_to_start": "Ready to start deep research",
+      "retry": "Retry Clarification",
+      "continue_research": "Start Research",
+      "supplement_info_label": "Additional Information (Optional)",
+      "supplement_info_placeholder": "You can provide additional information here to help us better understand your requirements..."
+    },
     "selection": {
       "name": "Selection Assistant",
       "action": {

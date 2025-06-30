@@ -26,7 +26,8 @@ export enum MessageBlockType {
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
-  CITATION = 'citation' // 引用类型 (Now includes web search, grounding, etc.)
+  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
+  DEEP_RESEARCH = 'deep_research' // Deep Research
 }
 
 // 块状态定义
@@ -131,6 +132,15 @@ export interface ErrorMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.ERROR
 }
 
+// Deep Research状态块
+export interface DeepResearchMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.DEEP_RESEARCH
+  content: string
+  metadata: BaseMessageBlock['metadata'] & {
+    deepResearchState: DeepResearchMetadata
+  }
+}
+
 // MessageBlock 联合类型
 export type MessageBlock =
   | PlaceholderMessageBlock
@@ -143,6 +153,7 @@ export type MessageBlock =
   | FileMessageBlock
   | ErrorMessageBlock
   | CitationMessageBlock
+  | DeepResearchMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'
@@ -156,6 +167,15 @@ export enum AssistantMessageStatus {
   PAUSED = 'paused',
   ERROR = 'error'
 }
+
+// Deep Research相关类型定义
+export interface DeepResearchMetadata {
+  phase: 'clarification' | 'waiting_confirmation' | 'research' | 'completed'
+  clarificationBlockId?: string
+}
+
+// 扩展消息类型
+export type MessageType = 'clear' | 'deep_research'
 // Message 核心类型 - 包含元数据和块集合
 export type Message = {
   id: string
@@ -169,7 +189,7 @@ export type Message = {
   // 消息元数据
   modelId?: string
   model?: Model
-  type?: 'clear'
+  type?: MessageType
   useful?: boolean
   askId?: string // 关联的问题消息ID
   mentions?: Model[]

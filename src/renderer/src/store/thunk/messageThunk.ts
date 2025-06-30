@@ -1,6 +1,9 @@
+import Logger from '@renderer/config/logger'
+import { isOpenAIDeepResearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { fetchDeepResearch } from '@renderer/services/DeepResearchService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
@@ -20,11 +23,14 @@ import type {
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
+import { deepResearchConfirmation } from '@renderer/utils/deepResearchConfirmation'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import {
   createAssistantMessage,
   createBaseMessageBlock,
   createCitationBlock,
+  createDeepResearchBlock,
   createErrorBlock,
   createImageBlock,
   createMainTextBlock,
@@ -34,7 +40,7 @@ import {
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { getTopicQueue } from '@renderer/utils/queue'
+import { clearTopicQueue, getTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
@@ -522,7 +528,7 @@ const fetchAndProcessAssistantResponseImpl = async (
       onToolCallInProgress: (toolResponse: MCPToolResponse) => {
         if (initialPlaceholderBlockId) {
           lastBlockType = MessageBlockType.TOOL
-          const changes = {
+          const changes: Partial<ToolMessageBlock> = {
             type: MessageBlockType.TOOL,
             status: MessageBlockStatus.PROCESSING,
             metadata: { rawMcpToolResponse: toolResponse }
@@ -597,7 +603,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         if (initialPlaceholderBlockId) {
           lastBlockType = MessageBlockType.CITATION
           citationBlockId = initialPlaceholderBlockId
-          const changes = {
+          const changes: Partial<CitationMessageBlock> = {
             type: MessageBlockType.CITATION,
             status: MessageBlockStatus.PROCESSING
           }
@@ -642,7 +648,7 @@ const fetchAndProcessAssistantResponseImpl = async (
       onImageCreated: async () => {
         if (initialPlaceholderBlockId) {
           lastBlockType = MessageBlockType.IMAGE
-          const initialChanges: Partial<MessageBlock> = {
+          const initialChanges: Partial<ImageMessageBlock> = {
             type: MessageBlockType.IMAGE,
             status: MessageBlockStatus.STREAMING
           }
@@ -829,11 +835,49 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     const startTime = Date.now()
-    await fetchChatCompletion({
-      messages: messagesForContext,
-      assistant: assistant,
-      onChunkReceived: streamProcessorCallbacks
-    })
+
+    if (isOpenAIDeepResearchModel(assistant.model)) {
+      const deepResearchBlock = await handleDeepResearchFlow(dispatch, getState, topicId, assistantMessage)
+      const clarificationUpdater = getClarificationUpdater(assistantMessage.id, dispatch)
+      if (!clarificationUpdater) {
+        return
+      }
+      await fetchDeepResearch({
+        messages: messagesForContext,
+        assistant,
+        callbacks: {
+          onResearchStarted: async (): Promise<string | undefined> => {
+            // 等待用户确认并获取补全信息
+            return new Promise<string | undefined>((resolve) => {
+              deepResearchConfirmation.registerResolver(deepResearchBlock.id, (userSupplementInfo?: string) => {
+                dispatch(
+                  updateOneBlock({
+                    id: deepResearchBlock.id,
+                    changes: {
+                      metadata: {
+                        deepResearchState: {
+                          phase: 'research'
+                        }
+                      }
+                    }
+                  })
+                )
+                resolve(userSupplementInfo)
+              })
+            })
+          },
+          onResponse: clarificationUpdater,
+          onChunkReceived: streamProcessorCallbacks
+        }
+      })
+    } else {
+      // 正常聊天流程
+      await fetchChatCompletion({
+        messages: messagesForContext,
+        assistant: assistant,
+        onChunkReceived: streamProcessorCallbacks
+      })
+    }
   } catch (error: any) {
     console.error('Error fetching chat completion:', error)
     if (assistantMessage) {
@@ -841,6 +885,101 @@ const fetchAndProcessAssistantResponseImpl = async (
       throw error
     }
   }
+}
+
+const getClarificationUpdater = (messageId: string, dispatch: AppDispatch) => {
+  const state = store.getState()
+  const message = state.messages.entities[messageId]
+  if (!message) {
+    return null
+  }
+  let deepResearchBlockId: string | undefined
+  if (message.blocks && message.blocks.length > 0) {
+    for (const blockId of message.blocks) {
+      const block = state.messageBlocks.entities[blockId]
+      if (block && block.type === MessageBlockType.DEEP_RESEARCH) {
+        deepResearchBlockId = blockId
+        break
+      }
+    }
+  }
+  if (deepResearchBlockId) {
+    const blockId = deepResearchBlockId
+    const changes: Partial<MessageBlock> = {
+      content: '',
+      status: MessageBlockStatus.STREAMING,
+      metadata: {
+        deepResearchState: {
+          phase: 'clarification'
+        }
+      }
+    }
+    dispatch(updateOneBlock({ id: blockId, changes }))
+    return throttle(
+      (accumulatedText: string, isComplete: boolean = false) => {
+        dispatch(updateBlockThunk(blockId, accumulatedText, isComplete))
+
+        // 澄清阶段完成，更新状态为等待用户确认
+        if (isComplete) {
+          dispatch(
+            updateOneBlock({
+              id: blockId,
+              changes: {
+                metadata: {
+                  deepResearchState: {
+                    phase: 'waiting_confirmation'
+                  }
+                }
+              }
+            })
+          )
+        }
+      },
+      200,
+      { leading: true, trailing: true }
+    )
+  }
+  return null
+}
+
+/**
+ * 处理Deep Research流程初始化
+ */
+const handleDeepResearchFlow = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistantMessage: Message
+) => {
+  // 创建Deep Research状态块并标记消息类型
+  const deepResearchBlock = createDeepResearchBlock(
+    assistantMessage.id,
+    '',
+    {
+      phase: 'clarification'
+    },
+    {
+      status: MessageBlockStatus.PENDING
+    }
+  )
+
+  dispatch(upsertOneBlock(deepResearchBlock))
+  dispatch(
+    newMessagesActions.updateMessage({
+      topicId,
+      messageId: assistantMessage.id,
+      updates: {
+        blocks: [...(assistantMessage.blocks || []), deepResearchBlock.id],
+        type: 'deep_research'
+      }
+    })
+  )
+  const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+  await db.transaction('rw', db.topics, db.message_blocks, async () => {
+    await db.message_blocks.put(deepResearchBlock)
+    await db.topics.update(topicId, { messages: finalMessagesToSave })
+  })
+  return deepResearchBlock
 }
 
 /**
@@ -887,6 +1026,83 @@ export const sendMessage =
     // finally {
     //   handleChangeLoadingOfTopic(topicId)
     // }
+  }
+
+/**
+ * 重试Deep Research澄清阶段
+ */
+export const retryDeepResearchClarificationThunk =
+  (topicId: string, messageId: string) => async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      const state = getState()
+      const message = state.messages.entities[messageId]
+
+      if (!message) {
+        Logger.error(`[retryDeepResearchClarificationThunk] Message ${messageId} not found in state`)
+        return
+      }
+
+      // 找到并清除澄清相关的块，保留状态块但重置其状态
+      const blocksToRemove: string[] = []
+      const blocksToUpdate: MessageBlock[] = []
+
+      message.blocks?.forEach((blockId) => {
+        const block = state.messageBlocks.entities[blockId]
+        if (block && block.type === MessageBlockType.DEEP_RESEARCH) {
+          // 清理现有的resolver
+          deepResearchConfirmation.clearResolver(blockId)
+
+          if (block.type === MessageBlockType.DEEP_RESEARCH) {
+            blocksToRemove.push(blockId)
+          }
+        }
+      })
+
+      if (blocksToRemove.length > 0) {
+        cleanupMultipleBlocks(dispatch, blocksToRemove)
+
+        // 更新消息的blocks数组
+        const updatedBlocks = (message.blocks || []).filter((id) => !blocksToRemove.includes(id))
+        dispatch(
+          newMessagesActions.updateMessage({
+            topicId,
+            messageId,
+            updates: { blocks: updatedBlocks }
+          })
+        )
+        await db.message_blocks.bulkDelete(blocksToRemove)
+      }
+
+      if (blocksToUpdate.length > 0) {
+        dispatch(upsertManyBlocks(blocksToUpdate))
+      }
+
+      // 1. 先中止当前正在执行的任务（如果有的话）
+      if (message.askId) {
+        try {
+          abortCompletion(message.askId)
+        } catch (error) {
+          Logger.warn(`[retryDeepResearchClarificationThunk] Failed to abort current task:`, error)
+        }
+      }
+
+      // 2. 清空队列中的待处理任务并重新添加新任务
+      clearTopicQueue(topicId)
+
+      const queue = getTopicQueue(topicId)
+
+      queue.add(async () => {
+        const assistant = state.assistants.assistants.find((a) => a.id === message.assistantId)
+        if (assistant) {
+          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, message)
+        } else {
+          Logger.error(`[retryDeepResearchClarificationThunk] Assistant ${message.assistantId} not found`)
+        }
+      })
+    } catch (error) {
+      Logger.error(`[retryDeepResearchClarificationThunk] Unexpected error during retry:`, error)
+      throw error
+    }
   }
 
 /**
@@ -1307,7 +1523,7 @@ export const initiateTranslationThunk =
   }
 
 // --- Thunk to update the translation block with new content ---
-export const updateTranslationBlockThunk =
+export const updateBlockThunk =
   (blockId: string, accumulatedText: string, isComplete: boolean = false) =>
   async (dispatch: AppDispatch) => {
     // Logger.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)

@@ -2053,6 +2053,16 @@
       "install": "立即安装",
       "noReleaseNotes": "暂无更新日志"
     },
+    "research": {
+      "clarification": {
+        "title": "研究澄清"
+      },
+      "ready_to_start": "准备开始深度研究",
+      "retry": "重新澄清",
+      "continue_research": "开始研究",
+      "supplement_info_label": "补充信息（可选）",
+      "supplement_info_placeholder": "您可以在这里补充更多信息，帮助我们更好地理解您的需求..."
+    },
     "selection": {
       "name": "划词助手",
       "action": {

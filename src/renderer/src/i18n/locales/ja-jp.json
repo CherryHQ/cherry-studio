@@ -2220,6 +2220,16 @@
           "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
+    },
+    "research": {
+      "clarification": {
+        "title": "研究の明確化"
+      },
+      "ready_to_start": "深い研究を開始する準備ができました",
+      "retry": "再明確化",
+      "continue_research": "研究を続ける",
+      "supplement_info_label": "補足情報 (任意)",
+      "supplement_info_placeholder": "ここに補足情報を提供して、より良く理解してください..."
     }
   }
 }

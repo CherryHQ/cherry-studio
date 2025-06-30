@@ -5,6 +5,8 @@ import type {
   BaseMessageBlock,
   CitationMessageBlock,
   CodeMessageBlock,
+  DeepResearchMessageBlock,
+  DeepResearchMetadata,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -270,6 +272,30 @@ export function createCitationBlock(
     ...baseBlock,
     response,
     knowledge
+  }
+}
+
+/**
+ * Creates a Deep Research Message Block.
+ * @param messageId - The ID of the parent message.
+ * @param deepResearchState - The deep research state metadata.
+ * @param overrides - Optional properties to override the defaults.
+ * @returns A DeepResearchStateMessageBlock object.
+ */
+export function createDeepResearchBlock(
+  messageId: string,
+  content: string,
+  deepResearchState: DeepResearchMetadata,
+  overrides: Partial<Omit<DeepResearchMessageBlock, 'id' | 'messageId' | 'type' | 'metadata'>> = {}
+): DeepResearchMessageBlock {
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.DEEP_RESEARCH, overrides)
+  return {
+    ...baseBlock,
+    content,
+    metadata: {
+      ...baseBlock.metadata,
+      deepResearchState
+    }
   }
 }
 
