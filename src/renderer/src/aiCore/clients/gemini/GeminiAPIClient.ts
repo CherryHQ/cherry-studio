@@ -60,7 +60,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { MB } from '@shared/config/constant'
+import { defaultTimeout, MB } from '@shared/config/constant'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -118,7 +118,7 @@ export class GeminiAPIClient extends BaseApiClient<
         aspectRatio: imageSize,
         abortSignal: signal,
         httpOptions: {
-          timeout: 5 * 60 * 1000
+          timeout: defaultTimeout
         }
       }
       const response = await sdk.models.generateImages({
