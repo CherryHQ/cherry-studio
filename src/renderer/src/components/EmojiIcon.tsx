@@ -1,6 +1,5 @@
-import { FC, useEffect } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
-import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 
 interface EmojiIconProps {
   emoji: string
@@ -8,13 +7,6 @@ interface EmojiIconProps {
 }
 
 const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
-  useEffect(() => {
-    polyfillCountryFlagEmojis(
-      'Twemoji Country Flags',
-      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
-    )
-  }, [])
-
   return (
     <Container className={className}>
       <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>

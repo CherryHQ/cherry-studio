@@ -17,8 +17,7 @@ import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch } from 'antd'
-import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
-import { FC, useEffect, useState } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -40,13 +39,6 @@ const GeneralSettings: FC = () => {
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
-
-  useEffect(() => {
-    polyfillCountryFlagEmojis(
-      'Twemoji Country Flags',
-      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
-    )
-  }, [])
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)

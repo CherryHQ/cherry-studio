@@ -8,7 +8,6 @@ import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -30,13 +29,6 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
   const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
-
-  useEffect(() => {
-    polyfillCountryFlagEmojis(
-      'Twemoji Country Flags',
-      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
-    )
-  }, [])
 
   useEffect(() => {
     const updateTokenCount = async () => {
