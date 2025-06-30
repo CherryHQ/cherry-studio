@@ -1,5 +1,5 @@
 import db from '@renderer/databases'
-import { autoRenameTopic } from '@renderer/hooks/useTopic'
+import { autoRenameTopic, getTopicById } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -795,7 +795,12 @@ const fetchAndProcessAssistantResponseImpl = async (
               response?.usage?.prompt_tokens === 0 ||
               response?.usage?.completion_tokens === 0)
           ) {
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            const topic = await getTopicById(topicId)
+            const usage = await estimateMessagesUsage({
+              assistant,
+              messages: finalContextWithAssistant,
+              topicPrompt: topic.prompt
+            })
             response.usage = usage
           }
           dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))

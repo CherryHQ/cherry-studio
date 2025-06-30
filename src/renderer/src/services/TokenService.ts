@@ -1,7 +1,8 @@
 import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
-import { flatten, takeRight } from 'lodash'
+import { KB, MB } from '@shared/config/constant'
+import { flatten, floor, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
@@ -72,6 +73,61 @@ export function estimateImageTokens(file: FileType) {
 }
 
 /**
+ * 估算文本文件的 token 数量
+ *
+ * 该函数会读取文本文件内容，并对内容进行 token 估算。
+ * 会自动去除文本首尾的空白字符。
+ *
+ * @param file - 文本文件对象
+ * @returns 返回估算的 token 数量
+ */
+export async function estimateTextFileTokens(file: FileType, path?: string) {
+  if (file.type !== FileTypes.TEXT) {
+    console.error('Not a Text file')
+    return 0
+  }
+  let _path = ''
+  if (!path) {
+    _path = file.id + file.ext
+  }
+  if (file.size >= 5 * MB) {
+    // 大文件进行简单预估，而不读取文件内容。按照 180 token / KB 进行估算
+    return floor((file.size / KB) * 180)
+  } else {
+    const content = (await window.api.fs.read(_path, 'utf-8')).trim()
+    return estimateTextTokens(content)
+  }
+}
+
+/**
+ * 估算多个文本文件的总 token 数量
+ *
+ * 该函数会并行读取所有文本文件并计算它们的 token 总和。
+ * 如果文件已有缓存的 tokens 值则直接使用，否则重新计算。
+ * 注意：该函数不会更新文件对象的 tokens 字段。
+ *
+ * @param files - 文本文件对象数组
+ * @returns 返回所有文件的 token 总和
+ */
+export async function estimateTextFilesTokens(files: FileType[]) {
+  // 并行读取所有文本文件的 token
+  // 在这里不会对files的tokens字段进行更新
+  const textFileTokens = await Promise.all(
+    files.map(async (textFile) => (textFile.tokens ? textFile.tokens : await estimateTextFileTokens(textFile)))
+  )
+  return textFileTokens.reduce((sum, tokens) => sum + tokens, 0)
+}
+
+/**
+ * 通过文件路径估算文本文件的 token。
+ * @param file - 文本文件对象
+ * @returns 返回估算的 token 数量
+ */
+export async function estimateTextFileTokensByPath(file: FileType) {
+  return estimateTextFileTokens(file, file.path)
+}
+
+/**
  * 估算用户输入内容（文本和文件）的 token 用量。
  *
  * 该函数只根据传入的 content（文本内容）和 files（文件列表）估算，
@@ -90,14 +146,18 @@ export async function estimateUserPromptUsage({
   files?: FileType[]
 }): Promise<Usage> {
   let imageTokens = 0
+  let textTokens = 0
 
   if (files && files.length > 0) {
     const images = files.filter((f) => f.type === FileTypes.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
-        imageTokens = estimateImageTokens(image) + imageTokens
+        imageTokens += image.tokens ? image.tokens : estimateImageTokens(image)
       }
     }
+
+    const texts = files.filter((f) => f.type === FileTypes.TEXT || f.type === FileTypes.DOCUMENT)
+    textTokens = await estimateTextFilesTokens(texts)
   }
 
   const tokens = estimateTextTokens(content || '')
@@ -105,7 +165,7 @@ export async function estimateUserPromptUsage({
   return {
     prompt_tokens: tokens,
     completion_tokens: tokens,
-    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0) + textTokens
   }
 }
 
@@ -147,14 +207,16 @@ export async function estimateMessageUsage(message: Partial<Message>): Promise<U
 
 export async function estimateMessagesUsage({
   assistant,
-  messages
+  messages,
+  topicPrompt
 }: {
   assistant: Assistant
   messages: Message[]
+  topicPrompt: string | undefined
 }): Promise<Usage> {
   const outputMessage = messages.pop()!
 
-  const prompt_tokens = await estimateHistoryTokens(assistant, messages)
+  const prompt_tokens = await estimateHistoryTokens(assistant, messages, topicPrompt)
   const { completion_tokens } = await estimateMessageUsage(outputMessage)
 
   return {
@@ -164,13 +226,13 @@ export async function estimateMessagesUsage({
   } as Usage
 }
 
-export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {
+export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[], topicPrompt?: string) {
   const { contextCount } = getAssistantSettings(assistant)
   const maxContextCount = contextCount
   const messages = filterMessages(filterContextMessages(takeRight(msgs, maxContextCount)))
 
   // 有 usage 数据的消息，快速计算总数
-  const uasageTokens = messages
+  const usageTokens = messages
     .filter((m) => m.usage)
     .reduce((acc, message) => {
       const inputTokens = message.usage?.total_tokens ?? 0
@@ -186,10 +248,10 @@ export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[
     allMessages = allMessages.concat(items)
   }
 
-  const prompt = assistant.prompt
+  const prompt = topicPrompt ? `${assistant.prompt}\n${topicPrompt}` : assistant.prompt
   const input = flatten(allMessages)
     .map((m) => m.content)
     .join('\n')
 
-  return estimateTextTokens(prompt + input) + uasageTokens
+  return estimateTextTokens(prompt + input) + usageTokens
 }

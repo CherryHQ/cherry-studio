@@ -12,6 +12,7 @@ import {
 } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useFileTokenManager } from '@renderer/hooks/useFileTokenManager'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -34,8 +35,7 @@ import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from 
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
-import { getFilesFromDropEvent } from '@renderer/utils/input'
-import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
+import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -115,20 +115,39 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputbarToolsRef = useRef<InputbarToolsRef>(null)
 
+  const onFilesChange = useCallback(
+    (updatedFiles: FileType[]) => {
+      setFiles(updatedFiles)
+    },
+    [setFiles]
+  )
+
+  useFileTokenManager({ files, onFilesChange })
+
+  const fileTokens = useMemo(
+    () => files.map((f) => (f.tokens ? f.tokens : 0)).reduce((sum, tokens) => sum + tokens, 0),
+    [files]
+  )
+
+  const [inputTokens, setInputTokens] = useState(0)
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
-    debounce((newText) => {
+    debounce(async (newText) => {
       if (showInputEstimatedTokens) {
-        const count = estimateTxtTokens(newText) || 0
-        setTokenCount(count)
+        setInputTokens(estimateTxtTokens(newText) || 0)
       }
     }, 500),
-    [showInputEstimatedTokens]
+    [showInputEstimatedTokens, files, setInputTokens]
   )
 
   useEffect(() => {
     debouncedEstimate(text)
   }, [text, debouncedEstimate])
+
+  useEffect(() => {
+    setTokenCount(inputTokens + fileTokens)
+  }, [inputTokens, fileTokens])
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
