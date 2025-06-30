@@ -632,13 +632,13 @@ const TranslatePage: FC = () => {
             />
           </OperationBar>
 
-          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className="selectable">
+          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
             {!result ? (
               t('translate.output.placeholder')
             ) : enableMarkdown ? (
               <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
             ) : (
-              result
+              <div className="plain">{result}</div>
             )}
           </OutputText>
         </OutputContainer>
@@ -728,6 +728,19 @@ const OutputText = styled.div`
   flex: 1;
   padding: 5px 16px;
   overflow-y: auto;
+
+  .plain {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+
+  .markdown {
+    /* for shiki code block overflow */
+    .line * {
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+  }
 `
 
 const TranslateButton = styled(Button)``
