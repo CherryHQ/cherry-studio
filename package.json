@@ -140,6 +140,7 @@
     "axios": "^1.7.3",
     "browser-image-compression": "^2.0.2",
     "color": "^5.0.0",
+    "country-flag-emoji-polyfill": "0.1.8",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",

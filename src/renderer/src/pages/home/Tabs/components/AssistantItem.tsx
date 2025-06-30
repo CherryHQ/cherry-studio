@@ -29,6 +29,7 @@ import { FC, memo, startTransition, useCallback, useEffect, useMemo, useState } 
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 
 import AssistantTagsPopup from './AssistantTagsPopup'
 
@@ -63,6 +64,13 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis(
+      'Twemoji Mozilla',
+      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
+    )
+  }, [])
 
   useEffect(() => {
     if (isActive) {

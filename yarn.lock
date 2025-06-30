@@ -5716,6 +5716,7 @@ __metadata:
     axios: "npm:^1.7.3"
     browser-image-compression: "npm:^2.0.2"
     color: "npm:^5.0.0"
+    country-flag-emoji-polyfill: "npm:0.1.8"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
     dexie-react-hooks: "npm:^1.1.7"
@@ -7377,6 +7378,13 @@ __metadata:
   dependencies:
     layout-base: "npm:^2.0.0"
   checksum: 10c0/14b9f8100ac322a00777ffb1daeb3321af368bbc9cabe3103943361273baee2003202ffe38e4ab770960b600214224e9c196195a78d589521540aa694df7cdec
+  languageName: node
+  linkType: hard
+
+"country-flag-emoji-polyfill@npm:0.1.8":
+  version: 0.1.8
+  resolution: "country-flag-emoji-polyfill@npm:0.1.8"
+  checksum: 10c0/aac74de7df236bfc64d33438e29ab4c9eec314370b48f2e7aabb052a57fd3bc939e41afdcad0069987f18509aaf4b34d9e44327d0284fa2afabe97129f25cd89
   languageName: node
   linkType: hard
 

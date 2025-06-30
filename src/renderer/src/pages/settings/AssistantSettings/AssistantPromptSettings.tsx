@@ -8,6 +8,7 @@ import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -29,6 +30,13 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
   const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis(
+      'Twemoji Country Flags',
+      'https://github.com/beyondkmp/country-flag-emoji-polyfill/raw/refs/heads/master/font/TwemojiCountryFlags.woff2'
+    )
+  }, [])
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -65,7 +73,16 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <HStack gap={8} alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 18, padding: '4px', minWidth: '28px', height: '28px' }}>{emoji}</Button>
+            <Button
+              style={{
+                fontSize: 18,
+                padding: '4px',
+                minWidth: '28px',
+                height: '28px',
+                fontFamily: 'Twemoji Country Flags, Apple Color Emoji, Segoe UI Emoji'
+              }}>
+              {emoji}
+            </Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"
@@ -147,6 +164,7 @@ const Container = styled.div`
 `
 
 const EmojiButtonWrapper = styled.div`
+  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
   position: relative;
   display: inline-block;
 
