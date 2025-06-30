@@ -348,8 +348,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     //other keys should be ignored
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
+      if (quickPanel.isVisible) return event.preventDefault()
+
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        if (quickPanel.isVisible) return event.preventDefault()
         sendMessage()
         return event.preventDefault()
       } else {
