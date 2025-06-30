@@ -122,9 +122,7 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
-    &:has(.mermaid),
-    &:has(.plantuml-preview),
-    &:has(.svg-preview) {
+    &:has(.special-preview) {
       background-color: transparent;
     }
     &:not(pre pre) {
