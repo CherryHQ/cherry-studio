@@ -245,6 +245,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return await appUpdater.checkForUpdates()
   })
 
+  ipcMain.handle(IpcChannel.App_SkipUpdate, async (_, version: string) => {
+    configManager.addSkippedVersion(version)
+  })
+
   // notification
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
     await notificationService.sendNotification(notification)

@@ -37,6 +37,13 @@ export default class AppUpdater {
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('检测到新版本', releaseInfo)
+      const skippedVersions = configManager.getSkippedVersions()
+      if (skippedVersions.includes(releaseInfo.version)) {
+        logger.info(`版本 ${releaseInfo.version} 已被用户跳过，本次不提示。`)
+        // a little hack to avoid showing the "update-not-available" message
+        // mainWindow.webContents.send(IpcChannel.UpdateNotAvailable)
+        return
+      }
       mainWindow.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
     })
 
@@ -152,14 +159,17 @@ export default class AppUpdater {
         icon,
         message: updateLocale.message.replace('{{version}}', this.releaseInfo.version),
         detail,
-        buttons: [updateLocale.later, updateLocale.install],
-        defaultId: 1,
+        buttons: [updateLocale.later, updateLocale.skip_version, updateLocale.install],
+        defaultId: 2,
         cancelId: 0
       })
       .then(({ response }) => {
-        if (response === 1) {
+        if (response === 2) {
           app.isQuitting = true
           setImmediate(() => autoUpdater.quitAndInstall())
+        } else if (response === 1) {
+          configManager.addSkippedVersion(this.releaseInfo!.version)
+          mainWindow.webContents.send(IpcChannel.UpdateDownloadedCancelled)
         } else {
           mainWindow.webContents.send(IpcChannel.UpdateDownloadedCancelled)
         }

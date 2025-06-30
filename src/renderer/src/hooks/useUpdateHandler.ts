@@ -31,7 +31,9 @@ export default function useUpdateHandler() {
           title: t('button.update_available'),
           message: t('button.update_available', { version: releaseInfo.version }),
           timestamp: Date.now(),
-          source: 'update'
+          source: 'update',
+          meta: releaseInfo,
+          actions: [{ type: 'button', text: t('button.skip_version') }]
         })
         dispatch(
           setUpdateState({
@@ -81,6 +83,12 @@ export default function useUpdateHandler() {
             content: error?.message || t('settings.about.updateError'),
             icon: null
           })
+        }
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ipcRenderer.on('notification-action', (_, notification, index) => {
+        if (notification.source === 'update' && index === 0) {
+          window.api.skipUpdate(notification.meta.version)
         }
       })
     ]
