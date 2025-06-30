@@ -1,0 +1,76 @@
+import type { TextStreamPart, ToolSet } from 'ai'
+
+/**
+ * 递归调用函数类型
+ * 使用 any 是因为递归调用时参数和返回类型可能完全不同
+ */
+export type RecursiveCallFn = (newParams: any) => Promise<any>
+
+/**
+ * AI 请求上下文
+ */
+export interface AiRequestContext {
+  providerId: string
+  modelId: string
+  originalParams: any
+  metadata: Record<string, any>
+  startTime: number
+  requestId: string
+  recursiveCall: RecursiveCallFn
+  isRecursiveCall?: boolean
+  [key: string]: any
+}
+
+/**
+ * 钩子分类
+ */
+export interface AiPlugin {
+  name: string
+  enforce?: 'pre' | 'post'
+
+  // 【First】首个钩子 - 只执行第一个返回值的插件
+  resolveModel?: (modelId: string, context: AiRequestContext) => string | null | Promise<string | null>
+  loadTemplate?: (templateName: string, context: AiRequestContext) => any | null | Promise<any | null>
+
+  // 【Sequential】串行钩子 - 链式执行，支持数据转换
+  transformParams?: (params: any, context: AiRequestContext) => any | Promise<any>
+  transformResult?: (result: any, context: AiRequestContext) => any | Promise<any>
+
+  // 【Parallel】并行钩子 - 不依赖顺序，用于副作用
+  onRequestStart?: (context: AiRequestContext) => void | Promise<void>
+  onRequestEnd?: (context: AiRequestContext, result: any) => void | Promise<void>
+  onError?: (error: Error, context: AiRequestContext) => void | Promise<void>
+
+  // 【Stream】流处理 - 直接使用 AI SDK
+  transformStream?: (
+    params: any,
+    context: AiRequestContext
+  ) => <TOOLS extends ToolSet>(options: {
+    tools: TOOLS
+    stopStream: () => void
+  }) => TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>
+
+  // AI SDK 原生中间件
+  // aiSdkMiddlewares?: LanguageModelV1Middleware[]
+}
+
+/**
+ * 插件管理器配置
+ */
+export interface PluginManagerConfig {
+  plugins: AiPlugin[]
+  context: Partial<AiRequestContext>
+}
+
+/**
+ * 钩子执行器类型
+ */
+export type HookType = 'first' | 'sequential' | 'parallel' | 'stream'
+
+/**
+ * 钩子执行结果
+ */
+export interface HookResult<T = any> {
+  value: T
+  stop?: boolean
+}

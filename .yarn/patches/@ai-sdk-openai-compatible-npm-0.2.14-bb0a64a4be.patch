@@ -1,0 +1,94 @@
+diff --git a/dist/index.js b/dist/index.js
+index 287fe679c32d30a9745270a00589eb90de8da786..5892d4526529e89fca868251ee0c1b081748c358 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -321,8 +321,8 @@ var OpenAICompatibleChatLanguageModel = class {
+       } : { type: "json_object" } : void 0,
+       stop: stopSequences,
+       seed,
+-      ...providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName],
+       reasoning_effort: (_d = (_b = providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName]) == null ? void 0 : _b.reasoningEffort) != null ? _d : (_c = providerMetadata == null ? void 0 : providerMetadata["openai-compatible"]) == null ? void 0 : _c.reasoningEffort,
++      ...providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName],
+       // messages:
+       messages: convertToOpenAICompatibleChatMessages(prompt)
+     };
+@@ -510,7 +510,7 @@ var OpenAICompatibleChatLanguageModel = class {
+       ...args,
+       stream: true,
+       // only include stream_options when in strict compatibility mode:
+-      stream_options: this.config.includeUsage ? { include_usage: true } : void 0
++      ...(this.config.includeUsage ? { stream_options: { include_usage: true } } : {})
+     };
+     const metadataExtractor = (_a = this.config.metadataExtractor) == null ? void 0 : _a.createStreamExtractor();
+     const { responseHeaders, value: response } = await (0, import_provider_utils2.postJsonToApi)({
+@@ -1324,10 +1324,11 @@ function createOpenAICompatible(options) {
+     headers: getHeaders,
+     fetch: options.fetch
+   });
+-  const createLanguageModel = (modelId, settings = {}) => createChatModel(modelId, settings);
+-  const createChatModel = (modelId, settings = {}) => new OpenAICompatibleChatLanguageModel(modelId, settings, {
++  const createLanguageModel = (modelId, settings = {}, config = {}) => createChatModel(modelId, settings, config);
++  const createChatModel = (modelId, settings = {}, config = {}) => new OpenAICompatibleChatLanguageModel(modelId, settings, {
+     ...getCommonModelConfig("chat"),
+-    defaultObjectGenerationMode: "tool"
++    defaultObjectGenerationMode: "tool",
++    ...config
+   });
+   const createCompletionModel = (modelId, settings = {}) => new OpenAICompatibleCompletionLanguageModel(
+     modelId,
+@@ -1344,7 +1345,7 @@ function createOpenAICompatible(options) {
+     settings,
+     getCommonModelConfig("image")
+   );
+-  const provider = (modelId, settings) => createLanguageModel(modelId, settings);
++  const provider = (modelId, settings, config) => createLanguageModel(modelId, settings, config);
+   provider.languageModel = createLanguageModel;
+   provider.chatModel = createChatModel;
+   provider.completionModel = createCompletionModel;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6446ad8d3a96c798bea3a17c1802810139d24143..7bb81eb126992cc64453134cc2581c2314c022c1 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -305,8 +305,8 @@ var OpenAICompatibleChatLanguageModel = class {
+       } : { type: "json_object" } : void 0,
+       stop: stopSequences,
+       seed,
+-      ...providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName],
+       reasoning_effort: (_d = (_b = providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName]) == null ? void 0 : _b.reasoningEffort) != null ? _d : (_c = providerMetadata == null ? void 0 : providerMetadata["openai-compatible"]) == null ? void 0 : _c.reasoningEffort,
++      ...providerMetadata == null ? void 0 : providerMetadata[this.providerOptionsName],
+       // messages:
+       messages: convertToOpenAICompatibleChatMessages(prompt)
+     };
+@@ -494,7 +494,7 @@ var OpenAICompatibleChatLanguageModel = class {
+       ...args,
+       stream: true,
+       // only include stream_options when in strict compatibility mode:
+-      stream_options: this.config.includeUsage ? { include_usage: true } : void 0
++      ...(this.config.includeUsage ? { stream_options: { include_usage: true } } : {})
+     };
+     const metadataExtractor = (_a = this.config.metadataExtractor) == null ? void 0 : _a.createStreamExtractor();
+     const { responseHeaders, value: response } = await postJsonToApi({
+@@ -1331,10 +1331,11 @@ function createOpenAICompatible(options) {
+     headers: getHeaders,
+     fetch: options.fetch
+   });
+-  const createLanguageModel = (modelId, settings = {}) => createChatModel(modelId, settings);
+-  const createChatModel = (modelId, settings = {}) => new OpenAICompatibleChatLanguageModel(modelId, settings, {
++  const createLanguageModel = (modelId, settings = {}, config = {}) => createChatModel(modelId, settings, config);
++  const createChatModel = (modelId, settings = {}, config = {}) => new OpenAICompatibleChatLanguageModel(modelId, settings, {
+     ...getCommonModelConfig("chat"),
+-    defaultObjectGenerationMode: "tool"
++    defaultObjectGenerationMode: "tool",
++    ...config
+   });
+   const createCompletionModel = (modelId, settings = {}) => new OpenAICompatibleCompletionLanguageModel(
+     modelId,
+@@ -1351,7 +1352,7 @@ function createOpenAICompatible(options) {
+     settings,
+     getCommonModelConfig("image")
+   );
+-  const provider = (modelId, settings) => createLanguageModel(modelId, settings);
++  const provider = (modelId, settings, config) => createLanguageModel(modelId, settings, config);
+   provider.languageModel = createLanguageModel;
+   provider.chatModel = createChatModel;
+   provider.completionModel = createCompletionModel;

@@ -74,6 +74,7 @@
     "@agentic/tavily": "^7.3.3",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
+    "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
     "@cherrystudio/embedjs-loader-csv": "^0.1.31",
@@ -233,7 +234,9 @@
     "app-builder-lib@npm:26.0.13": "patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch",
     "openai@npm:^4.87.3": "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch",
     "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch",
-    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch"
+    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch",
+    "@ai-sdk/openai-compatible@npm:0.2.14": "patch:@ai-sdk/openai-compatible@npm%3A0.2.14#~/.yarn/patches/@ai-sdk-openai-compatible-npm-0.2.14-bb0a64a4be.patch",
+    "@ai-sdk/google-vertex@npm:2.2.24": "patch:@ai-sdk/google-vertex@npm%3A2.2.24#~/.yarn/patches/@ai-sdk-google-vertex-npm-2.2.24-b89772c4de.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {

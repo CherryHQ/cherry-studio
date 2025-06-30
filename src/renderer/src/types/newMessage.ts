@@ -72,7 +72,7 @@ export interface MainTextMessageBlock extends BaseMessageBlock {
 export interface ThinkingMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.THINKING
   content: string
-  thinking_millsec?: number
+  thinking_millsec: number
 }
 
 // 翻译块
