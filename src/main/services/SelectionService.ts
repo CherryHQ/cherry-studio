@@ -1149,21 +1149,25 @@ export class SelectionService {
 
     //center way
     if (!this.isFollowToolbar || !this.toolbarWindow) {
-      if (this.isRemeberWinSize) {
-        actionWindow.setBounds({
-          width: actionWindowWidth,
-          height: actionWindowHeight
-        })
-      }
+      const cursorPoint = screen.getCursorScreenPoint()
+      const display = screen.getDisplayNearestPoint(cursorPoint)
+      const workArea = display.workArea
+
+      const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
+      const centerY = workArea.y + (workArea.height - actionWindowHeight) / 2
+
+      actionWindow.setBounds({
+        width: actionWindowWidth,
+        height: actionWindowHeight,
+        x: Math.round(centerX),
+        y: Math.round(centerY)
+      })
 
       actionWindow.show()
-      // actionWindow.focus()
-      this.hideToolbar()
       return
     }
 
     //follow toolbar
-
     const toolbarBounds = this.toolbarWindow!.getBounds()
     const display = screen.getDisplayNearestPoint({ x: toolbarBounds.x, y: toolbarBounds.y })
     const workArea = display.workArea
