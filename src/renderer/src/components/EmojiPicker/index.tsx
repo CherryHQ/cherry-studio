@@ -1,7 +1,7 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { FC, useEffect, useRef } from 'react'
-import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 import TwemojiCountryFlagsWoff2 from '@renderer/assets/fonts/country-flag-fonts/TwemojiCountryFlags.woff2?url'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
+import { FC, useEffect, useRef } from 'react'
 
 interface Props {
   onEmojiClick: (emoji: string) => void
