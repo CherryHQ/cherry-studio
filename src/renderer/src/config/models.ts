@@ -273,7 +273,7 @@ export function isFunctionCallingModel(model: Model): boolean {
     return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(model.id) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
@@ -768,6 +768,30 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   ppio: [
     {
+      id: 'deepseek/deepseek-r1-0528',
+      provider: 'ppio',
+      name: 'DeepSeek R1-0528',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-v3-0324',
+      provider: 'ppio',
+      name: 'DeepSeek V3-0324',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-r1-turbo',
+      provider: 'ppio',
+      name: 'DeepSeek R1 Turbo',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-v3-turbo',
+      provider: 'ppio',
+      name: 'DeepSeek V3 Turbo',
+      group: 'deepseek'
+    },
+    {
       id: 'deepseek/deepseek-r1/community',
       name: 'DeepSeek: DeepSeek R1 (Community)',
       provider: 'ppio',
@@ -780,52 +804,58 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'deepseek'
     },
     {
-      id: 'deepseek/deepseek-r1',
+      id: 'minimaxai/minimax-m1-80k',
       provider: 'ppio',
-      name: 'DeepSeek R1',
-      group: 'deepseek'
+      name: 'MiniMax M1-80K',
+      group: 'minimaxai'
     },
     {
-      id: 'deepseek/deepseek-v3',
+      id: 'qwen/qwen3-235b-a22b-fp8',
       provider: 'ppio',
-      name: 'DeepSeek V3',
-      group: 'deepseek'
-    },
-    {
-      id: 'qwen/qwen-2.5-72b-instruct',
-      provider: 'ppio',
-      name: 'Qwen2.5-72B-Instruct',
+      name: 'Qwen3 235B',
       group: 'qwen'
     },
     {
-      id: 'qwen/qwen2.5-32b-instruct',
+      id: 'qwen/qwen3-32b-fp8',
       provider: 'ppio',
-      name: 'Qwen2.5-32B-Instruct',
+      name: 'Qwen3 32B',
       group: 'qwen'
     },
     {
-      id: 'meta-llama/llama-3.1-70b-instruct',
+      id: 'qwen/qwen3-30b-a3b-fp8',
       provider: 'ppio',
-      name: 'Llama-3.1-70B-Instruct',
-      group: 'meta-llama'
+      name: 'Qwen3 30B',
+      group: 'qwen'
     },
     {
-      id: 'meta-llama/llama-3.1-8b-instruct',
+      id: 'qwen/qwen2.5-vl-72b-instruct',
       provider: 'ppio',
-      name: 'Llama-3.1-8B-Instruct',
-      group: 'meta-llama'
+      name: 'Qwen2.5 VL 72B',
+      group: 'qwen'
     },
     {
-      id: '01-ai/yi-1.5-34b-chat',
+      id: 'qwen/qwen3-embedding-8b',
       provider: 'ppio',
-      name: 'Yi-1.5-34B-Chat',
-      group: '01-ai'
+      name: 'Qwen3 Embedding 8B',
+      group: 'qwen'
     },
     {
-      id: '01-ai/yi-1.5-9b-chat',
+      id: 'qwen/qwen3-reranker-8b',
       provider: 'ppio',
-      name: 'Yi-1.5-9B-Chat',
-      group: '01-ai'
+      name: 'Qwen3 Reranker 8B',
+      group: 'qwen'
+    },
+    {
+      id: 'thudm/glm-z1-32b-0414',
+      provider: 'ppio',
+      name: 'GLM-Z1 32B',
+      group: 'thudm'
+    },
+    {
+      id: 'thudm/glm-z1-9b-0414',
+      provider: 'ppio',
+      name: 'GLM-Z1 9B',
+      group: 'thudm'
     }
   ],
   alayanew: [],
@@ -2327,7 +2357,7 @@ export function isEmbeddingModel(model: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return EMBEDDING_REGEX.test(model.name)
   }
 
@@ -2351,7 +2381,7 @@ export function isVisionModel(model: Model): boolean {
   //   return false
   // }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
@@ -2422,7 +2452,9 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     model.id.includes('gpt-4o-search-preview') ||
     model.id.includes('gpt-4o-mini-search-preview') ||
     (model.id.includes('gpt-4.1') && !model.id.includes('gpt-4.1-nano')) ||
-    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image'))
+    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image')) ||
+    model.id.includes('o3') ||
+    model.id.includes('o4')
   )
 }
 
@@ -2477,14 +2509,16 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return true
   }
 
-  if (model.id.includes('gemini-2.5')) {
+  if (isSupportedThinkingTokenGeminiModel(model)) {
     return true
   }
 
   return false
 }
 
-export const isSupportedThinkingTokenGeminiModel = isGeminiReasoningModel
+export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
+  return model.id.includes('gemini-2.5')
+}
 
 export function isQwenReasoningModel(model?: Model): boolean {
   if (!model) {
@@ -2555,8 +2589,9 @@ export function isReasoningModel(model?: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return (
+      REASONING_REGEX.test(model.id) ||
       REASONING_REGEX.test(model.name) ||
       model.type?.includes('reasoning') ||
       isSupportedThinkingTokenDoubaoModel(model) ||

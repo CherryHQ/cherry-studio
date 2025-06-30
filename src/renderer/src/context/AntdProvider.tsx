@@ -79,7 +79,8 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           Dropdown: {
             controlPaddingHorizontal: 8,
             borderRadiusLG: 10,
-            borderRadiusSM: 8
+            borderRadiusSM: 8,
+            paddingXS: 4
           },
           Popover: {
             borderRadiusLG: 10
