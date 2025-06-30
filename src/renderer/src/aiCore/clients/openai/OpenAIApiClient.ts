@@ -114,6 +114,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
+        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+          return {}
+        }
         return { reasoning: { enabled: false, exclude: true } }
       }
       if (isSupportedThinkingTokenQwenModel(model)) {
