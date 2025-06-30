@@ -1,7 +1,7 @@
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { Input, Select, Space, Tooltip } from 'antd'
-import { ChevronDown, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -50,7 +50,6 @@ const CutoffSettings = () => {
           style={{ minWidth: '40%' }}
           onChange={handleCutoffUnitChange}
           options={unitOptions}
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
         />
       </Space.Compact>
     </SettingRow>

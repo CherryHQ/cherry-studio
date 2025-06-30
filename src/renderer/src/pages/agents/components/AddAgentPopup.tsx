@@ -213,7 +213,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   .toLowerCase()
                   .includes(input.toLowerCase())
               }
-              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
             />
           </Form.Item>
         )}

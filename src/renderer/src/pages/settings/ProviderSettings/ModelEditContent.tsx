@@ -238,7 +238,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                   }
                 }}
                 dropdownMatchSelectWidth={false}
-                suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
               />
             </Form.Item>
 

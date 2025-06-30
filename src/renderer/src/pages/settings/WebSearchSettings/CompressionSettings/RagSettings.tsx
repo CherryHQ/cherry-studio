@@ -10,7 +10,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
-import { ChevronDown, Info, RefreshCw } from 'lucide-react'
+import { Info, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -131,7 +131,6 @@ const RagSettings = () => {
           onChange={handleEmbeddingModelChange}
           allowClear={false}
           showSearch
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
         />
       </SettingRow>
       <SettingDivider />
@@ -173,7 +172,6 @@ const RagSettings = () => {
           onChange={handleRerankModelChange}
           allowClear
           showSearch
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
         />
       </SettingRow>
       <SettingDivider />

@@ -134,7 +134,7 @@
     "@vitest/ui": "^3.1.4",
     "@vitest/web-worker": "^3.1.4",
     "@xyflow/react": "^12.4.4",
-    "antd": "^5.22.5",
+    "antd": "patch:antd@npm%3A5.24.7#~/.yarn/patches/antd-npm-5.24.7-356a553ae5.patch",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
     "axios": "^1.7.3",

@@ -169,7 +169,7 @@ ul {
   }
 }
 
-.lucide {
+.lucide:not(.lucide-custom) {
   color: var(--color-icon);
 }
 
