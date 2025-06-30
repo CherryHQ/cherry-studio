@@ -8,7 +8,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell, webContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -157,6 +157,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       configManager.setTestChannel(channel)
     }
   })
+
+  //only for mac
+  if (isMac) {
+    ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
+      return systemPreferences.isTrustedAccessibilityClient(false)
+    })
+
+    //return is only the current state, not the new state
+    ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
+      return systemPreferences.isTrustedAccessibilityClient(true)
+    })
+  }
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
     configManager.set(key, value, isNotify)

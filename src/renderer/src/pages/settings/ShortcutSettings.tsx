@@ -24,7 +24,7 @@ const ShortcutSettings: FC = () => {
 
   //if shortcut is not available on all the platforms, block the shortcut here
   let shortcuts = originalShortcuts
-  if (!isWin) {
+  if (!isWin && !isMac) {
     //Selection Assistant only available on Windows now
     const excludedShortcuts = ['selection_assistant_toggle', 'selection_assistant_select_text']
     shortcuts = shortcuts.filter((s) => !excludedShortcuts.includes(s.key))

@@ -2085,14 +2085,29 @@
         "experimental": "实验性功能",
         "enable": {
           "title": "启用",
-          "description": "当前仅支持 Windows 系统"
+          "description": "当前仅支持 Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "辅助功能权限",
+            "description": [
+              "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
+              "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
+              "完成设置后，请再次开启划词助手。"
+            ],
+            "button": {
+              "open_accessibility_settings": "打开辅助功能设置",
+              "go_to_settings": "去设置"
+            }
+          }
         },
         "toolbar": {
           "title": "工具栏",
           "trigger_mode": {
             "title": "取词方式",
             "description": "划词后，触发取词并显示工具栏的方式",
-            "description_note": "少数应用不支持通过 Ctrl 键划词。若使用了 AHK 等工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+            "description_note": {
+              "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+              "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。"
+            },
             "selected": "划词",
             "selected_note": "划词后立即显示工具栏",
             "ctrlkey": "Ctrl 键",
@@ -2217,7 +2232,10 @@
         },
         "filter_modal": {
           "title": "应用筛选名单",
-          "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "user_tips": {
+            "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
+            "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
+          }
         }
       }
     }

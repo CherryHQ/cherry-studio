@@ -2085,14 +2085,29 @@
         "experimental": "Experimental Features",
         "enable": {
           "title": "Enable",
-          "description": "Currently only supported on Windows systems"
+          "description": "Currently only supported on Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "Accessibility Permission",
+            "description": [
+              "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
+              "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
+              "After completing the settings, please reopen the selection assistant."
+            ],
+            "button": {
+              "open_accessibility_settings": "Open Accessibility Settings",
+              "go_to_settings": "Go to Settings"
+            }
+          }
         },
         "toolbar": {
           "title": "Toolbar",
           "trigger_mode": {
             "title": "Trigger Mode",
             "description": "The way to trigger the selection assistant and show the toolbar",
-            "description_note": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
+            "description_note": {
+              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
+              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text."
+            },
             "selected": "Selection",
             "selected_note": "Show toolbar immediately when text is selected",
             "ctrlkey": "Ctrl Key",
@@ -2217,7 +2232,10 @@
         },
         "filter_modal": {
           "title": "Application Filter List",
-          "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "user_tips": {
+            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc.",
+            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc."
+          }
         }
       }
     }

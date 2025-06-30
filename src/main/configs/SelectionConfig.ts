@@ -1,6 +1,6 @@
 interface IFilterList {
   WINDOWS: string[]
-  MAC?: string[]
+  MAC: string[]
 }
 
 interface IFinetunedList {
@@ -45,14 +45,17 @@ export const SELECTION_PREDEFINED_BLACKLIST: IFilterList = {
     'sldworks.exe',
     // Remote Desktop
     'mstsc.exe'
-  ]
+  ],
+  MAC: []
 }
 
 export const SELECTION_FINETUNED_LIST: IFinetunedList = {
   EXCLUDE_CLIPBOARD_CURSOR_DETECT: {
-    WINDOWS: ['acrobat.exe', 'wps.exe', 'cajviewer.exe']
+    WINDOWS: ['acrobat.exe', 'wps.exe', 'cajviewer.exe'],
+    MAC: []
   },
   INCLUDE_CLIPBOARD_DELAY_READ: {
-    WINDOWS: ['acrobat.exe', 'wps.exe', 'cajviewer.exe', 'foxitphantom.exe']
+    WINDOWS: ['acrobat.exe', 'wps.exe', 'cajviewer.exe', 'foxitphantom.exe'],
+    MAC: []
   }
 }

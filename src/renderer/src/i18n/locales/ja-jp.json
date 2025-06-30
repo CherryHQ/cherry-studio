@@ -2085,14 +2085,29 @@
         "experimental": "実験的機能",
         "enable": {
           "title": "有効化",
-          "description": "現在Windowsのみ対応"
+          "description": "現在Windows & macOSのみ対応",
+          "mac_process_trust_hint": {
+            "title": "アクセシビリティー権限",
+            "description": [
+              "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
+              "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
+              "設定が完了したら、テキスト選択ツールを再起動してください。"
+            ],
+            "button": {
+              "open_accessibility_settings": "アクセシビリティー設定を開く",
+              "go_to_settings": "設定に移動"
+            }
+          }
         },
         "toolbar": {
           "title": "ツールバー",
           "trigger_mode": {
             "title": "単語の取り出し方",
             "description": "テキスト選択後、取詞ツールバーを表示する方法",
-            "description_note": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+            "description_note": {
+              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
+            },
             "selected": "選択時",
             "selected_note": "テキスト選択時に即時表示",
             "ctrlkey": "Ctrlキー",
@@ -2217,7 +2232,10 @@
         },
         "filter_modal": {
           "title": "アプリケーションフィルターリスト",
-          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+          "user_tips": {
+            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
+            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
+          }
         }
       }
     }

@@ -32,6 +32,9 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
+  App_MacRequestProcessTrust = 'app:mac-request-process-trust',
+
   App_QuoteToMain = 'app:quote-to-main',
 
   Notification_Send = 'notification:send',

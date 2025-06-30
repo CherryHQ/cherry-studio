@@ -1,7 +1,7 @@
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
-import { isDev, isWin } from '@main/constant'
+import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain, screen } from 'electron'
+import { BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import Logger from 'electron-log'
 import { join } from 'path'
 import type {
@@ -16,9 +16,12 @@ import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
 import storeSyncService from './StoreSyncService'
 
+const isSupportedOS = isWin || isMac
+
 let SelectionHook: SelectionHookConstructor | null = null
 try {
-  if (isWin) {
+  //since selection-hook v1.0.0, it supports macOS
+  if (isSupportedOS) {
     SelectionHook = require('selection-hook')
   }
 } catch (error) {
@@ -118,7 +121,7 @@ export class SelectionService {
   }
 
   public static getInstance(): SelectionService | null {
-    if (!isWin) return null
+    if (!isSupportedOS) return null
 
     if (!SelectionService.instance) {
       SelectionService.instance = new SelectionService()
@@ -213,6 +216,8 @@ export class SelectionService {
       blacklist: SelectionHook!.FilterMode.EXCLUDE_LIST
     }
 
+    const predefinedBlacklist = isWin ? SELECTION_PREDEFINED_BLACKLIST.WINDOWS : SELECTION_PREDEFINED_BLACKLIST.MAC
+
     let combinedList: string[] = list
     let combinedMode = mode
 
@@ -221,7 +226,7 @@ export class SelectionService {
       switch (mode) {
         case 'blacklist':
           //combine the predefined blacklist with the user-defined blacklist
-          combinedList = [...new Set([...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS])]
+          combinedList = [...new Set([...list, ...predefinedBlacklist])]
           break
         case 'whitelist':
           combinedList = [...list]
@@ -229,7 +234,7 @@ export class SelectionService {
         case 'default':
         default:
           //use the predefined blacklist as the default filter list
-          combinedList = [...SELECTION_PREDEFINED_BLACKLIST.WINDOWS]
+          combinedList = [...predefinedBlacklist]
           combinedMode = 'blacklist'
           break
       }
@@ -243,14 +248,21 @@ export class SelectionService {
   private setHookFineTunedList() {
     if (!this.selectionHook) return
 
+    const excludeClipboardCursorDetectList = isWin
+      ? SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.WINDOWS
+      : SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.MAC
+    const includeClipboardDelayReadList = isWin
+      ? SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.WINDOWS
+      : SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.MAC
+
     this.selectionHook.setFineTunedList(
       SelectionHook!.FineTunedListType.EXCLUDE_CLIPBOARD_CURSOR_DETECT,
-      SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.WINDOWS
+      excludeClipboardCursorDetectList
     )
 
     this.selectionHook.setFineTunedList(
       SelectionHook!.FineTunedListType.INCLUDE_CLIPBOARD_DELAY_READ,
-      SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.WINDOWS
+      includeClipboardDelayReadList
     )
   }
 
@@ -259,9 +271,26 @@ export class SelectionService {
    * @returns {boolean} Success status of service start
    */
   public start(): boolean {
-    if (!this.selectionHook || this.started) {
-      this.logError(new Error('SelectionService start(): instance is null or already started'))
+    if (!this.selectionHook) {
+      this.logError(new Error('SelectionService start(): instance is null'))
       return false
+    }
+
+    if (this.started) {
+      this.logError(new Error('SelectionService start(): already started'))
+      return false
+    }
+
+    //On macOS, we need to check if the process is trusted
+    if (isMac) {
+      if (!systemPreferences.isTrustedAccessibilityClient(false)) {
+        this.logError(
+          new Error(
+            'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
+          )
+        )
+        return false
+      }
     }
 
     try {
@@ -306,6 +335,7 @@ export class SelectionService {
     if (!this.selectionHook) return false
 
     this.selectionHook.stop()
+
     this.selectionHook.cleanup() //already remove all listeners
 
     //reset the listener states
@@ -316,6 +346,7 @@ export class SelectionService {
       this.toolbarWindow.close()
       this.toolbarWindow = null
     }
+
     this.closePreloadedActionWindows()
 
     this.started = false
@@ -366,21 +397,29 @@ export class SelectionService {
     this.toolbarWindow = new BrowserWindow({
       width: toolbarWidth,
       height: toolbarHeight,
+      show: false,
       frame: false,
       transparent: true,
       alwaysOnTop: true,
       skipTaskbar: true,
+      autoHideMenuBar: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
+      fullscreenable: false, // [macOS] must be false
       movable: true,
-      focusable: false,
       hasShadow: false,
       thickFrame: false,
       roundedCorners: true,
       backgroundMaterial: 'none',
-      type: 'toolbar',
-      show: false,
+
+      // Platform specific settings
+      //   [macOS] DO NOT set type to 'panel', it will not work because it conflicts with other settings
+      //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
+      ...(isWin ? { type: 'toolbar', focusable: false } : {}),
+      hiddenInMissionControl: true, // [macOS only]
+      acceptFirstMouse: true, // [macOS only]
+
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -406,6 +445,13 @@ export class SelectionService {
     // Add show/hide event listeners
     this.toolbarWindow.on('show', () => {
       this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+
+      // [macOS] force the toolbar window to be visible on current desktop
+      // but it will make docker icon flash. And we found that it's not necessary now.
+      // will remove after testing
+      // if (isMac) {
+      //   this.toolbarWindow!.setVisibleOnAllWorkspaces(false)
+      // }
     })
 
     this.toolbarWindow.on('hide', () => {
@@ -460,11 +506,22 @@ export class SelectionService {
     //set the window to always on top (highest level)
     //should set every time the window is shown
     this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
-    this.toolbarWindow!.show()
+
+    // [macOS] force the toolbar window to be visible on current desktop
+    // but it will make docker icon flash. And we found that it's not necessary now.
+    // will remove after testing
+    // if (isMac) {
+    //   this.toolbarWindow!.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // }
+
+    // [macOS] MUST use `showInactive()` to prevent other windows bring to front together
+    // [Windows] is OK for both `show()` and `showInactive()` because of `focusable: false`
+    this.toolbarWindow!.showInactive()
 
     /**
-     * In Windows 10, setOpacity(1) will make the window completely transparent
-     * It's a strange behavior, so we don't use it for compatibility
+     * [Windows]
+     *   In Windows 10, setOpacity(1) will make the window completely transparent
+     *   It's a strange behavior, so we don't use it for compatibility
      */
     // this.toolbarWindow!.setOpacity(1)
 
@@ -520,71 +577,71 @@ export class SelectionService {
   /**
    * Calculate optimal toolbar position based on selection context
    * Ensures toolbar stays within screen boundaries and follows selection direction
-   * @param point Reference point for positioning, must be INTEGER
+   * @param refPoint Reference point for positioning, must be INTEGER
    * @param orientation Preferred position relative to reference point
    * @returns Calculated screen coordinates for toolbar, INTEGER
    */
-  private calculateToolbarPosition(point: Point, orientation: RelativeOrientation): Point {
+  private calculateToolbarPosition(refPoint: Point, orientation: RelativeOrientation): Point {
     // Calculate initial position based on the specified anchor
-    let posX: number, posY: number
+    const posPoint: Point = { x: 0, y: 0 }
 
     const { toolbarWidth, toolbarHeight } = this.getToolbarRealSize()
 
     switch (orientation) {
       case 'topLeft':
-        posX = point.x - toolbarWidth
-        posY = point.y - toolbarHeight
+        posPoint.x = refPoint.x - toolbarWidth
+        posPoint.y = refPoint.y - toolbarHeight
         break
       case 'topRight':
-        posX = point.x
-        posY = point.y - toolbarHeight
+        posPoint.x = refPoint.x
+        posPoint.y = refPoint.y - toolbarHeight
         break
       case 'topMiddle':
-        posX = point.x - toolbarWidth / 2
-        posY = point.y - toolbarHeight
+        posPoint.x = refPoint.x - toolbarWidth / 2
+        posPoint.y = refPoint.y - toolbarHeight
         break
       case 'bottomLeft':
-        posX = point.x - toolbarWidth
-        posY = point.y
+        posPoint.x = refPoint.x - toolbarWidth
+        posPoint.y = refPoint.y
         break
       case 'bottomRight':
-        posX = point.x
-        posY = point.y
+        posPoint.x = refPoint.x
+        posPoint.y = refPoint.y
         break
       case 'bottomMiddle':
-        posX = point.x - toolbarWidth / 2
-        posY = point.y
+        posPoint.x = refPoint.x - toolbarWidth / 2
+        posPoint.y = refPoint.y
         break
       case 'middleLeft':
-        posX = point.x - toolbarWidth
-        posY = point.y - toolbarHeight / 2
+        posPoint.x = refPoint.x - toolbarWidth
+        posPoint.y = refPoint.y - toolbarHeight / 2
         break
       case 'middleRight':
-        posX = point.x
-        posY = point.y - toolbarHeight / 2
+        posPoint.x = refPoint.x
+        posPoint.y = refPoint.y - toolbarHeight / 2
         break
       case 'center':
-        posX = point.x - toolbarWidth / 2
-        posY = point.y - toolbarHeight / 2
+        posPoint.x = refPoint.x - toolbarWidth / 2
+        posPoint.y = refPoint.y - toolbarHeight / 2
         break
       default:
         // Default to 'topMiddle' if invalid position
-        posX = point.x - toolbarWidth / 2
-        posY = point.y - toolbarHeight / 2
+        posPoint.x = refPoint.x - toolbarWidth / 2
+        posPoint.y = refPoint.y - toolbarHeight / 2
     }
 
     //use original point to get the display
-    const display = screen.getDisplayNearestPoint({ x: point.x, y: point.y })
+    const display = screen.getDisplayNearestPoint(refPoint)
 
     // Ensure toolbar stays within screen boundaries
-    posX = Math.round(
-      Math.max(display.workArea.x, Math.min(posX, display.workArea.x + display.workArea.width - toolbarWidth))
+    posPoint.x = Math.round(
+      Math.max(display.workArea.x, Math.min(posPoint.x, display.workArea.x + display.workArea.width - toolbarWidth))
     )
-    posY = Math.round(
-      Math.max(display.workArea.y, Math.min(posY, display.workArea.y + display.workArea.height - toolbarHeight))
+    posPoint.y = Math.round(
+      Math.max(display.workArea.y, Math.min(posPoint.y, display.workArea.y + display.workArea.height - toolbarHeight))
     )
 
-    return { x: posX, y: posY }
+    return posPoint
   }
 
   private isSamePoint(point1: Point, point2: Point): boolean {
@@ -773,8 +830,11 @@ export class SelectionService {
     }
 
     if (!isLogical) {
+      // [macOS] don't need to convert by screenToDipPoint
+      if (!isMac) {
+        refPoint = screen.screenToDipPoint(refPoint)
+      }
       //screenToDipPoint can be float, so we need to round it
-      refPoint = screen.screenToDipPoint(refPoint)
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
     }
 
@@ -832,8 +892,8 @@ export class SelectionService {
       return
     }
 
-    //data point is physical coordinates, convert to logical coordinates
-    const mousePoint = screen.screenToDipPoint({ x: data.x, y: data.y })
+    //data point is physical coordinates, convert to logical coordinates(only for windows/linux)
+    const mousePoint = isMac ? { x: data.x, y: data.y } : screen.screenToDipPoint({ x: data.x, y: data.y })
 
     const bounds = this.toolbarWindow!.getBounds()
 
@@ -966,7 +1026,8 @@ export class SelectionService {
       frame: false,
       transparent: true,
       autoHideMenuBar: true,
-      titleBarStyle: 'hidden',
+      titleBarStyle: 'hidden', // [macOS]
+      trafficLightPosition: { x: 12, y: 9 }, // [macOS]
       hasShadow: false,
       thickFrame: false,
       show: false,
@@ -1096,6 +1157,7 @@ export class SelectionService {
       }
 
       actionWindow.show()
+      // actionWindow.focus()
       this.hideToolbar()
       return
     }
@@ -1214,7 +1276,7 @@ export class SelectionService {
       selectionService?.hideToolbar()
     })
 
-    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string) => {
+    ipcMain.handle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
       return selectionService?.writeToClipboard(text) ?? false
     })
 
@@ -1291,7 +1353,7 @@ export class SelectionService {
  * @returns {boolean} Success status of initialization
  */
 export function initSelectionService(): boolean {
-  if (!isWin) return false
+  if (!isSupportedOS) return false
 
   configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean) => {
     //avoid closure

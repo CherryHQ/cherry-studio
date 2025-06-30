@@ -2085,14 +2085,29 @@
         "experimental": "實驗性功能",
         "enable": {
           "title": "啟用",
-          "description": "目前僅支援 Windows 系統"
+          "description": "目前僅支援 Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "輔助使用權限",
+            "description": [
+              "劃詞助手需「<strong>輔助使用權限</strong>」才能正常工作。",
+              "請點擊「<strong>去設定</strong>」，並在稍後彈出的權限請求彈窗中點擊 「<strong>打開系統設定</strong>」 按鈕，然後在之後的應用程式列表中找到 「<strong>Cherry Studio</strong>」，並開啟權限開關。",
+              "完成設定後，請再次開啟劃詞助手。"
+            ],
+            "button": {
+              "open_accessibility_settings": "打開輔助使用設定",
+              "go_to_settings": "去設定"
+            }
+          }
         },
         "toolbar": {
           "title": "工具列",
           "trigger_mode": {
             "title": "取詞方式",
             "description": "劃詞後，觸發取詞並顯示工具列的方式",
-            "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
+            "description_note": {
+              "windows": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
+              "mac": "若使用了快捷鍵或鍵盤映射工具對 ⌘ 鍵進行了重新對應，可能導致部分應用程式無法劃詞。"
+            },
             "selected": "劃詞",
             "selected_note": "劃詞後，立即顯示工具列",
             "ctrlkey": "Ctrl 鍵",
@@ -2217,7 +2232,10 @@
         },
         "filter_modal": {
           "title": "應用篩選名單",
-          "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "user_tips": {
+            "windows": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
+            "mac": "請輸入應用的 Bundle ID，每行一個，不區分大小寫，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
+          }
         }
       }
     }

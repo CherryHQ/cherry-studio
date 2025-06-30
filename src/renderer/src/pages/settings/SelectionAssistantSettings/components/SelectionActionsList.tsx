@@ -6,13 +6,13 @@ import { Row } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
 
-import { SettingDivider, SettingGroup } from '..'
-import ActionsList from './components/ActionsList'
-import ActionsListDivider from './components/ActionsListDivider'
-import SettingsActionsListHeader from './components/SettingsActionsListHeader'
-import { useActionItems } from './hooks/useSettingsActionsList'
+import { SettingDivider, SettingGroup } from '../..'
+import { useActionItems } from '../hooks/useSettingsActionsList'
+import ActionsList from './ActionsList'
+import ActionsListDivider from './ActionsListDivider'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
+import SettingsActionsListHeader from './SettingsActionsListHeader'
 
 // Component for managing selection actions in settings
 // Handles drag-and-drop reordering, enabling/disabling actions, and custom action management

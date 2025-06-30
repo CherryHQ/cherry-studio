@@ -4,7 +4,7 @@ import type { ActionItem } from '@renderer/types/selectionTypes'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_SEARCH_ENGINES } from '../SelectionActionSearchModal'
+import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
 
 const MAX_CUSTOM_ITEMS = 8
 const MAX_ENABLED_ITEMS = 6
