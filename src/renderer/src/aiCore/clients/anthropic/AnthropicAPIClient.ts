@@ -52,7 +52,7 @@ import {
   TextDeltaChunk,
   ThinkingDeltaChunk
 } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message } from '@renderer/types/newMessage'
 import {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,

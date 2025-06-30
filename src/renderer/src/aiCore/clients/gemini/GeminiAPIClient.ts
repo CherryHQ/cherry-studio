@@ -243,6 +243,7 @@ export class GeminiAPIClient extends BaseApiClient<
   private async convertMessageToSdkParam(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
+
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
     for (const imageBlock of imageBlocks) {
