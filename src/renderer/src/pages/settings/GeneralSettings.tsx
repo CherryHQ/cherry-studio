@@ -161,7 +161,7 @@ const GeneralSettings: FC = () => {
             options={languagesOptions.map((lang) => ({
               label: (
                 <Flex align="center" gap={8}>
-                  <span role="img" aria-label={lang.flag} className="country-flag-font">
+                  <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
                   {lang.label}
@@ -212,7 +212,7 @@ const GeneralSettings: FC = () => {
                   value: lang.value,
                   label: (
                     <Flex align="center" gap={8}>
-                      <span role="img" aria-label={lang.flag} className="country-flag-font">
+                      <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
                       {lang.label}

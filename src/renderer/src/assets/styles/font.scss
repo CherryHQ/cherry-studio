@@ -10,3 +10,11 @@
 
   --code-font-family: 'Cascadia Code', 'Fira Code', 'Consolas', Menlo, Courier, monospace;
 }
+
+// Windows系统专用字体配置
+body[os='windows'] {
+  --font-family:
+    'Twemoji Country Flags', Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, Oxygen,
+    Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+}

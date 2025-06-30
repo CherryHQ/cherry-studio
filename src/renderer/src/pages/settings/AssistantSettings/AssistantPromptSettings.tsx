@@ -66,7 +66,6 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button
-              className="country-flag-font"
               style={{
                 fontSize: 18,
                 padding: '4px',

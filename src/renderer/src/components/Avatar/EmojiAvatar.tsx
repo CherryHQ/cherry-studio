@@ -44,7 +44,6 @@ const StyledEmojiAvatar = styled.div<{ $size: number; $fontSize: number }>`
   height: ${(props) => props.$size}px;
   font-size: ${(props) => props.$fontSize}px;
   transition: opacity 0.3s ease;
-  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
 
   &:hover {
     opacity: 0.8;
