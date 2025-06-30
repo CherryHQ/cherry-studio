@@ -146,7 +146,6 @@ const assistantsSlice = createSlice({
     updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
       outer: for (const assistant of state.assistants) {
         for (const topic of assistant.topics) {
-          console.log('updateTopicUpdatedAt', topic.id, topic.id === action.payload.topicId)
           if (topic.id === action.payload.topicId) {
             topic.updatedAt = new Date().toISOString()
             break outer
