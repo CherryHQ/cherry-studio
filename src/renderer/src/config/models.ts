@@ -2905,3 +2905,12 @@ export function isDoubaoThinkingAutoModel(model: Model): boolean {
 }
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
+
+// 模型集合功能测试
+export const isVisionModels = (models: Model[]) => {
+  return models.every((model) => isVisionModel(model))
+}
+
+export const isGenerateImageModels = (models: Model[]) => {
+  return models.every((model) => isGenerateImageModel(model))
+}
