@@ -7,6 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
+import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -90,28 +91,30 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  const contentSearchFilter = (node: Node): boolean => {
-    if (node.parentNode) {
-      let parentNode: HTMLElement | null = node.parentNode as HTMLElement
-      while (parentNode?.parentNode) {
-        if (parentNode.classList.contains('MessageFooter')) {
-          return false
-        }
+  const contentSearchFilter: NodeFilter = {
+    acceptNode(node) {
+      if (node.parentNode) {
+        let parentNode: HTMLElement | null = node.parentNode as HTMLElement
+        while (parentNode?.parentNode) {
+          if (parentNode.classList.contains('MessageFooter')) {
+            return NodeFilter.FILTER_REJECT
+          }
 
-        if (filterIncludeUser) {
-          if (parentNode?.classList.contains('message-content-container')) {
-            return true
+          if (filterIncludeUser) {
+            if (parentNode?.classList.contains('message-content-container')) {
+              return NodeFilter.FILTER_ACCEPT
+            }
+          } else {
+            if (parentNode?.classList.contains('message-content-container-assistant')) {
+              return NodeFilter.FILTER_ACCEPT
+            }
           }
-        } else {
-          if (parentNode?.classList.contains('message-content-container-assistant')) {
-            return true
-          }
+          parentNode = parentNode.parentNode as HTMLElement
         }
-        parentNode = parentNode.parentNode as HTMLElement
+        return NodeFilter.FILTER_REJECT
+      } else {
+        return NodeFilter.FILTER_REJECT
       }
-      return false
-    } else {
-      return false
     }
   }
 
@@ -187,7 +190,7 @@ const Chat: FC<Props> = (props) => {
   }, [isCollapse, currentAssistant.reader?.position])
 
   return (
-    <Container id="chat" className={messageStyle}>
+    <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <Wrapper ref={wrapperRef} data-position={currentAssistant.reader?.position}>
         {currentAssistant.attachedDocument && (
           <ReaderContainer
@@ -226,6 +229,13 @@ const Chat: FC<Props> = (props) => {
             setActiveTopic={setActiveTopic}
             onComponentUpdate={messagesComponentUpdateHandler}
             onFirstUpdate={messagesComponentFirstUpdateHandler}
+          />
+          <ContentSearch
+            ref={contentSearchRef}
+            searchTarget={mainRef as React.RefObject<HTMLElement>}
+            filter={contentSearchFilter}
+            includeUser={filterIncludeUser}
+            onIncludeUserChange={userOutlinedItemClickHandler}
           />
           <QuickPanelProvider>
             <Inputbar assistant={assistant} setActiveTopic={setActiveTopic} topic={activeTopic} />

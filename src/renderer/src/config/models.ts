@@ -145,7 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
-import { getBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -184,7 +184,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
 ]
 
 const visionExcludedModels = [
@@ -271,6 +271,10 @@ export function isFunctionCallingModel(model: Model): boolean {
 
   if (model.provider === 'qiniu') {
     return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
+  }
+
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
+    return FUNCTION_CALLING_REGEX.test(model.id) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
@@ -2323,7 +2327,7 @@ export function isEmbeddingModel(model: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return EMBEDDING_REGEX.test(model.name)
   }
 
@@ -2347,7 +2351,7 @@ export function isVisionModel(model: Model): boolean {
   //   return false
   // }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
@@ -2418,7 +2422,9 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     model.id.includes('gpt-4o-search-preview') ||
     model.id.includes('gpt-4o-mini-search-preview') ||
     (model.id.includes('gpt-4.1') && !model.id.includes('gpt-4.1-nano')) ||
-    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image'))
+    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image')) ||
+    model.id.includes('o3') ||
+    model.id.includes('o4')
   )
 }
 
@@ -2469,6 +2475,10 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return false
   }
 
+  if (model.id.startsWith('gemini') && model.id.includes('thinking')) {
+    return true
+  }
+
   if (model.id.includes('gemini-2.5')) {
     return true
   }
@@ -2499,14 +2509,16 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
 
   return (
     baseName.startsWith('qwen3') ||
     [
+      'qwen-plus',
       'qwen-plus-latest',
       'qwen-plus-0428',
       'qwen-plus-2025-04-28',
+      'qwen-turbo',
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
@@ -2519,7 +2531,7 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
     return false
   }
 
-  return DOUBAO_THINKING_MODEL_REGEX.test(model.id)
+  return DOUBAO_THINKING_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {
@@ -2541,8 +2553,13 @@ export function isReasoningModel(model?: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return (
+      REASONING_REGEX.test(model.id) ||
       REASONING_REGEX.test(model.name) ||
       model.type?.includes('reasoning') ||
       isSupportedThinkingTokenDoubaoModel(model) ||
@@ -2608,7 +2625,7 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
 
   // 不管哪个供应商都判断了
   if (model.id.includes('claude')) {
@@ -2702,7 +2719,7 @@ export function isGenerateImageModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
   if (GENERATE_IMAGE_MODELS.includes(baseName)) {
     return true
   }
@@ -2714,7 +2731,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getLowerBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
@@ -2847,13 +2864,14 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-[\w-]+)?/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$)))(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
-export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i
+export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
+  /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-[\w-]+)*/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
-  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id)
+  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
 }
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')

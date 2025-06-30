@@ -81,7 +81,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
       defaultHeaders: {
-        ...this.defaultHeaders()
+        ...this.defaultHeaders(),
+        ...this.provider.extra_headers
       }
     })
   }
@@ -385,10 +386,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           })
         }
 
-        const toolChoices: OpenAI.Responses.ToolChoiceTypes = {
-          type: 'web_search_preview'
-        }
-
         tools = tools.concat(extraTools)
         const commonParams = {
           model: model.id,
@@ -401,7 +398,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           max_output_tokens: maxTokens,
           stream: streamOutput,
           tools: !isEmpty(tools) ? tools : undefined,
-          tool_choice: enableWebSearch ? toolChoices : undefined,
           service_tier: this.getServiceTier(model),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
           ...this.getCustomParameters(assistant)

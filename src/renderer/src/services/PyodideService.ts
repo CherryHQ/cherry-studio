@@ -229,3 +229,36 @@ class PyodideService {
 
 // 创建并导出单例实例
 export const pyodideService = PyodideService.getInstance()
+
+// Set up IPC handler for main process requests
+if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
+  interface PythonExecutionRequest {
+    id: string
+    script: string
+    context: Record<string, any>
+    timeout: number
+  }
+
+  interface PythonExecutionResponse {
+    id: string
+    result?: string
+    error?: string
+  }
+
+  window.electron.ipcRenderer.on('python-execution-request', async (_, request: PythonExecutionRequest) => {
+    try {
+      const result = await pyodideService.runScript(request.script, request.context, request.timeout)
+      const response: PythonExecutionResponse = {
+        id: request.id,
+        result
+      }
+      window.electron.ipcRenderer.send('python-execution-response', response)
+    } catch (error) {
+      const response: PythonExecutionResponse = {
+        id: request.id,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      window.electron.ipcRenderer.send('python-execution-response', response)
+    }
+  })
+}

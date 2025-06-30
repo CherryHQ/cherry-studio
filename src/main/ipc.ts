@@ -5,10 +5,10 @@ import path from 'node:path'
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -25,6 +25,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { pythonService } from './services/PythonService'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -47,6 +48,9 @@ const vertexAIService = VertexAIService.getInstance()
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
   const notificationService = new NotificationService(mainWindow)
+
+  // Initialize Python service with main window
+  pythonService.setMainWindow(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -89,9 +93,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
-    const windows = BrowserWindow.getAllWindows()
-    windows.forEach((window) => {
-      window.webContents.session.setSpellCheckerEnabled(isEnable)
+    // disable spell check for all webviews
+    const webviews = webContents.getAllWebContents()
+    webviews.forEach((webview) => {
+      webview.session.setSpellCheckerEnabled(isEnable)
     })
   })
 
@@ -137,8 +142,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
-  ipcMain.handle(IpcChannel.App_SetFeedUrl, (_, feedUrl: FeedUrl) => {
-    appUpdater.setFeedUrl(feedUrl)
+  ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
+    log.info('set test plan', isActive)
+    if (isActive !== configManager.getTestPlan()) {
+      appUpdater.cancelDownload()
+      configManager.setTestPlan(isActive)
+    }
+  })
+
+  ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
+    log.info('set test channel', channel)
+    if (channel !== configManager.getTestChannel()) {
+      appUpdater.cancelDownload()
+      configManager.setTestChannel(channel)
+    }
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -269,9 +286,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string) => {
+  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
     try {
-      await fs.promises.cp(oldPath, newPath, { recursive: true })
+      await fs.promises.cp(oldPath, newPath, {
+        recursive: true,
+        filter: (src) => {
+          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
+            return false
+          }
+          return true
+        }
+      })
       return { success: true }
     } catch (error: any) {
       log.error('Failed to copy user data:', error)
@@ -319,6 +344,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3)
+  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3)
+  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files)
+  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File)
+  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -423,6 +453,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
 
+  // Register Python execution handler
+  ipcMain.handle(
+    IpcChannel.Python_Execute,
+    async (_, script: string, context?: Record<string, any>, timeout?: number) => {
+      return await pythonService.executeScript(script, context, timeout)
+    }
+  )
+
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
@@ -467,6 +505,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
     setOpenLinkExternal(webviewId, isExternal)
   )
+
+  ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
+    const webview = webContents.fromId(webviewId)
+    if (!webview) return
+    webview.session.setSpellCheckerEnabled(isEnable)
+  })
 
   // store sync
   storeSyncService.registerIpcHandler()

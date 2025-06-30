@@ -137,6 +137,14 @@ export const builtinMCPServers: MCPServer[] = [
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
     provider: 'CherryAI'
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/python',
+    type: 'inMemory',
+    description: '在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包',
+    isActive: false,
+    provider: 'CherryAI'
   }
 ]
 

@@ -6,6 +6,7 @@ import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
 import MemoryServer from './memory'
+import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
 
 export function createInMemoryMCPServer(name: string, args: string[] = [], envs: Record<string, string> = {}): Server {
@@ -30,6 +31,9 @@ export function createInMemoryMCPServer(name: string, args: string[] = [], envs:
     case '@cherry/dify-knowledge': {
       const difyKey = envs.DIFY_KEY
       return new DifyKnowledgeServer(difyKey, args).server
+    }
+    case '@cherry/python': {
+      return new PythonServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

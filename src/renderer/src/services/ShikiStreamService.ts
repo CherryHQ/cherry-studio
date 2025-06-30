@@ -20,7 +20,7 @@ export type ShikiPreProperties = {
  * 代码 chunk 高亮结果
  *
  * @param lines 所有高亮行（包括稳定和不稳定）
- * @param recall 需要撤回的行数
+ * @param recall 需要撤回的行数，-1 表示撤回所有行
  */
 export interface HighlightChunkResult {
   lines: ThemedToken[][]
@@ -45,6 +45,13 @@ class ShikiStreamService {
     dispose: (value) => {
       if (value) value.clear()
     }
+  })
+
+  // 缓存每个 callerId 对应的已处理内容
+  private codeCache = new LRUCache<string, string>({
+    max: 100, // 最大缓存数量
+    ttl: 1000 * 60 * 30, // 30分钟过期时间
+    updateAgeOnGet: true
   })
 
   // Worker 相关资源
@@ -262,6 +269,72 @@ class ShikiStreamService {
   }
 
   /**
+   * 高亮流式输出的代码，调用方传入完整代码内容，得到增量高亮结果。
+   *
+   * - 检测当前内容与上次处理内容的差异。
+   * - 如果是末尾追加，只传输增量部分（此时性能最好，如遇性能问题，考虑检查这里的逻辑）。
+   * - 如果不是追加，重置 tokenizer 并处理完整内容。
+   *
+   * 调用者需要自行处理撤回。
+   * @param code 完整代码内容
+   * @param language 语言
+   * @param theme 主题
+   * @param callerId 调用者ID
+   * @returns 高亮结果，recall 为 -1 表示撤回所有行
+   */
+  async highlightStreamingCode(
+    code: string,
+    language: string,
+    theme: string,
+    callerId: string
+  ): Promise<HighlightChunkResult> {
+    const cacheKey = `${callerId}-${language}-${theme}`
+    const lastContent = this.codeCache.get(cacheKey) || ''
+
+    let isAppend = false
+
+    if (code.length === lastContent.length) {
+      // 内容没有变化，返回空结果
+      if (code === lastContent) {
+        return { lines: [], recall: 0 }
+      }
+    } else if (code.length > lastContent.length) {
+      // 长度增加，可能是追加
+      isAppend = code.startsWith(lastContent)
+    }
+
+    try {
+      let result: HighlightChunkResult
+
+      if (isAppend) {
+        // 流式追加，只传输增量
+        const chunk = code.slice(lastContent.length)
+        result = await this.highlightCodeChunk(chunk, language, theme, callerId)
+      } else {
+        // 非追加变化，重置并处理完整内容
+        this.cleanupTokenizers(callerId)
+        this.codeCache.delete(cacheKey) // 清除缓存
+
+        result = await this.highlightCodeChunk(code, language, theme, callerId)
+
+        // 撤回所有行
+        result = {
+          ...result,
+          recall: -1
+        }
+      }
+
+      // 成功处理后更新缓存
+      this.codeCache.set(cacheKey, code)
+      return result
+    } catch (error) {
+      // 处理失败时不更新缓存，保持之前的状态
+      console.error('Failed to highlight streaming code:', error)
+      throw error
+    }
+  }
+
+  /**
    * 高亮代码 chunk，返回本次高亮的所有 ThemedToken 行
    *
    * 优先使用 Worker 处理，失败时回退到主线程处理。
@@ -405,6 +478,13 @@ class ShikiStreamService {
       })
     }
 
+    // 清理对应的内容缓存
+    for (const key of this.codeCache.keys()) {
+      if (key.startsWith(`${callerId}-`)) {
+        this.codeCache.delete(key)
+      }
+    }
+
     // 再清理主线程中的 tokenizers，移除所有以 callerId 开头的缓存项
     for (const key of this.tokenizerCache.keys()) {
       if (key.startsWith(`${callerId}-`)) {
@@ -429,6 +509,7 @@ class ShikiStreamService {
 
     this.workerDegradationCache.clear()
     this.tokenizerCache.clear()
+    this.codeCache.clear()
     this.highlighter = null
     this.workerInitPromise = null
     this.workerInitRetryCount = 0

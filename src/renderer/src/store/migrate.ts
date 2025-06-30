@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
@@ -7,6 +7,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1542,7 +1543,7 @@ const migrateConfig = {
         state.paintings.tokenFluxPaintings = []
       }
       state.settings.showTokens = true
-      state.settings.earlyAccess = false
+      state.settings.testPlan = false
       return state
     } catch (error) {
       return state
@@ -1607,6 +1608,54 @@ const migrateConfig = {
         state.settings.enableSpellCheck = false
         state.settings.spellCheckLanguages = []
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '115': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (!assistant.settings) {
+          assistant.settings = {
+            temperature: DEFAULT_TEMPERATURE,
+            contextCount: DEFAULT_CONTEXTCOUNT,
+            topP: 1,
+            toolUseMode: 'prompt',
+            customParameters: [],
+            streamOutput: true,
+            enableMaxTokens: false
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '116': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        // migrate contentLimit to cutoffLimit
+        // @ts-ignore eslint-disable-next-line
+        if (state.websearch.contentLimit) {
+          state.websearch.compressionConfig = {
+            method: 'cutoff',
+            cutoffUnit: 'char',
+            // @ts-ignore eslint-disable-next-line
+            cutoffLimit: state.websearch.contentLimit
+          }
+        } else {
+          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+        }
+
+        // @ts-ignore eslint-disable-next-line
+        delete state.websearch.contentLimit
+      }
+      if (state.settings) {
+        state.settings.testChannel = UpgradeChannel.LATEST
+      }
+
       return state
     } catch (error) {
       return state

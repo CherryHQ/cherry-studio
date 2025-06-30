@@ -17,7 +17,7 @@ export default abstract class BaseReranker {
    * Get Rerank Request Url
    */
   protected getRerankUrl() {
-    if (this.base.rerankModelProvider === 'dashscope') {
+    if (this.base.rerankModelProvider === 'bailian') {
       return 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
     }
 
@@ -50,7 +50,7 @@ export default abstract class BaseReranker {
         documents,
         top_k: topN
       }
-    } else if (provider === 'dashscope') {
+    } else if (provider === 'bailian') {
       return {
         model: this.base.rerankModel,
         input: {
@@ -82,11 +82,11 @@ export default abstract class BaseReranker {
    */
   protected extractRerankResult(data: any) {
     const provider = this.base.rerankModelProvider
-    if (provider === 'dashscope') {
+    if (provider === 'bailian') {
       return data.output.results
     } else if (provider === 'voyageai') {
       return data.data
-    } else if (provider === 'mis-tei') {
+    } else if (provider?.includes('tei')) {
       return data.map((item: any) => {
         return {
           index: item.index,
