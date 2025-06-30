@@ -45,7 +45,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
 
   return (
     <Container>
-      <Popover content={PopoverContent}>
+      <Popover content={PopoverContent} arrow={false}>
         <MenuOutlined /> {contextCount.current} / {formatMaxCount(contextCount.max)}
         <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
         <ArrowUpOutlined />

@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
@@ -8,6 +8,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1543,7 +1544,7 @@ const migrateConfig = {
         state.paintings.tokenFluxPaintings = []
       }
       state.settings.showTokens = true
-      state.settings.earlyAccess = false
+      state.settings.testPlan = false
       return state
     } catch (error) {
       return state
@@ -1615,8 +1616,67 @@ const migrateConfig = {
   },
   '115': (state: RootState) => {
     try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (!assistant.settings) {
+          assistant.settings = {
+            temperature: DEFAULT_TEMPERATURE,
+            contextCount: DEFAULT_CONTEXTCOUNT,
+            topP: 1,
+            toolUseMode: 'prompt',
+            customParameters: [],
+            streamOutput: true,
+            enableMaxTokens: false
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '116': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        // migrate contentLimit to cutoffLimit
+        // @ts-ignore eslint-disable-next-line
+        if (state.websearch.contentLimit) {
+          state.websearch.compressionConfig = {
+            method: 'cutoff',
+            cutoffUnit: 'char',
+            // @ts-ignore eslint-disable-next-line
+            cutoffLimit: state.websearch.contentLimit
+          }
+        } else {
+          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+        }
+
+        // @ts-ignore eslint-disable-next-line
+        delete state.websearch.contentLimit
+      }
+      if (state.settings) {
+        state.settings.testChannel = UpgradeChannel.LATEST
+      }
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '117': (state: RootState) => {
+    try {
+      updateProvider(state, 'ppio', {
+        models: SYSTEM_MODELS.ppio,
+        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '119': (state: RootState) => {
+    try {
       // 完整的 TTS 功能初始化和所有提供商添加
-      console.log('[Migration 115] Initializing complete TTS functionality')
+      console.log('[Migration 119] Initializing complete TTS functionality')
 
       // 初始化 TTS 状态（如果不存在）
       if (!state.tts) {
@@ -1648,13 +1708,13 @@ const migrateConfig = {
       allTTSProviders.forEach((provider) => {
         const existingProvider = state.tts.providers.find((p) => p.id === provider.id)
         if (!existingProvider) {
-          console.log(`[Migration 115] Adding TTS provider: ${provider.id}`)
+          console.log(`[Migration 119] Adding TTS provider: ${provider.id}`)
           state.tts.providers.push(provider as any)
         } else {
           // 更新现有提供商的设置，确保包含流式合成设置
           if (provider.settings.streaming !== undefined && existingProvider.settings.streaming === undefined) {
             existingProvider.settings.streaming = provider.settings.streaming
-            console.log(`[Migration 115] Added streaming setting to ${provider.id}`)
+            console.log(`[Migration 119] Added streaming setting to ${provider.id}`)
           }
           // 确保 Web Speech API 默认启用
           if (provider.id === 'web-speech') {
@@ -1663,10 +1723,10 @@ const migrateConfig = {
         }
       })
 
-      console.log(`[Migration 115] TTS providers initialized, count: ${state.tts.providers.length}`)
+      console.log(`[Migration 119] TTS providers initialized, count: ${state.tts.providers.length}`)
       return state
     } catch (error) {
-      console.error('[Migration 115] Complete TTS initialization failed:', error)
+      console.error('[Migration 119] Complete TTS initialization failed:', error)
       return state
     }
   }

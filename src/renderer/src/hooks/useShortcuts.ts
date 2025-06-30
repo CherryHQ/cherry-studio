@@ -1,4 +1,4 @@
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
 import { orderBy } from 'lodash'
 import { useCallback } from 'react'
@@ -72,7 +72,7 @@ export function useShortcutDisplay(key: string) {
           case 'ctrl':
             return isMac ? '⌃' : 'Ctrl'
           case 'command':
-            return isMac ? '⌘' : isWindows ? 'Win' : 'Super'
+            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
           case 'alt':
             return isMac ? '⌥' : 'Alt'
           case 'shift':

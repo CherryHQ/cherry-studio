@@ -130,7 +130,7 @@ export const searchKnowledgeBase = async (
     )
   } catch (error) {
     Logger.error(`Error searching knowledge base ${base.name}:`, error)
-    return []
+    throw error
   }
 }
 

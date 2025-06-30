@@ -48,17 +48,17 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnSc
   }, [throttledInternalScrollHandler, clearScrollingTimeout])
 
   return (
-    <Container
+    <ScrollBarContainer
       {...htmlProps} // Pass other HTML attributes
       $isScrolling={isScrolling}
       onScroll={combinedOnScroll} // Use the combined handler
       ref={passedRef}>
       {children}
-    </Container>
+    </ScrollBarContainer>
   )
 }
 
-const Container = styled.div<{ $isScrolling: boolean }>`
+const ScrollBarContainer = styled.div<{ $isScrolling: boolean }>`
   overflow-y: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;

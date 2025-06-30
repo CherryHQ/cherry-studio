@@ -111,11 +111,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           return
         }
 
-        if (autoDims || typeof values.dimensions === 'undefined') {
+        if (autoDims || values.dimensions === undefined) {
           try {
             const aiProvider = new AiProvider(provider)
             values.dimensions = await aiProvider.getEmbeddingDimensions(selectedEmbeddingModel)
           } catch (error) {
+            console.error('Error getting embedding dimensions:', error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
@@ -130,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           name: values.name,
           model: selectedEmbeddingModel,
           rerankModel: selectedRerankModel,
-          dimensions: values.dimensions,
+          dimensions: autoDims ? undefined : values.dimensions,
           documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
           items: [],
           created_at: Date.now(),
@@ -201,13 +202,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           label={t('knowledge.document_count')}
           initialValue={DEFAULT_KNOWLEDGE_DOCUMENT_COUNT} // 设置初始值
           tooltip={{ title: t('knowledge.document_count_help') }}>
-          <Slider
-            style={{ width: '100%' }}
-            min={1}
-            max={30}
-            step={1}
-            marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
-          />
+          <Slider min={1} max={30} step={1} marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }} />
         </Form.Item>
         <Form.Item
           name="autoDims"

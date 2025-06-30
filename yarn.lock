@@ -3238,6 +3238,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opendal/lib-darwin-arm64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-arm64@npm:0.47.11"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-darwin-x64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-x64@npm:0.47.11"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-musl@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-musl@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-x64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-x64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-arm64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-arm64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-x64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-x64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@parcel/watcher-android-arm64@npm:2.5.1":
   version: 2.5.1
   resolution: "@parcel/watcher-android-arm64@npm:2.5.1"
@@ -4225,13 +4274,6 @@ __metadata:
   version: 5.0.4
   resolution: "@types/aria-query@npm:5.0.4"
   checksum: 10c0/dc667bc6a3acc7bba2bccf8c23d56cb1f2f4defaa704cfef595437107efaa972d3b3db9ec1d66bc2711bfc35086821edd32c302bffab36f2e79b97f312069f08
-  languageName: node
-  linkType: hard
-
-"@types/balanced-match@npm:^3":
-  version: 3.0.2
-  resolution: "@types/balanced-match@npm:3.0.2"
-  checksum: 10c0/833f6499609363537026c4ec2770af5c5a36e71b80f7b5b23884b15296301bfcf974cd40bc75fda940dea4994acd96c9222b284c248383a1ade59bf8835940b0
   languageName: node
   linkType: hard
 
@@ -5804,7 +5846,6 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.6.3"
     "@testing-library/react": "npm:^16.3.0"
     "@tryfabric/martian": "npm:^1.2.4"
-    "@types/balanced-match": "npm:^3"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -5827,13 +5868,13 @@ __metadata:
     "@vitest/ui": "npm:^3.1.4"
     "@vitest/web-worker": "npm:^3.1.4"
     "@xyflow/react": "npm:^12.4.4"
-    antd: "npm:^5.22.5"
+    antd: "patch:antd@npm%3A5.24.7#~/.yarn/patches/antd-npm-5.24.7-356a553ae5.patch"
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
-    balanced-match: "npm:^3.0.1"
     browser-image-compression: "npm:^2.0.2"
     color: "npm:^5.0.0"
+    country-flag-emoji-polyfill: "npm:0.1.8"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
     dexie-react-hooks: "npm:^1.1.7"
@@ -5878,6 +5919,7 @@ __metadata:
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
+    opendal: "npm:0.47.11"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     playwright: "npm:^1.52.0"
@@ -5913,7 +5955,7 @@ __metadata:
     tar: "npm:^7.4.3"
     tencentcloud-sdk-nodejs-tts: "npm:^4.1.45"
     tiny-pinyin: "npm:^1.3.2"
-    tokenx: "npm:^0.4.1"
+    tokenx: "npm:^1.1.0"
     turndown: "npm:7.2.0"
     typescript: "npm:^5.6.2"
     uuid: "npm:^10.0.0"
@@ -6118,7 +6160,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"antd@npm:^5.22.5":
+"antd@npm:5.24.7":
   version: 5.24.7
   resolution: "antd@npm:5.24.7"
   dependencies:
@@ -6175,6 +6217,66 @@ __metadata:
     react: ">=16.9.0"
     react-dom: ">=16.9.0"
   checksum: 10c0/d9b6d24cf0c74c3d22b5f799158694aba946e1971b0c1602b3319c85663b5ba6fc7b2135c91a0839d13ecd28a1643c5eb84de8a2586b8362e5a3a166c709b1ed
+  languageName: node
+  linkType: hard
+
+"antd@patch:antd@npm%3A5.24.7#~/.yarn/patches/antd-npm-5.24.7-356a553ae5.patch":
+  version: 5.24.7
+  resolution: "antd@patch:antd@npm%3A5.24.7#~/.yarn/patches/antd-npm-5.24.7-356a553ae5.patch::version=5.24.7&hash=ff9154"
+  dependencies:
+    "@ant-design/colors": "npm:^7.2.0"
+    "@ant-design/cssinjs": "npm:^1.23.0"
+    "@ant-design/cssinjs-utils": "npm:^1.1.3"
+    "@ant-design/fast-color": "npm:^2.0.6"
+    "@ant-design/icons": "npm:^5.6.1"
+    "@ant-design/react-slick": "npm:~1.1.2"
+    "@babel/runtime": "npm:^7.26.0"
+    "@rc-component/color-picker": "npm:~2.0.1"
+    "@rc-component/mutate-observer": "npm:^1.1.0"
+    "@rc-component/qrcode": "npm:~1.0.0"
+    "@rc-component/tour": "npm:~1.15.1"
+    "@rc-component/trigger": "npm:^2.2.6"
+    classnames: "npm:^2.5.1"
+    copy-to-clipboard: "npm:^3.3.3"
+    dayjs: "npm:^1.11.11"
+    rc-cascader: "npm:~3.33.1"
+    rc-checkbox: "npm:~3.5.0"
+    rc-collapse: "npm:~3.9.0"
+    rc-dialog: "npm:~9.6.0"
+    rc-drawer: "npm:~7.2.0"
+    rc-dropdown: "npm:~4.2.1"
+    rc-field-form: "npm:~2.7.0"
+    rc-image: "npm:~7.11.1"
+    rc-input: "npm:~1.8.0"
+    rc-input-number: "npm:~9.5.0"
+    rc-mentions: "npm:~2.20.0"
+    rc-menu: "npm:~9.16.1"
+    rc-motion: "npm:^2.9.5"
+    rc-notification: "npm:~5.6.3"
+    rc-pagination: "npm:~5.1.0"
+    rc-picker: "npm:~4.11.3"
+    rc-progress: "npm:~4.0.0"
+    rc-rate: "npm:~2.13.1"
+    rc-resize-observer: "npm:^1.4.3"
+    rc-segmented: "npm:~2.7.0"
+    rc-select: "npm:~14.16.6"
+    rc-slider: "npm:~11.1.8"
+    rc-steps: "npm:~6.0.1"
+    rc-switch: "npm:~4.1.0"
+    rc-table: "npm:~7.50.4"
+    rc-tabs: "npm:~15.5.2"
+    rc-textarea: "npm:~1.10.0"
+    rc-tooltip: "npm:~6.4.0"
+    rc-tree: "npm:~5.13.1"
+    rc-tree-select: "npm:~5.27.0"
+    rc-upload: "npm:~4.8.1"
+    rc-util: "npm:^5.44.4"
+    scroll-into-view-if-needed: "npm:^3.1.0"
+    throttle-debounce: "npm:^5.0.2"
+  peerDependencies:
+    react: ">=16.9.0"
+    react-dom: ">=16.9.0"
+  checksum: 10c0/e46e36f151ba0f2eef1190aaf772cbe2ab947de7d832aef2d872f6a28203a134e4ee71aa6f7a7c4c57979bf1955f1b4adfae733aca06f0e740a6b54a59d45a19
   languageName: node
   linkType: hard
 
@@ -6462,13 +6564,6 @@ __metadata:
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
   checksum: 10c0/9308baf0a7e4838a82bbfd11e01b1cb0f0cf2893bc1676c27c2a8c0e70cbae1c59120c3268517a8ae7fb6376b4639ef81ca22582611dbee4ed28df945134aaee
-  languageName: node
-  linkType: hard
-
-"balanced-match@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "balanced-match@npm:3.0.1"
-  checksum: 10c0/ac8dd63a5b260610c2cbda982f436e964c1b9ae8764d368a523769da40a31710abd6e19f0fdf1773c4ad7b2ea7ba7b285d547375dc723f6e754369835afc8e9f
   languageName: node
   linkType: hard
 
@@ -7502,6 +7597,13 @@ __metadata:
   dependencies:
     layout-base: "npm:^2.0.0"
   checksum: 10c0/14b9f8100ac322a00777ffb1daeb3321af368bbc9cabe3103943361273baee2003202ffe38e4ab770960b600214224e9c196195a78d589521540aa694df7cdec
+  languageName: node
+  linkType: hard
+
+"country-flag-emoji-polyfill@npm:0.1.8":
+  version: 0.1.8
+  resolution: "country-flag-emoji-polyfill@npm:0.1.8"
+  checksum: 10c0/aac74de7df236bfc64d33438e29ab4c9eec314370b48f2e7aabb052a57fd3bc939e41afdcad0069987f18509aaf4b34d9e44327d0284fa2afabe97129f25cd89
   languageName: node
   linkType: hard
 
@@ -14435,6 +14537,36 @@ __metadata:
   languageName: node
   linkType: hard
 
+"opendal@npm:0.47.11":
+  version: 0.47.11
+  resolution: "opendal@npm:0.47.11"
+  dependencies:
+    "@opendal/lib-darwin-arm64": "npm:0.47.11"
+    "@opendal/lib-darwin-x64": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-gnu": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-musl": "npm:0.47.11"
+    "@opendal/lib-linux-x64-gnu": "npm:0.47.11"
+    "@opendal/lib-win32-arm64-msvc": "npm:0.47.11"
+    "@opendal/lib-win32-x64-msvc": "npm:0.47.11"
+  dependenciesMeta:
+    "@opendal/lib-darwin-arm64":
+      optional: true
+    "@opendal/lib-darwin-x64":
+      optional: true
+    "@opendal/lib-linux-arm64-gnu":
+      optional: true
+    "@opendal/lib-linux-arm64-musl":
+      optional: true
+    "@opendal/lib-linux-x64-gnu":
+      optional: true
+    "@opendal/lib-win32-arm64-msvc":
+      optional: true
+    "@opendal/lib-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/0783da2651bb27ac693ce38938d12b00124530fb965364517eef3de17b3ff898cdecf06260a79a7d70745d57c2ba952a753a4bab52e0831aa7232c3a69120225
+  languageName: node
+  linkType: hard
+
 "option@npm:~0.2.1":
   version: 0.2.4
   resolution: "option@npm:0.2.4"
@@ -17996,10 +18128,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tokenx@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "tokenx@npm:0.4.1"
-  checksum: 10c0/377f4e3c31ff9dc57b5b6af0fb1ae821227dee5e1d87b92a3ab1a0ed25454f01185c709d73592002b0d3024de1c904c8f029c46ae1806677816e4659fb8c481e
+"tokenx@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "tokenx@npm:1.1.0"
+  checksum: 10c0/8214bce58b48e130bcf4a27ac1bb5abf486c395310fb0c8f54e31656acacf97da533372afb9e8ac8f7736e6c3f29af86ea9623d4875f1399e66a5203b80609db
   languageName: node
   linkType: hard
 

@@ -1,5 +1,6 @@
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel } from '@renderer/config/models'
+import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import OpenAI from 'openai'
@@ -46,7 +47,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           const userImages = await Promise.all(
             userImageBlocks.map(async (block) => {
               if (!block.file) return null
-              const binaryData: Uint8Array = await window.api.file.binaryImage(block.file.id)
+              const binaryData: Uint8Array = await FileManager.readBinaryImage(block.file)
               const mimeType = `${block.file.type}/${block.file.ext.slice(1)}`
               return await toFile(new Blob([binaryData]), block.file.origin_name || 'image.png', { type: mimeType })
             })

@@ -3,7 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Modal, Typography } from 'antd'
+import { Modal, Spin, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,12 +16,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonConfig, setJsonConfig] = useState('')
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const mcpServers = useAppSelector((state) => state.mcp.servers)
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
   useEffect(() => {
+    setIsLoading(true)
     try {
       const mcpServersObj: Record<string, any> = {}
 
@@ -40,6 +42,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     } catch (error) {
       console.error('Failed to format JSON:', error)
       setJsonError(t('settings.mcp.jsonFormatError'))
+    } finally {
+      setIsLoading(false)
     }
   }, [mcpServers, t])
 
@@ -118,24 +122,24 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
       </div>
-      {jsonConfig && (
-        <div style={{ marginBottom: '16px' }}>
-          <CodeEditor
-            value={jsonConfig}
-            language="json"
-            onChange={(value) => setJsonConfig(value)}
-            maxHeight="60vh"
-            options={{
-              lint: true,
-              collapsible: true,
-              wrappable: true,
-              lineNumbers: true,
-              foldGutter: true,
-              highlightActiveLine: true,
-              keymap: true
-            }}
-          />
-        </div>
+      {isLoading ? (
+        <Spin size="large" />
+      ) : (
+        <CodeEditor
+          value={jsonConfig}
+          language="json"
+          onChange={(value) => setJsonConfig(value)}
+          height="60vh"
+          options={{
+            lint: true,
+            collapsible: false,
+            wrappable: true,
+            lineNumbers: true,
+            foldGutter: true,
+            highlightActiveLine: true,
+            keymap: true
+          }}
+        />
       )}
       <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
     </Modal>

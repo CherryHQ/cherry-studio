@@ -1,4 +1,4 @@
-import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -35,6 +35,7 @@ import {
   Copy,
   FilePenLine,
   Languages,
+  ListChecks,
   Menu,
   Pause,
   Play,
@@ -242,7 +243,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.multiple.select'),
         key: 'multi-select',
-        icon: <MenuOutlined size={16} />,
+        icon: <ListChecks size={16} />,
         onClick: () => {
           toggleMultiSelectMode(true)
         }
@@ -684,8 +685,7 @@ const MessageMenubar: FC<Props> = (props) => {
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
           trigger={['click']}
-          placement="topRight"
-          arrow>
+          placement="topRight">
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
