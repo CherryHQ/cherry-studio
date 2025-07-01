@@ -1,5 +1,6 @@
 import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -180,15 +181,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const dropdownItems = useMemo(
     () => [
-      {
-        label: t('chat.save'),
-        key: 'save',
-        icon: <Save size={16} />,
-        onClick: () => {
-          const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-          window.api.file.save(fileName, mainTextContent)
-        }
-      },
       ...(isEditable
         ? [
             {
@@ -212,6 +204,28 @@ const MessageMenubar: FC<Props> = (props) => {
         onClick: () => {
           toggleMultiSelectMode(true)
         }
+      },
+      {
+        label: t('chat.save'),
+        key: 'save',
+        icon: <Save size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        children: [
+          {
+            label: t('chat.save.file.title'),
+            key: 'file',
+            onClick: () => {
+              const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
+              window.api.file.save(fileName, mainTextContent)
+            }
+          },
+          {
+            label: t('chat.save.knowledge.title'),
+            key: 'knowledge',
+            onClick: () => {
+              SaveToKnowledgePopup.show({ message })
+            }
+          }
+        ]
       },
       {
         label: t('chat.topics.export.title'),
