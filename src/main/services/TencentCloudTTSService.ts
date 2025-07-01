@@ -1,7 +1,7 @@
 import Logger from 'electron-log'
-import tencentcloud from 'tencentcloud-sdk-nodejs-tts'
+import { tts } from 'tencentcloud-sdk-nodejs-tts'
 // 腾讯云 TTS SDK
-const TtsClient = tencentcloud.tts.v20190823.Client
+const TtsClient = tts.v20190823.Client
 
 export interface TencentCloudTTSOptions {
   secretId: string
