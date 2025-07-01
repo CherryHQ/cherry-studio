@@ -12,6 +12,7 @@ export const isLinux = platform === 'linux'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 export const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
+export const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 export const TOKENFLUX_HOST = 'https://tokenflux.ai'
 
 // Messages loading configuration

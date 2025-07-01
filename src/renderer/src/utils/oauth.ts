@@ -1,4 +1,4 @@
-import { PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
+import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
 
 export const oauthWithSiliconFlow = async (setKey) => {
@@ -62,24 +62,75 @@ export const oauthWithPPIO = async (setKey) => {
   const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.cn/oauth/authorize?client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
-  const popup = window.open(
+  window.open(
     authUrl,
     'oauth',
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
 
-  const messageHandler = (event) => {
-    if (event.data && event.data.key === 'ppio_oauth_callback') {
-      if (event.data.data && event.data.data.api_key) {
-        setKey(event.data.data.api_key)
-        popup?.close()
-        window.removeEventListener('message', messageHandler)
-      }
-    }
+  if (!setKey) {
+    console.log('[PPIO OAuth] No setKey callback provided, returning early')
+    return
   }
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+  console.log('[PPIO OAuth] Setting up protocol listener')
+
+  return new Promise<string>((resolve, reject) => {
+    const removeListener = window.api.protocol.onReceiveData(async (data) => {
+      try {
+        const url = new URL(data.url)
+        const params = new URLSearchParams(url.search)
+        const code = params.get('code')
+
+        if (!code) {
+          reject(new Error('No authorization code received'))
+          return
+        }
+
+        if (!PPIO_APP_SECRET) {
+          reject(
+            new Error('PPIO_APP_SECRET not configured. Please set RENDERER_VITE_PPIO_APP_SECRET environment variable.')
+          )
+          return
+        }
+        const formData = new URLSearchParams({
+          client_id: PPIO_CLIENT_ID,
+          client_secret: PPIO_APP_SECRET,
+          code: code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri
+        })
+        const tokenResponse = await fetch('https://ppio.cn/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: formData.toString()
+        })
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text()
+          console.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
+          throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
+        }
+
+        const tokenData = await tokenResponse.json()
+        const accessToken = tokenData.access_token
+
+        if (accessToken) {
+          setKey(accessToken)
+          resolve(accessToken)
+        } else {
+          reject(new Error('No access token received'))
+        }
+      } catch (error) {
+        console.error('[PPIO OAuth] Error processing callback:', error)
+        reject(error)
+      } finally {
+        removeListener()
+      }
+    })
+  })
 }
 
 export const oauthWithTokenFlux = async () => {
@@ -116,7 +167,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     ppio: {
-      url: 'https://ppio.cn/user/recharge',
+      url: 'https://ppio.cn/billing?utm_source=github_cherry-studio',
       width: 900,
       height: 700
     }
@@ -149,7 +200,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     ppio: {
-      url: 'https://ppio.cn/user/billing',
+      url: 'https://ppio.cn/billing/billing-details?utm_source=github_cherry-studio',
       width: 900,
       height: 700
     }
