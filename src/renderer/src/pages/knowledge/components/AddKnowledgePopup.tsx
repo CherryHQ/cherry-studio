@@ -1,5 +1,6 @@
-import { InfoCircleOutlined, SettingOutlined, WarningOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import AiProvider from '@renderer/aiCore'
+import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -14,7 +15,7 @@ import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
-import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tabs, TabsProps, Tooltip } from 'antd'
+import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Switch, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
 import { useMemo, useRef, useState } from 'react'
@@ -38,6 +39,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { addKnowledgeBase } = useKnowledgeBases()
   const [newBase, setNewBase] = useState<KnowledgeBase>({} as KnowledgeBase)
   const [dimensions, setDimensions] = useState<number | undefined>(undefined)
+  const [selectedMenu, setSelectedMenu] = useState('general')
 
   const { preprocessProviders } = usePreprocessProviders()
   const { ocrProviders } = useOcrProviders()
@@ -176,7 +178,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       console.error('Validation failed:', error)
     }
   }
-
   const onCancel = () => {
     setOpen(false)
   }
@@ -185,15 +186,25 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     resolve(null)
   }
 
-  const settingItems: TabsProps['items'] = [
+  const menuItems = [
     {
-      key: '1',
-      label: t('settings.general'),
-      children: (
+      key: 'general',
+      label: t('settings.general')
+    },
+    {
+      key: 'advanced',
+      label: t('settings.advanced.title')
+    }
+  ]
+
+  const renderSettings = () => {
+    if (selectedMenu === 'general') {
+      return (
         <SettingsPanel>
           <SettingsItem>
             <div className="settings-label">{t('common.name')}</div>
             <Input
+              ref={nameInputRef}
               placeholder={t('common.name')}
               onChange={(e) => {
                 if (e.target.value) {
@@ -344,13 +355,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             </SettingsItem>
           )}
         </SettingsPanel>
-      ),
-      icon: <SettingOutlined />
-    },
-    {
-      key: '2',
-      label: t('settings.advanced.title'),
-      children: (
+      )
+    }
+    if (selectedMenu === 'advanced') {
+      return (
         <SettingsPanel>
           <SettingsItem>
             <div className="settings-label">
@@ -388,8 +396,9 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               onChange={async (value) => {
                 if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
                   setNewBase({ ...newBase, chunkOverlap: value || undefined })
+                } else {
+                  await window.message.error(t('message.error.chunk_overlap_too_large'))
                 }
-                await window.message.error(t('message.error.chunk_overlap_too_large'))
               }}
             />
           </SettingsItem>
@@ -419,10 +428,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             icon={<WarningOutlined />}
           />
         </SettingsPanel>
-      ),
-      icon: <SettingOutlined />
+      )
     }
-  ]
+    return null
+  }
 
   return (
     <SettingsModal
@@ -434,10 +443,32 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterOpenChange={(visible) => visible && nameInputRef.current?.focus()}
       destroyOnClose
       centered
-      okButtonProps={{ loading }}>
-      <div>
-        <Tabs style={{ minHeight: '50vh' }} defaultActiveKey="1" tabPosition={'left'} items={settingItems} />
-      </div>
+      okButtonProps={{ loading }}
+      width="min(800px, 70vw)"
+      styles={{
+        body: { padding: 0, height: '65vh' },
+        header: {
+          padding: '10px 15px',
+          borderBottom: '0.5px solid var(--color-border)',
+          margin: 0,
+          borderRadius: 0
+        },
+        content: {
+          padding: 0,
+          overflow: 'hidden'
+        }
+      }}>
+      <HStack>
+        <LeftMenu>
+          <StyledMenu
+            defaultSelectedKeys={['general']}
+            mode="vertical"
+            items={menuItems}
+            onSelect={({ key }) => setSelectedMenu(key)}
+          />
+        </LeftMenu>
+        <SettingsContentPanel>{renderSettings()}</SettingsContentPanel>
+      </HStack>
     </SettingsModal>
   )
 }
@@ -458,23 +489,58 @@ const SettingsItem = styled.div`
 `
 
 const SettingsModal = styled(Modal)`
-  .ant-modal {
-    width: auto !important;
-    height: auto !important;
+  .ant-modal-title {
+    font-size: 14px;
   }
-  .ant-modal-content {
-    min-height: 60vh;
-    width: 50vw;
+  .ant-modal-close {
+    top: 4px;
+    right: 4px;
+  }
+  .ant-menu-item {
+    height: 36px;
+    color: var(--color-text-2);
     display: flex;
-    flex-direction: column;
-
-    .ant-modal-body {
-      flex: 1;
-      max-height: auto;
+    align-items: center;
+    border: 0.5px solid transparent;
+    border-radius: 6px;
+    .ant-menu-title-content {
+      line-height: 36px;
     }
   }
-  .ant-tabs-tab {
-    padding-inline-start: 0px !important;
+  .ant-menu-item-active {
+    background-color: var(--color-background-soft) !important;
+    transition: none;
+  }
+  .ant-menu-item-selected {
+    background-color: var(--color-background-soft);
+    border: 0.5px solid var(--color-border);
+    .ant-menu-title-content {
+      color: var(--color-text-1);
+      font-weight: 500;
+    }
+  }
+`
+
+const LeftMenu = styled.div`
+  height: 65vh;
+  border-right: 0.5px solid var(--color-border);
+`
+
+const SettingsContentPanel = styled.div`
+  flex: 1;
+  padding: 16px 16px;
+  height: calc(65vh - 16px);
+  overflow-y: scroll;
+`
+
+const StyledMenu = styled(Menu)`
+  width: 220px;
+  padding: 5px;
+  background: transparent;
+  margin-top: 2px;
+  border-inline-end: none !important;
+  .ant-menu-item {
+    margin-bottom: 7px;
   }
 `
 
