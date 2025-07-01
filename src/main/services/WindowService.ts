@@ -71,8 +71,7 @@ export class WindowService {
         webSecurity: false,
         webviewTag: true,
         allowRunningInsecureContent: true,
-        zoomFactor: configManager.getZoomFactor(),
-        backgroundThrottling: false
+        zoomFactor: configManager.getZoomFactor()
       }
     })
 
