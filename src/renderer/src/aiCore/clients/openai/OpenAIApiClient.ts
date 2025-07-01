@@ -507,7 +507,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled

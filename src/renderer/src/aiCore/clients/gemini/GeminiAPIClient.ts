@@ -535,7 +535,8 @@ export class GeminiAPIClient extends BaseApiClient<
           tools: tools,
           ...(enableGenerateImage ? this.getGenerateImageParameter() : {}),
           ...this.getBudgetToken(assistant, model),
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const param: GeminiSdkParams = {

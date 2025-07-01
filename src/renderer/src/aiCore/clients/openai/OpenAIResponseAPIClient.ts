@@ -400,7 +400,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           tools: !isEmpty(tools) ? tools : undefined,
           service_tier: this.getServiceTier(model),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
         const sdkParams: OpenAIResponseSdkParams = streamOutput
           ? {
