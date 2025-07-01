@@ -6,13 +6,13 @@ import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useTTS } from '@renderer/hooks/useTTS'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Model } from '@renderer/types'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -25,13 +25,30 @@ import {
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { markdownToTTSText, removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import TTSPlaybackManager from '@renderer/utils/TTSPlaybackManager'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, ListChecks, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
-import { FilePenLine } from 'lucide-react'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import {
+  AtSign,
+  Copy,
+  FilePenLine,
+  Languages,
+  ListChecks,
+  Menu,
+  Pause,
+  Play,
+  RefreshCw,
+  Save,
+  Share,
+  Split,
+  Square,
+  ThumbsUp,
+  Trash,
+  Volume2
+} from 'lucide-react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -58,6 +75,37 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+
+  // TTS 相关状态
+  const tts = useTTS()
+  const [playbackInfo, setPlaybackInfo] = useState<{
+    state: 'idle' | 'playing' | 'paused'
+    currentMessageId: string | null
+  }>({
+    state: 'idle',
+    currentMessageId: null
+  })
+
+  // 使用简单的状态管理器
+  useEffect(() => {
+    const manager = TTSPlaybackManager.getInstance()
+
+    const handlePlaybackChange = (info: any) => {
+      setPlaybackInfo(info)
+    }
+
+    manager.addListener(handlePlaybackChange)
+    setPlaybackInfo(manager.getPlaybackInfo())
+
+    return () => manager.removeListener(handlePlaybackChange)
+  }, [])
+
+  // 计算当前消息的播放状态
+  // const isCurrentMessagePlaying = playbackInfo.state === 'playing' && playbackInfo.currentMessageId === message.id
+  const isCurrentMessagePaused = playbackInfo.state === 'paused' && playbackInfo.currentMessageId === message.id
+  const isCurrentMessageActive =
+    (playbackInfo.state === 'playing' || playbackInfo.state === 'paused') &&
+    playbackInfo.currentMessageId === message.id
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -343,6 +391,112 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
+  // TTS 暂停/恢复处理
+  const handleTTSPause = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      try {
+        const manager = TTSPlaybackManager.getInstance()
+        const { action } = manager.togglePause(message.id)
+
+        switch (action) {
+          case 'pause':
+            tts.pause()
+            break
+          case 'resume':
+            tts.resume()
+            break
+        }
+      } catch (error) {
+        console.error('[MessageMenubar] TTS pause/resume failed:', error)
+        window.message.error({ content: t('settings.tts.pause.failed'), key: 'tts-pause-failed' })
+      }
+    },
+    [tts, message.id, t]
+  )
+
+  // TTS 播放处理 - 使用状态机
+  const handleTTSToggle = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      if (!tts.isTTSAvailable) {
+        window.message.warning({ content: t('settings.tts.not.available'), key: 'tts-not-available' })
+        return
+      }
+
+      try {
+        const manager = TTSPlaybackManager.getInstance()
+
+        // 使用状态机处理状态转移
+        const { action } = manager.togglePlayback(message.id)
+
+        switch (action) {
+          case 'start': {
+            // 开始播放
+            tts.stopAll() // 先停止其他播放
+            await new Promise((resolve) => setTimeout(resolve, 100))
+
+            // 将 Markdown 转换为适合 TTS 播放的纯文本
+            const ttsText = markdownToTTSText(mainTextContent)
+
+            try {
+              await tts.speak(ttsText)
+              // 播放完成，设置为空闲状态（只有在没有被手动停止的情况下）
+              const currentInfo = manager.getPlaybackInfo()
+              if (currentInfo.currentMessageId === message.id && currentInfo.state !== 'idle') {
+                manager.setPlaybackState('idle')
+              }
+            } catch (error) {
+              // 播放出错，设置为空闲状态
+              manager.setPlaybackState('idle')
+              throw error
+            }
+            break
+          }
+
+          case 'stop':
+            // 停止播放
+            tts.stop()
+            // 状态已经在 togglePlayback 中设置为 idle，无需重复设置
+            break
+        }
+      } catch (error) {
+        // 检查是否是 MediaSource 相关的状态错误
+        const isMediaSourceError =
+          error instanceof Error &&
+          (error.name === 'InvalidStateError' || error.name === 'QuotaExceededError') &&
+          (error.message.includes('endOfStream') ||
+            error.message.includes('appendBuffer') ||
+            error.message.includes('SourceBuffer') ||
+            error.message.includes('MediaSource'))
+
+        // 检查是否是并发播放导致的错误
+        const isConcurrencyError =
+          error instanceof Error &&
+          (error.message.includes('Another TTS is already playing') ||
+            error.message.includes('Audio context') ||
+            error.message.includes('play() failed'))
+
+        const manager = TTSPlaybackManager.getInstance()
+
+        if (isMediaSourceError || isConcurrencyError) {
+          // 这些是常见的并发或MediaSource状态错误，通常不影响实际播放
+          console.warn('[MessageMenubar] TTS state warning (may have played successfully):', error.message)
+          manager.setPlaybackState('idle')
+          // 对于这些错误，不显示错误消息，因为音频可能已经播放成功
+        } else {
+          // 真正的播放错误
+          console.error('[MessageMenubar] TTS play failed:', error)
+          manager.setPlaybackState('idle')
+          window.message.error({ content: t('settings.tts.play.failed'), key: 'tts-play-failed' })
+        }
+      }
+    },
+    [tts, mainTextContent, message.id, t]
+  )
+
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
@@ -376,6 +530,30 @@ const MessageMenubar: FC<Props> = (props) => {
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
       </Tooltip>
+      {/* TTS 播放按钮（仅对助手消息显示） */}
+      {isAssistantMessage && tts.isTTSAvailable && (
+        <>
+          {/* 播放/停止按钮 */}
+          <Tooltip
+            title={isCurrentMessageActive ? t('settings.tts.stop') : t('settings.tts.play')}
+            mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={handleTTSToggle}>
+              {isCurrentMessageActive ? <Square size={16} /> : <Volume2 size={16} />}
+            </ActionButton>
+          </Tooltip>
+
+          {/* 暂停/恢复按钮（仅在播放或暂停时显示） */}
+          {isCurrentMessageActive && (
+            <Tooltip
+              title={isCurrentMessagePaused ? t('settings.tts.resume') : t('settings.tts.pause')}
+              mouseEnterDelay={0.8}>
+              <ActionButton className="message-action-button" onClick={handleTTSPause}>
+                {isCurrentMessagePaused ? <Play size={16} /> : <Pause size={16} />}
+              </ActionButton>
+            </Tooltip>
+          )}
+        </>
+      )}
       {isAssistantMessage && (
         <Popconfirm
           title={t('message.regenerate.confirm')}

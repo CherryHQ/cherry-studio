@@ -279,3 +279,22 @@ export const markdownToPlainText = (markdown: string): string => {
   // 直接用 remove-markdown 库，使用默认的 removeMarkdown 参数
   return removeMarkdown(markdown)
 }
+
+/**
+ * 将 Markdown 转换为适合 TTS 播放的纯文本
+ * 使用 remove-markdown 库处理所有特殊字符和格式化
+ * @param markdown 输入的 Markdown 文本
+ * @returns 适合 TTS 播放的纯文本
+ */
+export function markdownToTTSText(markdown: string): string {
+  if (!markdown) {
+    return ''
+  }
+
+  // remove-markdown 库已经处理了所有特殊字符和格式化
+  // 不需要额外的手动清理
+  const plainText = removeMarkdown(markdown)
+
+  // 只规范化空白字符，让 TTS 读起来更自然
+  return plainText.replace(/\s+/g, ' ').trim()
+}
