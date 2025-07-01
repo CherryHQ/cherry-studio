@@ -1671,6 +1671,16 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '118': (state: RootState) => {
+    try {
+      updateProvider(state, 'ppio', {
+        models: SYSTEM_MODELS.ppio
+      })
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
