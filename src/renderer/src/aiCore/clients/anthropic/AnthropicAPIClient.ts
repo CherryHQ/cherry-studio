@@ -52,7 +52,7 @@ import {
   TextDeltaChunk,
   ThinkingDeltaChunk
 } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message } from '@renderer/types/newMessage'
 import {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,
@@ -493,7 +493,8 @@ export class AnthropicAPIClient extends BaseApiClient<
           system: systemMessage ? [systemMessage] : undefined,
           thinking: this.getBudgetToken(assistant, model),
           tools: tools.length > 0 ? tools : undefined,
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const finalParams: MessageCreateParams = streamOutput

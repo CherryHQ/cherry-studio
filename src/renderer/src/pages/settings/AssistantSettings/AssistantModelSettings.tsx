@@ -10,7 +10,6 @@ import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { ChevronDown } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -118,7 +117,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               { label: 'true', value: true },
               { label: 'false', value: false }
             ]}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
         )
       case 'json':
@@ -437,8 +435,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Select
               value={param.type}
               onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}
-              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}>
+              style={{ width: '100%' }}>
               <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
               <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
               <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>

@@ -90,6 +90,8 @@ export interface FileMetadata {
   tokens?: number
 }
 
+export interface FileType extends FileMetadata {}
+
 export enum FileTypes {
   IMAGE = 'image',
   VIDEO = 'video',

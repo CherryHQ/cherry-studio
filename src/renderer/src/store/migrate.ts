@@ -1708,6 +1708,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '117': (state: RootState) => {
+    try {
+      updateProvider(state, 'ppio', {
+        models: SYSTEM_MODELS.ppio,
+        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      })
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

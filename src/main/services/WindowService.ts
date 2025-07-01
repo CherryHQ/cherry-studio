@@ -451,8 +451,7 @@ export class WindowService {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         webSecurity: false,
-        webviewTag: true,
-        backgroundThrottling: false
+        webviewTag: true
       }
     })
 

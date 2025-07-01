@@ -8,7 +8,7 @@ interface Props {
 }
 
 const ToolBlock: React.FC<Props> = ({ block }) => {
-  return <MessageTools blocks={block} />
+  return <MessageTools block={block} />
 }
 
 export default React.memo(ToolBlock)
