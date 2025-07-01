@@ -1,7 +1,7 @@
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import Logger from 'electron-log'
 import { join } from 'path'
 import type {
@@ -1097,6 +1097,18 @@ export class SelectionService {
   private popActionWindow() {
     // Get a window from the preloaded queue or create a new one if empty
     const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
+
+    // [macOS] a HACKY way
+    // make sure other windows do not bring to front when action window is closed
+    // may blink or the mainWindow will be hidden, but it's a workaround
+    if (isMac) {
+      actionWindow.on('close', () => {
+        app.hide()
+        setTimeout(() => {
+          app.show()
+        }, 50)
+      })
+    }
 
     // Set up event listeners for this instance
     actionWindow.on('closed', () => {
