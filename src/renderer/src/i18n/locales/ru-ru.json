@@ -506,6 +506,7 @@
       "add_note": "Добавить запись",
       "add_sitemap": "Карта сайта",
       "add_url": "Добавить URL",
+      "download_resource": "Скачать все",
       "cancel_index": "Отменить индексирование",
       "chunk_overlap": "Перекрытие фрагмента",
       "chunk_overlap_placeholder": "По умолчанию (не рекомендуется изменять)",
