@@ -114,6 +114,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const onOk = async () => {
     try {
+      if (!newBase.name?.trim()) {
+        window.message.error(t('knowledge.name_required'))
+        return
+      }
+      if (!newBase.model) {
+        window.message.error(t('knowledge.embedding_model_required'))
+        return
+      }
       // const values = await form.validateFields()
       const selectedEmbeddingModel = find(embeddingModels, newBase.model) as Model
 

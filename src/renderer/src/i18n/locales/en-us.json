@@ -502,6 +502,8 @@
       "title": "Topics Search"
     },
     "knowledge": {
+      "name_required": "Knowledge Base Name is required",
+      "embedding_model_required": "Knowledge Base Embedding Model is required",
       "add": {
         "title": "Add Knowledge Base"
       },

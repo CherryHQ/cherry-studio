@@ -586,7 +586,9 @@
       "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
       "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
       "quota": "{{name}} 残りクォータ: {{quota}}",
-      "quota_infinity": "{{name}} クォータ: 無制限"
+      "quota_infinity": "{{name}} クォータ: 無制限",
+      "name_required": "ナレッジベース名は必須です",
+      "embedding_model_required": "ナレッジベース埋め込みモデルが必要です"
     },
     "languages": {
       "arabic": "アラビア語",

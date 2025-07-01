@@ -586,7 +586,9 @@
       "status_embedding_failed": "嵌入失败",
       "status_preprocess_failed": "预处理失败",
       "quota": "{{name}} 剩余额度：{{quota}}",
-      "quota_infinity": "{{name}} 剩余额度：无限制"
+      "quota_infinity": "{{name}} 剩余额度：无限制",
+      "name_required": "知识库名称为必填项",
+      "embedding_model_required": "知识库嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",

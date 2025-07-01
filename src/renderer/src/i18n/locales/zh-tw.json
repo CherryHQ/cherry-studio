@@ -586,7 +586,9 @@
       "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
       "dimensions_default": "模型將使用預設嵌入維度",
       "quota": "{{name}} 剩餘配額：{{quota}}",
-      "quota_infinity": "{{name}} 配額：無限制"
+      "quota_infinity": "{{name}} 配額：無限制",
+      "name_required": "知識庫名稱為必填項目",
+      "embedding_model_required": "知識庫嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",
