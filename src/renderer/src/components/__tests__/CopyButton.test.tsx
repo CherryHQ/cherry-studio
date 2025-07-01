@@ -39,19 +39,16 @@ describe('CopyButton', () => {
     vi.clearAllMocks()
   })
 
-  it('should render copy icon', () => {
+  it('should render with basic structure and copy icon', () => {
     render(<CopyButton textToCopy="test text" />)
 
-    const copyIcon = document.querySelector('.copy-icon')
-    expect(copyIcon).toBeInTheDocument()
-  })
-
-  it('should render with basic structure', () => {
-    render(<CopyButton textToCopy="test text" />)
-
-    // Should have a clickable container
+    // Should have basic clickable container
     const container = document.querySelector('div')
     expect(container).toBeInTheDocument()
+
+    // Should render copy icon
+    const copyIcon = document.querySelector('.copy-icon')
+    expect(copyIcon).toBeInTheDocument()
   })
 
   it('should render label when provided', () => {
@@ -123,23 +120,18 @@ describe('CopyButton', () => {
     expect(mockMessage.success).not.toHaveBeenCalled()
   })
 
-  it('should apply custom size to icon', () => {
-    const customSize = 20
-
-    render(<CopyButton textToCopy="test text" size={customSize} />)
-
-    const copyIcon = document.querySelector('.copy-icon')
-    // SVG elements use width/height attributes, not size
-    expect(copyIcon).toHaveAttribute('width', customSize.toString())
-    expect(copyIcon).toHaveAttribute('height', customSize.toString())
-  })
-
-  it('should apply custom size to label', () => {
+  it('should apply custom size to icon and label', () => {
     const customSize = 20
     const labelText = 'Copy'
 
     render(<CopyButton textToCopy="test text" size={customSize} label={labelText} />)
 
+    // Should apply custom size to icon
+    const copyIcon = document.querySelector('.copy-icon')
+    expect(copyIcon).toHaveAttribute('width', customSize.toString())
+    expect(copyIcon).toHaveAttribute('height', customSize.toString())
+
+    // Should apply custom size to label
     const label = screen.getByText(labelText)
     expect(label).toHaveStyle({ fontSize: `${customSize}px` })
   })
