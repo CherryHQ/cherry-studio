@@ -1,7 +1,6 @@
 import Logger from 'electron-log'
-
+import tencentcloud from 'tencentcloud-sdk-nodejs-tts'
 // 腾讯云 TTS SDK
-const tencentcloud = require('tencentcloud-sdk-nodejs-tts')
 const TtsClient = tencentcloud.tts.v20190823.Client
 
 export interface TencentCloudTTSOptions {
