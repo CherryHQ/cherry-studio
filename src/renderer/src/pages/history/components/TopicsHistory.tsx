@@ -51,6 +51,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   return (
     <ListContainer {...props} ref={containerRef} onScroll={handleScroll}>
       <Segmented
+        shape="round"
         size="small"
         value={sortType}
         onChange={setSortType}
@@ -72,7 +73,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
                   onClick(_topic)
                 }}>
                 <TopicName>{topic.name.substring(0, 50)}</TopicName>
-                <TopicDate>{dayjs(topic.updatedAt).format('HH:mm')}</TopicDate>
+                <TopicDate>{dayjs(topic[sortType]).format('HH:mm')}</TopicDate>
               </TopicItem>
             ))}
           </ListItem>
