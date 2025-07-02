@@ -3005,10 +3005,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libsql/win32-x64-msvc@npm:0.4.7, @libsql/win32-x64-msvc@npm:^0.4.7":
+"@libsql/win32-x64-msvc@npm:0.4.7":
   version: 0.4.7
   resolution: "@libsql/win32-x64-msvc@npm:0.4.7"
   checksum: 10c0/2fcb8715b6f0571dec145eaaf3fd53c7c5aa5bf408fe1be9d84b10adc8a909bb6ee60b45e0d7052b0c1722c30ac212356a3f1adcdf7f57d5a59b48f36ca5bdf5
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@libsql/win32-x64-msvc@npm:^0.5.13":
+  version: 0.5.13
+  resolution: "@libsql/win32-x64-msvc@npm:0.5.13"
+  checksum: 10c0/c80fe4836ad3b40b0e08add4b2c7c06f2ec0269f1c2df29617e5ab19d34828ee98a68182084f1274ca5e1e2eec4b3e5532f18ac1bb7b5f76b98f596c2edecfc1
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -5674,7 +5682,7 @@ __metadata:
     "@langchain/community": "npm:^0.3.36"
     "@langchain/ollama": "npm:^0.2.1"
     "@libsql/client": "npm:0.14.0"
-    "@libsql/win32-x64-msvc": "npm:^0.4.7"
+    "@libsql/win32-x64-msvc": "npm:^0.5.13"
     "@modelcontextprotocol/sdk": "npm:^1.11.4"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"

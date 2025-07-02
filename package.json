@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@libsql/client": "0.14.0",
-    "@libsql/win32-x64-msvc": "^0.4.7",
+    "@libsql/win32-x64-msvc": "^0.5.13",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "jsdom": "26.1.0",
     "node-stream-zip": "^1.15.0",
