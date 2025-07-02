@@ -140,6 +140,7 @@
     "async-mutex": "^0.5.0",
     "axios": "^1.7.3",
     "browser-image-compression": "^2.0.2",
+    "code-inspector-plugin": "^0.20.14",
     "color": "^5.0.0",
     "country-flag-emoji-polyfill": "0.1.8",
     "dayjs": "^1.11.11",
