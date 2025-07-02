@@ -147,6 +147,7 @@ const MessageItem: FC<Props> = ({
       {isEditing && (
         <MessageEditor
           message={message}
+          topicId={topic.id}
           onSave={handleEditSave}
           onResend={handleEditResend}
           onCancel={handleEditCancel}

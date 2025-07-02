@@ -140,13 +140,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           initialValue={getModelUniqId(base.model)}
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
-          <Select
-            style={{ width: '100%' }}
-            options={selectOptions}
-            placeholder={t('settings.models.empty')}
-            disabled
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
-          />
+          <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} disabled />
         </Form.Item>
 
         <Form.Item
@@ -160,7 +154,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             options={rerankSelectOptions}
             placeholder={t('settings.models.empty')}
             allowClear
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
         </Form.Item>
         <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>

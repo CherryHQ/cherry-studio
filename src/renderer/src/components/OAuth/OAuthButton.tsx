@@ -1,5 +1,5 @@
 import { Provider } from '@renderer/types'
-import { oauthWithAihubmix, oauthWithSiliconFlow, oauthWithTokenFlux } from '@renderer/utils/oauth'
+import { oauthWithAihubmix, oauthWithPPIO, oauthWithSiliconFlow, oauthWithTokenFlux } from '@renderer/utils/oauth'
 import { Button, ButtonProps } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +26,10 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
     if (provider.id === 'aihubmix') {
       oauthWithAihubmix(handleSuccess)
+    }
+
+    if (provider.id === 'ppio') {
+      oauthWithPPIO(handleSuccess)
     }
 
     if (provider.id === 'tokenflux') {

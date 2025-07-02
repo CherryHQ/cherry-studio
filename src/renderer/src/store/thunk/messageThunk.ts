@@ -7,6 +7,7 @@ import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
+import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import type {
   CitationMessageBlock,
@@ -17,8 +18,7 @@ import type {
   PlaceholderMessageBlock,
   ToolMessageBlock
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType, Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import {
@@ -69,6 +69,7 @@ export const saveMessageAndBlocksToDB = async (message: Message, blocks: Message
         }
       }
       await db.topics.update(message.topicId, { messages: updatedMessages })
+      store.dispatch(updateTopicUpdatedAt({ topicId: message.topicId }))
     } else {
       console.error(`[saveMessageAndBlocksToDB] Topic ${message.topicId} not found.`)
     }
@@ -108,6 +109,8 @@ const updateExistingMessageAndBlocksInDB = async (
               })
             }
           })
+
+        store.dispatch(updateTopicUpdatedAt({ topicId: updatedMessage.topicId }))
       }
     })
   } catch (error) {
@@ -863,6 +866,7 @@ export const sendMessage =
       if (userMessageBlocks.length > 0) {
         dispatch(upsertManyBlocks(userMessageBlocks))
       }
+      dispatch(updateTopicUpdatedAt({ topicId }))
 
       const mentionedModels = userMessage.mentions
       const queue = getTopicQueue(topicId)
@@ -955,6 +959,7 @@ export const deleteSingleMessageThunk =
       if (topic) {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
+        dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
       console.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error)
@@ -998,6 +1003,7 @@ export const deleteMessageGroupThunk =
       if (topic) {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
+        dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
       console.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error)
@@ -1025,6 +1031,7 @@ export const clearTopicMessagesThunk =
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
 
       await db.topics.update(topicId, { messages: [] })
+      dispatch(updateTopicUpdatedAt({ topicId }))
       if (blockIdsToDelete.length > 0) {
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
@@ -1624,6 +1631,8 @@ export const updateMessageAndBlocksThunk =
           await db.message_blocks.bulkPut(blockUpdatesList)
         }
       })
+
+      dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
       console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
     }
@@ -1665,6 +1674,8 @@ export const removeBlocksThunk =
           await db.message_blocks.bulkDelete(blockIdsToRemove)
         }
       })
+
+      dispatch(updateTopicUpdatedAt({ topicId }))
 
       return
     } catch (error) {

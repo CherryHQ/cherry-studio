@@ -37,7 +37,7 @@ import {
 } from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
-import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getContentWithTools, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
@@ -209,7 +209,7 @@ export abstract class BaseApiClient<
   }
 
   public async getMessageContent(message: Message): Promise<string> {
-    const content = getMainTextContent(message)
+    const content = getContentWithTools(message)
     if (isEmpty(content)) {
       return ''
     }

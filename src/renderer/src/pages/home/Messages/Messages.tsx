@@ -275,6 +275,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [onComponentUpdate])
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
+
   return (
     <MessagesContainer
       id="messages"
@@ -372,7 +373,7 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  padding: 20px 10px 20px 16px;
+  padding: 10px 16px 20px;
   .multi-select-mode & {
     padding-bottom: 60px;
   }

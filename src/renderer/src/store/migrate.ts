@@ -1660,6 +1660,35 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '118': (state: RootState) => {
+    try {
+      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      const modelsToRemove = [
+        'qwen/qwen-2.5-72b-instruct',
+        'qwen/qwen2.5-32b-instruct',
+        'meta-llama/llama-3.1-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+        '01-ai/yi-1.5-34b-chat',
+        '01-ai/yi-1.5-9b-chat',
+        'thudm/glm-z1-32b-0414',
+        'thudm/glm-z1-9b-0414'
+      ]
+      if (ppioProvider) {
+        updateProvider(state, 'ppio', {
+          models: [
+            ...ppioProvider.models.filter((model) => !modelsToRemove.includes(model.id)),
+            ...SYSTEM_MODELS.ppio.filter(
+              (systemModel) => !ppioProvider.models.some((existingModel) => existingModel.id === systemModel.id)
+            )
+          ],
+          apiHost: 'https://api.ppinfra.com/v3/openai/'
+        })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
