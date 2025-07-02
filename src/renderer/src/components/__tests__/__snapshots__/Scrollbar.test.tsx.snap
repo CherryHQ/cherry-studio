@@ -16,7 +16,6 @@ exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
 
 <div
   class="c0"
-  data-insp-path="src/renderer/src/components/Scrollbar/index.tsx:51:5:ScrollBarContainer"
   data-testid="scrollbar"
 >
   内容

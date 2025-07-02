@@ -49,32 +49,26 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
   class="c0 message-thought-container"
   data-active-key="thought"
   data-expand-icon-position="end"
-  data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:25:5:div"
   data-size="small"
   data-testid="collapse-container"
 >
   <div
-    data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:32:9:div"
     data-testid="collapse-item-thought"
   >
     <div
-      data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:33:11:div"
       data-testid="collapse-header-thought"
     >
       <div
         class="c1"
-        data-insp-path="src/renderer/src/pages/home/Messages/Blocks/ThinkingBlock.tsx:73:13:MessageTitleLabel"
       >
         <span
           data-animate="idle"
           data-initial="idle"
-          data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:73:7:span"
           data-testid="motion-span"
           data-variants="{"active":{"rotate":10,"scale":1.1},"idle":{"rotate":0,"scale":1}}"
           style="height: 18px;"
         >
           <span
-            data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:63:5:span"
             data-size="18"
             data-testid="lightbulb-icon"
           >
@@ -83,12 +77,10 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
         </span>
         <span
           class="c2"
-          data-insp-path="src/renderer/src/pages/home/Messages/Blocks/ThinkingBlock.tsx:81:15:ThinkingText"
         >
           Thought for 5.0s
         </span>
         <div
-          data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:42:5:div"
           data-mouse-enter-delay="0.8"
           data-testid="tooltip"
           title="Copy"
@@ -96,27 +88,22 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
           <button
             aria-label="Copy"
             class="c3 message-action-button"
-            data-insp-path="src/renderer/src/pages/home/Messages/Blocks/ThinkingBlock.tsx:87:19:ActionButton"
           >
             <i
               class="iconfont icon-copy"
-              data-insp-path="src/renderer/src/pages/home/Messages/Blocks/ThinkingBlock.tsx:94:33:i"
             />
           </button>
         </div>
       </div>
     </div>
     <div
-      data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:36:38:div"
       data-testid="collapse-content-thought"
     >
       <div
-        data-insp-path="src/renderer/src/pages/home/Messages/Blocks/ThinkingBlock.tsx:103:13:div"
         style="font-family: var(--font-family); font-size: 14px;"
       >
         <div
           data-block-id="test-thinking-block-1"
-          data-insp-path="src/renderer/src/pages/home/Messages/Blocks/__tests__/ThinkingBlock.test.tsx:97:5:div"
           data-testid="mock-markdown"
         >
           Markdown: 

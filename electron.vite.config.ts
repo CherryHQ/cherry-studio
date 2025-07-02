@@ -60,9 +60,14 @@ export default defineConfig({
           ]
         ]
       }),
-      CodeInspectorPlugin({
-        bundler: 'vite'
-      }),
+      // 只在开发环境下启用 CodeInspectorPlugin
+      ...(process.env.NODE_ENV === 'development'
+        ? [
+            CodeInspectorPlugin({
+              bundler: 'vite'
+            })
+          ]
+        : []),
       ...visualizerPlugin('renderer')
     ],
     resolve: {
