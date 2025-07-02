@@ -5723,7 +5723,7 @@ __metadata:
     diff: "npm:^7.0.0"
     docx: "npm:^9.0.2"
     dotenv-cli: "npm:^7.4.2"
-    electron: "npm:35.4.0"
+    electron: "npm:35.6.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-log: "npm:^5.1.5"
@@ -8672,16 +8672,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:35.4.0":
-  version: 35.4.0
-  resolution: "electron@npm:35.4.0"
+"electron@npm:35.6.0":
+  version: 35.6.0
+  resolution: "electron@npm:35.6.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/657c374421b433d7bec2bae27f8241285f1bf7f89a55d143e68d5c40cc19020cd2885052b402d946228f998c7399401dc1b9c7641b2ca00350fceaea6e37fbfc
+  checksum: 10c0/a8feb656ce9173607f23517753ba47933e716ba362695e1a31bc52bcd9003bc29160e0c2aa43373a30d7c02620fcc837fdbb3c37382cb2b28466f5018e296be1
   languageName: node
   linkType: hard
 
