@@ -1,16 +1,20 @@
-import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel } from '@renderer/config/models'
+import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import { useAppDispatch } from '@renderer/store'
+import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import {
@@ -24,7 +28,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { find, isEmpty, sortBy } from 'lodash'
-import { HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
+import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -65,7 +69,11 @@ const TranslateSettings: FC<{
   selectOptions
 }) => {
   const { t } = useTranslation()
+  const { translateModelPrompt } = useSettings()
+  const dispatch = useAppDispatch()
   const [localPair, setLocalPair] = useState<[string, string]>(bidirectionalPair)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -74,7 +82,8 @@ const TranslateSettings: FC<{
 
   useEffect(() => {
     setLocalPair(bidirectionalPair)
-  }, [bidirectionalPair, visible])
+    setLocalPrompt(translateModelPrompt)
+  }, [bidirectionalPair, translateModelPrompt, visible])
 
   const handleSave = () => {
     if (localPair[0] === localPair[1]) {
@@ -88,6 +97,8 @@ const TranslateSettings: FC<{
     db.settings.put({ id: 'translate:bidirectional:pair', value: localPair })
     db.settings.put({ id: 'translate:scroll:sync', value: isScrollSyncEnabled })
     db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
+    db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
+    dispatch(setTranslateModelPrompt(localPrompt))
     window.message.success({
       content: t('message.save.success.title'),
       key: 'translate-settings-save'
@@ -112,7 +123,14 @@ const TranslateSettings: FC<{
       width={420}>
       <Flex vertical gap={16} style={{ marginTop: 16 }}>
         <div>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('translate.settings.model')}</div>
+          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+            {t('translate.settings.model')}
+            <Tooltip title={t('translate.settings.model_desc')}>
+              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
+                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
+              </span>
+            </Tooltip>
+          </div>
           <HStack alignItems="center" gap={5}>
             <Select
               style={{ width: '100%' }}
@@ -136,9 +154,6 @@ const TranslateSettings: FC<{
               </HStack>
             </div>
           )}
-          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-3)' }}>
-            {t('translate.settings.model_desc')}
-          </div>
         </div>
 
         <div>
@@ -156,7 +171,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <Flex align="center" justify="space-between" style={{ marginBottom: 8 }}>
+          <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>
               <HStack alignItems="center" gap={5}>
                 {t('translate.settings.bidirectional')}
@@ -169,8 +184,8 @@ const TranslateSettings: FC<{
             </div>
             <Switch checked={isBidirectional} onChange={setIsBidirectional} />
           </Flex>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {isBidirectional && (
+          {isBidirectional && (
+            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
               <Flex align="center" justify="space-between" gap={10}>
                 <Select
                   style={{ flex: 1 }}
@@ -206,8 +221,51 @@ const TranslateSettings: FC<{
                   }))}
                 />
               </Flex>
+            </Space>
+          )}
+        </div>
+
+        <div>
+          <Flex align="center" justify="space-between">
+            <div
+              style={{
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowPrompt(!showPrompt)}>
+              {t('settings.models.translate_model_prompt_title')}
+              <ChevronDown
+                size={16}
+                style={{
+                  transform: showPrompt ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.3s',
+                  marginLeft: 5
+                }}
+              />
+            </div>
+            {localPrompt !== TRANSLATE_PROMPT && (
+              <Tooltip title={t('common.reset')}>
+                <Button
+                  icon={<RedoOutlined />}
+                  size="small"
+                  type="text"
+                  onClick={() => setLocalPrompt(TRANSLATE_PROMPT)}
+                />
+              </Tooltip>
             )}
-          </Space>
+          </Flex>
+        </div>
+
+        <div style={{ display: showPrompt ? 'block' : 'none' }}>
+          <Textarea
+            rows={8}
+            value={localPrompt}
+            onChange={(e) => setLocalPrompt(e.target.value)}
+            placeholder={t('settings.models.translate_model_prompt_message')}
+            style={{ borderRadius: '8px' }}
+          />
         </div>
       </Flex>
     </Modal>
