@@ -1,7 +1,8 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
 import { Progress, Tooltip } from 'antd'
-import React, { FC, useMemo } from 'react'
+import React from 'react'
+import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -9,8 +10,8 @@ interface StatusIconProps {
   sourceId: string
   base: KnowledgeBase
   getProcessingStatus: (sourceId: string) => ProcessingStatus | undefined
-  getProcessingPercent?: (sourceId: string) => number | undefined
   type: string
+  progress?: number
   isPreprocessed?: boolean
 }
 
@@ -19,12 +20,11 @@ const StatusIcon: FC<StatusIconProps> = ({
   base,
   getProcessingStatus,
   type,
-  getProcessingPercent,
+  progress = 0,
   isPreprocessed
 }) => {
   const { t } = useTranslation()
   const status = getProcessingStatus(sourceId)
-  const percent = getProcessingPercent?.(sourceId)
   const item = base.items.find((item) => item.id === sourceId)
   const errorText = item?.processingError
 
@@ -58,9 +58,10 @@ const StatusIcon: FC<StatusIconProps> = ({
             <StatusDot $status="pending" />
           </Tooltip>
         )
+
       case 'processing': {
-        return type === 'directory' ? (
-          <Progress type="circle" size={14} percent={Number(percent?.toFixed(0))} />
+        return type === 'directory' || type === 'file' ? (
+          <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} />
         ) : (
           <Tooltip title={t('knowledge.status_processing')} placement="left">
             <StatusDot $status="processing" />
@@ -82,7 +83,7 @@ const StatusIcon: FC<StatusIconProps> = ({
       default:
         return null
     }
-  }, [status, item?.uniqueId, type, percent, errorText, t])
+  }, [status, item?.uniqueId, type, progress, errorText, t])
 
   return statusDisplay
 }
@@ -114,7 +115,7 @@ export default React.memo(StatusIcon, (prevProps, nextProps) => {
     prevProps.sourceId === nextProps.sourceId &&
     prevProps.type === nextProps.type &&
     prevProps.base.id === nextProps.base.id &&
-    prevProps.getProcessingPercent?.(prevProps.sourceId) === nextProps.getProcessingPercent?.(nextProps.sourceId) &&
+    prevProps.progress === nextProps.progress &&
     prevProps.getProcessingStatus(prevProps.sourceId) === nextProps.getProcessingStatus(nextProps.sourceId) &&
     prevProps.base.items.find((item) => item.id === prevProps.sourceId)?.processingError ===
       nextProps.base.items.find((item) => item.id === nextProps.sourceId)?.processingError
