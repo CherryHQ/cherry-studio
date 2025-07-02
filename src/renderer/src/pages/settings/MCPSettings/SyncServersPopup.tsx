@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
+import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
@@ -57,6 +58,17 @@ const providers: ProviderConfig[] = [
     getToken: getTokenLanYunToken,
     saveToken: saveTokenLanYunToken,
     syncServers: syncTokenLanYunServers
+  },
+  {
+    key: '302ai',
+    name: '302AI',
+    description: '302AI 平台 MCP 服务',
+    discoverUrl: 'https://302.ai',
+    apiKeyUrl: 'https://dash.302.ai/apis/list',
+    tokenFieldName: 'token302aiToken',
+    getToken: getAI302Token,
+    saveToken: saveAI302Token,
+    syncServers: syncAi302Servers
   }
 ]
 
