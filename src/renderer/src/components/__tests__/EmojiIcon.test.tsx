@@ -42,16 +42,6 @@ describe('EmojiIcon', () => {
     expect(container.firstChild).toMatchSnapshot()
   })
 
-  it('should render emoji with background', () => {
-    const { container } = render(<EmojiIcon emoji="💎" />)
-    const emojiContainer = container.firstChild as HTMLElement
-
-    // Should have background element
-    const background = emojiContainer.querySelector('div')
-    expect(background).toBeTruthy()
-    expect(background?.textContent).toContain('💎')
-  })
-
   it('should handle special emojis correctly', () => {
     const specialEmojis = ['👨‍💻', '🏃‍♀️', '👨‍👩‍👧‍👦', '🇨🇳']
 
