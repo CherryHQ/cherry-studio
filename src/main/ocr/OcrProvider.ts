@@ -1,4 +1,4 @@
-import { FileMetadata, PreprocessProvider as Provider } from '@types'
+import { FileMetadata, OcrProvider as Provider } from '@types'
 
 import BaseOcrProvider from './BaseOcrProvider'
 import OcrProviderFactory from './OcrProviderFactory'

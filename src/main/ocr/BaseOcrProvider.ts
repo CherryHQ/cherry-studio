@@ -88,7 +88,7 @@ export default abstract class BaseOcrProvider {
 
   public async sendOcrProgress(sourceId: string, progress: number): Promise<void> {
     const mainWindow = windowService.getMainWindow()
-    mainWindow?.webContents.send('file-preprocess-progress', {
+    mainWindow?.webContents.send('file-ocr-progress', {
       itemId: sourceId,
       progress: progress
     })
