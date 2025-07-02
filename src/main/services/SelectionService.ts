@@ -537,6 +537,13 @@ export class SelectionService {
     // this.toolbarWindow!.setOpacity(0)
     this.toolbarWindow!.hide()
 
+    // [macOS] hacky way
+    // Because toolbar is not a FOCUSED window, so the hover status will remain when next time show
+    // so we just reload the toolbar window to make the hover status disappear
+    if (isMac) {
+      this.toolbarWindow!.reload()
+    }
+
     this.stopHideByMouseKeyListener()
   }
 
@@ -1170,8 +1177,7 @@ export class SelectionService {
 
     //center way
     if (!this.isFollowToolbar || !this.toolbarWindow) {
-      const cursorPoint = screen.getCursorScreenPoint()
-      const display = screen.getDisplayNearestPoint(cursorPoint)
+      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
       const workArea = display.workArea
 
       const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
@@ -1190,7 +1196,7 @@ export class SelectionService {
 
     //follow toolbar
     const toolbarBounds = this.toolbarWindow!.getBounds()
-    const display = screen.getDisplayNearestPoint({ x: toolbarBounds.x, y: toolbarBounds.y })
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
     const workArea = display.workArea
     const GAP = 6 // 6px gap from screen edges
 
