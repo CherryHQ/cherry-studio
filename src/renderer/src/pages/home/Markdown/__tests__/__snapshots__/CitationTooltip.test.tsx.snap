@@ -48,30 +48,39 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 
 <div
   data-color="var(--color-background)"
+  data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/CitationTooltip.test.tsx:17:5:div"
   data-placement="top"
   data-styles="{"body":{"border":"1px solid var(--color-border)","padding":"12px","borderRadius":"8px"}}"
   data-testid="tooltip-wrapper"
 >
-  <span>
+  <span
+    data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/CitationTooltip.test.tsx:110:11:span"
+  >
     Test content
   </span>
   <div
+    data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/CitationTooltip.test.tsx:24:7:div"
     data-testid="tooltip-content"
   >
-    <div>
+    <div
+      data-insp-path="src/renderer/src/pages/home/Markdown/CitationTooltip.tsx:35:7:div"
+    >
       <div
         aria-label="Open Example Article in new tab"
         class="c0"
+        data-insp-path="src/renderer/src/pages/home/Markdown/CitationTooltip.tsx:36:9:TooltipHeader"
         role="button"
       >
         <div
           alt="Example Article"
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/CitationTooltip.test.tsx:12:28:div"
           data-testid="mock-favicon"
           hostname="example.com"
         />
         <div
           aria-level="3"
           class="c1"
+          data-insp-path="src/renderer/src/pages/home/Markdown/CitationTooltip.tsx:38:11:TooltipTitle"
           role="heading"
           title="Example Article"
         >
@@ -81,6 +90,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       <div
         aria-label="Citation content"
         class="c2"
+        data-insp-path="src/renderer/src/pages/home/Markdown/CitationTooltip.tsx:43:11:TooltipBody"
         role="article"
       >
         This is the article content for testing purposes.
@@ -88,6 +98,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       <div
         aria-label="Visit example.com"
         class="c3"
+        data-insp-path="src/renderer/src/pages/home/Markdown/CitationTooltip.tsx:47:9:TooltipFooter"
         role="button"
       >
         example.com

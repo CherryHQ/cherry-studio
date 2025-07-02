@@ -46,14 +46,25 @@ exports[`Table > rendering > should match snapshot 1`] = `
 
 <div
   class="c0 table-wrapper"
+  data-insp-path="src/renderer/src/pages/home/Markdown/Table.tsx:38:5:TableWrapper"
 >
-  <table>
-    <tbody>
-      <tr>
-        <td>
+  <table
+    data-insp-path="src/renderer/src/pages/home/Markdown/Table.tsx:39:7:table"
+  >
+    <tbody
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Table.test.tsx:94:7:tbody"
+    >
+      <tr
+        data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Table.test.tsx:95:9:tr"
+      >
+        <td
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Table.test.tsx:96:11:td"
+        >
           Cell 1
         </td>
-        <td>
+        <td
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Table.test.tsx:97:11:td"
+        >
           Cell 2
         </td>
       </tr>
@@ -61,18 +72,22 @@ exports[`Table > rendering > should match snapshot 1`] = `
   </table>
   <div
     class="c1 table-toolbar"
+    data-insp-path="src/renderer/src/pages/home/Markdown/Table.tsx:40:7:ToolbarWrapper"
   >
     <div
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Table.test.tsx:39:5:div"
       data-testid="tooltip"
       title="common.copy"
     >
       <div
         aria-label="common.copy"
         class="c2"
+        data-insp-path="src/renderer/src/pages/home/Markdown/Table.tsx:42:11:ToolButton"
         role="button"
       >
         <svg
           class="lucide lucide-copy"
+          data-insp-path="src/renderer/src/pages/home/Markdown/Table.tsx:46:15:Copy"
           data-testid="copy-icon"
           fill="none"
           height="14"

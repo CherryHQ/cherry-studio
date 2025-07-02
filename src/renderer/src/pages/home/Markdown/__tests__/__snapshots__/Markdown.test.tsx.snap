@@ -3,29 +3,37 @@
 exports[`Markdown > rendering > should match snapshot 1`] = `
 <div
   class="markdown"
+  data-insp-path="src/renderer/src/pages/home/Markdown/Markdown.tsx:109:5:div"
 >
   <div
+    data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:116:5:div"
     data-testid="markdown-content"
   >
     # Test Markdown
 
 This is **bold** text.
     <span
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:119:25:span"
       data-testid="has-link-component"
     >
       link
     </span>
     <div
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:121:9:div"
       data-testid="has-code-component"
     >
       <div
         data-id="code-block-1"
+        data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:58:5:div"
         data-testid="code-block"
       >
-        <code>
+        <code
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:59:7:code"
+        >
           test code
         </code>
         <button
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:60:7:button"
           type="button"
         >
           Save
@@ -33,16 +41,21 @@ This is **bold** text.
       </div>
     </div>
     <div
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:126:9:div"
       data-testid="has-table-component"
     >
       <div
         data-block-id="test-block-1"
+        data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:84:5:div"
         data-testid="table-component"
       >
-        <table>
+        <table
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:85:7:table"
+        >
           test table
         </table>
         <button
+          data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:86:7:button"
           data-testid="copy-table-button"
           type="button"
         >
@@ -51,6 +64,7 @@ This is **bold** text.
       </div>
     </div>
     <span
+      data-insp-path="src/renderer/src/pages/home/Markdown/__tests__/Markdown.test.tsx:130:27:span"
       data-testid="has-img-component"
     >
       img
