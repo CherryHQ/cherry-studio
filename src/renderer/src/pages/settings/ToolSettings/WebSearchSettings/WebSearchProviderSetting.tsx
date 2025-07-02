@@ -221,7 +221,8 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </SettingSubtitle>
           <Flex>
             <Form
-              layout="inline"
+              layout="vertical"
+              style={{ width: '100%' }}
               initialValues={{
                 username: basicAuthUsername,
                 password: basicAuthPassword

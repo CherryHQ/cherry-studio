@@ -28,7 +28,7 @@ const BasicSettings: FC = () => {
           <SettingRowTitle>{t('settings.tool.websearch.search_max_result')}</SettingRowTitle>
           <Slider
             defaultValue={maxResults}
-            style={{ width: '500px' }}
+            style={{ width: '100%' }}
             min={1}
             max={50}
             step={1}
