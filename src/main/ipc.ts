@@ -345,11 +345,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3)
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3)
-  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files)
-  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File)
-  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)

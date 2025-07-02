@@ -4,26 +4,28 @@ import styled from 'styled-components'
 interface EmojiIconProps {
   emoji: string
   className?: string
+  size?: number
+  fontSize?: number
 }
 
-const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize = 15 }) => {
   return (
-    <Container className={className}>
+    <Container className={className} $size={size} $fontSize={fontSize}>
       <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>
       {emoji}
     </Container>
   )
 }
 
-const Container = styled.div`
-  width: 26px;
-  height: 26px;
-  border-radius: 13px;
+const Container = styled.div<{ $size: number; $fontSize: number }>`
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  border-radius: ${({ $size }) => $size / 2}px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 15px;
+  font-size: ${({ $fontSize }) => $fontSize}px;
   position: relative;
   overflow: hidden;
   margin-right: 3px;
