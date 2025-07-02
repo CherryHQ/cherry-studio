@@ -1878,7 +1878,11 @@
             "provider_not_found": "未找到服务商",
             "rag_failed": "RAG 失败"
           }
-        }
+        },
+        "subscribe_add_failed": "添加黑名单订阅失败",
+        "subscribe_update_success": "黑名单订阅更新成功",
+        "subscribe_update_failed": "更新黑名单订阅失败",
+        "subscribe_source_update_failed": "更新黑名单订阅源失败"
       },
       "quickPhrase": {
         "title": "快捷短语",

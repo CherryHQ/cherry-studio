@@ -984,7 +984,7 @@
       "per_images": "за изображения",
       "required_field": "Обязательное поле",
       "uploaded_input": "Загруженный ввод",
-      "prompt_placeholder_en": "[to be translated]:Enter your image description, currently Imagen only supports English prompts"
+      "prompt_placeholder_en": "Введите описание изображения, в настоящее время Imagen поддерживает только английские подсказки"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -1860,7 +1860,11 @@
             "provider_not_found": "Поставщик не найден",
             "rag_failed": "RAG не удалось"
           }
-        }
+        },
+        "subscribe_add_failed": "Не удалось добавить подписку на черный список",
+        "subscribe_update_success": "Подписка на черный список успешно обновлена",
+        "subscribe_update_failed": "Не удалось обновить подписку на черный список",
+        "subscribe_source_update_failed": "Не удалось обновить источник подписки на черный список"
       },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.test_plan.title": "Тестовый план",

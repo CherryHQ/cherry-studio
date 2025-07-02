@@ -1863,7 +1863,11 @@
             "provider_not_found": "未找到服務商",
             "rag_failed": "RAG 失敗"
           }
-        }
+        },
+        "subscribe_add_failed": "加入黑名單訂閱失敗",
+        "subscribe_update_success": "黑名單訂閱更新成功",
+        "subscribe_update_failed": "更新黑名單訂閱失敗",
+        "subscribe_source_update_failed": "更新黑名單訂閱來源失敗"
       },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "測試計畫",

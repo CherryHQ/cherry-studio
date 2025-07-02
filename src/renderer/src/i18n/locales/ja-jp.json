@@ -1860,7 +1860,11 @@
             "provider_not_found": "プロバイダーが見つかりません",
             "rag_failed": "RAG に失敗しました"
           }
-        }
+        },
+        "subscribe_add_failed": "ブラックリスト購読の追加に失敗しました",
+        "subscribe_update_success": "ブラックリスト購読が正常に更新されました",
+        "subscribe_update_failed": "ブラックリスト購読の更新に失敗しました",
+        "subscribe_source_update_failed": "ブラックリスト購読ソースの更新に失敗しました"
       },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "テストプラン",
