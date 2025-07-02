@@ -55,24 +55,8 @@ describe('DividerWithText', () => {
     expect(screen.getByText(specialText)).toBeInTheDocument()
   })
 
-  it('should maintain flex layout', () => {
-    const { container } = render(<DividerWithText text="Flex Test" />)
-    const dividerContainer = container.firstChild as HTMLElement
-
-    // Container should use flex display
-    expect(dividerContainer).toHaveStyle({
-      display: 'flex',
-      alignItems: 'center'
-    })
-  })
-
-  it('should render consistently', () => {
-    const props = { text: 'Consistent', style: { margin: '10px' } }
-
-    const { container: container1 } = render(<DividerWithText {...props} />)
-    const { container: container2 } = render(<DividerWithText {...props} />)
-
-    // Both renders should produce identical HTML
-    expect(container1.innerHTML).toBe(container2.innerHTML)
+  it('should match snapshot', () => {
+    const { container } = render(<DividerWithText text="Test Divider" />)
+    expect(container.firstChild).toMatchSnapshot()
   })
 })
