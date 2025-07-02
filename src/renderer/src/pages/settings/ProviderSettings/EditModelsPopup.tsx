@@ -16,6 +16,7 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
@@ -129,7 +130,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const onAddModel = useCallback(
     (model: Model) => {
       if (!isEmpty(model.name)) {
-        addModel(model)
+        if (provider.id === 'new-api') {
+          NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+        } else {
+          addModel(model)
+        }
       }
     },
     [addModel]

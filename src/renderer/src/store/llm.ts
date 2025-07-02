@@ -185,6 +185,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'new-api',
+    name: 'New API',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:3000',
+    models: SYSTEM_MODELS['new-api'],
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'lmstudio',
     name: 'LM Studio',
     type: 'openai',

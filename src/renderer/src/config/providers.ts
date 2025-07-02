@@ -28,6 +28,7 @@ import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import NewAPIProviderLogo from '@renderer/assets/images/providers/newapi.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
@@ -102,7 +103,8 @@ const PROVIDER_LOGO_MAP = {
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
   lanyun: LanyunProviderLogo,
-  vertexai: VertexAIProviderLogo
+  vertexai: VertexAIProviderLogo,
+  'new-api': NewAPIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -663,6 +665,15 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.cloud.google.com/apis/credentials',
       docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
       models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
+    }
+  },
+  'new-api': {
+    api: {
+      url: 'http://localhost:3000'
+    },
+    websites: {
+      official: 'https://docs.newapi.pro/',
+      docs: 'https://docs.newapi.pro'
     }
   }
 }

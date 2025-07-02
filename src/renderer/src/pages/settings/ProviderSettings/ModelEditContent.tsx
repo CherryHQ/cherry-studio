@@ -6,7 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model, ModelType } from '@renderer/types'
+import { Model, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -14,6 +14,7 @@ import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface ModelEditContentProps {
+  provider: Provider
   model: Model
   onUpdateModel: (model: Model) => void
   open: boolean
@@ -21,7 +22,7 @@ interface ModelEditContentProps {
 }
 
 const symbols = ['$', '¥', '€', '£']
-const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, open, onClose }) => {
+const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdateModel, open, onClose }) => {
   const [form] = Form.useForm()
   const { t } = useTranslation()
   const [showMoreSettings, setShowMoreSettings] = useState(false)
@@ -35,6 +36,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
       id: values.id || model.id,
       name: values.name || model.name,
       group: values.group || model.group,
+      endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
       pricing: {
         input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
         output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
@@ -82,6 +84,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           id: model.id,
           name: model.name,
           group: model.group,
+          endpointType: model.endpoint_type,
           input_per_million_tokens: model.pricing?.input_per_million_tokens ?? 0,
           output_per_million_tokens: model.pricing?.output_per_million_tokens ?? 0,
           currencySymbol: symbols.includes(model.pricing?.currencySymbol || '$')
@@ -133,6 +136,20 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
+        {provider.id === 'new-api' && (
+          <Form.Item
+            name="endpointType"
+            label={t('settings.models.add.endpoint_type')}
+            tooltip={t('settings.models.add.endpoint_type.tooltip')}
+            rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
+            <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
+              <Select.Option value="openai">OpenAI</Select.Option>
+              <Select.Option value="openai-response">OpenAI-Response</Select.Option>
+              <Select.Option value="anthropic">Anthropic</Select.Option>
+              <Select.Option value="gemini">Gemini</Select.Option>
+            </Select>
+          </Form.Item>
+        )}
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
           <Flex justify="space-between" align="center" style={{ position: 'relative' }}>
             <Button

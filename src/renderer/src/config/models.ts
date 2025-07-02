@@ -2233,7 +2233,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
