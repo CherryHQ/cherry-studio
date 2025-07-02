@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import { Shortcut } from '@renderer/types'
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 
@@ -125,7 +125,7 @@ const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
 }
 
 const shortcutsSlice = createSlice({
-  name: 'shortcuts',
+  name: 'shortcuts' + (isMac ? '-mac' : isWin ? '-win' : '-linux'),
   initialState,
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
