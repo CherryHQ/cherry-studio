@@ -1627,12 +1627,8 @@ const migrateConfig = {
           }
         }
       })
-      if (!state.settings.userId) {
-        state.settings.userId = uuid()
-      }
       return state
     } catch (error) {
-      console.error(error)
       return state
     }
   },
@@ -1677,6 +1673,10 @@ const migrateConfig = {
   },
   '118': (state: RootState) => {
     try {
+      if (!state.settings.userId) {
+        state.settings.userId = uuid()
+      }
+
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'mistral') {
           provider.type = 'mistral'
@@ -1713,6 +1713,7 @@ const migrateConfig = {
           }
         ]
       }
+
       if (!state.ocr.providers.find((provider) => provider.id === 'system')) {
         state.ocr.providers.push({
           id: 'system',
