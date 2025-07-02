@@ -539,9 +539,13 @@ export class SelectionService {
 
     // [macOS] hacky way
     // Because toolbar is not a FOCUSED window, so the hover status will remain when next time show
-    // so we just reload the toolbar window to make the hover status disappear
+    // so we just send mouseMove event to the toolbar window to make the hover status disappear
     if (isMac) {
-      this.toolbarWindow!.reload()
+      this.toolbarWindow!.webContents.sendInputEvent({
+        type: 'mouseMove',
+        x: -1,
+        y: -1
+      })
     }
 
     this.stopHideByMouseKeyListener()
