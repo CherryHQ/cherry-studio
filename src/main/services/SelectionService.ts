@@ -1,7 +1,7 @@
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
+import { BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import Logger from 'electron-log'
 import { join } from 'path'
 import type {
@@ -1098,23 +1098,32 @@ export class SelectionService {
     // Get a window from the preloaded queue or create a new one if empty
     const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
 
-    // [macOS] a HACKY way
-    // make sure other windows do not bring to front when action window is closed
-    // may blink or the mainWindow will be hidden, but it's a workaround
-    if (isMac) {
-      actionWindow.on('close', () => {
-        app.hide()
-        setTimeout(() => {
-          app.show()
-        }, 50)
-      })
-    }
-
     // Set up event listeners for this instance
     actionWindow.on('closed', () => {
       this.actionWindows.delete(actionWindow)
       if (!actionWindow.isDestroyed()) {
         actionWindow.destroy()
+      }
+
+      // [macOS] a HACKY way
+      // make sure other windows do not bring to front when action window is closed
+      if (isMac) {
+        const focusableWindows: BrowserWindow[] = []
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed() && window.isVisible()) {
+            if (window.isFocusable()) {
+              focusableWindows.push(window)
+              window.setFocusable(false)
+            }
+          }
+        }
+        setTimeout(() => {
+          for (const window of focusableWindows) {
+            if (!window.isDestroyed()) {
+              window.setFocusable(true)
+            }
+          }
+        }, 50)
       }
     })
 
