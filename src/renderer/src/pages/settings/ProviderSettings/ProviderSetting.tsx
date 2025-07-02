@@ -3,21 +3,22 @@ import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
+import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
+import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
-import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
+import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,20 +50,17 @@ interface Props {
 }
 
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
-  const { provider } = useProvider(_provider.id)
+  const { provider, updateProvider, models } = useProvider(_provider.id)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
-  const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
   const [modelSearchText, setModelSearchText] = useState('')
   const deferredModelSearchText = useDeferredValue(modelSearchText)
-  const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -76,12 +74,35 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
+  const fancyProviderName = getFancyProviderName(provider)
+
+  const [inputApiKey, _setInputApiKey] = useState(provider.apiKey)
+  const [isApiKeyListOpen, setIsApiKeyListOpen] = useState(false)
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSetApiKey = useCallback(
     debounce((value) => {
-      setApiKey(formatApiKeys(value))
+      setApiKey(value)
     }, 100),
     []
+  )
+
+  const setApiKey = useCallback(
+    (value: string) => {
+      if (value !== provider.apiKey) {
+        updateProvider({ apiKey: formatApiKeys(value) })
+      }
+    },
+    [provider.apiKey, updateProvider]
+  )
+
+  // 设置密钥输入框的值，同步到 provider.apiKey
+  const setInputApiKey = useCallback(
+    (value: string) => {
+      _setInputApiKey(formatApiKeys(value))
+      debouncedSetApiKey(value)
+    },
+    [_setInputApiKey, debouncedSetApiKey]
   )
 
   const moveProviderToTop = useCallback(
@@ -99,21 +120,30 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     [allProviders, updateProviders]
   )
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
-
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
-      updateProvider({ ...provider, apiHost })
+      updateProvider({ apiHost })
     } else {
       setApiHost(provider.apiHost)
     }
   }
 
-  const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
+  const onUpdateApiVersion = () => updateProvider({ apiVersion })
+
+  const onOpenApiKeyList = async () => {
+    setIsApiKeyListOpen(true)
+    await ApiKeyListPopup.show({
+      providerId: provider.id,
+      title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
+    })
+    setIsApiKeyListOpen(false)
+  }
+
+  useEffect(() => {
+    if (isApiKeyListOpen) {
+      _setInputApiKey(provider.apiKey)
+    }
+  }, [provider.apiKey, isApiKeyListOpen])
 
   const onHealthCheck = async () => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
@@ -128,7 +158,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = splitApiKeyString(apiKey)
+    const keys = splitApiKeyString(provider.apiKey)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -212,8 +242,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    if (apiKey.includes(',')) {
-      const keys = splitApiKeyString(apiKey)
+    if (provider.apiKey.includes(',')) {
+      const keys = splitApiKeyString(provider.apiKey)
 
       const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
@@ -224,16 +254,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       })
 
       if (result?.validKeys) {
-        const newApiKey = result.validKeys.join(',')
-        setInputValue(newApiKey)
-        setApiKey(newApiKey)
-        updateProvider({ ...provider, apiKey: newApiKey })
+        setApiKey(result.validKeys.join(','))
       }
     } else {
       setApiChecking(true)
 
       try {
-        await checkApi({ ...provider, apiKey, apiHost }, model)
+        await checkApi({ ...provider, apiHost }, model)
 
         window.message.success({
           key: 'api-check',
@@ -263,7 +290,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const onReset = () => {
     setApiHost(configedApiHost)
-    updateProvider({ ...provider, apiHost: configedApiHost })
+    updateProvider({ apiHost: configedApiHost })
   }
 
   const hostPreview = () => {
@@ -280,24 +307,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (provider.id === 'copilot') {
       return
     }
-    setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost, provider.id])
-
-  // Save apiKey to provider when unmount
-  useEffect(() => {
-    return () => {
-      if (apiKey.trim() && apiKey !== provider.apiKey) {
-        updateProvider({ ...provider, apiKey })
-      }
-    }
-  }, [apiKey, provider, updateProvider])
+  }, [provider.apiHost, provider.id])
 
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={5}>
-          <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
+          <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
@@ -316,7 +333,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           value={provider.enabled}
           key={provider.id}
           onChange={(enabled) => {
-            updateProvider({ ...provider, apiKey, apiHost, enabled })
+            updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)
             }
@@ -324,37 +341,34 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isProviderSupportAuth(provider) && (
-        <ProviderOAuth
-          provider={provider}
-          setApiKey={(v) => {
-            setApiKey(v)
-            setInputValue(v)
-            updateProvider({ ...provider, apiKey: v })
-          }}
-        />
-      )}
+      {isProviderSupportAuth(provider) && <ProviderOAuth provider={provider} setApiKey={setApiKey} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
       {provider.id !== 'vertexai' && (
         <>
-          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            <Space>{t('settings.provider.api_key')}</Space>
+            <Space>
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={onOpenApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            </Space>
+          </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
-              value={inputValue}
+              value={inputApiKey}
               placeholder={t('settings.provider.api_key')}
-              onChange={(e) => {
-                setInputValue(e.target.value)
-                debouncedSetApiKey(e.target.value)
-              }}
-              onBlur={() => {
-                const formattedValue = formatApiKeys(inputValue)
-                setInputValue(formattedValue)
-                setApiKey(formattedValue)
-                onUpdateApiKey()
-              }}
+              onChange={(e) => setInputApiKey(e.target.value)}
+              onPressEnter={(e) => setInputApiKey(e.currentTarget.value)}
+              onBlur={(e) => setInputApiKey(e.currentTarget.value)}
               spellCheck={false}
-              autoFocus={provider.enabled && apiKey === '' && !isProviderSupportAuth(provider)}
+              autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
             />
             <Button
