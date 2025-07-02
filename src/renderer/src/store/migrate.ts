@@ -1661,7 +1661,7 @@ const migrateConfig = {
       return state
     }
   },
-  '118': (state: RootState) => {
+  '117': (state: RootState) => {
     try {
       const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
       const modelsToRemove = [
