@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "藍耘",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "ph8": "PH8大模型開放平台"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",

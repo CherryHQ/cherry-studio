@@ -145,6 +145,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'ph8',
+    name: 'PH8',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ph8.co',
+    models: SYSTEM_MODELS.ph8,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'cephalon',
     name: 'Cephalon',
     type: 'openai',

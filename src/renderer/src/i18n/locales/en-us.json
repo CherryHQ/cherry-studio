@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "LANYUN",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "ph8": "PH8"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",

@@ -50,8 +50,8 @@ import { default as GoogleModelLogo, default as GoogleModelLogoDark } from '@ren
 import ChatGPT35ModelLogo from '@renderer/assets/images/models/gpt_3.5.png'
 import ChatGPT4ModelLogo from '@renderer/assets/images/models/gpt_4.png'
 import {
-  default as ChatGPT4ModelLogoDark,
   default as ChatGPT35ModelLogoDark,
+  default as ChatGPT4ModelLogoDark,
   default as ChatGptModelLogoDakr,
   default as ChatGPTo1ModelLogoDark
 } from '@renderer/assets/images/models/gpt_dark.png'
@@ -522,6 +522,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-reranker-m0',
       provider: '302ai',
       group: 'Jina AI'
+    }
+  ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
     }
   ],
   aihubmix: [
