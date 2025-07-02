@@ -1,5 +1,6 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
+import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
@@ -24,6 +25,10 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.requestHeaders = {
+      ...autoUpdater.requestHeaders,
+      'User-Agent': generateUserAgent()
+    }
 
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳

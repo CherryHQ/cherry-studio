@@ -5849,6 +5849,7 @@ __metadata:
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
     lucide-react: "npm:^0.487.0"
+    macos-release: "npm:^3.4.0"
     markdown-it: "npm:^14.1.0"
     mermaid: "npm:^11.6.0"
     mime: "npm:^4.0.4"
@@ -12357,6 +12358,13 @@ __metadata:
   version: 1.0.4
   resolution: "mac-system-proxy@npm:1.0.4"
   checksum: 10c0/5511658640b938f7ef99a42cd551b0143efd5a432caffbe4cb219ab7eaeeb79eb8786e830c73e2652d813d7af81d6aeb5bbb34e957e38754ff51f6a2e5797bad
+  languageName: node
+  linkType: hard
+
+"macos-release@npm:^3.4.0":
+  version: 3.4.0
+  resolution: "macos-release@npm:3.4.0"
+  checksum: 10c0/cb6ea203cc2a2b2cc2214db4658d0da0e52f8298c5c43c94cf9cb9e871daac59e4e56a2559859727a4b43b0afec1123f998ef62c58d1ac6c6c8a5c8a808330cb
   languageName: node
   linkType: hard
 
