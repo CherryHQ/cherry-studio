@@ -1661,22 +1661,15 @@ const migrateConfig = {
       return state
     }
   },
-  '117': (state: RootState) => {
-    try {
-      updateProvider(state, 'ppio', {
-        models: SYSTEM_MODELS.ppio,
-        apiHost: 'https://api.ppinfra.com/v3/openai/'
-      })
-      return state
-    } catch (error) {
-      return state
-    }
-  },
   '118': (state: RootState) => {
     try {
-      updateProvider(state, 'ppio', {
-        models: SYSTEM_MODELS.ppio
-      })
+      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      if (ppioProvider) {
+        updateProvider(state, 'ppio', {
+          models: ppioProvider.models.filter((model) => !model.id.startsWith('thudm/')),
+          apiHost: 'https://api.ppinfra.com/v3/openai/'
+        })
+      }
       return state
     } catch (error) {
       return state
