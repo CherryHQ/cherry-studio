@@ -38,12 +38,12 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
         }
       }
     }
-    if (_quota) {
+    if (_quota !== undefined) {
       updatePreprocessProvider({ ...provider, quota: _quota })
       return
     }
     checkQuota()
-  }, [_quota, base, provider, quota, updatePreprocessProvider])
+  }, [_quota, base, provider.id, provider.apiKey])
 
   return (
     <>
