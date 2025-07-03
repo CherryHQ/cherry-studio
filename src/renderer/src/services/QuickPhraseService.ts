@@ -3,7 +3,17 @@ import { QuickPhrase } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export class QuickPhraseService {
+  static async init() {
+    try {
+      await db.open()
+    } catch (error) {
+      console.error('Failed to open Dexie database:', error)
+    }
+  }
+
   static async getAll(): Promise<QuickPhrase[]> {
+    // Ensure database is initialized before
+    await QuickPhraseService.init()
     const phrases = await db.quick_phrases.toArray()
     return phrases.sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
   }
