@@ -510,7 +510,7 @@ class WebSearchService {
         window.message.error({
           key: 'websearch-rag-failed',
           duration: 10,
-          content: `${i18n.t('settings.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
+          content: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
         })
 
         finalResults = []
