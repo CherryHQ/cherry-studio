@@ -1685,6 +1685,14 @@ const migrateConfig = {
           apiHost: 'https://api.ppinfra.com/v3/openai/'
         })
       }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+          assistant.settings = {
+            ...assistant.settings,
+            streamOutput: true
+          }
+        }
+      })
       return state
     } catch (error) {
       return state
