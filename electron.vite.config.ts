@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react-swc'
+import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -59,6 +60,14 @@ export default defineConfig({
           ]
         ]
       }),
+      // 只在开发环境下启用 CodeInspectorPlugin
+      ...(process.env.NODE_ENV === 'development'
+        ? [
+            CodeInspectorPlugin({
+              bundler: 'vite'
+            })
+          ]
+        : []),
       ...visualizerPlugin('renderer')
     ],
     resolve: {

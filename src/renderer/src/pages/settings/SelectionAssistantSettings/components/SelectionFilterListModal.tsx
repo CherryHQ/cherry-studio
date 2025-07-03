@@ -1,3 +1,4 @@
+import { isWin } from '@renderer/config/constant'
 import { Button, Form, Input, Modal } from 'antd'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +55,11 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
           {t('common.save')}
         </Button>
       ]}>
-      <UserTip>{t('selection.settings.filter_modal.user_tips')}</UserTip>
+      <UserTip>
+        {isWin
+          ? t('selection.settings.filter_modal.user_tips.windows')
+          : t('selection.settings.filter_modal.user_tips.mac')}
+      </UserTip>
       <Form form={form} layout="vertical" initialValues={{ filterList: '' }}>
         <Form.Item name="filterList" noStyle>
           <StyledTextArea autoSize={{ minRows: 6, maxRows: 16 }} spellCheck={false} autoFocus />

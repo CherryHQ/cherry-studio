@@ -2,13 +2,13 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
-import { isMac, isWin } from '@main/constant'
+import { isLinux, isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell, webContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -159,6 +159,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  //only for mac
+  if (isMac) {
+    ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
+      return systemPreferences.isTrustedAccessibilityClient(false)
+    })
+
+    //return is only the current state, not the new state
+    ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
+      return systemPreferences.isTrustedAccessibilityClient(true)
+    })
+  }
+
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
     configManager.set(key, value, isNotify)
   })
@@ -307,6 +319,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // Relaunch app
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
+    // Fix for .AppImage
+    if (isLinux && process.env.APPIMAGE) {
+      log.info('Relaunching app with options:', process.env.APPIMAGE, options)
+      // On Linux, we need to use the APPIMAGE environment variable to relaunch
+      // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
+      options = options || {}
+      options.execPath = process.env.APPIMAGE
+      options.args = options.args || []
+      options.args.unshift('--appimage-extract-and-run')
+    }
+
     app.relaunch(options)
     app.exit(0)
   })
