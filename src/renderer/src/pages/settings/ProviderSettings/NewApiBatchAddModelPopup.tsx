@@ -4,6 +4,7 @@ import { EndpointType, Model, Provider } from '@renderer/types'
 import { Button, Flex, Form, FormProps, Modal, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 
 interface ShowParams {
   title: string
@@ -68,7 +69,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       centered>
       <Form
         form={form}
-        labelCol={{ flex: '130px' }}
+        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type')]) } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}

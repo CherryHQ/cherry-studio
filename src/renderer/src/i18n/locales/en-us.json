@@ -1616,7 +1616,7 @@
       "messages.use_serif_font": "Use serif font",
       "model": "Default Model",
       "models.add.add_model": "Add Model",
-      "models.add.bacth_add_models": "Batch Add Models",
+      "models.add.batch_add_models": "Batch Add Models",
       "models.add.group_name": "Group Name",
       "models.add.group_name.placeholder": "Optional e.g. ChatGPT",
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",

@@ -232,7 +232,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                   wouldAddModel.forEach(onAddModel)
                 } else {
                   NewApiBatchAddModelPopup.show({
-                    title: t('settings.models.add.bacth_add_models'),
+                    title: t('settings.models.add.batch_add_models'),
                     batchModels: wouldAddModel,
                     provider
                   })
@@ -275,7 +275,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                     wouldAddModel.forEach(onAddModel)
                   } else {
                     NewApiBatchAddModelPopup.show({
-                      title: t('settings.models.add.bacth_add_models'),
+                      title: t('settings.models.add.batch_add_models'),
                       batchModels: wouldAddModel,
                       provider
                     })

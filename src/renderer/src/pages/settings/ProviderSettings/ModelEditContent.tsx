@@ -13,6 +13,8 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
+
 interface ModelEditContentProps {
   provider: Provider
   model: Model
@@ -28,6 +30,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
+
+  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
 
   const onFinish = (values: any) => {
     const finalCurrencySymbol = isCustomCurrency ? values.customCurrencySymbol : values.currencySymbol
@@ -76,7 +80,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       }}>
       <Form
         form={form}
-        labelCol={{ flex: provider.id === 'new-api' ? '130px' : '110px' }}
+        labelCol={{ flex: provider.id === 'new-api' ? labelWidth : '110px' }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 15 }}
