@@ -1,3 +1,5 @@
+import { Model } from '@renderer/types'
+
 /**
  * API key 连通性检查的状态接口
  */
@@ -6,7 +8,7 @@ export type ApiKeyStatus = {
   connectivity: 'success' | 'error' | 'not_checked'
   checking?: boolean
   error?: string
-  model?: any
+  model?: Model
   latency?: number
 }
 

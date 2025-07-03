@@ -1,7 +1,7 @@
 import { CheckCircleFilled, CloseCircleFilled, MinusOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Flex, Input, List, Popconfirm, Tooltip, Typography } from 'antd'
+import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
 import { Check, PenLine, X } from 'lucide-react'
 import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +41,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const [isEditing, setIsEditing] = useState(isNew || !keyStatus.key.trim())
   const [editValue, setEditValue] = useState(keyStatus.key)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const inputRef = useRef<any>(null)
+  const inputRef = useRef<InputRef>(null)
 
   const disabled = keyStatus.checking || _disabled
 
