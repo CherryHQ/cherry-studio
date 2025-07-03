@@ -147,6 +147,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               <Select.Option value="openai-response">OpenAI-Response</Select.Option>
               <Select.Option value="anthropic">Anthropic</Select.Option>
               <Select.Option value="gemini">Gemini</Select.Option>
+              <Select.Option value="jina-rerank">Jina-Rerank</Select.Option>
             </Select>
           </Form.Item>
         )}

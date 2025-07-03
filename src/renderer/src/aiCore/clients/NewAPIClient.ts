@@ -1,3 +1,4 @@
+import { isSupportedModel } from "@renderer/config/models";
 import {
   GenerateImageParams,
   MCPCallToolResponse,
@@ -8,10 +9,10 @@ import {
   ToolCallResponse
 } from '@renderer/types'
 import {
+  NewApiModel,
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
-  SdkModel,
   SdkParams,
   SdkRawChunk,
   SdkRawOutput,
@@ -159,9 +160,25 @@ export class NewAPIClient extends BaseApiClient {
     return client.getEmbeddingDimensions(model)
   }
 
-  async listModels(): Promise<SdkModel[]> {
-    // 可以聚合所有client的模型，或者使用默认client
-    return this.defaultClient.listModels()
+  override async listModels(): Promise<NewApiModel[]> {
+    try {
+      const sdk = await this.defaultClient.getSdkInstance()
+      // Explicitly type the expected response shape so that `data` is recognised.
+      const response = await sdk.request<{ data: NewApiModel[] }>({
+        method: 'get',
+        path: '/models'
+      })
+      const models: NewApiModel[] = response.data ?? []
+
+      models.forEach((model) => {
+        model.id = model.id.trim()
+      })
+
+      return models.filter(isSupportedModel)
+    } catch (error) {
+      console.error('Error listing models:', error)
+      return []
+    }
   }
 
   async getSdkInstance(): Promise<SdkInstance> {

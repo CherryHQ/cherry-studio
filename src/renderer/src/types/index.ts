@@ -175,7 +175,7 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini'
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -193,6 +193,7 @@ export type Model = {
   type?: ModelType[]
   pricing?: ModelPricing
   endpoint_type?: EndpointType
+  supported_endpoint_types?: EndpointType[]
 }
 
 export type Suggestion = {
