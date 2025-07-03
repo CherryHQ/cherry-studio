@@ -1672,7 +1672,7 @@ const migrateConfig = {
       return state
     }
   },
-  '118': (state: RootState) => {
+  '119': (state: RootState) => {
     try {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
