@@ -44,6 +44,7 @@ export class QuickPhraseService {
   }
 
   static async update(id: string, data: Pick<QuickPhrase, 'title' | 'content'>): Promise<void> {
+    await QuickPhraseService.init()
     await db.quick_phrases.update(id, {
       ...data,
       updatedAt: Date.now()
@@ -64,6 +65,7 @@ export class QuickPhraseService {
 
   static async updateOrder(phrases: QuickPhrase[]): Promise<void> {
     const now = Date.now()
+    await QuickPhraseService.init()
     await Promise.all(
       phrases.map((phrase, index) =>
         db.quick_phrases.update(phrase.id, {
