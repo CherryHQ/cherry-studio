@@ -13,6 +13,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -202,10 +203,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     EditModelsPopup.show({ provider })
   }, [provider])
 
-  const onAddModel = useCallback(
-    () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider }),
-    [provider, t]
-  )
+  const onAddModel = useCallback(() => {
+    if (provider.id === 'new-api') {
+      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+    } else {
+      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+    }
+  }, [provider, t])
 
   const onEditModel = useCallback((model: Model) => {
     setEditingModel(model)
@@ -336,6 +340,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
       </Flex>
       {models.map((model) => (
         <ModelEditContent
+          provider={provider}
           model={model}
           onUpdateModel={onUpdateModel}
           open={editingModel?.id === model.id}

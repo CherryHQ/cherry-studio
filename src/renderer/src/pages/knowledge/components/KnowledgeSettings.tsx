@@ -1,4 +1,4 @@
-import { InfoCircleOutlined, SettingOutlined, WarningOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
@@ -113,13 +113,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const menuItems = [
     {
       key: 'general',
-      label: t('settings.general'),
-      icon: <SettingOutlined />
+      label: t('settings.general')
     },
     {
       key: 'advanced',
-      label: t('settings.advanced.title'),
-      icon: <SettingOutlined />
+      label: t('settings.advanced.title')
     }
   ]
 
@@ -140,7 +138,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('settings.tool.preprocess.title')} / {t('settings.tool.ocr.title')}
               <Tooltip title={t('settings.tool.preprocessOrOcr.tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <Select
@@ -178,7 +176,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('models.embedding_model')}
               <Tooltip title={t('models.embedding_model_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <Select
@@ -194,7 +192,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('models.rerank_model')}
               <Tooltip title={t('models.rerank_model_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <Select
@@ -216,7 +214,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('knowledge.document_count')}
               <Tooltip title={t('knowledge.document_count_help')}>
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <Slider
@@ -239,7 +237,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('knowledge.chunk_size')}
               <Tooltip title={t('knowledge.chunk_size_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <InputNumber
@@ -260,7 +258,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('knowledge.chunk_overlap')}
               <Tooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <InputNumber
@@ -281,7 +279,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <div className="settings-label">
               {t('knowledge.threshold')}
               <Tooltip title={t('knowledge.threshold_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
             <InputNumber
@@ -319,9 +317,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       destroyOnClose
       maskClosable={false}
       centered
+      transitionName="animation-move-down"
       width="min(800px, 70vw)"
       styles={{
-        body: { padding: 0, height: '50vh' },
+        body: { padding: 0, height: 450 },
         header: {
           padding: '10px 15px',
           borderBottom: '0.5px solid var(--color-border)',
@@ -330,10 +329,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         },
         content: {
           padding: 0,
+          paddingBottom: 10,
           overflow: 'hidden'
         }
       }}>
-      <HStack>
+      <HStack height="100%">
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={['general']}
@@ -398,19 +398,19 @@ const SettingsModal = styled(Modal)`
 `
 
 const LeftMenu = styled.div`
-  height: 50vh;
+  display: flex;
+  height: 100%;
   border-right: 0.5px solid var(--color-border);
 `
 
 const SettingsContentPanel = styled.div`
   flex: 1;
   padding: 16px 16px;
-  height: calc(50vh - 16px);
   overflow-y: scroll;
 `
 
 const StyledMenu = styled(Menu)`
-  width: 220px;
+  width: 200px;
   padding: 5px;
   background: transparent;
   margin-top: 2px;

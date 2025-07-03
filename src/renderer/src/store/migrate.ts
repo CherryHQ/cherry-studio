@@ -1699,6 +1699,9 @@ const migrateConfig = {
   },
   '118': (state: RootState) => {
     try {
+      addProvider(state, 'ph8')
+      state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
+
       if (!state.settings.userId) {
         state.settings.userId = uuid()
       }
@@ -1709,47 +1712,15 @@ const migrateConfig = {
         }
       })
 
-      if (!state.preprocess) {
-        state.preprocess = {
-          defaultProvider: '',
-          providers: []
-        }
-      }
-
-      if (state.preprocess.providers.length === 0) {
-        state.preprocess.providers = [
-          {
-            id: 'doc2x',
-            name: 'Doc2x',
-            apiKey: '',
-            apiHost: 'https://v2.doc2x.noedgeai.com'
-          },
-          {
-            id: 'mistral',
-            name: 'Mistral',
-            model: 'mistral-ocr-latest',
-            apiKey: '',
-            apiHost: 'https://api.mistral.ai'
-          },
-          {
-            id: 'mineru',
-            name: 'MinerU',
-            apiKey: '',
-            apiHost: 'https://mineru.net'
-          }
-        ]
-      }
-
-      if (!state.ocr.providers.find((provider) => provider.id === 'system')) {
-        state.ocr.providers.push({
-          id: 'system',
-          name: 'System(Mac Only)',
-          options: {
-            recognitionLevel: 0,
-            minConfidence: 0.5
-          }
-        })
-      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '119': (state: RootState) => {
+    try {
+      addProvider(state, 'new-api')
+      state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
       return state
     } catch (error) {
       return state

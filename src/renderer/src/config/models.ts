@@ -524,6 +524,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina AI'
     }
   ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    }
+  ],
   aihubmix: [
     {
       id: 'o3',
@@ -2221,7 +2235,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
