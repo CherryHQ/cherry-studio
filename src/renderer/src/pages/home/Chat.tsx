@@ -69,7 +69,7 @@ const Chat: FC<Props> = (props) => {
               return NodeFilter.FILTER_ACCEPT
             }
           } else {
-            if (parentNode?.classList.contains('message-content-container-assistant')) {
+            if (parentNode?.classList.contains('message-assistant')) {
               return NodeFilter.FILTER_ACCEPT
             }
           }
