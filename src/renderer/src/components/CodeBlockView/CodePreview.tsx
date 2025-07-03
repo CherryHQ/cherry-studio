@@ -27,10 +27,10 @@ const MAX_COLLAPSE_HEIGHT = 350
  */
 const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
-  const { getShikiPreProperties } = useCodeStyle()
+  const { getShikiPreProperties, isShikiThemeDark } = useCodeStyle()
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
-  const shikiPreRef = useRef<HTMLPreElement>(null)
+  const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
 
@@ -90,18 +90,19 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   // 设置 pre 标签属性
   useLayoutEffect(() => {
     getShikiPreProperties(language).then((properties) => {
-      const pre = shikiPreRef.current
-      if (pre) {
-        pre.className = `${properties.class || 'shiki'}`
+      const shikiTheme = shikiThemeRef.current
+      if (shikiTheme) {
+        shikiTheme.className = `${properties.class || 'shiki'}`
+        // 滚动条适应 shiki 主题变化而非应用主题
+        shikiTheme.classList.add(isShikiThemeDark ? 'shiki-dark' : 'shiki-light')
+
         if (properties.style) {
-          pre.style.cssText = `${properties.style}`
+          shikiTheme.style.cssText += `${properties.style}`
         }
-        pre.style.setProperty('overflow', 'visible')
-        pre.style.setProperty('border-radius', 'inherit')
-        pre.tabIndex = properties.tabindex
+        shikiTheme.tabIndex = properties.tabindex
       }
     })
-  }, [language, getShikiPreProperties])
+  }, [language, getShikiPreProperties, isShikiThemeDark])
 
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
@@ -131,64 +132,62 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
   // 渐进式高亮
   useEffect(() => {
-    if (virtualItems.length > 0 && shikiPreRef.current) {
+    if (virtualItems.length > 0 && shikiThemeRef.current) {
       const lastIndex = virtualItems[virtualItems.length - 1].index
       debouncedHighlightLines(lastIndex + 1)
     }
   }, [virtualItems, debouncedHighlightLines])
 
   return (
-    <pre ref={shikiPreRef}>
-      <code>
-        <ScrollContainer
-          ref={scrollerRef}
-          className="shiki-scroller"
-          $wrap={shouldWrap}
-          style={
-            {
-              '--gutter-width': `${gutterDigits}ch`,
-              fontSize: `${fontSize - 1}px`,
-              maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined
-            } as React.CSSProperties
-          }>
+    <div ref={shikiThemeRef}>
+      <ScrollContainer
+        ref={scrollerRef}
+        className="shiki-scroller"
+        $wrap={shouldWrap}
+        style={
+          {
+            '--gutter-width': `${gutterDigits}ch`,
+            fontSize: `${fontSize - 1}px`,
+            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined
+          } as React.CSSProperties
+        }>
+        <div
+          className="shiki-list"
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative'
+          }}>
           <div
-            className="shiki-list"
             style={{
-              height: `${virtualizer.getTotalSize()}px`,
+              /*
+               * FIXME: @tanstack/react-virtual 使用绝对定位，但是会导致
+               * 有气泡样式 `self-end` 并且气泡中只有代码块时整个代码块收缩
+               * 到最小宽度（目前应该是工具栏的宽度）。改为相对定位可以保证宽
+               * 度足够，目前没有发现其他副作用。
+               * 如果发现破坏虚拟列表功能，或者将来有更好的解决方案，再调整。
+               */
+              position: 'relative',
+              top: 0,
+              left: 0,
               width: '100%',
-              position: 'relative'
+              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
+              willChange: 'transform'
             }}>
-            <div
-              style={{
-                /*
-                 * FIXME: @tanstack/react-virtual 使用绝对定位，但是会导致
-                 * 有气泡样式 `self-end` 并且气泡中只有代码块时整个代码块收缩
-                 * 到最小宽度（目前应该是工具栏的宽度）。改为相对定位可以保证宽
-                 * 度足够，目前没有发现其他副作用。
-                 * 如果发现破坏虚拟列表功能，或者将来有更好的解决方案，再调整。
-                 */
-                position: 'relative',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
-                willChange: 'transform'
-              }}>
-              {virtualizer.getVirtualItems().map((virtualItem) => (
-                <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
-                  <VirtualizedRow
-                    rawLine={rawLines[virtualItem.index]}
-                    tokenLine={tokenLines[virtualItem.index]}
-                    showLineNumbers={codeShowLineNumbers}
-                    index={virtualItem.index}
-                  />
-                </div>
-              ))}
-            </div>
+            {virtualizer.getVirtualItems().map((virtualItem) => (
+              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
+                <VirtualizedRow
+                  rawLine={rawLines[virtualItem.index]}
+                  tokenLine={tokenLines[virtualItem.index]}
+                  showLineNumbers={codeShowLineNumbers}
+                  index={virtualItem.index}
+                />
+              </div>
+            ))}
           </div>
-        </ScrollContainer>
-      </code>
-    </pre>
+        </div>
+      </ScrollContainer>
+    </div>
   )
 }
 
