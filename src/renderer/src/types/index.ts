@@ -3,6 +3,8 @@ import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
+export * from './file'
+import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
 export type Assistant = {
@@ -81,7 +83,7 @@ export type LegacyMessage = {
   status: 'sending' | 'pending' | 'searching' | 'success' | 'paused' | 'error'
   modelId?: string
   model?: Model
-  files?: FileType[]
+  files?: FileMetadata[]
   images?: string[]
   usage?: Usage
   metrics?: Metrics
@@ -172,6 +174,7 @@ export type ProviderType =
   | 'qwenlm'
   | 'azure-openai'
   | 'vertexai'
+  | 'mistral'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -203,7 +206,7 @@ export type Suggestion = {
 export type PaintingParams = {
   id: string
   urls: string[]
-  files: FileType[]
+  files: FileMetadata[]
 }
 
 export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
@@ -241,7 +244,7 @@ export interface GeneratePainting extends PaintingParams {
 
 export interface EditPainting extends PaintingParams {
   imageFile: string
-  mask: FileType
+  mask: FileMetadata
   model: string
   prompt: string
   numImages?: number
@@ -329,28 +332,6 @@ export type MinAppType = {
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
-export interface FileType {
-  id: string
-  name: string
-  origin_name: string
-  path: string
-  size: number
-  ext: string
-  type: FileTypes
-  created_at: string
-  count: number
-  tokens?: number
-}
-
-export enum FileTypes {
-  IMAGE = 'image',
-  VIDEO = 'video',
-  AUDIO = 'audio',
-  TEXT = 'text',
-  DOCUMENT = 'document',
-  OTHER = 'other'
-}
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -413,7 +394,7 @@ export type KnowledgeItem = {
   uniqueId?: string
   uniqueIds?: string[]
   type: KnowledgeItemType
-  content: string | FileType
+  content: string | FileMetadata
   remark?: string
   created_at: number
   updated_at: number
@@ -421,6 +402,7 @@ export type KnowledgeItem = {
   processingProgress?: number
   processingError?: string
   retryCount?: number
+  isPreprocessed?: boolean
 }
 
 export interface KnowledgeBase {
@@ -439,6 +421,11 @@ export interface KnowledgeBase {
   threshold?: number
   rerankModel?: Model
   // topN?: number
+  // preprocessing?: boolean
+  preprocessOrOcrProvider?: {
+    type: 'preprocess' | 'ocr'
+    provider: PreprocessProvider | OcrProvider
+  }
 }
 
 export type KnowledgeBaseParams = {
@@ -456,6 +443,31 @@ export type KnowledgeBaseParams = {
   rerankModel?: string
   rerankModelProvider?: string
   documentCount?: number
+  // preprocessing?: boolean
+  preprocessOrOcrProvider?: {
+    type: 'preprocess' | 'ocr'
+    provider: PreprocessProvider | OcrProvider
+  }
+}
+
+export interface PreprocessProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+  options?: any
+  quota?: number
+}
+
+export interface OcrProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+  options?: any
+  quota?: number
 }
 
 export type GenerateImageParams = {
@@ -558,7 +570,7 @@ export type KnowledgeReference = {
   content: string
   sourceUrl: string
   type: KnowledgeItemType
-  file?: FileType
+  file?: FileMetadata
 }
 
 export type MCPArgType = 'string' | 'list' | 'number'
@@ -734,16 +746,4 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
-
-export type S3Config = {
-  endpoint: string
-  region: string
-  bucket: string
-  access_key_id: string
-  secret_access_key: string
-  root?: string
-  fileName?: string
-  skipBackupFile?: boolean
-}
-
 export type { Message } from './newMessage'

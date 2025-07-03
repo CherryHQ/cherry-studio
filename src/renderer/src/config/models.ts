@@ -844,18 +844,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ppio',
       name: 'Qwen3 Reranker 8B',
       group: 'qwen'
-    },
-    {
-      id: 'thudm/glm-z1-32b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 32B',
-      group: 'thudm'
-    },
-    {
-      id: 'thudm/glm-z1-9b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 9B',
-      group: 'thudm'
     }
   ],
   alayanew: [],

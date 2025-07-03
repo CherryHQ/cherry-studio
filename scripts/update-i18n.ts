@@ -1,16 +1,19 @@
 /**
- * Paratera_API_KEY=sk-abcxxxxxxxxxxxxxxxxxxxxxxx123 ts-node scripts/update-i18n.ts
+ * 使用 OpenAI 兼容的模型生成 i18n 文本，并更新到 translate 目录
+ *
+ * API_KEY=sk-xxxx BASE_URL=xxxx MODEL=xxxx ts-node scripts/update-i18n.ts
  */
 
-// OCOOL API KEY
-const Paratera_API_KEY = process.env.Paratera_API_KEY
+const API_KEY = process.env.API_KEY
+const BASE_URL = process.env.BASE_URL || 'https://llmapi.paratera.com/v1'
+const MODEL = process.env.MODEL || 'Qwen3-235B-A22B'
 
 const INDEX = [
-  //         语言的名称          代码            用来翻译的模型
-  { name: 'France', code: 'fr-fr', model: 'Qwen3-235B-A22B' },
-  { name: 'Spanish', code: 'es-es', model: 'Qwen3-235B-A22B' },
-  { name: 'Portuguese', code: 'pt-pt', model: 'Qwen3-235B-A22B' },
-  { name: 'Greek', code: 'el-gr', model: 'Qwen3-235B-A22B' }
+  // 语言的名称代码用来翻译的模型
+  { name: 'France', code: 'fr-fr', model: MODEL },
+  { name: 'Spanish', code: 'es-es', model: MODEL },
+  { name: 'Portuguese', code: 'pt-pt', model: MODEL },
+  { name: 'Greek', code: 'el-gr', model: MODEL }
 ]
 
 const fs = require('fs')
@@ -19,8 +22,8 @@ import OpenAI from 'openai'
 const zh = JSON.parse(fs.readFileSync('src/renderer/src/i18n/locales/zh-cn.json', 'utf8')) as object
 
 const openai = new OpenAI({
-  apiKey: Paratera_API_KEY,
-  baseURL: 'https://llmapi.paratera.com/v1'
+  apiKey: API_KEY,
+  baseURL: BASE_URL
 })
 
 // 递归遍历翻译

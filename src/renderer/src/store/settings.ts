@@ -11,6 +11,7 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 
 import { WebDAVSyncState } from './backup'
@@ -37,19 +38,6 @@ export type UserTheme = {
   colorPrimary: string
 }
 
-export interface S3Config {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-  root: string
-  autoSync: boolean
-  syncInterval: number
-  maxBackups: number
-  skipBackupFile: boolean
-}
-
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
@@ -60,6 +48,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  userId: string
   showPrompt: boolean
   showTokens: boolean
   showMessageDivider: boolean
@@ -195,10 +184,9 @@ export interface SettingsState {
   notification: {
     assistant: boolean
     backup: boolean
-    knowledgeEmbed: boolean
+    knowledge: boolean
   }
   defaultPaintingProvider: PaintingProvider
-  s3: S3Config
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -213,6 +201,7 @@ export const initialState: SettingsState = {
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  userId: uuid(),
   showPrompt: true,
   showTokens: true,
   showMessageDivider: true,
@@ -341,21 +330,9 @@ export const initialState: SettingsState = {
   notification: {
     assistant: false,
     backup: false,
-    knowledgeEmbed: false
+    knowledge: false
   },
-  defaultPaintingProvider: 'aihubmix',
-  s3: {
-    endpoint: '',
-    region: '',
-    bucket: '',
-    accessKeyId: '',
-    secretAccessKey: '',
-    root: '',
-    autoSync: false,
-    syncInterval: 0,
-    maxBackups: 0,
-    skipBackupFile: false
-  }
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -719,9 +696,6 @@ const settingsSlice = createSlice({
     },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
-    },
-    setS3: (state, action: PayloadAction<S3Config>) => {
-      state.s3 = action.payload
     }
   }
 })
@@ -830,8 +804,7 @@ export const {
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
-  setDefaultPaintingProvider,
-  setS3
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

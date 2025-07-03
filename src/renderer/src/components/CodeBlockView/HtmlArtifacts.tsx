@@ -19,7 +19,7 @@ const Artifacts: FC<Props> = ({ html }) => {
    * 在应用内打开
    */
   const handleOpenInApp = async () => {
-    const path = await window.api.file.create('artifacts-preview.html')
+    const path = await window.api.file.createTempFile('artifacts-preview.html')
     await window.api.file.write(path, html)
     const filePath = `file://${path}`
     const title = extractTitle(html) || 'Artifacts ' + t('chat.artifacts.button.preview')
@@ -35,7 +35,7 @@ const Artifacts: FC<Props> = ({ html }) => {
    * 外部链接打开
    */
   const handleOpenExternal = async () => {
-    const path = await window.api.file.create('artifacts-preview.html')
+    const path = await window.api.file.createTempFile('artifacts-preview.html')
     await window.api.file.write(path, html)
     const filePath = `file://${path}`
 

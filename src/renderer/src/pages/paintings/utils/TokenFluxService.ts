@@ -1,5 +1,5 @@
 import { CacheService } from '@renderer/services/CacheService'
-import { FileType, TokenFluxPainting } from '@renderer/types'
+import { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
 
@@ -230,7 +230,7 @@ export class TokenFluxService {
       })
     )
 
-    return downloadedFiles.filter((file): file is FileType => file !== null)
+    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
   }
 }
 
