@@ -3,9 +3,16 @@ import { QuickPhrase } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export class QuickPhraseService {
+  private static _isInitialized: boolean = false
+
   static async init() {
+    if (QuickPhraseService._isInitialized) {
+      return
+    }
+
     try {
       await db.open()
+      QuickPhraseService._isInitialized = true
     } catch (error) {
       console.error('Failed to open Dexie database:', error)
     }
