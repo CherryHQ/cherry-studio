@@ -297,7 +297,6 @@ export async function restoreFromWebdav(fileName?: string) {
   }
 }
 
-// 备份到 S3
 export async function backupToS3({
   showMessage = false,
   customFileName = '',
@@ -309,7 +308,6 @@ export async function backupToS3({
     return
   }
 
-  // force set showMessage to false when auto backup process
   if (autoBackupProcess) {
     showMessage = false
   }
@@ -343,7 +341,6 @@ export async function backupToS3({
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
   const backupData = await getBackupData()
 
-  // 上传文件
   try {
     await window.api.backup.backupToS3(backupData, {
       endpoint: s3Endpoint,
@@ -356,10 +353,11 @@ export async function backupToS3({
       skipBackupFile: s3SkipBackupFile
     })
 
-    // S3上传成功
     store.dispatch(
       setS3SyncState({
-        lastSyncError: null
+        lastSyncError: null,
+        syncing: false,
+        lastSyncTime: Date.now()
       })
     )
     notificationService.send({
@@ -376,7 +374,6 @@ export async function backupToS3({
     // 清理旧备份文件
     if (s3MaxBackups > 0) {
       try {
-        // 获取所有备份文件
         const files = await window.api.backup.listS3Files({
           endpoint: s3Endpoint,
           region: s3Region,
@@ -388,18 +385,15 @@ export async function backupToS3({
 
         // 筛选当前设备的备份文件
         const currentDeviceFiles = files.filter((file) => {
-          // 检查文件名是否包含当前设备的标识信息
           return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
         })
 
         // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
         if (currentDeviceFiles.length > s3MaxBackups) {
-          // 文件已按修改时间降序排序，所以最旧的文件在末尾
           const filesToDelete = currentDeviceFiles.slice(s3MaxBackups)
 
           Logger.log(`[Backup] Cleaning up ${filesToDelete.length} old backup files`)
 
-          // 串行删除文件，避免并发请求导致的问题
           for (let i = 0; i < filesToDelete.length; i++) {
             const file = filesToDelete[i]
             await deleteS3FileWithRetry(file.fileName, {
@@ -411,7 +405,6 @@ export async function backupToS3({
               root: s3Root
             })
 
-            // 在删除操作之间添加短暂延迟，避免请求过于频繁
             if (i < filesToDelete.length - 1) {
               await new Promise((resolve) => setTimeout(resolve, 500))
             }
@@ -422,7 +415,6 @@ export async function backupToS3({
       }
     }
   } catch (error: any) {
-    // if auto backup process, throw error
     if (autoBackupProcess) {
       throw error
     }
@@ -486,6 +478,13 @@ export async function restoreFromS3(fileName?: string) {
 
   try {
     await handleData(JSON.parse(data))
+    store.dispatch(
+      setS3SyncState({
+        lastSyncTime: Date.now(),
+        syncing: false,
+        lastSyncError: null
+      })
+    )
   } catch (error) {
     console.error('[Backup] Error downloading file from S3:', error)
     window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })

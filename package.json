@@ -58,6 +58,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
     "@cherrystudio/pdf-to-img-napi": "^0.0.1",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
@@ -188,7 +189,6 @@
     "npx-scope-finder": "^1.2.0",
     "officeparser": "^4.1.1",
     "openai": "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch",
-    "opendal": "0.47.11",
     "p-queue": "^8.1.0",
     "playwright": "^1.52.0",
     "prettier": "^3.5.3",

@@ -11,7 +11,7 @@ import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
-import S3Storage from './RemoteStorage'
+import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
@@ -478,7 +478,6 @@ class BackupManager {
   }
 
   async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config) {
-    // 获取设备名
     const os = require('os')
     const deviceName = os.hostname ? os.hostname() : 'device'
     const timestamp = new Date()
@@ -487,11 +486,10 @@ class BackupManager {
       .slice(0, 14)
     const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
 
-    // 不记录详细日志，只记录开始和结束
     Logger.log(`[BackupManager] Starting S3 backup to ${filename}`)
 
     const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
-    const s3Client = new S3Storage('s3', {
+    const s3Client = new S3Storage({
       endpoint: s3Config.endpoint,
       region: s3Config.region,
       bucket: s3Config.bucket,
@@ -516,10 +514,9 @@ class BackupManager {
   async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
     const filename = s3Config.fileName || 'cherry-studio.backup.zip'
 
-    // 只记录开始和结束或错误
     Logger.log(`[BackupManager] Starting restore from S3: ${filename}`)
 
-    const s3Client = new S3Storage('s3', {
+    const s3Client = new S3Storage({
       endpoint: s3Config.endpoint,
       region: s3Config.region,
       bucket: s3Config.bucket,
@@ -551,7 +548,7 @@ class BackupManager {
 
   listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
     try {
-      const s3Client = new S3Storage('s3', {
+      const s3Client = new S3Storage({
         endpoint: s3Config.endpoint,
         region: s3Config.region,
         bucket: s3Config.bucket,
@@ -559,23 +556,20 @@ class BackupManager {
         secret_access_key: s3Config.secret_access_key,
         root: s3Config.root || ''
       })
-      const entries = await s3Client.instance?.list('/')
-      const files: Array<{ fileName: string; modifiedTime: string; size: number }> = []
-      if (entries) {
-        for await (const entry of entries) {
-          const path = entry.path()
-          if (path.endsWith('.zip')) {
-            const meta = await s3Client.instance!.stat(path)
-            if (meta.isFile()) {
-              files.push({
-                fileName: path.replace(/^\/+/, ''),
-                modifiedTime: meta.lastModified || '',
-                size: Number(meta.contentLength || 0n)
-              })
-            }
+
+      const objects = await s3Client.listFiles()
+      const files = objects
+        .filter((obj) => obj.key.endsWith('.zip'))
+        .map((obj) => {
+          const segments = obj.key.split('/')
+          const fileName = segments[segments.length - 1]
+          return {
+            fileName,
+            modifiedTime: obj.lastModified || '',
+            size: obj.size
           }
-        }
-      }
+        })
+
       return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
       Logger.error('Failed to list S3 files:', error)
@@ -585,7 +579,7 @@ class BackupManager {
 
   async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
     try {
-      const s3Client = new S3Storage('s3', {
+      const s3Client = new S3Storage({
         endpoint: s3Config.endpoint,
         region: s3Config.region,
         bucket: s3Config.bucket,
@@ -601,7 +595,7 @@ class BackupManager {
   }
 
   async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const s3Client = new S3Storage('s3', {
+    const s3Client = new S3Storage({
       endpoint: s3Config.endpoint,
       region: s3Config.region,
       bucket: s3Config.bucket,
