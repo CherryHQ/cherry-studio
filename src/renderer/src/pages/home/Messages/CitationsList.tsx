@@ -87,7 +87,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           </div>
         }
         placement="right"
-        trigger="hover"
+        trigger="click"
         styles={{
           body: {
             padding: '0 0 8px 0'
@@ -184,7 +184,6 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
             {citation.title}
           </CitationLink>
-
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>

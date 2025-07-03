@@ -984,7 +984,7 @@
       "per_images": "за изображения",
       "required_field": "Обязательное поле",
       "uploaded_input": "Загруженный ввод",
-      "prompt_placeholder_en": "[to be translated]:Enter your image description, currently Imagen only supports English prompts"
+      "prompt_placeholder_en": "Введите описание изображения, в настоящее время Imagen поддерживает только английские подсказки"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -1638,6 +1638,18 @@
       "models.quick_assistant_default_tag": "умолчанию",
       "models.use_model": "модель по умолчанию",
       "models.use_assistant": "Использование ассистентов",
+      "models.provider_key_confirm_title": "Добавить API ключ для {{provider}}",
+      "models.provider_name": "Имя провайдера",
+      "models.provider_id": "ID провайдера",
+      "models.base_url": "Базовый URL",
+      "models.api_key": "API ключ",
+      "models.provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
+      "models.provider_key_already_exists": "{{provider}} уже существует один и тот же API ключ, не будет добавлен",
+      "models.provider_key_added": "API ключ для {{provider}} успешно добавлен",
+      "models.provider_key_overridden": "API ключ для {{provider}} успешно обновлен",
+      "models.provider_key_no_change": "API ключ для {{provider}} не изменился",
+      "models.provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
+      "models.provider_key_add_failed_by_invalid_data": "Не удалось добавить API ключ для {{provider}}, данные имеют неверный формат",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
@@ -1860,7 +1872,11 @@
             "provider_not_found": "Поставщик не найден",
             "rag_failed": "RAG не удалось"
           }
-        }
+        },
+        "subscribe_add_failed": "Не удалось добавить подписку на черный список",
+        "subscribe_update_success": "Подписка на черный список успешно обновлена",
+        "subscribe_update_failed": "Не удалось обновить подписку на черный список",
+        "subscribe_source_update_failed": "Не удалось обновить источник подписки на черный список"
       },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.test_plan.title": "Тестовый план",
