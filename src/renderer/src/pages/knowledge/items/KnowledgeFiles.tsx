@@ -5,8 +5,8 @@ import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
+import { FileMetadata, FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
@@ -30,6 +30,8 @@ const { Dragger } = Upload
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
+  progressMap: Map<string, number>
+  preprocessMap: Map<string, boolean>
 }
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
@@ -39,7 +41,7 @@ const getDisplayTime = (item: KnowledgeItem) => {
   return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
-const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
 
@@ -82,24 +84,47 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     if (disabled) {
       return
     }
-
     if (files) {
-      const _files: FileType[] = files
-        .map((file) => ({
-          id: file.name,
-          name: file.name,
-          path: window.api.file.getPathForFile(file),
-          size: file.size,
-          ext: `.${file.name.split('.').pop()}`.toLowerCase(),
-          count: 1,
-          origin_name: file.name,
-          type: file.type as FileTypes,
-          created_at: new Date().toISOString()
-        }))
+      const _files: FileMetadata[] = files
+        .map((file) => {
+          // 这个路径 filePath 很可能是在文件选择时的原始路径。
+          const filePath = window.api.file.getPathForFile(file)
+          let nameFromPath = filePath
+          const lastSlash = filePath.lastIndexOf('/')
+          const lastBackslash = filePath.lastIndexOf('\\')
+          if (lastSlash !== -1 || lastBackslash !== -1) {
+            nameFromPath = filePath.substring(Math.max(lastSlash, lastBackslash) + 1)
+          }
+
+          // 从派生的文件名中获取扩展名
+          const extFromPath = nameFromPath.includes('.') ? `.${nameFromPath.split('.').pop()}` : ''
+
+          return {
+            id: uuid(),
+            name: nameFromPath, // 使用从路径派生的文件名
+            path: filePath,
+            size: file.size,
+            ext: extFromPath.toLowerCase(),
+            count: 1,
+            origin_name: file.name, // 保存 File 对象中原始的文件名
+            type: file.type as FileTypes,
+            created_at: new Date().toISOString()
+          }
+        })
         .filter(({ ext }) => fileTypes.includes(ext))
-      const uploadedFiles = await FileManager.uploadFiles(_files)
-      addFiles(uploadedFiles)
+      // const uploadedFiles = await FileManager.uploadFiles(_files)
+      addFiles(_files)
     }
+  }
+
+  const showPreprocessIcon = (item: KnowledgeItem) => {
+    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+      return true
+    }
+    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+      return true
+    }
+    return false
   }
 
   return (
@@ -160,6 +185,18 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         <FlexAlignCenter>
                           {item.uniqueId && (
                             <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                          )}
+                          {showPreprocessIcon(item) && (
+                            <StatusIconWrapper>
+                              <StatusIcon
+                                sourceId={item.id}
+                                base={base}
+                                getProcessingStatus={getProcessingStatus}
+                                type="file"
+                                isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
+                                progress={progressMap.get(item.id)}
+                              />
+                            </StatusIconWrapper>
                           )}
                           <StatusIconWrapper>
                             <StatusIcon

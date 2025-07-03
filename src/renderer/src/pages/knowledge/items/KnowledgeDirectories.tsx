@@ -26,6 +26,7 @@ import {
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
+  progressMap: Map<string, number>
 }
 
 const getDisplayTime = (item: KnowledgeItem) => {
@@ -33,18 +34,12 @@ const getDisplayTime = (item: KnowledgeItem) => {
   return dayjs(timestamp).format('MM-DD HH:mm')
 }
 
-const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progressMap }) => {
   const { t } = useTranslation()
 
-  const {
-    base,
-    directoryItems,
-    refreshItem,
-    removeItem,
-    getProcessingStatus,
-    getDirectoryProcessingPercent,
-    addDirectory
-  } = useKnowledge(selectedBase.id || '')
+  const { base, directoryItems, refreshItem, removeItem, getProcessingStatus, addDirectory } = useKnowledge(
+    selectedBase.id || ''
+  )
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
@@ -52,8 +47,6 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   if (!base) {
     return null
   }
-
-  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
 
   const handleAddDirectory = async () => {
     if (disabled) {
@@ -102,7 +95,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       sourceId={item.id}
                       base={base}
                       getProcessingStatus={getProcessingStatus}
-                      getProcessingPercent={getProgressingPercentForItem}
+                      progress={progressMap.get(item.id)}
                       type="directory"
                     />
                   </StatusIconWrapper>

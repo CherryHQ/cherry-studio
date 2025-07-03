@@ -406,9 +406,11 @@
       "prompt": "提示詞",
       "provider": "供應商",
       "regenerate": "重新生成",
+      "refresh": "重新整理",
       "rename": "重新命名",
       "reset": "重設",
       "save": "儲存",
+      "settings": "設定",
       "search": "搜尋",
       "select": "選擇",
       "selectedMessages": "選中 {{count}} 條訊息",
@@ -423,7 +425,9 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "沒有結果"
+      "no_results": "沒有結果",
+      "enabled": "已啟用",
+      "disabled": "已停用"
     },
     "docs": {
       "title": "說明文件"
@@ -543,7 +547,11 @@
       "rename": "重新命名",
       "search": "搜尋知識庫",
       "search_placeholder": "輸入查詢內容",
-      "settings": "知識庫設定",
+      "settings": {
+        "title": "知識庫設定",
+        "preprocessing": "預處理",
+        "preprocessing_tooltip": "預處理上傳的文件"
+      },
       "sitemap_placeholder": "請輸入網站地圖 URL",
       "sitemaps": "網站",
       "source": "來源",
@@ -567,12 +575,20 @@
       "urls": "網址",
       "dimensions": "嵌入維度",
       "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
-      "dimensions_size_placeholder": "嵌入維度大小，例如 1024",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "預處理完成",
+      "status_embedding_failed": "嵌入失敗",
+      "status_preprocess_failed": "預處理失敗",
+      "dimensions_size_placeholder": " 嵌入維度大小，例如 1024",
       "dimensions_auto_set": "自動設定嵌入維度",
       "dimensions_error_invalid": "請輸入嵌入維度大小",
       "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
       "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
-      "dimensions_default": "模型將使用預設嵌入維度"
+      "dimensions_default": "模型將使用預設嵌入維度",
+      "quota": "{{name}} 剩餘配額：{{quota}}",
+      "quota_infinity": "{{name}} 配額：無限制",
+      "name_required": "知識庫名稱為必填項目",
+      "embedding_model_required": "知識庫嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -1808,79 +1824,99 @@
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
+      "tool": {
+        "title": "工具設定",
+        "websearch": {
+          "blacklist": "黑名單",
+          "blacklist_description": "以下網站不會出現在搜尋結果中",
+          "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "檢查",
+          "check_failed": "驗證失敗",
+          "check_success": "驗證成功",
+          "get_api_key": "點選這裡取得金鑰",
+          "no_provider_selected": "請選擇搜尋服務商後再檢查",
+          "search_max_result": "搜尋結果個數",
+          "search_provider": "搜尋服務商",
+          "search_provider_placeholder": "選擇一個搜尋服務商",
+          "search_result_default": "預設",
+          "search_with_time": "搜尋包含日期",
+          "tavily": {
+            "api_key": "Tavily API 金鑰",
+            "api_key.placeholder": "請輸入 Tavily API 金鑰",
+            "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "網路搜尋",
+          "subscribe": "黑名單訂閱",
+          "subscribe_update": "更新",
+          "subscribe_add": "新增訂閱",
+          "subscribe_url": "訂閱網址",
+          "subscribe_name": "替代名稱",
+          "subscribe_name.placeholder": "下載的訂閱源沒有名稱時使用的替代名稱。",
+          "subscribe_add_success": "訂閱源新增成功!",
+          "subscribe_delete": "刪除",
+          "overwrite": "覆蓋搜尋服務",
+          "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
+          "apikey": "API 金鑰",
+          "free": "免費",
+          "content_limit": "內容長度限制",
+          "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
+          "compression": {
+            "title": "搜尋結果壓縮",
+            "method": "壓縮方法",
+            "method.none": "不壓縮",
+            "method.cutoff": "截斷",
+            "cutoff.limit": "截斷長度",
+            "cutoff.limit.placeholder": "輸入長度",
+            "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
+            "cutoff.unit.char": "字符",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "文檔數量",
+            "rag.document_count.default": "預設",
+            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
+            "rag.embedding_dimensions.auto_get": "自動獲取維度",
+            "rag.embedding_dimensions.placeholder": "不設置維度",
+            "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
+            "info": {
+              "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "請先選擇嵌入模型",
+              "dimensions_auto_failed": "維度自動獲取失敗",
+              "provider_not_found": "未找到服務商",
+              "rag_failed": "RAG 失敗"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "前置處理",
+          "provider": "前置處理供應商",
+          "provider_placeholder": "選擇一個預處理供應商"
+        },
+        "preprocessOrOcr.tooltip": "在「設定」->「工具」中設定文件預處理服務供應商或OCR。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能，而OCR僅能辨識文件內圖片文字或掃描PDF文字。",
+        "ocr": {
+          "title": "光學字符識別",
+          "provider": "OCR 供應商",
+          "provider_placeholder": "選擇一個OCR服務提供商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "識別模式",
+              "accurate": "準確",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
+        }
+      },
+      "topic.pin_to_top": "固定話題置頂",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "topic.pin_to_top": "固定話題置頂",
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
-      "websearch": {
-        "check_success": "驗證成功",
-        "get_api_key": "點選這裡取得金鑰",
-        "search_with_time": "搜尋包含日期",
-        "tavily": {
-          "api_key": "Tavily API 金鑰",
-          "api_key.placeholder": "請輸入 Tavily API 金鑰",
-          "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
-          "title": "Tavily"
-        },
-        "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜索結果中",
-        "search_max_result": "搜尋結果個數",
-        "search_result_default": "預設",
-        "check": "檢查",
-        "search_provider": "搜尋服務商",
-        "search_provider_placeholder": "選擇一個搜尋服務商",
-        "no_provider_selected": "請選擇搜索服務商後再檢查",
-        "check_failed": "驗證失敗",
-        "blacklist_tooltip": "匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "subscribe": "黑名單訂閱",
-        "subscribe_update": "更新",
-        "subscribe_add": "添加訂閱",
-        "subscribe_url": "訂閱源地址",
-        "subscribe_name": "替代名稱",
-        "subscribe_name.placeholder": "當下載的訂閱源沒有名稱時所使用的替代名稱",
-        "subscribe_add_success": "訂閱源添加成功！",
-        "subscribe_delete": "刪除",
-        "title": "網路搜尋",
-        "overwrite": "覆蓋搜尋服務商",
-        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
-        "apikey": "API 金鑰",
-        "free": "免費",
-        "compression": {
-          "title": "搜尋結果壓縮",
-          "method": "壓縮方法",
-          "method.none": "不壓縮",
-          "method.cutoff": "截斷",
-          "cutoff.limit": "截斷長度",
-          "cutoff.limit.placeholder": "輸入長度",
-          "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
-          "cutoff.unit.char": "字符",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "文檔數量",
-          "rag.document_count.default": "預設",
-          "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
-          "rag.embedding_dimensions.auto_get": "自動獲取維度",
-          "rag.embedding_dimensions.placeholder": "不設置維度",
-          "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
-          "info": {
-            "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "請先選擇嵌入模型",
-            "dimensions_auto_failed": "維度自動獲取失敗",
-            "provider_not_found": "未找到服務商",
-            "rag_failed": "RAG 失敗"
-          }
-        },
-        "subscribe_add_failed": "加入黑名單訂閱失敗",
-        "subscribe_update_success": "黑名單訂閱更新成功",
-        "subscribe_update_failed": "更新黑名單訂閱失敗",
-        "subscribe_source_update_failed": "更新黑名單訂閱來源失敗"
-      },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "測試計畫",
       "general.test_plan.tooltip": "參與測試計畫，體驗最新功能，但同時也帶來更多風險，請務必提前備份數據",
@@ -1941,7 +1977,8 @@
         "assistant": "助手訊息",
         "backup": "備份訊息",
         "knowledge_embed": "知識庫訊息"
-      }
+      },
+      "mineru.api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。"
     },
     "translate": {
       "any.language": "任意語言",

@@ -11,9 +11,9 @@ const CompressionSettings = () => {
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
   const compressionMethodOptions = [
-    { value: 'none', label: t('settings.websearch.compression.method.none') },
-    { value: 'cutoff', label: t('settings.websearch.compression.method.cutoff') },
-    { value: 'rag', label: t('settings.websearch.compression.method.rag') }
+    { value: 'none', label: t('settings.tool.websearch.compression.method.none') },
+    { value: 'cutoff', label: t('settings.tool.websearch.compression.method.cutoff') },
+    { value: 'rag', label: t('settings.tool.websearch.compression.method.rag') }
   ]
 
   const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
@@ -22,11 +22,11 @@ const CompressionSettings = () => {
 
   return (
     <SettingGroup>
-      <SettingTitle>{t('settings.websearch.compression.title')}</SettingTitle>
+      <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
       <SettingDivider />
 
       <SettingRow>
-        <SettingRowTitle>{t('settings.websearch.compression.method')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.tool.websearch.compression.method')}</SettingRowTitle>
         <Select
           value={compressionConfig?.method || 'none'}
           style={{ width: '200px' }}

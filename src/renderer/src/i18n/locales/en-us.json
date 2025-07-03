@@ -190,7 +190,7 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Web search",
+      "input.web_search": "Web Search",
       "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
@@ -406,9 +406,11 @@
       "prompt": "Prompt",
       "provider": "Provider",
       "regenerate": "Regenerate",
+      "refresh": "Refresh",
       "rename": "Rename",
       "reset": "Reset",
       "save": "Save",
+      "settings": "Settings",
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
@@ -423,7 +425,9 @@
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
       },
-      "no_results": "No results"
+      "no_results": "No results",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     },
     "docs": {
       "title": "Docs"
@@ -498,6 +502,8 @@
       "title": "Topics Search"
     },
     "knowledge": {
+      "name_required": "Knowledge Base Name is required",
+      "embedding_model_required": "Knowledge Base Embedding Model is required",
       "add": {
         "title": "Add Knowledge Base"
       },
@@ -543,13 +549,21 @@
       "rename": "Rename",
       "search": "Search knowledge base",
       "search_placeholder": "Enter text to search",
-      "settings": "Knowledge Base Settings",
+      "settings": {
+        "title": "Knowledge Base Settings",
+        "preprocessing": "Preprocessing",
+        "preprocessing_tooltip": "Preprocess uploaded files with OCR"
+      },
       "sitemap_placeholder": "Enter Website Map URL",
       "sitemaps": "Websites",
       "source": "Source",
       "status": "Status",
       "status_completed": "Completed",
+      "status_embedding_completed": "Embedding Completed",
+      "status_preprocess_completed": "Preprocessing Completed",
       "status_failed": "Failed",
+      "status_embedding_failed": "Embedding Failed",
+      "status_preprocess_failed": "Preprocessing Failed",
       "status_new": "Added",
       "status_pending": "Pending",
       "status_processing": "Processing",
@@ -572,7 +586,9 @@
       "dimensions_error_invalid": "Please enter embedding dimension size",
       "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
       "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
-      "dimensions_default": "The model will use default embedding dimensions"
+      "dimensions_default": "The model will use default embedding dimensions",
+      "quota": "{{name}} Left Quota: {{quota}}",
+      "quota_infinity": "{{name}} Quota: Unlimited"
     },
     "languages": {
       "arabic": "Arabic",
@@ -835,7 +851,7 @@
     "notification": {
       "assistant": "Assistant Response",
       "knowledge.success": "Successfully added {{type}} to the knowledge base",
-      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -1828,68 +1844,88 @@
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",
-      "websearch": {
-        "blacklist": "Blacklist",
-        "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
-        "check": "Check",
-        "check_failed": "Verification failed",
-        "check_success": "Verification successful",
-        "get_api_key": "Get API Key",
-        "no_provider_selected": "Please select a search service provider before checking.",
-        "search_max_result": "Number of search results",
-        "search_provider": "Search service provider",
-        "search_provider_placeholder": "Choose a search service provider.",
-        "search_result_default": "Default",
-        "search_with_time": "Search with dates included",
-        "tavily": {
-          "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter Tavily API Key",
-          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
-          "title": "Tavily"
+      "tool": {
+        "title": "Tools Settings",
+        "preprocessOrOcr.tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text.",
+        "preprocess": {
+          "title": "Pre Process",
+          "provider": "Pre Process Provider",
+          "provider_placeholder": "Choose a Pre Process provider"
         },
-        "title": "Web Search",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_update": "Update",
-        "subscribe_add": "Add Subscription",
-        "subscribe_url": "Subscription Url",
-        "subscribe_name": "Alternative name",
-        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "subscribe_add_failed": "Failed to add blacklist subscription",
-        "subscribe_update_success": "Blacklist subscription updated successfully",
-        "subscribe_update_failed": "Failed to update blacklist subscription",
-        "subscribe_source_update_failed": "Failed to update blacklist subscription source",
-        "overwrite": "Override search service",
-        "overwrite_tooltip": "Force use search service instead of LLM",
-        "apikey": "API key",
-        "free": "Free",
-        "compression": {
-          "title": "Search Result Compression",
-          "method": "Compression Method",
-          "method.none": "None",
-          "method.cutoff": "Cutoff",
-          "cutoff.limit": "Cutoff Limit",
-          "cutoff.limit.placeholder": "Enter length",
-          "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
-          "cutoff.unit.char": "Char",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "Document Count",
-          "rag.document_count.default": "Default",
-          "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
-          "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
-          "rag.embedding_dimensions.placeholder": "Leave empty",
-          "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
-          "info": {
-            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR Provider",
+          "provider_placeholder": "Choose an OCR provider",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Recognition Mode",
+              "accurate": "Accurate",
+              "fast": "Fast"
+            },
+            "min_confidence": "Minimum Confidence"
+          }
+        },
+        "websearch": {
+          "blacklist": "Blacklist",
+          "blacklist_description": "Results from the following websites will not appear in search results",
+          "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+          "check": "Check",
+          "check_failed": "Verification failed",
+          "check_success": "Verification successful",
+          "get_api_key": "Get API Key",
+          "no_provider_selected": "Please select a search service provider before checking.",
+          "search_max_result": "Number of search results",
+          "search_provider": "Search service provider",
+          "search_provider_placeholder": "Choose a search service provider.",
+          "search_result_default": "Default",
+          "search_with_time": "Search with dates included",
+          "tavily": {
+            "api_key": "Tavily API Key",
+            "api_key.placeholder": "Enter Tavily API Key",
+            "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+            "title": "Tavily"
           },
-          "error": {
-            "embedding_model_required": "Please select an embedding model first",
-            "dimensions_auto_failed": "Failed to auto-obtain dimensions",
-            "provider_not_found": "Provider not found",
-            "rag_failed": "RAG failed"
+          "content_limit": "Content length limit",
+          "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+          "title": "Web Search",
+          "subscribe": "Blacklist Subscription",
+          "subscribe_update": "Update",
+          "subscribe_add": "Add Subscription",
+          "subscribe_url": "Subscription Url",
+          "subscribe_name": "Alternative name",
+          "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+          "subscribe_add_success": "Subscription feed added successfully!",
+          "subscribe_delete": "Delete",
+          "overwrite": "Override search service",
+          "overwrite_tooltip": "Force use search service instead of LLM",
+          "apikey": "API key",
+          "free": "Free",
+          "compression": {
+            "title": "Search Result Compression",
+            "method": "Compression Method",
+            "method.none": "None",
+            "method.cutoff": "Cutoff",
+            "cutoff.limit": "Cutoff Limit",
+            "cutoff.limit.placeholder": "Enter length",
+            "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
+            "cutoff.unit.char": "Char",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "Document Count",
+            "rag.document_count.default": "Default",
+            "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
+            "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
+            "rag.embedding_dimensions.placeholder": "Leave empty",
+            "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
+            "info": {
+              "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "Please select an embedding model first",
+              "dimensions_auto_failed": "Failed to auto-obtain dimensions",
+              "provider_not_found": "Provider not found",
+              "rag_failed": "RAG failed"
+            }
           }
         }
       },
@@ -1938,7 +1974,8 @@
         "service_tier.auto": "auto",
         "service_tier.default": "default",
         "service_tier.flex": "flex"
-      }
+      },
+      "mineru.api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
     },
     "translate": {
       "any.language": "Any language",

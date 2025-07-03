@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { isLinux, isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
-import { FileType, FileTypes } from '@types'
+import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -130,7 +130,19 @@ export function getFileType(ext: string): FileTypes {
   return fileTypeMap.get(ext) || FileTypes.OTHER
 }
 
-export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): FileType[] {
+export function getFileDir(filePath: string) {
+  return path.dirname(filePath)
+}
+
+export function getFileName(filePath: string) {
+  return path.basename(filePath)
+}
+
+export function getFileExt(filePath: string) {
+  return path.extname(filePath)
+}
+
+export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []): FileMetadata[] {
   const files = fs.readdirSync(dirPath)
 
   files.forEach((file) => {
@@ -152,7 +164,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
       const name = path.basename(file)
       const size = fs.statSync(fullPath).size
 
-      const fileItem: FileType = {
+      const fileItem: FileMetadata = {
         id: uuidv4(),
         name,
         path: fullPath,

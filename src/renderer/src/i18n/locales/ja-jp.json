@@ -406,9 +406,11 @@
       "prompt": "プロンプト",
       "provider": "プロバイダー",
       "regenerate": "再生成",
+      "refresh": "更新",
       "rename": "名前を変更",
       "reset": "リセット",
       "save": "保存",
+      "settings": "設定",
       "search": "検索",
       "select": "選択",
       "selectedMessages": "{{count}}件のメッセージを選択しました",
@@ -423,7 +425,9 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "enabled": "有効",
+      "disabled": "無効"
     },
     "docs": {
       "title": "ドキュメント"
@@ -543,7 +547,11 @@
       "rename": "名前を変更",
       "search": "ナレッジベースを検索",
       "search_placeholder": "検索するテキストを入力",
-      "settings": "ナレッジベース設定",
+      "settings": {
+        "title": "ナレッジベース設定",
+        "preprocessing": "預処理",
+        "preprocessing_tooltip": "アップロードされたファイルのOCR預処理"
+      },
       "sitemap_placeholder": "サイトマップURLを入力",
       "sitemaps": "サイトマップ",
       "source": "ソース",
@@ -567,12 +575,20 @@
       "urls": "URL",
       "dimensions": "埋め込み次元",
       "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+      "status_embedding_completed": "埋め込み完了",
+      "status_preprocess_completed": "前処理完了",
+      "status_embedding_failed": "埋め込み失敗",
+      "status_preprocess_failed": "前処理に失敗しました",
       "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
       "dimensions_auto_set": "埋め込み次元を自動設定",
       "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
       "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
       "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
-      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します"
+      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
+      "quota": "{{name}} 残りクォータ: {{quota}}",
+      "quota_infinity": "{{name}} クォータ: 無制限",
+      "name_required": "ナレッジベース名は必須です",
+      "embedding_model_required": "ナレッジベース埋め込みモデルが必要です"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -835,7 +851,7 @@
     "notification": {
       "assistant": "助手回應",
       "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
-      "knowledge.error": "ナレッジベースへの{{type}}の追加に失敗しました: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -1805,6 +1821,91 @@
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
       "title": "設定",
+      "tool": {
+        "title": "ツール設定",
+        "websearch": {
+          "blacklist": "ブラックリスト",
+          "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
+          "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "チェック",
+          "check_failed": "検証に失敗しました",
+          "check_success": "検証に成功しました",
+          "get_api_key": "APIキーを取得",
+          "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
+          "search_max_result": "検索結果の数",
+          "search_provider": "検索サービスプロバイダー",
+          "search_provider_placeholder": "検索サービスプロバイダーを選択する",
+          "search_result_default": "デフォルト",
+          "search_with_time": "日付を含む検索",
+          "tavily": {
+            "api_key": "Tavily API キー",
+            "api_key.placeholder": "Tavily API キーを入力してください",
+            "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
+            "title": "Tavily"
+          },
+          "title": "ウェブ検索",
+          "subscribe": "ブラックリスト購読",
+          "subscribe_update": "更新",
+          "subscribe_add": "購読を追加",
+          "subscribe_url": "購読URL",
+          "subscribe_name": "代替名",
+          "subscribe_name.placeholder": "ダウンロードした購読フィードに名前がない場合に使用される代替名。",
+          "subscribe_add_success": "購読フィードが正常に追加されました!",
+          "subscribe_delete": "削除",
+          "overwrite": "検索サービスを上書き",
+          "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
+          "apikey": "APIキー",
+          "free": "無料",
+          "content_limit": "コンテンツ制限",
+          "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
+          "compression": {
+            "title": "検索結果の圧縮",
+            "method": "圧縮方法",
+            "method.none": "圧縮しない",
+            "method.cutoff": "切り捨て",
+            "cutoff.limit": "切り捨て長",
+            "cutoff.limit.placeholder": "長さを入力",
+            "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
+            "cutoff.unit.char": "文字",
+            "cutoff.unit.token": "トークン",
+            "method.rag": "RAG",
+            "rag.document_count": "文書数",
+            "rag.document_count.default": "デフォルト",
+            "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+            "rag.embedding_dimensions.auto_get": "次元を自動取得",
+            "rag.embedding_dimensions.placeholder": "次元を設定しない",
+            "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
+            "info": {
+              "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "まず埋め込みモデルを選択してください",
+              "dimensions_auto_failed": "次元の自動取得に失敗しました",
+              "provider_not_found": "プロバイダーが見つかりません",
+              "rag_failed": "RAG に失敗しました"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "前処理",
+          "provider": "プレプロセスプロバイダー",
+          "provider_placeholder": "前処理プロバイダーを選択してください"
+        },
+        "preprocessOrOcr.tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーまたはOCRを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。OCRは、ドキュメント内の画像内のテキストまたはスキャンされたPDFテキストのみを認識できます。",
+        "ocr": {
+          "title": "OCR（オーシーアール）",
+          "provider": "OCRプロバイダー",
+          "provider_placeholder": "OCRプロバイダーを選択",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "認識モード",
+              "accurate": "正確",
+              "fast": "速い"
+            },
+            "min_confidence": "最小信頼度"
+          }
+        }
+      },
       "topic.position": "トピックの位置",
       "topic.position.left": "左",
       "topic.position.right": "右",
@@ -1813,71 +1914,6 @@
       "tray.onclose": "閉じるときにトレイに最小化",
       "tray.show": "トレイアイコンを表示",
       "tray.title": "トレイ",
-      "websearch": {
-        "blacklist": "ブラックリスト",
-        "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "check": "チェック",
-        "check_failed": "検証に失敗しました",
-        "check_success": "検証に成功しました",
-        "get_api_key": "APIキーを取得",
-        "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
-        "search_max_result": "検索結果の数",
-        "search_provider": "検索サービスプロバイダー",
-        "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-        "search_result_default": "デフォルト",
-        "search_with_time": "日付を含む検索",
-        "tavily": {
-          "api_key": "Tavily API キー",
-          "api_key.placeholder": "Tavily API キーを入力してください",
-          "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
-          "title": "Tavily"
-        },
-        "title": "ウェブ検索",
-        "blacklist_tooltip": "マッチパターン: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
-        "subscribe": "ブラックリスト購読",
-        "subscribe_update": "更新",
-        "subscribe_add": "サブスクリプションを追加",
-        "subscribe_url": "フィードのURL",
-        "subscribe_name": "代替名",
-        "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
-        "subscribe_add_success": "フィードの追加が成功しました！",
-        "subscribe_delete": "削除",
-        "overwrite": "サービス検索を上書き",
-        "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する",
-        "apikey": "API キー",
-        "free": "無料",
-        "compression": {
-          "title": "検索結果の圧縮",
-          "method": "圧縮方法",
-          "method.none": "圧縮しない",
-          "method.cutoff": "切り捨て",
-          "cutoff.limit": "切り捨て長",
-          "cutoff.limit.placeholder": "長さを入力",
-          "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
-          "cutoff.unit.char": "文字",
-          "cutoff.unit.token": "トークン",
-          "method.rag": "RAG",
-          "rag.document_count": "文書数",
-          "rag.document_count.default": "デフォルト",
-          "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
-          "rag.embedding_dimensions.auto_get": "次元を自動取得",
-          "rag.embedding_dimensions.placeholder": "次元を設定しない",
-          "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "まず埋め込みモデルを選択してください",
-            "dimensions_auto_failed": "次元の自動取得に失敗しました",
-            "provider_not_found": "プロバイダーが見つかりません",
-            "rag_failed": "RAG に失敗しました"
-          }
-        },
-        "subscribe_add_failed": "ブラックリスト購読の追加に失敗しました",
-        "subscribe_update_success": "ブラックリスト購読が正常に更新されました",
-        "subscribe_update_failed": "ブラックリスト購読の更新に失敗しました",
-        "subscribe_source_update_failed": "ブラックリスト購読ソースの更新に失敗しました"
-      },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "テストプラン",
       "general.test_plan.tooltip": "テストプランに参加すると、最新の機能をより早く体験できますが、同時により多くのリスクが伴います。データを事前にバックアップしてください。",
@@ -1941,7 +1977,8 @@
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
         "knowledge_embed": "ナレッジベースメッセージ"
-      }
+      },
+      "mineru.api_key": "Mineruでは現在、1日500ページの無料クォータを提供しており、キーを入力する必要はありません。"
     },
     "translate": {
       "any.language": "任意の言語",

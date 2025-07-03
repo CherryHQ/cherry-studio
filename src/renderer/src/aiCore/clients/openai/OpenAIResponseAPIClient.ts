@@ -7,7 +7,7 @@ import {
 } from '@renderer/config/models'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
-  FileType,
+  FileMetadata,
   FileTypes,
   MCPCallToolResponse,
   MCPTool,
@@ -95,7 +95,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return await sdk.responses.create(payload, options)
   }
 
-  private async handlePdfFile(file: FileType): Promise<OpenAI.Responses.ResponseInputFile | undefined> {
+  private async handlePdfFile(file: FileMetadata): Promise<OpenAI.Responses.ResponseInputFile | undefined> {
     if (file.size > 32 * MB) return undefined
     try {
       const pageCount = await window.api.file.pdfInfo(file.id + file.ext)

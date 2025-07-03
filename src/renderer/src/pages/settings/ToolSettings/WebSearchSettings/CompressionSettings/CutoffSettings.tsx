@@ -1,7 +1,7 @@
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { Input, Select, Space, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { ChevronDown, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -19,22 +19,22 @@ const CutoffSettings = () => {
   }
 
   const unitOptions = [
-    { value: 'char', label: t('settings.websearch.compression.cutoff.unit.char') },
-    { value: 'token', label: t('settings.websearch.compression.cutoff.unit.token') }
+    { value: 'char', label: t('settings.tool.websearch.compression.cutoff.unit.char') },
+    { value: 'token', label: t('settings.tool.websearch.compression.cutoff.unit.token') }
   ]
 
   return (
     <SettingRow>
       <SettingRowTitle>
-        {t('settings.websearch.compression.cutoff.limit')}
-        <Tooltip title={t('settings.websearch.compression.cutoff.limit.tooltip')} placement="right">
+        {t('settings.tool.websearch.compression.cutoff.limit')}
+        <Tooltip title={t('settings.tool.websearch.compression.cutoff.limit.tooltip')} placement="right">
           <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
         </Tooltip>
       </SettingRowTitle>
       <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
         <Input
           style={{ maxWidth: '60%' }}
-          placeholder={t('settings.websearch.compression.cutoff.limit.placeholder')}
+          placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
           onChange={(e) => {
             const value = e.target.value
@@ -50,6 +50,7 @@ const CutoffSettings = () => {
           style={{ minWidth: '40%' }}
           onChange={handleCutoffUnitChange}
           options={unitOptions}
+          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
         />
       </Space.Compact>
     </SettingRow>

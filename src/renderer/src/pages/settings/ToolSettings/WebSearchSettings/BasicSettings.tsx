@@ -6,7 +6,7 @@ import { Slider, Switch } from 'antd'
 import { t } from 'i18next'
 import { FC } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
@@ -20,19 +20,19 @@ const BasicSettings: FC = () => {
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.websearch.search_with_time')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
-          <SettingRowTitle>{t('settings.websearch.search_max_result')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.search_max_result')}</SettingRowTitle>
           <Slider
             defaultValue={maxResults}
-            style={{ width: '500px' }}
+            style={{ width: '100%' }}
             min={1}
             max={50}
             step={1}
-            marks={{ 1: '1', 5: t('settings.websearch.search_result_default'), 20: '20', 50: '50' }}
+            marks={{ 1: '1', 5: t('settings.tool.websearch.search_result_default'), 20: '20', 50: '50' }}
             onChangeComplete={(value) => dispatch(setMaxResult(value))}
           />
         </SettingRow>

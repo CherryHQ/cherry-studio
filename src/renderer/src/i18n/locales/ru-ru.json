@@ -406,9 +406,11 @@
       "prompt": "Промпт",
       "provider": "Провайдер",
       "regenerate": "Пересоздать",
+      "refresh": "Обновить",
       "rename": "Переименовать",
       "reset": "Сбросить",
       "save": "Сохранить",
+      "settings": "Настройки",
       "search": "Поиск",
       "select": "Выбрать",
       "selectedMessages": "Выбрано {{count}} сообщений",
@@ -423,7 +425,9 @@
         "pinyin.asc": "Сортировать по пиньинь (А-Я)",
         "pinyin.desc": "Сортировать по пиньинь (Я-А)"
       },
-      "no_results": "Результатов не найдено"
+      "no_results": "Результатов не найдено",
+      "enabled": "Включено",
+      "disabled": "Отключено"
     },
     "docs": {
       "title": "Документация"
@@ -543,7 +547,11 @@
       "rename": "Переименовать",
       "search": "Поиск в базе знаний",
       "search_placeholder": "Введите текст для поиска",
-      "settings": "Настройки базы знаний",
+      "settings": {
+        "title": "Настройки базы знаний",
+        "preprocessing": "Предварительная обработка",
+        "preprocessing_tooltip": "Предварительная обработка изображений с помощью OCR"
+      },
       "sitemap_placeholder": "Введите URL карты сайта",
       "sitemaps": "Сайты",
       "source": "Источник",
@@ -567,12 +575,20 @@
       "urls": "URL-адреса",
       "dimensions": "векторное пространство",
       "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "status_embedding_completed": "Вложение завершено",
+      "status_preprocess_completed": "Предварительная обработка завершена",
+      "status_embedding_failed": "Не удалось встроить",
+      "status_preprocess_failed": "Предварительная обработка не удалась",
       "dimensions_size_placeholder": " Размерность эмбеддинга, например 1024",
       "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
       "dimensions_error_invalid": "Пожалуйста, введите размерность эмбеддинга",
       "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
       "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
-      "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию"
+      "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию",
+      "quota": "{{name}} Остаток квоты: {{quota}}",
+      "quota_infinity": "{{name}} Квота: Не ограничена",
+      "name_required": "Название базы знаний обязательно",
+      "embedding_model_required": "Модель встраивания базы знаний требуется"
     },
     "languages": {
       "arabic": "Арабский",
@@ -835,7 +851,7 @@
     "notification": {
       "assistant": "Ответ ассистента",
       "knowledge.success": "Успешно добавлено {{type}} в базу знаний",
-      "knowledge.error": "Не удалось добавить {{type}} в базу знаний: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -1805,6 +1821,91 @@
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
       "title": "Настройки",
+      "tool": {
+        "title": "Настройки инструментов",
+        "websearch": {
+          "blacklist": "Черный список",
+          "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+          "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "проверка",
+          "check_failed": "Проверка не прошла",
+          "check_success": "Проверка успешна",
+          "get_api_key": "Получить ключ API",
+          "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+          "search_max_result": "Количество результатов поиска",
+          "search_provider": "поиск сервисного провайдера",
+          "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+          "search_result_default": "По умолчанию",
+          "search_with_time": "Поиск, содержащий дату",
+          "tavily": {
+            "api_key": "Ключ API Tavily",
+            "api_key.placeholder": "Введите ключ API Tavily",
+            "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
+            "title": "Tavily"
+          },
+          "title": "Поиск в Интернете",
+          "subscribe": "Подписка на черный список",
+          "subscribe_update": "Обновить",
+          "subscribe_add": "Добавить подписку",
+          "subscribe_url": "URL подписки",
+          "subscribe_name": "Альтернативное имя",
+          "subscribe_name.placeholder": "Альтернативное имя, используемое, когда в загруженной ленте подписки нет имени.",
+          "subscribe_add_success": "Лента подписки успешно добавлена!",
+          "subscribe_delete": "Удалить",
+          "overwrite": "Переопределить поисковый сервис",
+          "overwrite_tooltip": "Принудительно использовать поисковый сервис вместо LLM",
+          "apikey": "API ключ",
+          "free": "Бесплатно",
+          "content_limit": "Ограничение длины контента",
+          "content_limit_tooltip": "Ограничить длину контента в результатах поиска; контент, превышающий лимит, будет усечен.",
+          "compression": {
+            "title": "Сжатие результатов поиска",
+            "method": "Метод сжатия",
+            "method.none": "Не сжимать",
+            "method.cutoff": "Обрезка",
+            "cutoff.limit": "Лимит обрезки",
+            "cutoff.limit.placeholder": "Введите длину",
+            "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
+            "cutoff.unit.char": "Символы",
+            "cutoff.unit.token": "Токены",
+            "method.rag": "RAG",
+            "rag.document_count": "Количество документов",
+            "rag.document_count.default": "По умолчанию",
+            "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
+            "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
+            "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
+            "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",
+            "info": {
+              "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
+              "dimensions_auto_failed": "Не удалось получить размерности",
+              "provider_not_found": "Поставщик не найден",
+              "rag_failed": "RAG не удалось"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "Предварительная обработка",
+          "provider": "Предварительная обработка Поставщик",
+          "provider_placeholder": "Выберите поставщика услуг предварительной обработки"
+        },
+        "preprocessOrOcr.tooltip": "В настройках (Настройки -> Инструменты) укажите поставщика услуги предварительной обработки документов или OCR. Предварительная обработка документов может значительно повысить эффективность поиска для документов сложных форматов и отсканированных документов. OCR способен распознавать только текст внутри изображений в документах или текст в отсканированных PDF.",
+        "ocr": {
+          "title": "OCR (оптическое распознавание символов)",
+          "provider": "Поставщик OCR",
+          "provider_placeholder": "Выберите провайдера OCR",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Режим распознавания",
+              "accurate": "Точный",
+              "fast": "Быстро"
+            },
+            "min_confidence": "Минимальная достоверность"
+          }
+        }
+      },
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
@@ -1813,71 +1914,6 @@
       "tray.onclose": "Свернуть в трей при закрытии",
       "tray.show": "Показать значок в трее",
       "tray.title": "Трей",
-      "websearch": {
-        "blacklist": "Черный список",
-        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "check": "проверка",
-        "check_failed": "Проверка не прошла",
-        "check_success": "Проверка успешна",
-        "get_api_key": "Получить ключ API",
-        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
-        "search_max_result": "Количество результатов поиска",
-        "search_provider": "поиск сервисного провайдера",
-        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
-        "search_result_default": "По умолчанию",
-        "search_with_time": "Поиск, содержащий дату",
-        "tavily": {
-          "api_key": "Ключ API Tavily",
-          "api_key.placeholder": "Введите ключ API Tavily",
-          "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
-          "title": "Tavily"
-        },
-        "title": "Поиск в Интернете",
-        "blacklist_tooltip": "Шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
-        "subscribe": "Подписка на черный список",
-        "subscribe_update": "Обновить",
-        "subscribe_add": "Добавить",
-        "subscribe_url": "URL подписки",
-        "subscribe_name": "Альтернативное имя",
-        "subscribe_name.placeholder": "Альтернативное имя, если в подписке нет названия.",
-        "subscribe_add_success": "Подписка успешно добавлена!",
-        "subscribe_delete": "Удалить",
-        "overwrite": "Переопределить провайдера поиска",
-        "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
-        "apikey": "API ключ",
-        "free": "Бесплатно",
-        "compression": {
-          "title": "Сжатие результатов поиска",
-          "method": "Метод сжатия",
-          "method.none": "Не сжимать",
-          "method.cutoff": "Обрезка",
-          "cutoff.limit": "Лимит обрезки",
-          "cutoff.limit.placeholder": "Введите длину",
-          "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
-          "cutoff.unit.char": "Символы",
-          "cutoff.unit.token": "Токены",
-          "method.rag": "RAG",
-          "rag.document_count": "Количество документов",
-          "rag.document_count.default": "По умолчанию",
-          "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
-          "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
-          "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
-          "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
-            "dimensions_auto_failed": "Не удалось получить размерности",
-            "provider_not_found": "Поставщик не найден",
-            "rag_failed": "RAG не удалось"
-          }
-        },
-        "subscribe_add_failed": "Не удалось добавить подписку на черный список",
-        "subscribe_update_success": "Подписка на черный список успешно обновлена",
-        "subscribe_update_failed": "Не удалось обновить подписку на черный список",
-        "subscribe_source_update_failed": "Не удалось обновить источник подписки на черный список"
-      },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.test_plan.title": "Тестовый план",
       "general.test_plan.tooltip": "Участвовать в тестовом плане, чтобы быстрее получать новые функции, но при этом возникает больше рисков, пожалуйста, сделайте резервную копию данных заранее",
@@ -1941,7 +1977,8 @@
         "assistant": "Сообщение ассистента",
         "backup": "Резервное сообщение",
         "knowledge_embed": "Сообщение базы знаний"
-      }
+      },
+      "mineru.api_key": "Mineru теперь предлагает ежедневную бесплатную квоту в 500 страниц, и вам не нужно вводить ключ."
     },
     "translate": {
       "any.language": "Любой язык",

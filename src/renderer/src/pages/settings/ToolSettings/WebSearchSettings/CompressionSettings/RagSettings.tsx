@@ -92,14 +92,14 @@ const RagSettings = () => {
   const handleAutoGetDimensions = async () => {
     if (!compressionConfig?.embeddingModel) {
       Logger.log('[RagSettings] handleAutoGetDimensions: no embedding model')
-      window.message.error(t('settings.websearch.compression.error.embedding_model_required'))
+      window.message.error(t('settings.tool.websearch.compression.error.embedding_model_required'))
       return
     }
 
     const provider = providers.find((p) => p.id === compressionConfig.embeddingModel?.provider)
     if (!provider) {
       Logger.log('[RagSettings] handleAutoGetDimensions: provider not found')
-      window.message.error(t('settings.websearch.compression.error.provider_not_found'))
+      window.message.error(t('settings.tool.websearch.compression.error.provider_not_found'))
       return
     }
 
@@ -110,10 +110,10 @@ const RagSettings = () => {
 
       updateCompressionConfig({ embeddingDimensions: dimensions })
 
-      window.message.success(t('settings.websearch.compression.info.dimensions_auto_success', { dimensions }))
+      window.message.success(t('settings.tool.websearch.compression.info.dimensions_auto_success', { dimensions }))
     } catch (error) {
       Logger.error('[RagSettings] handleAutoGetDimensions: failed to get embedding dimensions', error)
-      window.message.error(t('settings.websearch.compression.error.dimensions_auto_failed'))
+      window.message.error(t('settings.tool.websearch.compression.error.dimensions_auto_failed'))
     } finally {
       setLoadingDimensions(false)
     }
@@ -146,11 +146,11 @@ const RagSettings = () => {
           <InputNumber
             value={compressionConfig?.embeddingDimensions}
             style={{ flex: 1 }}
-            placeholder={t('settings.websearch.compression.rag.embedding_dimensions.placeholder')}
+            placeholder={t('settings.tool.websearch.compression.rag.embedding_dimensions.placeholder')}
             min={0}
             onChange={handleEmbeddingDimensionsChange}
           />
-          <Tooltip title={t('settings.websearch.compression.rag.embedding_dimensions.auto_get')}>
+          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.auto_get')}>
             <Button
               icon={<RefreshCw size={16} />}
               loading={loadingDimensions}
@@ -178,8 +178,8 @@ const RagSettings = () => {
 
       <SettingRow>
         <SettingRowTitle>
-          {t('settings.websearch.compression.rag.document_count')}
-          <Tooltip title={t('settings.websearch.compression.rag.document_count.tooltip')} placement="right">
+          {t('settings.tool.websearch.compression.rag.document_count')}
+          <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="right">
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
@@ -191,7 +191,7 @@ const RagSettings = () => {
             step={1}
             onChange={handleDocumentCountChange}
             marks={{
-              1: t('settings.websearch.compression.rag.document_count.default'),
+              1: t('settings.tool.websearch.compression.rag.document_count.default'),
               3: '3',
               10: '10'
             }}

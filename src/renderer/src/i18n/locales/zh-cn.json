@@ -406,9 +406,11 @@
       "prompt": "提示词",
       "provider": "提供商",
       "regenerate": "重新生成",
+      "refresh": "刷新",
       "rename": "重命名",
       "reset": "重置",
       "save": "保存",
+      "settings": "设置",
       "search": "搜索",
       "select": "选择",
       "selectedMessages": "选中 {{count}} 条消息",
@@ -423,7 +425,9 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "无结果"
+      "no_results": "无结果",
+      "enabled": "已启用",
+      "disabled": "已禁用"
     },
     "docs": {
       "title": "帮助文档"
@@ -551,7 +555,11 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "使用 OCR 预处理上传的文件"
+      },
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -571,8 +579,16 @@
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
-      "url_placeholder": "请输入网址，多个网址用回车分隔",
-      "urls": "网址"
+      "url_placeholder": "请输入网址, 多个网址用回车分隔",
+      "urls": "网址",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "预处理完成",
+      "status_embedding_failed": "嵌入失败",
+      "status_preprocess_failed": "预处理失败",
+      "quota": "{{name}} 剩余额度：{{quota}}",
+      "quota_infinity": "{{name}} 剩余额度：无限制",
+      "name_required": "知识库名称为必填项",
+      "embedding_model_required": "知识库嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -835,7 +851,7 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.success": "成功添加 {{type}} 到知识库",
-      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5 分钟）",
@@ -1670,7 +1686,7 @@
         "title": "通知设置",
         "assistant": "助手消息",
         "backup": "备份",
-        "knowledge_embed": "知识嵌入"
+        "knowledge_embed": "知识库"
       },
       "provider": {
         "add.name": "提供商名称",
@@ -1831,71 +1847,6 @@
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",
-      "websearch": {
-        "blacklist": "黑名单",
-        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式 (换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "check": "检测",
-        "check_failed": "验证失败",
-        "check_success": "验证成功",
-        "overwrite": "覆盖服务商搜索",
-        "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-        "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检测",
-        "search_max_result": "搜索结果个数",
-        "search_provider": "搜索服务商",
-        "search_provider_placeholder": "选择一个搜索服务商",
-        "subscribe": "黑名单订阅",
-        "subscribe_update": "立即更新",
-        "subscribe_add": "添加订阅",
-        "subscribe_url": "订阅源地址",
-        "subscribe_name": "替代名字",
-        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
-        "subscribe_add_success": "订阅源添加成功！",
-        "subscribe_delete": "删除订阅源",
-        "search_result_default": "默认",
-        "search_with_time": "搜索包含日期",
-        "tavily": {
-          "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥",
-          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "网络搜索",
-        "apikey": "API 密钥",
-        "free": "免费",
-        "compression": {
-          "title": "搜索结果压缩",
-          "method": "压缩方法",
-          "method.none": "不压缩",
-          "method.cutoff": "截断",
-          "cutoff.limit": "截断长度",
-          "cutoff.limit.placeholder": "输入长度",
-          "cutoff.limit.tooltip": "限制搜索结果的内容长度，超过限制的内容将被截断（例如 2000 字符）",
-          "cutoff.unit.char": "字符",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "文档数量",
-          "rag.document_count.default": "默认",
-          "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
-          "rag.embedding_dimensions.auto_get": "自动获取维度",
-          "rag.embedding_dimensions.placeholder": "不设置维度",
-          "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
-          "info": {
-            "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "请先选择嵌入模型",
-            "dimensions_auto_failed": "维度自动获取失败",
-            "provider_not_found": "未找到服务商",
-            "rag_failed": "RAG 失败"
-          }
-        },
-        "subscribe_add_failed": "添加黑名单订阅失败",
-        "subscribe_update_success": "黑名单订阅更新成功",
-        "subscribe_update_failed": "更新黑名单订阅失败",
-        "subscribe_source_update_failed": "更新黑名单订阅源失败"
-      },
       "quickPhrase": {
         "title": "快捷短语",
         "add": "添加短语",
@@ -1941,7 +1892,93 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
-      }
+      },
+      "tool": {
+        "title": "工具设置",
+        "preprocess": {
+          "title": "文档预处理",
+          "provider": "文档预处理服务商",
+          "provider_placeholder": "选择一个文档预处理服务商"
+        },
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR 服务商",
+          "provider_placeholder": "选择一个 OCR 服务商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "识别模式",
+              "accurate": "准确",
+              "fast": "快速"
+            },
+            "min_confidence": "最低置信度"
+          }
+        },
+        "websearch": {
+          "blacklist": "黑名单",
+          "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+          "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+          "check": "检测",
+          "check_failed": "验证失败",
+          "check_success": "验证成功",
+          "overwrite": "覆盖服务商搜索",
+          "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+          "get_api_key": "点击这里获取密钥",
+          "no_provider_selected": "请选择搜索服务商后再检测",
+          "search_max_result": "搜索结果个数",
+          "search_provider": "搜索服务商",
+          "search_provider_placeholder": "选择一个搜索服务商",
+          "subscribe": "黑名单订阅",
+          "subscribe_update": "立即更新",
+          "subscribe_add": "添加订阅",
+          "subscribe_url": "订阅源地址",
+          "subscribe_name": "替代名字",
+          "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+          "subscribe_add_success": "订阅源添加成功!",
+          "subscribe_delete": "删除订阅源",
+          "search_result_default": "默认",
+          "search_with_time": "搜索包含日期",
+          "tavily": {
+            "api_key": "Tavily API 密钥",
+            "api_key.placeholder": "请输入 Tavily API 密钥",
+            "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "网络搜索",
+          "apikey": "API 密钥",
+          "free": "免费",
+          "content_limit": "内容长度限制",
+          "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
+          "compression": {
+            "title": "搜索结果压缩",
+            "method": "压缩方法",
+            "method.none": "不压缩",
+            "method.cutoff": "截断",
+            "cutoff.limit": "截断长度",
+            "cutoff.limit.placeholder": "输入长度",
+            "cutoff.limit.tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断（例如 2000 字符）",
+            "cutoff.unit.char": "字符",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "文档数量",
+            "rag.document_count.default": "默认",
+            "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
+            "rag.embedding_dimensions.auto_get": "自动获取维度",
+            "rag.embedding_dimensions.placeholder": "不设置维度",
+            "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
+            "info": {
+              "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "请先选择嵌入模型",
+              "dimensions_auto_failed": "维度自动获取失败",
+              "provider_not_found": "未找到服务商",
+              "rag_failed": "RAG 失败"
+            }
+          }
+        },
+        "preprocessOrOcr.tooltip": "在设置 -> 工具中设置文档预处理服务商或OCR，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果，OCR仅可识别文档内图片或扫描版PDF的文本"
+      },
+      "mineru.api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。"
     },
     "translate": {
       "any.language": "任意语言",
