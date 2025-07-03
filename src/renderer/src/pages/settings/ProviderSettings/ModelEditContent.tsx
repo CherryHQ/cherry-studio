@@ -76,7 +76,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       }}>
       <Form
         form={form}
-        labelCol={{ flex: '110px' }}
+        labelCol={{ flex: provider.id === 'new-api' ? '130px' : '110px' }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 15 }}
