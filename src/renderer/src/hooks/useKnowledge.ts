@@ -331,9 +331,14 @@ export const useKnowledgeBases = () => {
   }
 
   const deleteKnowledgeBase = (baseId: string) => {
+    const targetBase = bases.find((b) => b.id === baseId)
+    if (targetBase) {
+      const files = targetBase.items.filter((item) => item.type === 'file')
+      FileManager.deleteFiles(files.map((item) => item.content) as FileType[])
+    }
+
     dispatch(deleteBase({ baseId }))
 
-    // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
       if (assistant.knowledge_bases?.find((kb) => kb.id === baseId)) {
         return {
@@ -344,7 +349,6 @@ export const useKnowledgeBases = () => {
       return assistant
     })
 
-    // remove agent knowledge_base
     const _agents = agents.map((agent) => {
       if (agent.knowledge_bases?.find((kb) => kb.id === baseId)) {
         return {
@@ -357,6 +361,8 @@ export const useKnowledgeBases = () => {
 
     updateAssistants(_assistants)
     updateAgents(_agents)
+
+    window.api?.knowledgeBase?.delete(baseId)
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {

@@ -150,9 +150,17 @@ class KnowledgeService {
   }
 
   public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    const dbPath = path.join(this.storageDir, id)
-    if (fs.existsSync(dbPath)) {
-      fs.rmSync(dbPath, { recursive: true })
+    const basePath = path.join(this.storageDir, id)
+    const candidatePaths = [basePath, `${basePath}.db`, `${basePath}.sqlite`, `${basePath}.sqlite3`]
+
+    for (const p of candidatePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          fs.rmSync(p, { recursive: true, force: true })
+        }
+      } catch (err) {
+        Logger.warn(`Failed to remove knowledge base vector database at ${p}:`, err)
+      }
     }
   }
 
