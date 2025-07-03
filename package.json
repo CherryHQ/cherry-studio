@@ -66,7 +66,7 @@
     "node-stream-zip": "^1.15.0",
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
-    "selection-hook": "^1.0.2",
+    "selection-hook": "^1.0.3",
     "turndown": "7.2.0"
   },
   "devDependencies": {
