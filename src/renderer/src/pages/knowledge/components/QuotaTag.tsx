@@ -43,7 +43,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
       return
     }
     checkQuota()
-  }, [_quota, base])
+  }, [_quota, base, provider, quota, updatePreprocessProvider])
 
   return (
     <>
