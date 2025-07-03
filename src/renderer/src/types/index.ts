@@ -724,9 +724,12 @@ export interface QuickPhrase {
 export interface Citation {
   number: number
   url: string
-  hostname: string
   title?: string
+  hostname?: string
   content?: string
+  showFavicon?: boolean
+  type?: string
+  metadata?: Record<string, any>
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
