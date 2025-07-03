@@ -139,7 +139,7 @@ const HomeWindow: FC = () => {
 
   const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
     // 键入过程不应有任何响应
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
@@ -154,16 +154,23 @@ const HomeWindow: FC = () => {
       case 'NumpadEnter':
         {
           if (isLoading) return
-
-          e.preventDefault()
-          if (userContent) {
-            if (route === 'home') {
-              featureMenusRef.current?.useFeature()
-            } else {
-              // Currently text input is only available in 'chat' mode
-              setRoute('chat')
-              handleSendMessage()
-              focusInput()
+          
+          if (e.shiftKey) {
+            // Shift+Enter: insert new line
+            e.preventDefault()
+            setUserInputText(prev => prev + '\n')
+          } else {
+            // Enter: send message
+            e.preventDefault()
+            if (userContent) {
+              if (route === 'home') {
+                featureMenusRef.current?.useFeature()
+              } else {
+                // Currently text input is only available in 'chat' mode
+                setRoute('chat')
+                handleSendMessage()
+                focusInput()
+              }
             }
           }
         }
@@ -199,7 +206,7 @@ const HomeWindow: FC = () => {
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setUserInputText(e.target.value)
   }
 
