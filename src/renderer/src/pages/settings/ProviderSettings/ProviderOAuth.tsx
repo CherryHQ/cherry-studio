@@ -1,4 +1,5 @@
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import { HStack } from '@renderer/components/Layout'
@@ -21,14 +22,18 @@ interface Props {
 const PROVIDER_LOGO_MAP = {
   silicon: SiliconFlowProviderLogo,
   aihubmix: AiHubMixProviderLogo,
+  ppio: PPIOProviderLogo,
   tokenflux: TokenFluxProviderLogo
 }
 
 const ProviderOAuth: FC<Props> = ({ provider, setApiKey }) => {
   const { t } = useTranslation()
 
-  const providerWebsite =
+  let providerWebsite =
     PROVIDER_CONFIG[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
+  if (provider.id === 'ppio') {
+    providerWebsite = 'ppio.cn'
+  }
 
   return (
     <Container>

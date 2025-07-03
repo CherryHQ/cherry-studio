@@ -434,9 +434,11 @@
       "prompt": "Промпт",
       "provider": "Провайдер",
       "regenerate": "Пересоздать",
+      "refresh": "Обновить",
       "rename": "Переименовать",
       "reset": "Сбросить",
       "save": "Сохранить",
+      "settings": "Настройки",
       "search": "Поиск",
       "select": "Выбрать",
       "selectedMessages": "Выбрано {{count}} сообщений",
@@ -451,7 +453,9 @@
         "pinyin.asc": "Сортировать по пиньинь (А-Я)",
         "pinyin.desc": "Сортировать по пиньинь (Я-А)"
       },
-      "no_results": "Результатов не найдено"
+      "no_results": "Результатов не найдено",
+      "enabled": "Включено",
+      "disabled": "Отключено"
     },
     "docs": {
       "title": "Документация"
@@ -471,6 +475,7 @@
         "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
       },
       "model.exists": "Модель уже существует",
+      "missing_user_message": "Невозможно изменить модель ответа: исходное сообщение пользователя было удалено. Пожалуйста, отправьте новое сообщение, чтобы получить ответ от этой модели",
       "no_api_key": "Ключ API не настроен",
       "provider_disabled": "Провайдер моделей не включен",
       "render": {
@@ -571,7 +576,11 @@
       "rename": "Переименовать",
       "search": "Поиск в базе знаний",
       "search_placeholder": "Введите текст для поиска",
-      "settings": "Настройки базы знаний",
+      "settings": {
+        "title": "Настройки базы знаний",
+        "preprocessing": "Предварительная обработка",
+        "preprocessing_tooltip": "Предварительная обработка изображений с помощью OCR"
+      },
       "sitemap_placeholder": "Введите URL карты сайта",
       "sitemaps": "Сайты",
       "source": "Источник",
@@ -595,12 +604,20 @@
       "urls": "URL-адреса",
       "dimensions": "векторное пространство",
       "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "status_embedding_completed": "Вложение завершено",
+      "status_preprocess_completed": "Предварительная обработка завершена",
+      "status_embedding_failed": "Не удалось встроить",
+      "status_preprocess_failed": "Предварительная обработка не удалась",
       "dimensions_size_placeholder": " Размерность эмбеддинга, например 1024",
       "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
       "dimensions_error_invalid": "Пожалуйста, введите размерность эмбеддинга",
       "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
       "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
-      "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию"
+      "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию",
+      "quota": "{{name}} Остаток квоты: {{quota}}",
+      "quota_infinity": "{{name}} Квота: Не ограничена",
+      "name_required": "Название базы знаний обязательно",
+      "embedding_model_required": "Модель встраивания базы знаний требуется"
     },
     "languages": {
       "arabic": "Арабский",
@@ -863,7 +880,7 @@
     "notification": {
       "assistant": "Ответ ассистента",
       "knowledge.success": "Успешно добавлено {{type}} в базу знаний",
-      "knowledge.error": "Не удалось добавить {{type}} в базу знаний: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -1012,7 +1029,7 @@
       "per_images": "за изображения",
       "required_field": "Обязательное поле",
       "uploaded_input": "Загруженный ввод",
-      "prompt_placeholder_en": "[to be translated]:Enter your image description, currently Imagen only supports English prompts"
+      "prompt_placeholder_en": "Введите описание изображения, в настоящее время Imagen поддерживает только английские подсказки"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -1273,70 +1290,6 @@
           "user": "Пользователь WebDAV",
           "maxBackups": "Максимальное количество резервных копий",
           "maxBackups.unlimited": "Без ограничений"
-        },
-        "s3": {
-          "title": "S3-совместимое хранилище",
-          "title.help": "Сервисы объектного хранения, совместимые с AWS S3 API, такие как AWS S3, Cloudflare R2, Alibaba Cloud OSS, Tencent Cloud COS и т.д.",
-          "endpoint": "Конечная точка API",
-          "endpoint.placeholder": "https://s3.example.com",
-          "region": "Регион",
-          "region.placeholder": "Регион, например: us-east-1",
-          "bucket": "Корзина",
-          "bucket.placeholder": "Корзина, например: example",
-          "accessKeyId": "Access Key ID",
-          "accessKeyId.placeholder": "Access Key ID",
-          "secretAccessKey": "Secret Access Key",
-          "secretAccessKey.placeholder": "Secret Access Key",
-          "root": "Каталог резервных копий (необязательно)",
-          "root.placeholder": "например: /cherry-studio",
-          "backup.operation": "Операция резервного копирования",
-          "backup.button": "Создать резервную копию сейчас",
-          "backup.manager.button": "Управление резервными копиями",
-          "backup.modal.title": "Резервное копирование S3",
-          "backup.modal.filename.placeholder": "Пожалуйста, введите имя файла резервной копии",
-          "backup.success": "Резервное копирование S3 успешно",
-          "backup.error": "Ошибка резервного копирования S3: {{message}}",
-          "autoSync": "Автосинхронизация",
-          "autoSync.off": "Выкл.",
-          "autoSync.minute": "Каждые {{count}} мин.",
-          "autoSync.hour": "Каждые {{count}} ч.",
-          "maxBackups": "Макс. резервных копий",
-          "maxBackups.unlimited": "Неограниченно",
-          "skipBackupFile": "Облегченное резервное копирование",
-          "skipBackupFile.help": "Если включено, данные файлов будут пропущены во время резервного копирования, будет скопирована только информация о конфигурации, что значительно уменьшит размер файла резервной копии.",
-          "syncStatus": "Статус синхронизации",
-          "syncStatus.noSync": "Не синхронизировано",
-          "syncStatus.error": "Ошибка синхронизации: {{message}}",
-          "syncStatus.lastSync": "Последняя синхронизация: {{time}}",
-          "manager.title": "Менеджер файлов резервных копий S3",
-          "manager.refresh": "Обновить",
-          "manager.delete.selected": "Удалить выбранные ({{count}})",
-          "manager.close": "Закрыть",
-          "manager.columns.fileName": "Имя файла",
-          "manager.columns.modifiedTime": "Время изменения",
-          "manager.columns.size": "Размер файла",
-          "manager.columns.actions": "Действия",
-          "manager.restore": "Восстановить",
-          "manager.delete": "Удалить",
-          "manager.config.incomplete": "Пожалуйста, заполните полную конфигурацию S3",
-          "manager.files.fetch.error": "Не удалось получить список файлов резервных копий: {{message}}",
-          "manager.delete.confirm.title": "Подтвердить удаление",
-          "manager.delete.confirm.multiple": "Вы уверены, что хотите удалить {{count}} выбранных файлов резервных копий? Это действие нельзя отменить.",
-          "manager.delete.confirm.single": "Вы уверены, что хотите удалить файл резервной копии \"{{fileName}}\"? Это действие нельзя отменить.",
-          "manager.delete.success.multiple": "Успешно удалено {{count}} файлов резервных копий",
-          "manager.delete.success.single": "Файл резервной копии успешно удален",
-          "manager.delete.error": "Не удалось удалить файл резервной копии: {{message}}",
-          "manager.select.warning": "Пожалуйста, выберите файлы резервных копий для удаления",
-          "restore.modal.title": "Восстановление данных S3",
-          "restore.modal.select.placeholder": "Пожалуйста, выберите файл резервной копии для восстановления",
-          "restore.confirm.title": "Подтвердить восстановление данных",
-          "restore.confirm.content": "Восстановление данных перезапишет все текущие данные. Это действие нельзя отменить. Вы уверены, что хотите продолжить?",
-          "restore.confirm.ok": "Подтвердить восстановление",
-          "restore.confirm.cancel": "Отмена",
-          "restore.success": "Восстановление данных успешно",
-          "restore.error": "Ошибка восстановления данных: {{message}}",
-          "restore.config.incomplete": "Пожалуйста, заполните полную конфигурацию S3",
-          "restore.file.required": "Пожалуйста, выберите файл резервной копии для восстановления"
         },
         "yuque": {
           "check": {
@@ -1730,6 +1683,18 @@
       "models.quick_assistant_default_tag": "умолчанию",
       "models.use_model": "модель по умолчанию",
       "models.use_assistant": "Использование ассистентов",
+      "models.provider_key_confirm_title": "Добавить API ключ для {{provider}}",
+      "models.provider_name": "Имя провайдера",
+      "models.provider_id": "ID провайдера",
+      "models.base_url": "Базовый URL",
+      "models.api_key": "API ключ",
+      "models.provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
+      "models.provider_key_already_exists": "{{provider}} уже существует один и тот же API ключ, не будет добавлен",
+      "models.provider_key_added": "API ключ для {{provider}} успешно добавлен",
+      "models.provider_key_overridden": "API ключ для {{provider}} успешно обновлен",
+      "models.provider_key_no_change": "API ключ для {{provider}} не изменился",
+      "models.provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
+      "models.provider_key_add_failed_by_invalid_data": "Не удалось добавить API ключ для {{provider}}, данные имеют неверный формат",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
@@ -1885,6 +1850,91 @@
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
       "title": "Настройки",
+      "tool": {
+        "title": "Настройки инструментов",
+        "websearch": {
+          "blacklist": "Черный список",
+          "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+          "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "проверка",
+          "check_failed": "Проверка не прошла",
+          "check_success": "Проверка успешна",
+          "get_api_key": "Получить ключ API",
+          "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+          "search_max_result": "Количество результатов поиска",
+          "search_provider": "поиск сервисного провайдера",
+          "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+          "search_result_default": "По умолчанию",
+          "search_with_time": "Поиск, содержащий дату",
+          "tavily": {
+            "api_key": "Ключ API Tavily",
+            "api_key.placeholder": "Введите ключ API Tavily",
+            "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
+            "title": "Tavily"
+          },
+          "title": "Поиск в Интернете",
+          "subscribe": "Подписка на черный список",
+          "subscribe_update": "Обновить",
+          "subscribe_add": "Добавить подписку",
+          "subscribe_url": "URL подписки",
+          "subscribe_name": "Альтернативное имя",
+          "subscribe_name.placeholder": "Альтернативное имя, используемое, когда в загруженной ленте подписки нет имени.",
+          "subscribe_add_success": "Лента подписки успешно добавлена!",
+          "subscribe_delete": "Удалить",
+          "overwrite": "Переопределить поисковый сервис",
+          "overwrite_tooltip": "Принудительно использовать поисковый сервис вместо LLM",
+          "apikey": "API ключ",
+          "free": "Бесплатно",
+          "content_limit": "Ограничение длины контента",
+          "content_limit_tooltip": "Ограничить длину контента в результатах поиска; контент, превышающий лимит, будет усечен.",
+          "compression": {
+            "title": "Сжатие результатов поиска",
+            "method": "Метод сжатия",
+            "method.none": "Не сжимать",
+            "method.cutoff": "Обрезка",
+            "cutoff.limit": "Лимит обрезки",
+            "cutoff.limit.placeholder": "Введите длину",
+            "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
+            "cutoff.unit.char": "Символы",
+            "cutoff.unit.token": "Токены",
+            "method.rag": "RAG",
+            "rag.document_count": "Количество документов",
+            "rag.document_count.default": "По умолчанию",
+            "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
+            "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
+            "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
+            "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",
+            "info": {
+              "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
+              "dimensions_auto_failed": "Не удалось получить размерности",
+              "provider_not_found": "Поставщик не найден",
+              "rag_failed": "RAG не удалось"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "Предварительная обработка",
+          "provider": "Предварительная обработка Поставщик",
+          "provider_placeholder": "Выберите поставщика услуг предварительной обработки"
+        },
+        "preprocessOrOcr.tooltip": "В настройках (Настройки -> Инструменты) укажите поставщика услуги предварительной обработки документов или OCR. Предварительная обработка документов может значительно повысить эффективность поиска для документов сложных форматов и отсканированных документов. OCR способен распознавать только текст внутри изображений в документах или текст в отсканированных PDF.",
+        "ocr": {
+          "title": "OCR (оптическое распознавание символов)",
+          "provider": "Поставщик OCR",
+          "provider_placeholder": "Выберите провайдера OCR",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Режим распознавания",
+              "accurate": "Точный",
+              "fast": "Быстро"
+            },
+            "min_confidence": "Минимальная достоверность"
+          }
+        }
+      },
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
@@ -1893,67 +1943,6 @@
       "tray.onclose": "Свернуть в трей при закрытии",
       "tray.show": "Показать значок в трее",
       "tray.title": "Трей",
-      "websearch": {
-        "blacklist": "Черный список",
-        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "check": "проверка",
-        "check_failed": "Проверка не прошла",
-        "check_success": "Проверка успешна",
-        "get_api_key": "Получить ключ API",
-        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
-        "search_max_result": "Количество результатов поиска",
-        "search_provider": "поиск сервисного провайдера",
-        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
-        "search_result_default": "По умолчанию",
-        "search_with_time": "Поиск, содержащий дату",
-        "tavily": {
-          "api_key": "Ключ API Tavily",
-          "api_key.placeholder": "Введите ключ API Tavily",
-          "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
-          "title": "Tavily"
-        },
-        "title": "Поиск в Интернете",
-        "blacklist_tooltip": "Шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
-        "subscribe": "Подписка на черный список",
-        "subscribe_update": "Обновить",
-        "subscribe_add": "Добавить",
-        "subscribe_url": "URL подписки",
-        "subscribe_name": "Альтернативное имя",
-        "subscribe_name.placeholder": "Альтернативное имя, если в подписке нет названия.",
-        "subscribe_add_success": "Подписка успешно добавлена!",
-        "subscribe_delete": "Удалить",
-        "overwrite": "Переопределить провайдера поиска",
-        "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
-        "apikey": "API ключ",
-        "free": "Бесплатно",
-        "compression": {
-          "title": "Сжатие результатов поиска",
-          "method": "Метод сжатия",
-          "method.none": "Не сжимать",
-          "method.cutoff": "Обрезка",
-          "cutoff.limit": "Лимит обрезки",
-          "cutoff.limit.placeholder": "Введите длину",
-          "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
-          "cutoff.unit.char": "Символы",
-          "cutoff.unit.token": "Токены",
-          "method.rag": "RAG",
-          "rag.document_count": "Количество документов",
-          "rag.document_count.default": "По умолчанию",
-          "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
-          "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
-          "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
-          "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
-            "dimensions_auto_failed": "Не удалось получить размерности",
-            "provider_not_found": "Поставщик не найден",
-            "rag_failed": "RAG не удалось"
-          }
-        }
-      },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.test_plan.title": "Тестовый план",
       "general.test_plan.tooltip": "Участвовать в тестовом плане, чтобы быстрее получать новые функции, но при этом возникает больше рисков, пожалуйста, сделайте резервную копию данных заранее",
@@ -2017,7 +2006,8 @@
         "assistant": "Сообщение ассистента",
         "backup": "Резервное сообщение",
         "knowledge_embed": "Сообщение базы знаний"
-      }
+      },
+      "mineru.api_key": "Mineru теперь предлагает ежедневную бесплатную квоту в 500 страниц, и вам не нужно вводить ключ."
     },
     "translate": {
       "any.language": "Любой язык",
@@ -2113,14 +2103,29 @@
         "experimental": "Экспериментальные функции",
         "enable": {
           "title": "Включить",
-          "description": "Поддерживается только в Windows"
+          "description": "Поддерживается только в Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "Права доступа",
+            "description": [
+              "Помощник выбора требует <strong>Права доступа</strong> для правильной работы.",
+              "Пожалуйста, перейдите в \"<strong>Настройки</strong>\" и нажмите \"<strong>Открыть системные настройки</strong>\" в запросе разрешения, который появится позже. Затем найдите \"<strong>Cherry Studio</strong>\" в списке приложений, который появится позже, и включите переключатель разрешения.",
+              "После завершения настроек, пожалуйста, перезапустите помощник выбора."
+            ],
+            "button": {
+              "open_accessibility_settings": "Открыть системные настройки",
+              "go_to_settings": "Настройки"
+            }
+          }
         },
         "toolbar": {
           "title": "Панель инструментов",
           "trigger_mode": {
             "title": "Режим активации",
             "description": "Показывать панель сразу при выделении, или только при удержании Ctrl, или только при нажатии на сочетание клавиш",
-            "description_note": "В некоторых приложениях Ctrl может не работать. Если вы используете AHK или другие инструменты для переназначения Ctrl, это может привести к тому, что некоторые приложения не смогут выделить текст.",
+            "description_note": {
+              "windows": "В некоторых приложениях Ctrl может не работать. Если вы используете AHK или другие инструменты для переназначения Ctrl, это может привести к тому, что некоторые приложения не смогут выделить текст.",
+              "mac": "В некоторых приложениях ⌘ может не работать. Если вы используете сочетания клавиш или инструменты для переназначения ⌘, это может привести к тому, что некоторые приложения не смогут выделить текст."
+            },
             "selected": "При выделении",
             "selected_note": "После выделения",
             "ctrlkey": "По Ctrl",
@@ -2245,7 +2250,10 @@
         },
         "filter_modal": {
           "title": "Список фильтрации",
-          "user_tips": "Введите имя исполняемого файла приложения, один на строку, не учитывая регистр, можно использовать подстановку *"
+          "user_tips": {
+            "windows": "Введите имя исполняемого файла приложения, один на строку, не учитывая регистр, можно использовать подстановку *",
+            "mac": "Введите Bundle ID приложения, один на строку, не учитывая регистр, можно использовать подстановку *"
+          }
         }
       }
     }

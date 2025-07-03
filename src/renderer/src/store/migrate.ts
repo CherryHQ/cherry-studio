@@ -1190,7 +1190,6 @@ const migrateConfig = {
       console.error(error)
       return state
     }
-
     return state
   },
   '87': (state: RootState) => {
@@ -1663,10 +1662,94 @@ const migrateConfig = {
   },
   '117': (state: RootState) => {
     try {
-      updateProvider(state, 'ppio', {
-        models: SYSTEM_MODELS.ppio,
-        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      const modelsToRemove = [
+        'qwen/qwen-2.5-72b-instruct',
+        'qwen/qwen2.5-32b-instruct',
+        'meta-llama/llama-3.1-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+        '01-ai/yi-1.5-34b-chat',
+        '01-ai/yi-1.5-9b-chat',
+        'thudm/glm-z1-32b-0414',
+        'thudm/glm-z1-9b-0414'
+      ]
+      if (ppioProvider) {
+        updateProvider(state, 'ppio', {
+          models: [
+            ...ppioProvider.models.filter((model) => !modelsToRemove.includes(model.id)),
+            ...SYSTEM_MODELS.ppio.filter(
+              (systemModel) => !ppioProvider.models.some((existingModel) => existingModel.id === systemModel.id)
+            )
+          ],
+          apiHost: 'https://api.ppinfra.com/v3/openai/'
+        })
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+          assistant.settings = {
+            ...assistant.settings,
+            streamOutput: true
+          }
+        }
       })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '118': (state: RootState) => {
+    try {
+      if (!state.settings.userId) {
+        state.settings.userId = uuid()
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'mistral') {
+          provider.type = 'mistral'
+        }
+      })
+
+      if (!state.preprocess) {
+        state.preprocess = {
+          defaultProvider: '',
+          providers: []
+        }
+      }
+
+      if (state.preprocess.providers.length === 0) {
+        state.preprocess.providers = [
+          {
+            id: 'doc2x',
+            name: 'Doc2x',
+            apiKey: '',
+            apiHost: 'https://v2.doc2x.noedgeai.com'
+          },
+          {
+            id: 'mistral',
+            name: 'Mistral',
+            model: 'mistral-ocr-latest',
+            apiKey: '',
+            apiHost: 'https://api.mistral.ai'
+          },
+          {
+            id: 'mineru',
+            name: 'MinerU',
+            apiKey: '',
+            apiHost: 'https://mineru.net'
+          }
+        ]
+      }
+
+      if (!state.ocr.providers.find((provider) => provider.id === 'system')) {
+        state.ocr.providers.push({
+          id: 'system',
+          name: 'System(Mac Only)',
+          options: {
+            recognitionLevel: 0,
+            minConfidence: 0.5
+          }
+        })
+      }
       return state
     } catch (error) {
       return state

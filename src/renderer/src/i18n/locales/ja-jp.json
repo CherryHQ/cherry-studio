@@ -434,9 +434,11 @@
       "prompt": "プロンプト",
       "provider": "プロバイダー",
       "regenerate": "再生成",
+      "refresh": "更新",
       "rename": "名前を変更",
       "reset": "リセット",
       "save": "保存",
+      "settings": "設定",
       "search": "検索",
       "select": "選択",
       "selectedMessages": "{{count}}件のメッセージを選択しました",
@@ -451,7 +453,9 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "enabled": "有効",
+      "disabled": "無効"
     },
     "docs": {
       "title": "ドキュメント"
@@ -471,6 +475,7 @@
         "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
       },
       "model.exists": "モデルが既に存在します",
+      "missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
       "no_api_key": "APIキーが設定されていません",
       "provider_disabled": "モデルプロバイダーが有効になっていません",
       "render": {
@@ -571,7 +576,11 @@
       "rename": "名前を変更",
       "search": "ナレッジベースを検索",
       "search_placeholder": "検索するテキストを入力",
-      "settings": "ナレッジベース設定",
+      "settings": {
+        "title": "ナレッジベース設定",
+        "preprocessing": "預処理",
+        "preprocessing_tooltip": "アップロードされたファイルのOCR預処理"
+      },
       "sitemap_placeholder": "サイトマップURLを入力",
       "sitemaps": "サイトマップ",
       "source": "ソース",
@@ -595,12 +604,20 @@
       "urls": "URL",
       "dimensions": "埋め込み次元",
       "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+      "status_embedding_completed": "埋め込み完了",
+      "status_preprocess_completed": "前処理完了",
+      "status_embedding_failed": "埋め込み失敗",
+      "status_preprocess_failed": "前処理に失敗しました",
       "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
       "dimensions_auto_set": "埋め込み次元を自動設定",
       "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
       "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
       "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
-      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します"
+      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
+      "quota": "{{name}} 残りクォータ: {{quota}}",
+      "quota_infinity": "{{name}} クォータ: 無制限",
+      "name_required": "ナレッジベース名は必須です",
+      "embedding_model_required": "ナレッジベース埋め込みモデルが必要です"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -863,7 +880,7 @@
     "notification": {
       "assistant": "助手回應",
       "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
-      "knowledge.error": "ナレッジベースへの{{type}}の追加に失敗しました: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -1255,70 +1272,6 @@
           "user": "WebDAVユーザー",
           "maxBackups": "最大バックアップ数",
           "maxBackups.unlimited": "無制限"
-        },
-        "s3": {
-          "title": "S3互換ストレージ",
-          "title.help": "AWS S3 APIと互換性のあるオブジェクトストレージサービス（例：AWS S3、Cloudflare R2、Alibaba Cloud OSS、Tencent Cloud COSなど）",
-          "endpoint": "APIエンドポイント",
-          "endpoint.placeholder": "https://s3.example.com",
-          "region": "リージョン",
-          "region.placeholder": "Region、例: us-east-1",
-          "bucket": "バケット",
-          "bucket.placeholder": "Bucket、例: example",
-          "accessKeyId": "Access Key ID",
-          "accessKeyId.placeholder": "Access Key ID",
-          "secretAccessKey": "Secret Access Key",
-          "secretAccessKey.placeholder": "Secret Access Key",
-          "root": "バックアップディレクトリ（オプション）",
-          "root.placeholder": "例：/cherry-studio",
-          "backup.operation": "バックアップ操作",
-          "backup.button": "今すぐバックアップ",
-          "backup.manager.button": "バックアップ管理",
-          "backup.modal.title": "S3バックアップ",
-          "backup.modal.filename.placeholder": "バックアップファイル名を入力してください",
-          "backup.success": "S3バックアップ成功",
-          "backup.error": "S3バックアップ失敗: {{message}}",
-          "autoSync": "自動同期",
-          "autoSync.off": "オフ",
-          "autoSync.minute": "{{count}}分毎",
-          "autoSync.hour": "{{count}}時間毎",
-          "maxBackups": "最大バックアップ数",
-          "maxBackups.unlimited": "無制限",
-          "skipBackupFile": "軽量バックアップ",
-          "skipBackupFile.help": "有効にすると、バックアップ時にファイルデータがスキップされ、設定情報のみがバックアップされ、バックアップファイルのサイズが大幅に削減されます。",
-          "syncStatus": "同期ステータス",
-          "syncStatus.noSync": "未同期",
-          "syncStatus.error": "同期エラー: {{message}}",
-          "syncStatus.lastSync": "最終同期: {{time}}",
-          "manager.title": "S3バックアップファイルマネージャー",
-          "manager.refresh": "更新",
-          "manager.delete.selected": "選択項目を削除 ({{count}})",
-          "manager.close": "閉じる",
-          "manager.columns.fileName": "ファイル名",
-          "manager.columns.modifiedTime": "変更日時",
-          "manager.columns.size": "ファイルサイズ",
-          "manager.columns.actions": "操作",
-          "manager.restore": "復元",
-          "manager.delete": "削除",
-          "manager.config.incomplete": "完全なS3設定情報を入力してください",
-          "manager.files.fetch.error": "バックアップファイルリストの取得に失敗しました: {{message}}",
-          "manager.delete.confirm.title": "削除の確認",
-          "manager.delete.confirm.multiple": "選択した{{count}}個のバックアップファイルを削除してもよろしいですか？この操作は元に戻せません。",
-          "manager.delete.confirm.single": "バックアップファイル「{{fileName}}」を削除してもよろしいですか？この操作は元に戻せません。",
-          "manager.delete.success.multiple": "{{count}}個のバックアップファイルを正常に削除しました",
-          "manager.delete.success.single": "バックアップファイルの削除に成功しました",
-          "manager.delete.error": "バックアップファイルの削除に失敗しました: {{message}}",
-          "manager.select.warning": "削除するバックアップファイルを選択してください",
-          "restore.modal.title": "S3データ復元",
-          "restore.modal.select.placeholder": "復元するバックアップファイルを選択してください",
-          "restore.confirm.title": "データ復元の確認",
-          "restore.confirm.content": "データを復元すると、現在のすべてのデータが上書きされます。この操作は元に戻せません。続行してもよろしいですか？",
-          "restore.confirm.ok": "復元を確認",
-          "restore.confirm.cancel": "キャンセル",
-          "restore.success": "データの復元に成功しました",
-          "restore.error": "データの復元に失敗しました: {{message}}",
-          "restore.config.incomplete": "完全なS3設定情報を入力してください",
-          "restore.file.required": "復元するバックアップファイルを選択してください"
         },
         "yuque": {
           "check": {
@@ -1730,6 +1683,18 @@
       "models.quick_assistant_default_tag": "デフォルト",
       "models.use_model": "デフォルトモデル",
       "models.use_assistant": "アシスタントの活用",
+      "models.provider_key_confirm_title": "{{provider}} の API キーを追加",
+      "models.provider_name": "プロバイダー名",
+      "models.provider_id": "プロバイダー ID",
+      "models.base_url": "ベース URL",
+      "models.api_key": "API キー",
+      "models.provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
+      "models.provider_key_already_exists": "{{provider}} には同じ API キーがすでに存在します。追加しません。",
+      "models.provider_key_added": "{{provider}} の API キーを追加しました",
+      "models.provider_key_overridden": "{{provider}} の API キーを更新しました",
+      "models.provider_key_no_change": "{{provider}} の API キーは変更されませんでした",
+      "models.provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",
+      "models.provider_key_add_failed_by_invalid_data": "{{provider}} の API キーを追加できませんでした。データ形式が無効です。",
       "moresetting": "詳細設定",
       "moresetting.check.confirm": "選択を確認",
       "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
@@ -1885,6 +1850,91 @@
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
       "title": "設定",
+      "tool": {
+        "title": "ツール設定",
+        "websearch": {
+          "blacklist": "ブラックリスト",
+          "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
+          "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "チェック",
+          "check_failed": "検証に失敗しました",
+          "check_success": "検証に成功しました",
+          "get_api_key": "APIキーを取得",
+          "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
+          "search_max_result": "検索結果の数",
+          "search_provider": "検索サービスプロバイダー",
+          "search_provider_placeholder": "検索サービスプロバイダーを選択する",
+          "search_result_default": "デフォルト",
+          "search_with_time": "日付を含む検索",
+          "tavily": {
+            "api_key": "Tavily API キー",
+            "api_key.placeholder": "Tavily API キーを入力してください",
+            "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
+            "title": "Tavily"
+          },
+          "title": "ウェブ検索",
+          "subscribe": "ブラックリスト購読",
+          "subscribe_update": "更新",
+          "subscribe_add": "購読を追加",
+          "subscribe_url": "購読URL",
+          "subscribe_name": "代替名",
+          "subscribe_name.placeholder": "ダウンロードした購読フィードに名前がない場合に使用される代替名。",
+          "subscribe_add_success": "購読フィードが正常に追加されました!",
+          "subscribe_delete": "削除",
+          "overwrite": "検索サービスを上書き",
+          "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
+          "apikey": "APIキー",
+          "free": "無料",
+          "content_limit": "コンテンツ制限",
+          "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
+          "compression": {
+            "title": "検索結果の圧縮",
+            "method": "圧縮方法",
+            "method.none": "圧縮しない",
+            "method.cutoff": "切り捨て",
+            "cutoff.limit": "切り捨て長",
+            "cutoff.limit.placeholder": "長さを入力",
+            "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
+            "cutoff.unit.char": "文字",
+            "cutoff.unit.token": "トークン",
+            "method.rag": "RAG",
+            "rag.document_count": "文書数",
+            "rag.document_count.default": "デフォルト",
+            "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+            "rag.embedding_dimensions.auto_get": "次元を自動取得",
+            "rag.embedding_dimensions.placeholder": "次元を設定しない",
+            "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
+            "info": {
+              "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "まず埋め込みモデルを選択してください",
+              "dimensions_auto_failed": "次元の自動取得に失敗しました",
+              "provider_not_found": "プロバイダーが見つかりません",
+              "rag_failed": "RAG に失敗しました"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "前処理",
+          "provider": "プレプロセスプロバイダー",
+          "provider_placeholder": "前処理プロバイダーを選択してください"
+        },
+        "preprocessOrOcr.tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーまたはOCRを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。OCRは、ドキュメント内の画像内のテキストまたはスキャンされたPDFテキストのみを認識できます。",
+        "ocr": {
+          "title": "OCR（オーシーアール）",
+          "provider": "OCRプロバイダー",
+          "provider_placeholder": "OCRプロバイダーを選択",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "認識モード",
+              "accurate": "正確",
+              "fast": "速い"
+            },
+            "min_confidence": "最小信頼度"
+          }
+        }
+      },
       "topic.position": "トピックの位置",
       "topic.position.left": "左",
       "topic.position.right": "右",
@@ -1893,67 +1943,6 @@
       "tray.onclose": "閉じるときにトレイに最小化",
       "tray.show": "トレイアイコンを表示",
       "tray.title": "トレイ",
-      "websearch": {
-        "blacklist": "ブラックリスト",
-        "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "check": "チェック",
-        "check_failed": "検証に失敗しました",
-        "check_success": "検証に成功しました",
-        "get_api_key": "APIキーを取得",
-        "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
-        "search_max_result": "検索結果の数",
-        "search_provider": "検索サービスプロバイダー",
-        "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-        "search_result_default": "デフォルト",
-        "search_with_time": "日付を含む検索",
-        "tavily": {
-          "api_key": "Tavily API キー",
-          "api_key.placeholder": "Tavily API キーを入力してください",
-          "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
-          "title": "Tavily"
-        },
-        "title": "ウェブ検索",
-        "blacklist_tooltip": "マッチパターン: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
-        "subscribe": "ブラックリスト購読",
-        "subscribe_update": "更新",
-        "subscribe_add": "サブスクリプションを追加",
-        "subscribe_url": "フィードのURL",
-        "subscribe_name": "代替名",
-        "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
-        "subscribe_add_success": "フィードの追加が成功しました！",
-        "subscribe_delete": "削除",
-        "overwrite": "サービス検索を上書き",
-        "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する",
-        "apikey": "API キー",
-        "free": "無料",
-        "compression": {
-          "title": "検索結果の圧縮",
-          "method": "圧縮方法",
-          "method.none": "圧縮しない",
-          "method.cutoff": "切り捨て",
-          "cutoff.limit": "切り捨て長",
-          "cutoff.limit.placeholder": "長さを入力",
-          "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
-          "cutoff.unit.char": "文字",
-          "cutoff.unit.token": "トークン",
-          "method.rag": "RAG",
-          "rag.document_count": "文書数",
-          "rag.document_count.default": "デフォルト",
-          "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
-          "rag.embedding_dimensions.auto_get": "次元を自動取得",
-          "rag.embedding_dimensions.placeholder": "次元を設定しない",
-          "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "まず埋め込みモデルを選択してください",
-            "dimensions_auto_failed": "次元の自動取得に失敗しました",
-            "provider_not_found": "プロバイダーが見つかりません",
-            "rag_failed": "RAG に失敗しました"
-          }
-        }
-      },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "テストプラン",
       "general.test_plan.tooltip": "テストプランに参加すると、最新の機能をより早く体験できますが、同時により多くのリスクが伴います。データを事前にバックアップしてください。",
@@ -2017,7 +2006,8 @@
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
         "knowledge_embed": "ナレッジベースメッセージ"
-      }
+      },
+      "mineru.api_key": "Mineruでは現在、1日500ページの無料クォータを提供しており、キーを入力する必要はありません。"
     },
     "translate": {
       "any.language": "任意の言語",
@@ -2113,14 +2103,29 @@
         "experimental": "実験的機能",
         "enable": {
           "title": "有効化",
-          "description": "現在Windowsのみ対応"
+          "description": "現在Windows & macOSのみ対応",
+          "mac_process_trust_hint": {
+            "title": "アクセシビリティー権限",
+            "description": [
+              "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
+              "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
+              "設定が完了したら、テキスト選択ツールを再起動してください。"
+            ],
+            "button": {
+              "open_accessibility_settings": "アクセシビリティー設定を開く",
+              "go_to_settings": "設定に移動"
+            }
+          }
         },
         "toolbar": {
           "title": "ツールバー",
           "trigger_mode": {
             "title": "単語の取り出し方",
             "description": "テキスト選択後、取詞ツールバーを表示する方法",
-            "description_note": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+            "description_note": {
+              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
+            },
             "selected": "選択時",
             "selected_note": "テキスト選択時に即時表示",
             "ctrlkey": "Ctrlキー",
@@ -2245,7 +2250,10 @@
         },
         "filter_modal": {
           "title": "アプリケーションフィルターリスト",
-          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+          "user_tips": {
+            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
+            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
+          }
         }
       }
     }

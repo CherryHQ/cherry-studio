@@ -435,9 +435,11 @@
       "prompt": "提示词",
       "provider": "提供商",
       "regenerate": "重新生成",
+      "refresh": "刷新",
       "rename": "重命名",
       "reset": "重置",
       "save": "保存",
+      "settings": "设置",
       "search": "搜索",
       "select": "选择",
       "selectedMessages": "选中 {{count}} 条消息",
@@ -452,7 +454,9 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "无结果"
+      "no_results": "无结果",
+      "enabled": "已启用",
+      "disabled": "已禁用"
     },
     "docs": {
       "title": "帮助文档"
@@ -472,6 +476,7 @@
         "504": "网关超时，请稍后再试"
       },
       "model.exists": "模型已存在",
+      "missing_user_message": "无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
       "no_api_key": "API 密钥未配置",
       "provider_disabled": "模型提供商未启用",
       "render": {
@@ -580,7 +585,11 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "使用 OCR 预处理上传的文件"
+      },
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -600,8 +609,16 @@
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
-      "url_placeholder": "请输入网址，多个网址用回车分隔",
-      "urls": "网址"
+      "url_placeholder": "请输入网址, 多个网址用回车分隔",
+      "urls": "网址",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "预处理完成",
+      "status_embedding_failed": "嵌入失败",
+      "status_preprocess_failed": "预处理失败",
+      "quota": "{{name}} 剩余额度：{{quota}}",
+      "quota_infinity": "{{name}} 剩余额度：无限制",
+      "name_required": "知识库名称为必填项",
+      "embedding_model_required": "知识库嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -864,7 +881,7 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.success": "成功添加 {{type}} 到知识库",
-      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5 分钟）",
@@ -1277,71 +1294,7 @@
           "title": "WebDAV",
           "user": "WebDAV 用户名",
           "maxBackups": "最大备份数",
-          "maxBackups.unlimited": "不限"
-        },
-        "s3": {
-          "title": "S3 兼容存储",
-          "title.help": "与 AWS S3 API 兼容的对象存储服务，例如 AWS S3, Cloudflare R2, 阿里云 OSS, 腾讯云 COS 等",
-          "endpoint": "API 地址",
-          "endpoint.placeholder": "https://s3.example.com",
-          "region": "区域",
-          "region.placeholder": "Region, 例如: us-east-1",
-          "bucket": "存储桶",
-          "bucket.placeholder": "Bucket, 例如: example",
-          "accessKeyId": "Access Key ID",
-          "accessKeyId.placeholder": "Access Key ID",
-          "secretAccessKey": "Secret Access Key",
-          "secretAccessKey.placeholder": "Secret Access Key",
-          "root": "备份目录（可选）",
-          "root.placeholder": "例如：/cherry-studio",
-          "backup.operation": "备份操作",
-          "backup.button": "立即备份",
-          "backup.manager.button": "管理备份",
-          "backup.modal.title": "S3 备份",
-          "backup.modal.filename.placeholder": "请输入备份文件名",
-          "backup.success": "S3 备份成功",
-          "backup.error": "S3 备份失败: {{message}}",
-          "autoSync": "自动同步",
-          "autoSync.off": "关闭",
-          "autoSync.minute": "每 {{count}} 分钟",
-          "autoSync.hour": "每 {{count}} 小时",
-          "maxBackups": "最大备份数",
-          "maxBackups.unlimited": "不限",
-          "skipBackupFile": "精简备份",
-          "skipBackupFile.help": "开启后备份时将跳过文件数据，仅备份配置信息，显著减小备份文件体积",
-          "syncStatus": "同步状态",
-          "syncStatus.noSync": "未同步",
-          "syncStatus.error": "同步错误: {{message}}",
-          "syncStatus.lastSync": "上次同步: {{time}}",
-          "manager.title": "S3 备份文件管理",
-          "manager.refresh": "刷新",
-          "manager.delete.selected": "删除选中 ({{count}})",
-          "manager.close": "关闭",
-          "manager.columns.fileName": "文件名",
-          "manager.columns.modifiedTime": "修改时间",
-          "manager.columns.size": "文件大小",
-          "manager.columns.actions": "操作",
-          "manager.restore": "恢复",
-          "manager.delete": "删除",
-          "manager.config.incomplete": "请填写完整的 S3 配置信息",
-          "manager.files.fetch.error": "获取备份文件列表失败: {{message}}",
-          "manager.delete.confirm.title": "确认删除",
-          "manager.delete.confirm.multiple": "确定要删除选中的 {{count}} 个备份文件吗？此操作不可撤销。",
-          "manager.delete.confirm.single": "确定要删除备份文件 \"{{fileName}}\" 吗？此操作不可撤销。",
-          "manager.delete.success.multiple": "成功删除 {{count}} 个备份文件",
-          "manager.delete.success.single": "删除备份文件成功",
-          "manager.delete.error": "删除备份文件失败: {{message}}",
-          "manager.select.warning": "请选择要删除的备份文件",
-          "restore.modal.title": "S3 数据恢复",
-          "restore.modal.select.placeholder": "请选择要恢复的备份文件",
-          "restore.confirm.title": "确认恢复数据",
-          "restore.confirm.content": "恢复数据将覆盖当前所有数据，此操作不可撤销。确定要继续吗？",
-          "restore.confirm.ok": "确认恢复",
-          "restore.confirm.cancel": "取消",
-          "restore.success": "数据恢复成功",
-          "restore.error": "数据恢复失败: {{message}}",
-          "restore.config.incomplete": "请填写完整的 S3 配置信息",
-          "restore.file.required": "请选择要恢复的备份文件"
+          "maxBackups.unlimited": "无限制"
         },
         "yuque": {
           "check": {
@@ -1743,6 +1696,18 @@
       "models.quick_assistant_default_tag": "默认",
       "models.use_model": "默认模型",
       "models.use_assistant": "使用助手",
+      "models.provider_key_confirm_title": "为{{provider}}添加 API 密钥",
+      "models.provider_name": "服务商名称",
+      "models.provider_id": "服务商 ID",
+      "models.base_url": "基础 URL",
+      "models.api_key": "API 密钥",
+      "models.provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
+      "models.provider_key_already_exists": "{{provider}} 已存在相同API 密钥, 不会重复添加",
+      "models.provider_key_added": "成功为 {{provider}} 添加 API 密钥",
+      "models.provider_key_overridden": "成功更新 {{provider}} 的 API 密钥",
+      "models.provider_key_no_change": "{{provider}} 的 API 密钥没有变化",
+      "models.provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",
+      "models.provider_key_add_failed_by_invalid_data": "添加服务商 API 密钥失败，数据格式错误",
       "moresetting": "更多设置",
       "moresetting.check.confirm": "确认勾选",
       "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
@@ -1751,7 +1716,7 @@
         "title": "通知设置",
         "assistant": "助手消息",
         "backup": "备份",
-        "knowledge_embed": "知识嵌入"
+        "knowledge_embed": "知识库"
       },
       "provider": {
         "add.name": "提供商名称",
@@ -1912,67 +1877,6 @@
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",
-      "websearch": {
-        "blacklist": "黑名单",
-        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式 (换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "check": "检测",
-        "check_failed": "验证失败",
-        "check_success": "验证成功",
-        "overwrite": "覆盖服务商搜索",
-        "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-        "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检测",
-        "search_max_result": "搜索结果个数",
-        "search_provider": "搜索服务商",
-        "search_provider_placeholder": "选择一个搜索服务商",
-        "subscribe": "黑名单订阅",
-        "subscribe_update": "立即更新",
-        "subscribe_add": "添加订阅",
-        "subscribe_url": "订阅源地址",
-        "subscribe_name": "替代名字",
-        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
-        "subscribe_add_success": "订阅源添加成功！",
-        "subscribe_delete": "删除订阅源",
-        "search_result_default": "默认",
-        "search_with_time": "搜索包含日期",
-        "tavily": {
-          "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥",
-          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "网络搜索",
-        "apikey": "API 密钥",
-        "free": "免费",
-        "compression": {
-          "title": "搜索结果压缩",
-          "method": "压缩方法",
-          "method.none": "不压缩",
-          "method.cutoff": "截断",
-          "cutoff.limit": "截断长度",
-          "cutoff.limit.placeholder": "输入长度",
-          "cutoff.limit.tooltip": "限制搜索结果的内容长度，超过限制的内容将被截断（例如 2000 字符）",
-          "cutoff.unit.char": "字符",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "文档数量",
-          "rag.document_count.default": "默认",
-          "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
-          "rag.embedding_dimensions.auto_get": "自动获取维度",
-          "rag.embedding_dimensions.placeholder": "不设置维度",
-          "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
-          "info": {
-            "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "请先选择嵌入模型",
-            "dimensions_auto_failed": "维度自动获取失败",
-            "provider_not_found": "未找到服务商",
-            "rag_failed": "RAG 失败"
-          }
-        }
-      },
       "quickPhrase": {
         "title": "快捷短语",
         "add": "添加短语",
@@ -2018,7 +1922,93 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
-      }
+      },
+      "tool": {
+        "title": "工具设置",
+        "preprocess": {
+          "title": "文档预处理",
+          "provider": "文档预处理服务商",
+          "provider_placeholder": "选择一个文档预处理服务商"
+        },
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR 服务商",
+          "provider_placeholder": "选择一个 OCR 服务商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "识别模式",
+              "accurate": "准确",
+              "fast": "快速"
+            },
+            "min_confidence": "最低置信度"
+          }
+        },
+        "websearch": {
+          "blacklist": "黑名单",
+          "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+          "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+          "check": "检测",
+          "check_failed": "验证失败",
+          "check_success": "验证成功",
+          "overwrite": "覆盖服务商搜索",
+          "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+          "get_api_key": "点击这里获取密钥",
+          "no_provider_selected": "请选择搜索服务商后再检测",
+          "search_max_result": "搜索结果个数",
+          "search_provider": "搜索服务商",
+          "search_provider_placeholder": "选择一个搜索服务商",
+          "subscribe": "黑名单订阅",
+          "subscribe_update": "立即更新",
+          "subscribe_add": "添加订阅",
+          "subscribe_url": "订阅源地址",
+          "subscribe_name": "替代名字",
+          "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+          "subscribe_add_success": "订阅源添加成功!",
+          "subscribe_delete": "删除订阅源",
+          "search_result_default": "默认",
+          "search_with_time": "搜索包含日期",
+          "tavily": {
+            "api_key": "Tavily API 密钥",
+            "api_key.placeholder": "请输入 Tavily API 密钥",
+            "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "网络搜索",
+          "apikey": "API 密钥",
+          "free": "免费",
+          "content_limit": "内容长度限制",
+          "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
+          "compression": {
+            "title": "搜索结果压缩",
+            "method": "压缩方法",
+            "method.none": "不压缩",
+            "method.cutoff": "截断",
+            "cutoff.limit": "截断长度",
+            "cutoff.limit.placeholder": "输入长度",
+            "cutoff.limit.tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断（例如 2000 字符）",
+            "cutoff.unit.char": "字符",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "文档数量",
+            "rag.document_count.default": "默认",
+            "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
+            "rag.embedding_dimensions.auto_get": "自动获取维度",
+            "rag.embedding_dimensions.placeholder": "不设置维度",
+            "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
+            "info": {
+              "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "请先选择嵌入模型",
+              "dimensions_auto_failed": "维度自动获取失败",
+              "provider_not_found": "未找到服务商",
+              "rag_failed": "RAG 失败"
+            }
+          }
+        },
+        "preprocessOrOcr.tooltip": "在设置 -> 工具中设置文档预处理服务商或OCR，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果，OCR仅可识别文档内图片或扫描版PDF的文本"
+      },
+      "mineru.api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。"
     },
     "translate": {
       "any.language": "任意语言",
@@ -2114,14 +2104,29 @@
         "experimental": "实验性功能",
         "enable": {
           "title": "启用",
-          "description": "当前仅支持 Windows 系统"
+          "description": "当前仅支持 Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "辅助功能权限",
+            "description": [
+              "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
+              "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
+              "完成设置后，请再次开启划词助手。"
+            ],
+            "button": {
+              "open_accessibility_settings": "打开辅助功能设置",
+              "go_to_settings": "去设置"
+            }
+          }
         },
         "toolbar": {
           "title": "工具栏",
           "trigger_mode": {
             "title": "取词方式",
             "description": "划词后，触发取词并显示工具栏的方式",
-            "description_note": "少数应用不支持通过 Ctrl 键划词。若使用了 AHK 等工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+            "description_note": {
+              "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+              "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。"
+            },
             "selected": "划词",
             "selected_note": "划词后立即显示工具栏",
             "ctrlkey": "Ctrl 键",
@@ -2246,7 +2251,10 @@
         },
         "filter_modal": {
           "title": "应用筛选名单",
-          "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "user_tips": {
+            "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
+            "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
+          }
         }
       }
     }
