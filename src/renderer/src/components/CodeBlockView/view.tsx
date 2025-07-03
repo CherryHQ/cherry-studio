@@ -12,13 +12,10 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CodePreview from './CodePreview'
+import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import HtmlArtifacts from './HtmlArtifacts'
-import MermaidPreview from './MermaidPreview'
-import PlantUmlPreview from './PlantUmlPreview'
 import StatusBar from './StatusBar'
-import SvgPreview from './SvgPreview'
-
-type ViewMode = 'source' | 'special' | 'split'
+import { ViewMode } from './types'
 
 interface Props {
   children: string
@@ -42,7 +39,7 @@ interface Props {
  * - quick 工具
  * - core 工具
  */
-const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
+export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
   const { codeEditor, codeExecution } = useSettings()
   const [viewMode, setViewMode] = useState<ViewMode>('special')
@@ -56,7 +53,7 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     return codeExecution.enabled && language === 'python'
   }, [codeExecution.enabled, language])
 
-  const hasSpecialView = useMemo(() => ['mermaid', 'plantuml', 'svg'].includes(language), [language])
+  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
 
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
@@ -200,14 +197,16 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
-    if (language === 'mermaid') {
-      return <MermaidPreview setTools={setTools}>{children}</MermaidPreview>
-    } else if (language === 'plantuml' && isValidPlantUML(children)) {
-      return <PlantUmlPreview setTools={setTools}>{children}</PlantUmlPreview>
-    } else if (language === 'svg') {
-      return <SvgPreview setTools={setTools}>{children}</SvgPreview>
+    const SpecialView = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
+
+    if (!SpecialView) return null
+
+    // PlantUML 语法验证
+    if (language === 'plantuml' && !isValidPlantUML(children)) {
+      return null
     }
-    return null
+
+    return <SpecialView setTools={setTools}>{children}</SpecialView>
   }, [children, language])
 
   const renderHeader = useMemo(() => {
@@ -244,7 +243,7 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
     </CodeBlockWrapper>
   )
-}
+})
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
@@ -294,5 +293,3 @@ const SplitViewWrapper = styled.div`
     border-radius: 0 0 8px 8px;
   }
 `
-
-export default memo(CodeBlockView)

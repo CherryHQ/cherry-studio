@@ -91,7 +91,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       bash: 'shell',
       'objective-c++': 'objective-cpp',
       svg: 'xml',
-      vab: 'vb'
+      vab: 'vb',
+      graphviz: 'dot'
     } as Record<string, string>
   }, [])
 
