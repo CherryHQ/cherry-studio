@@ -1,4 +1,4 @@
-import { isSupportedModel } from "@renderer/config/models";
+import { isSupportedModel } from '@renderer/config/models'
 import {
   GenerateImageParams,
   MCPCallToolResponse,

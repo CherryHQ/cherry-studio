@@ -6,6 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
@@ -13,7 +14,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 
 interface ModelEditContentProps {
   provider: Provider

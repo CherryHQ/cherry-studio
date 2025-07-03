@@ -1,4 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
+import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
@@ -6,7 +7,6 @@ import { Button, Flex, Form, FormProps, Input, Modal, Select } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 
 interface ShowParams {
   title: string

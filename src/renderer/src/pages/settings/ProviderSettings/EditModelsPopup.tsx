@@ -17,6 +17,7 @@ import {
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
@@ -30,7 +31,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { TopView } from '../../../components/TopView'
-import NewApiBatchAddModelPopup from "@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup";
 
 interface ShowParams {
   provider: Provider
@@ -149,7 +149,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         }
       }
     },
-    [addModel, provider]
+    [addModel, provider, t]
   )
 
   const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
@@ -246,7 +246,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         />
       </Tooltip>
     )
-  }, [list, provider, onAddModel, onRemoveModel, t])
+  }, [list, t, provider, onRemoveModel, models, onAddModel])
 
   const renderGroupTools = useCallback(
     (group: string) => {
