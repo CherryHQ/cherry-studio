@@ -31,7 +31,7 @@ export default defineConfig({
       sourcemap: process.env.NODE_ENV === 'development'
     },
     optimizeDeps: {
-      disabled: 'dev'
+      disabled: true
     }
   },
   preload: {
