@@ -431,7 +431,9 @@ export class SelectionService {
 
     // Hide when losing focus
     this.toolbarWindow.on('blur', () => {
-      this.hideToolbar()
+      if (this.toolbarWindow!.isVisible()) {
+        this.hideToolbar()
+      }
     })
 
     // Clean up when closed
@@ -534,21 +536,52 @@ export class SelectionService {
   public hideToolbar(): void {
     if (!this.isToolbarAlive()) return
 
-    // this.toolbarWindow!.setOpacity(0)
+    this.stopHideByMouseKeyListener()
+
+    // [Windows] just hide the toolbar window is enough
+    if (!isMac) {
+      this.toolbarWindow!.hide()
+      return
+    }
+
+    /************************************************
+     * [macOS] the following code is only for macOS
+     *************************************************/
+
+    // [macOS] a HACKY way
+    // make sure other windows do not bring to front when toolbar is hidden
+    // get all focusable windows and set them to not focusable
+    const focusableWindows: BrowserWindow[] = []
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed() && window.isVisible()) {
+        if (window.isFocusable()) {
+          focusableWindows.push(window)
+          window.setFocusable(false)
+        }
+      }
+    }
+
     this.toolbarWindow!.hide()
+
+    // set them back to focusable after 50ms
+    setTimeout(() => {
+      for (const window of focusableWindows) {
+        if (!window.isDestroyed()) {
+          window.setFocusable(true)
+        }
+      }
+    }, 50)
 
     // [macOS] hacky way
     // Because toolbar is not a FOCUSED window, so the hover status will remain when next time show
     // so we just send mouseMove event to the toolbar window to make the hover status disappear
-    if (isMac) {
-      this.toolbarWindow!.webContents.sendInputEvent({
-        type: 'mouseMove',
-        x: -1,
-        y: -1
-      })
-    }
+    this.toolbarWindow!.webContents.sendInputEvent({
+      type: 'mouseMove',
+      x: -1,
+      y: -1
+    })
 
-    this.stopHideByMouseKeyListener()
+    return
   }
 
   /**
