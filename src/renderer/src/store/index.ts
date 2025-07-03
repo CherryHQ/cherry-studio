@@ -1,4 +1,5 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -33,7 +34,13 @@ const rootReducer = combineReducers({
   llm,
   settings,
   runtime,
-  shortcuts,
+  shortcuts: persistReducer(
+    {
+      key: 'shortcuts-' + (isMac ? 'mac' : isWin ? 'win' : 'linux'),
+      storage
+    },
+    shortcuts
+  ),
   knowledge,
   minapps,
   websearch,
