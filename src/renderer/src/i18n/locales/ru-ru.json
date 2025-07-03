@@ -1604,6 +1604,7 @@
       "messages.use_serif_font": "Использовать serif шрифт",
       "model": "Модель по умолчанию",
       "models.add.add_model": "Добавить модель",
+      "models.add.bacth_add_models": "Пакетное добавление моделей",
       "models.add.group_name": "Имя группы",
       "models.add.group_name.placeholder": "Необязательно, например, ChatGPT",
       "models.add.group_name.tooltip": "Необязательно, например, ChatGPT",

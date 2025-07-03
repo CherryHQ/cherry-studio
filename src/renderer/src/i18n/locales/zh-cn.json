@@ -1616,6 +1616,7 @@
       "messages.use_serif_font": "使用衬线字体",
       "model": "默认模型",
       "models.add.add_model": "添加模型",
+      "models.add.bacth_add_models": "批量添加模型",
       "models.add.group_name": "分组名称",
       "models.add.group_name.placeholder": "例如 ChatGPT",
       "models.add.group_name.tooltip": "例如 ChatGPT",

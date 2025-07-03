@@ -1604,6 +1604,7 @@
       "messages.use_serif_font": "セリフフォントを使用",
       "model": "デフォルトモデル",
       "models.add.add_model": "モデルを追加",
+      "models.add.bacth_add_models": "モデルを一括追加",
       "models.add.group_name": "グループ名",
       "models.add.group_name.placeholder": "例：ChatGPT",
       "models.add.group_name.tooltip": "例：ChatGPT",
