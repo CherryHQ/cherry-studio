@@ -410,6 +410,7 @@
       "reset": "Reset",
       "save": "Save",
       "search": "Search",
+      "swap": "Swap",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
       "selectedItems": "Selected {{count}} items",
