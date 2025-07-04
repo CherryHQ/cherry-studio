@@ -122,7 +122,6 @@ const OcrProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
       {hasObjectKey(ocrProvider, 'options') && ocrProvider.id === 'system' && (
         <>
-          <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
           <SettingRow>
             <SettingRowTitle>{t('settings.tool.ocr.mac_system_ocr_options.mode.title')}</SettingRowTitle>
             <Segmented

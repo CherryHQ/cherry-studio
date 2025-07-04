@@ -25,7 +25,7 @@ const BasicSettings: FC = () => {
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
-          <SettingRowTitle>{t('settings.tool.websearch.search_max_result')}</SettingRowTitle>
+          <SettingRowTitle style={{ minWidth: 120 }}>{t('settings.tool.websearch.search_max_result')}</SettingRowTitle>
           <Slider
             defaultValue={maxResults}
             style={{ width: '100%' }}

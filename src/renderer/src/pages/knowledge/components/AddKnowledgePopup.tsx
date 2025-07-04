@@ -6,7 +6,6 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/consta
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
-// import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useOcrProviders } from '@renderer/hooks/useOcr'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
@@ -15,10 +14,11 @@ import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
-import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Switch, Tooltip } from 'antd'
+import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
+import { ChevronDown } from 'lucide-react'
 import { nanoid } from 'nanoid'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,12 +34,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [autoDims, setAutoDims] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
   const [newBase, setNewBase] = useState<KnowledgeBase>({} as KnowledgeBase)
   const [dimensions, setDimensions] = useState<number | undefined>(undefined)
-  const [selectedMenu, setSelectedMenu] = useState('general')
 
   const { preprocessProviders } = usePreprocessProviders()
   const { ocrProviders } = useOcrProviders()
@@ -60,6 +60,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   }, [providers])
 
   const nameInputRef = useRef<any>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const embeddingSelectOptions = useMemo(() => {
     return providers
@@ -112,7 +113,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     }
 
     return isMac ? [preprocessOptions, ocrOptions] : [preprocessOptions]
-  }, [ocrProviders, preprocessProviders])
+  }, [ocrProviders, preprocessProviders, t])
 
   const onOk = async () => {
     try {
@@ -186,252 +187,19 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     resolve(null)
   }
 
-  const menuItems = [
-    {
-      key: 'general',
-      label: t('settings.general')
-    },
-    {
-      key: 'advanced',
-      label: t('settings.advanced.title')
+  useEffect(() => {
+    if (showAdvanced && scrollContainerRef.current) {
+      // 延迟滚动，确保DOM更新完成
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight,
+            behavior: 'smooth'
+          })
+        }
+      }, 300)
     }
-  ]
-
-  const renderSettings = () => {
-    if (selectedMenu === 'general') {
-      return (
-        <SettingsPanel>
-          <SettingsItem>
-            <div className="settings-label">{t('common.name')}</div>
-            <Input
-              ref={nameInputRef}
-              placeholder={t('common.name')}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setNewBase({ ...newBase, name: e.target.value })
-                }
-              }}
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('settings.tool.preprocess.title')} / {t('settings.tool.ocr.title')}
-              <Tooltip title={t('settings.tool.preprocessOrOcr.tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <Select
-              value={selectedProvider?.id}
-              style={{ width: '100%' }}
-              onChange={(value: string) => {
-                const type = preprocessProviders.find((p) => p.id === value) ? 'preprocess' : 'ocr'
-                const provider = (type === 'preprocess' ? preprocessProviders : ocrProviders).find(
-                  (p) => p.id === value
-                )
-                if (!provider) {
-                  setSelectedProvider(undefined)
-                  setNewBase({
-                    ...newBase,
-                    preprocessOrOcrProvider: undefined
-                  })
-                  return
-                }
-                setSelectedProvider(provider)
-                setNewBase({
-                  ...newBase,
-                  preprocessOrOcrProvider: {
-                    type: type,
-                    provider: provider
-                  }
-                })
-              }}
-              placeholder={t('settings.tool.preprocess.provider_placeholder')}
-              options={preprocessOrOcrSelectOptions}
-              allowClear
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('models.embedding_model')}
-              <Tooltip title={t('models.embedding_model_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <Select
-              style={{ width: '100%' }}
-              options={embeddingSelectOptions}
-              placeholder={t('settings.models.empty')}
-              onChange={(value) => {
-                const model = value
-                  ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === value)
-                  : undefined
-                if (!model) return
-                setNewBase({ ...newBase, model })
-              }}
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('models.rerank_model')}
-              <Tooltip title={t('models.rerank_model_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <Select
-              style={{ width: '100%' }}
-              options={rerankSelectOptions}
-              placeholder={t('settings.models.empty')}
-              onChange={(value) => {
-                const rerankModel = value
-                  ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === value)
-                  : undefined
-                setNewBase({ ...newBase, rerankModel })
-              }}
-              allowClear
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('knowledge.document_count')}
-              <Tooltip title={t('knowledge.document_count_help')}>
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <Slider
-              style={{ width: '100%' }}
-              min={1}
-              max={30}
-              step={1}
-              defaultValue={DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-              marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
-              onChange={(value) => setNewBase({ ...newBase, documentCount: value })}
-            />
-          </SettingsItem>
-
-          {/* dimensions */}
-          <SettingsItem>
-            <div
-              className="settings-label"
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <span>
-                {t('knowledge.dimensions_auto_set')}
-                <Tooltip title={t('knowledge.dimensions_default')} placement="right">
-                  <InfoCircleOutlined style={{ marginLeft: 8 }} />
-                </Tooltip>
-              </span>
-              <Switch
-                checked={autoDims}
-                onChange={(checked) => {
-                  setAutoDims(checked)
-                  if (checked) {
-                    setDimensions(undefined)
-                  }
-                }}
-              />
-            </div>
-          </SettingsItem>
-
-          {!autoDims && (
-            <SettingsItem>
-              <div className="settings-label">
-                {t('knowledge.dimensions')}
-                <Tooltip title={t('knowledge.dimensions_size_tooltip')} placement="right">
-                  <InfoCircleOutlined style={{ marginLeft: 8 }} />
-                </Tooltip>
-              </div>
-              <InputNumber
-                min={1}
-                style={{ width: '100%' }}
-                placeholder={t('knowledge.dimensions_size_placeholder')}
-                value={newBase.dimensions}
-                onChange={(value) => {
-                  setDimensions(value === null ? undefined : value)
-                }}
-              />
-            </SettingsItem>
-          )}
-        </SettingsPanel>
-      )
-    }
-    if (selectedMenu === 'advanced') {
-      return (
-        <SettingsPanel>
-          <SettingsItem>
-            <div className="settings-label">
-              {t('knowledge.chunk_size')}
-              <Tooltip title={t('knowledge.chunk_size_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <InputNumber
-              style={{ width: '100%' }}
-              min={100}
-              value={newBase.chunkSize}
-              placeholder={t('knowledge.chunk_size_placeholder')}
-              onChange={(value) => {
-                const maxContext = getEmbeddingMaxContext(newBase.model.id)
-                if (!value || !maxContext || value <= maxContext) {
-                  setNewBase({ ...newBase, chunkSize: value || undefined })
-                }
-              }}
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('knowledge.chunk_overlap')}
-              <Tooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              value={newBase.chunkOverlap}
-              placeholder={t('knowledge.chunk_overlap_placeholder')}
-              onChange={async (value) => {
-                if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
-                  setNewBase({ ...newBase, chunkOverlap: value || undefined })
-                } else {
-                  await window.message.error(t('message.error.chunk_overlap_too_large'))
-                }
-              }}
-            />
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">
-              {t('knowledge.threshold')}
-              <Tooltip title={t('knowledge.threshold_tooltip')} placement="right">
-                <InfoCircleOutlined style={{ marginLeft: 8 }} />
-              </Tooltip>
-            </div>
-            <InputNumber
-              style={{ width: '100%' }}
-              step={0.1}
-              min={0}
-              max={1}
-              value={newBase.threshold}
-              placeholder={t('knowledge.threshold_placeholder')}
-              onChange={(value) => setNewBase({ ...newBase, threshold: value || undefined })}
-            />
-          </SettingsItem>
-
-          <Alert
-            message={t('knowledge.chunk_size_change_warning')}
-            type="warning"
-            showIcon
-            icon={<WarningOutlined />}
-          />
-        </SettingsPanel>
-      )
-    }
-    return null
-  }
+  }, [showAdvanced])
 
   return (
     <SettingsModal
@@ -443,10 +211,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterOpenChange={(visible) => visible && nameInputRef.current?.focus()}
       destroyOnClose
       centered
+      transitionName="animation-move-down"
       okButtonProps={{ loading }}
-      width="min(800px, 70vw)"
+      width="min(600px, 60vw)"
       styles={{
-        body: { padding: 0, height: '65vh' },
+        body: { padding: 0 },
         header: {
           padding: '10px 15px',
           borderBottom: '0.5px solid var(--color-border)',
@@ -455,19 +224,252 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         },
         content: {
           padding: 0,
+          paddingBottom: 10,
           overflow: 'hidden'
         }
       }}>
       <HStack>
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={['general']}
-            mode="vertical"
-            items={menuItems}
-            onSelect={({ key }) => setSelectedMenu(key)}
-          />
-        </LeftMenu>
-        <SettingsContentPanel>{renderSettings()}</SettingsContentPanel>
+        <SettingsContentPanel ref={scrollContainerRef}>
+          <SettingsPanel>
+            <SettingsItem>
+              <div className="settings-label">{t('common.name')}</div>
+              <Input
+                ref={nameInputRef}
+                placeholder={t('common.name')}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setNewBase({ ...newBase, name: e.target.value })
+                  }
+                }}
+              />
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">
+                {t('settings.tool.preprocess.title')} / {t('settings.tool.ocr.title')}
+                <Tooltip title={t('settings.tool.preprocessOrOcr.tooltip')} placement="right">
+                  <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                </Tooltip>
+              </div>
+              <Select
+                value={selectedProvider?.id}
+                style={{ width: '100%' }}
+                onChange={(value: string) => {
+                  const type = preprocessProviders.find((p) => p.id === value) ? 'preprocess' : 'ocr'
+                  const provider = (type === 'preprocess' ? preprocessProviders : ocrProviders).find(
+                    (p) => p.id === value
+                  )
+                  if (!provider) {
+                    setSelectedProvider(undefined)
+                    setNewBase({
+                      ...newBase,
+                      preprocessOrOcrProvider: undefined
+                    })
+                    return
+                  }
+                  setSelectedProvider(provider)
+                  setNewBase({
+                    ...newBase,
+                    preprocessOrOcrProvider: {
+                      type: type,
+                      provider: provider
+                    }
+                  })
+                }}
+                placeholder={t('settings.tool.preprocess.provider_placeholder')}
+                options={preprocessOrOcrSelectOptions}
+                allowClear
+              />
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">
+                {t('models.embedding_model')}
+                <Tooltip title={t('models.embedding_model_tooltip')} placement="right">
+                  <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                </Tooltip>
+              </div>
+              <Select
+                style={{ width: '100%' }}
+                options={embeddingSelectOptions}
+                placeholder={t('settings.models.empty')}
+                onChange={(value) => {
+                  const model = value
+                    ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === value)
+                    : undefined
+                  if (!model) return
+                  setNewBase({ ...newBase, model })
+                }}
+              />
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">
+                {t('models.rerank_model')}
+                <Tooltip title={t('models.rerank_model_tooltip')} placement="right">
+                  <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                </Tooltip>
+              </div>
+              <Select
+                style={{ width: '100%' }}
+                options={rerankSelectOptions}
+                placeholder={t('settings.models.empty')}
+                onChange={(value) => {
+                  const rerankModel = value
+                    ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === value)
+                    : undefined
+                  setNewBase({ ...newBase, rerankModel })
+                }}
+                allowClear
+              />
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">
+                {t('knowledge.document_count')}
+                <Tooltip title={t('knowledge.document_count_help')}>
+                  <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                </Tooltip>
+              </div>
+              <Slider
+                min={1}
+                max={30}
+                step={1}
+                defaultValue={DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
+                marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
+                onChange={(value) => setNewBase({ ...newBase, documentCount: value })}
+              />
+            </SettingsItem>
+
+            {/* dimensions */}
+            <SettingsItem style={{ marginTop: 35 }}>
+              <div
+                className="settings-label"
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <span>
+                  {t('knowledge.dimensions_auto_set')}
+                  <Tooltip title={t('knowledge.dimensions_default')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                </span>
+                <Switch
+                  checked={autoDims}
+                  onChange={(checked) => {
+                    setAutoDims(checked)
+                    if (checked) {
+                      setDimensions(undefined)
+                    }
+                  }}
+                />
+              </div>
+            </SettingsItem>
+
+            {!autoDims && (
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.dimensions')}
+                  <Tooltip title={t('knowledge.dimensions_size_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  min={1}
+                  style={{ width: '100%' }}
+                  placeholder={t('knowledge.dimensions_size_placeholder')}
+                  value={newBase.dimensions}
+                  onChange={(value) => {
+                    setDimensions(value === null ? undefined : value)
+                  }}
+                />
+              </SettingsItem>
+            )}
+          </SettingsPanel>
+
+          <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
+            <ChevronDown
+              size={18}
+              style={{
+                transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s',
+                marginRight: 8,
+                stroke: 'var(--color-primary)'
+              }}
+            />
+            {t('common.advanced_settings')}
+          </AdvancedSettingsButton>
+
+          {showAdvanced && (
+            <SettingsPanel>
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.chunk_size')}
+                  <Tooltip title={t('knowledge.chunk_size_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={100}
+                  value={newBase.chunkSize}
+                  placeholder={t('knowledge.chunk_size_placeholder')}
+                  onChange={(value) => {
+                    const maxContext = getEmbeddingMaxContext(newBase.model.id)
+                    if (!value || !maxContext || value <= maxContext) {
+                      setNewBase({ ...newBase, chunkSize: value || undefined })
+                    }
+                  }}
+                />
+              </SettingsItem>
+
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.chunk_overlap')}
+                  <Tooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={0}
+                  value={newBase.chunkOverlap}
+                  placeholder={t('knowledge.chunk_overlap_placeholder')}
+                  onChange={async (value) => {
+                    if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
+                      setNewBase({ ...newBase, chunkOverlap: value || undefined })
+                    } else {
+                      await window.message.error(t('message.error.chunk_overlap_too_large'))
+                    }
+                  }}
+                />
+              </SettingsItem>
+
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.threshold')}
+                  <Tooltip title={t('knowledge.threshold_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  step={0.1}
+                  min={0}
+                  max={1}
+                  value={newBase.threshold}
+                  placeholder={t('knowledge.threshold_placeholder')}
+                  onChange={(value) => setNewBase({ ...newBase, threshold: value || undefined })}
+                />
+              </SettingsItem>
+
+              <Alert
+                message={t('knowledge.chunk_size_change_warning')}
+                type="warning"
+                showIcon
+                icon={<WarningOutlined />}
+              />
+            </SettingsPanel>
+          )}
+        </SettingsContentPanel>
       </HStack>
     </SettingsModal>
   )
@@ -521,27 +523,22 @@ const SettingsModal = styled(Modal)`
   }
 `
 
-const LeftMenu = styled.div`
-  height: 65vh;
-  border-right: 0.5px solid var(--color-border);
-`
-
 const SettingsContentPanel = styled.div`
   flex: 1;
   padding: 16px 16px;
-  height: calc(65vh - 16px);
-  overflow-y: scroll;
+  max-height: calc(80vh - 80px);
+  overflow-y: auto;
 `
 
-const StyledMenu = styled(Menu)`
-  width: 220px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  border-inline-end: none !important;
-  .ant-menu-item {
-    margin-bottom: 7px;
-  }
+const AdvancedSettingsButton = styled.div`
+  cursor: pointer;
+  margin-bottom: 16px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  margin: 0 16px;
+  padding: 16px 0;
+  border-top: 0.5px solid var(--color-border);
 `
 
 export default class AddKnowledgePopup {
