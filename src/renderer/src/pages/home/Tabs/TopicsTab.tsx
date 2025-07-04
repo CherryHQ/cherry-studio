@@ -309,6 +309,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.copy.plain_text'),
             key: 'plain_text',
             onClick: () => copyTopicAsPlainText(topic)
+          },
+          {
+            label: t('chat.topics.copy.new_topic'),
+            key: 'new_topic',
+            onClick: () => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_TO_NEW, topic)
           }
         ]
       },

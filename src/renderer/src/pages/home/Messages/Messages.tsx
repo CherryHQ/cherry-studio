@@ -21,7 +21,8 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import {
   reorderMessagesThunk,
   saveMessageAndBlocksToDB,
-  updateMessageAndBlocksThunk
+  updateMessageAndBlocksThunk,
+  cloneMessagesToNewTopicThunk
 } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
@@ -231,6 +232,25 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           autoRenameTopic(assistant, newTopic.id)
         } else {
           console.error(`[NEW_BRANCH_RANGE] Failed to create topic branch for topic ${newTopic.id}`)
+          window.message.error(t('message.branch.error'))
+        }
+      }),
+      EventEmitter.on(EVENT_NAMES.COPY_TOPIC_TO_NEW, async () => {
+        const newTopic = getDefaultTopic(assistant.id)
+        newTopic.name = topic.name
+        const currentMessages = messagesRef.current
+
+        addTopic(newTopic)
+
+        const success = await dispatch(
+          cloneMessagesToNewTopicThunk(topic.id, 0, currentMessages.length, newTopic)
+        )
+
+        if (success) {
+          setActiveTopic(newTopic)
+          autoRenameTopic(assistant, newTopic.id)
+        } else {
+          console.error(`[COPY_TOPIC_TO_NEW] Failed to copy topic ${newTopic.id}`)
           window.message.error(t('message.branch.error'))
         }
       }),

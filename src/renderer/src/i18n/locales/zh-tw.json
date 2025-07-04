@@ -262,6 +262,7 @@
       "topics.copy.image": "複製為圖片",
       "topics.copy.md": "複製為 Markdown",
       "topics.copy.plain_text": "複製為純文字（移除 Markdown）",
+      "topics.copy.new_topic": "複製為新話題",
       "topics.copy.title": "複製",
       "topics.delete.shortcut": "按住 {{key}} 可直接刪除",
       "topics.edit.placeholder": "輸入新名稱",
