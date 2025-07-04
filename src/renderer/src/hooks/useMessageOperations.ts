@@ -266,7 +266,17 @@ export function useMessageOperations(topic: Topic) {
   const createTopicBranch = useCallback(
     (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
       Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
-      return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
+      return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, 0, branchPointIndex, newTopic))
+    },
+    [dispatch]
+  )
+
+  const createTopicBranchRange = useCallback(
+    (sourceTopicId: string, startIndex: number, endIndex: number, newTopic: Topic) => {
+      Logger.log(
+        `Cloning messages from topic ${sourceTopicId} range ${startIndex}-${endIndex} to new topic ${newTopic.id}`
+      )
+      return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, startIndex, endIndex, newTopic))
     },
     [dispatch]
   )
@@ -440,6 +450,7 @@ export function useMessageOperations(topic: Topic) {
     resumeMessage,
     getTranslationUpdater,
     createTopicBranch,
+    createTopicBranchRange,
     editMessageBlocks,
     removeMessageBlock
   }
