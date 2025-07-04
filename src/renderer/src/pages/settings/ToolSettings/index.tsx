@@ -2,7 +2,9 @@ import { GlobalOutlined } from '@ant-design/icons'
 import OcrIcon from '@renderer/components/Icons/OcrIcon'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
-import { FileCode } from 'lucide-react'
+import QuickAssistantSettings from '@renderer/pages/settings/QuickAssistantSettings'
+import SelectionAssistantSettings from '@renderer/pages/settings/SelectionAssistantSettings/SelectionAssistantSettings'
+import { FileCode, Rocket, TextCursorInput } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -16,6 +18,8 @@ const ToolSettings: FC = () => {
   const [menu, setMenu] = useState<string>('web-search')
   const menuItems = [
     { key: 'web-search', title: 'settings.tool.websearch.title', icon: <GlobalOutlined style={{ fontSize: 16 }} /> },
+    { key: 'quick-assistant', title: 'settings.quickAssistant.title', icon: <Rocket size={16} /> },
+    { key: 'selection-assistant', title: 'selection.name', icon: <TextCursorInput size={16} /> },
     { key: 'preprocess', title: 'settings.tool.preprocess.title', icon: <FileCode size={16} /> },
     { key: 'ocr', title: 'settings.tool.ocr.title', icon: <OcrIcon /> }
   ]
@@ -34,6 +38,8 @@ const ToolSettings: FC = () => {
         ))}
       </MenuList>
       {menu == 'web-search' && <WebSearchSettings />}
+      {menu == 'quick-assistant' && <QuickAssistantSettings />}
+      {menu == 'selection-assistant' && <SelectionAssistantSettings />}
       {menu == 'preprocess' && <PreprocessSettings />}
       {menu == 'ocr' && <OcrSettings />}
     </Container>
