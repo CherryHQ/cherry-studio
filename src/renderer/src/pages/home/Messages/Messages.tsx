@@ -70,7 +70,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
-  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
+  const {
+    displayCount,
+    clearTopicMessages,
+    deleteMessage,
+    createTopicBranch,
+    createTopicBranchRange
+  } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
@@ -204,6 +210,28 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           // removeTopic(newTopic.id); // Assuming you have a removeTopic function
           console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
           window.message.error(t('message.branch.error')) // Example error message
+        }
+      }),
+      EventEmitter.on(EVENT_NAMES.NEW_BRANCH_RANGE, async ([start, end]: [number, number]) => {
+        const newTopic = getDefaultTopic(assistant.id)
+        newTopic.name = topic.name
+        const currentMessages = messagesRef.current
+
+        if (start < 0 || end > currentMessages.length || start >= end) {
+          console.error(`[NEW_BRANCH_RANGE] Invalid range: ${start}-${end}`)
+          return
+        }
+
+        addTopic(newTopic)
+
+        const success = await createTopicBranchRange(topic.id, currentMessages.length - end, currentMessages.length - start, newTopic)
+
+        if (success) {
+          setActiveTopic(newTopic)
+          autoRenameTopic(assistant, newTopic.id)
+        } else {
+          console.error(`[NEW_BRANCH_RANGE] Failed to create topic branch for topic ${newTopic.id}`)
+          window.message.error(t('message.branch.error'))
         }
       }),
       EventEmitter.on(

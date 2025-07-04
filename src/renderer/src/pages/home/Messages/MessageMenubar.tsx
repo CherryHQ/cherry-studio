@@ -139,6 +139,16 @@ const MessageMenubar: FC<Props> = (props) => {
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
   }, [index, t, loading])
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const onNewBranchRange = useCallback(
+    async (start: number, end: number) => {
+      if (loading) return
+      EventEmitter.emit(EVENT_NAMES.NEW_BRANCH_RANGE, [start, end])
+      window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
+    },
+    [loading, t]
+  )
+
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
       if (!loading) {
