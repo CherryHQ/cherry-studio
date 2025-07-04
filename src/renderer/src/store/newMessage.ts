@@ -194,6 +194,13 @@ const messagesSlice = createSlice({
       }
       messagesAdapter.removeMany(state, messageIds)
     },
+    reorderMessages(
+      state,
+      action: PayloadAction<{ topicId: string; messageIds: string[] }>
+    ) {
+      const { topicId, messageIds } = action.payload
+      state.messageIdsByTopic[topicId] = messageIds
+    },
     upsertBlockReference(state, action: PayloadAction<UpsertBlockReferencePayload>) {
       const { messageId, blockId, status } = action.payload
 

@@ -1,6 +1,7 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
+import DragableList from '@renderer/components/DragableList'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -17,7 +18,11 @@ import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import {
+  reorderMessagesThunk,
+  saveMessageAndBlocksToDB,
+  updateMessageAndBlocksThunk
+} from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
 import {
@@ -61,6 +66,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
@@ -274,7 +280,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
+  const groupedMessages = useMemo(
+    () => Object.entries(getGroupedMessages(displayMessages)),
+    [displayMessages]
+  )
+  const groupedList = useMemo(
+    () => groupedMessages.map(([key, msgs]) => ({ id: key, messages: msgs })),
+    [groupedMessages]
+  )
+
+  const handleReorder = useCallback(
+    (list: { id: string; messages: (Message & { index: number })[] }[]) => {
+      const orderedIds = list.flatMap((g) => g.messages.map((m) => m.id))
+      dispatch(reorderMessagesThunk(topic.id, orderedIds.slice().reverse()))
+    },
+    [dispatch, topic.id]
+  )
 
   return (
     <MessagesContainer
@@ -294,14 +315,21 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           style={{ overflow: 'visible' }}>
           <ContextMenu>
             <ScrollContainer>
-              {groupedMessages.map(([key, groupMessages]) => (
-                <MessageGroup
-                  key={key}
-                  messages={groupMessages}
-                  topic={topic}
-                  registerMessageElement={registerMessageElement}
-                />
-              ))}
+              <DragableList
+                list={groupedList}
+                onUpdate={handleReorder}
+                onDragStart={() => setIsDragging(true)}
+                onDragEnd={() => setIsDragging(false)}
+                style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+                {(item: { id: string; messages: (Message & { index: number })[] }) => (
+                  <MessageGroup
+                    key={item.id}
+                    messages={item.messages}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                  />
+                )}
+              </DragableList>
               {isLoadingMore && (
                 <LoaderContainer>
                   <SvgSpinners180Ring color="var(--color-text-2)" />
