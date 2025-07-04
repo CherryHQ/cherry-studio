@@ -266,6 +266,25 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
+export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
+  Logger.log(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
+
+  if (toolResponse.tool.name === 'think') {
+    const thought = toolResponse.arguments?.thought
+    return {
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: (thought as string) || ''
+        }
+      ]
+    }
+  }
+
+  return undefined
+}
+
 export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
   Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
@@ -550,7 +569,10 @@ export async function parseAndCallTools<R>(
 
   const toolPromises = curToolResponses.map(async (toolResponse) => {
     const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
+    // 根据工具类型选择不同的调用方式
+    const toolCallResponse = toolResponse.tool.isBuiltIn
+      ? await callBuiltInTool(toolResponse)
+      : await callMCPTool(toolResponse)
     upsertMCPToolResponse(
       allToolResponses,
       {
@@ -560,6 +582,9 @@ export async function parseAndCallTools<R>(
       },
       onChunk!
     )
+    if (!toolCallResponse) {
+      return undefined
+    }
 
     for (const content of toolCallResponse.content) {
       if (content.type === 'image' && content.data) {

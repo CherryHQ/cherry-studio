@@ -627,6 +627,7 @@ export interface MCPTool {
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
 }
 
 export interface MCPPromptArguments {

@@ -1,4 +1,5 @@
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import {
   isEmbeddingModel,
@@ -34,6 +35,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { buildSystemPromptWithThinkTool, buildSystemPromptWithTools } from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -256,7 +258,7 @@ async function fetchExternalTool(
     }
 
     // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = [] // Initialize as empty array
+    let mcpTools: MCPTool[] = []
     const allMcpServers = store.getState().mcp.servers || []
     const activedMcpServers = allMcpServers.filter((s) => s.isActive)
     const assistantMcpServers = assistant.mcpServers || []
@@ -279,6 +281,19 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
+        // 添加内置工具
+        const { BUILT_IN_TOOLS } = await import('../tools')
+        mcpTools.push(...BUILT_IN_TOOLS)
+
+        // 根据toolUseMode决定如何构建系统提示词
+        const basePrompt = assistant.prompt
+        if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
+          // 提示词模式：需要完整的工具定义和思考指令
+          assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
+        } else {
+          // 原生函数调用模式：仅需要注入思考指令
+          assistant.prompt = buildSystemPromptWithThinkTool(basePrompt)
+        }
       } catch (toolError) {
         console.error('Error fetching MCP tools:', toolError)
       }

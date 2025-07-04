@@ -42,6 +42,7 @@ import {
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { getTopicQueue } from '@renderer/utils/queue'
 import { waitForTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
@@ -865,6 +866,8 @@ const fetchAndProcessAssistantResponseImpl = async (
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       }
     }
+
+    assistant.prompt = await buildSystemPrompt(assistant.prompt || '', assistant)
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
