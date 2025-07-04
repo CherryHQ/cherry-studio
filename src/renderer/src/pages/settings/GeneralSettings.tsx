@@ -159,7 +159,9 @@ const GeneralSettings: FC = () => {
       onOk() {
         setDisableHardwareAcceleration(checked)
         // 重启应用
-        window.api.relaunchApp()
+        setTimeout(() => {
+          window.api.relaunchApp()
+        }, 500)
       }
     })
   }
