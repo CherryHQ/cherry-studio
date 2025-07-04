@@ -1,12 +1,14 @@
 import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { debounce } from 'lodash'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
 interface CodePreviewProps {
@@ -15,294 +17,257 @@ interface CodePreviewProps {
   setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
+const MAX_COLLAPSE_HEIGHT = 350
+
 /**
  * Shiki 流式代码高亮组件
- *
- * - 通过 shiki tokenizer 处理流式响应
- * - 为了正确执行语法高亮，必须保证流式响应都依次到达 tokenizer，不能跳过
+ * - 通过 shiki tokenizer 处理流式响应，高性能
+ * - 使用虚拟滚动和按需高亮，改善页面内有大量长代码块时的响应
+ * - 并发安全
  */
 const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
-  const { activeShikiTheme, highlightCodeChunk, cleanupTokenizers } = useCodeStyle()
-  const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
-  const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
-  const [tokenLines, setTokenLines] = useState<ThemedToken[][]>([])
-  const codeContentRef = useRef<HTMLDivElement>(null)
-  const prevCodeLengthRef = useRef(0)
-  const safeCodeStringRef = useRef(children)
-  const highlightQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const { getShikiPreProperties, isShikiThemeDark } = useCodeStyle()
+  const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
+  const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
+  const shikiThemeRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
-  const shikiThemeRef = useRef(activeShikiTheme)
+
+  const rawLines = useMemo(() => (typeof children === 'string' ? children.trimEnd().split('\n') : []), [children])
 
   const { t } = useTranslation()
-
   const { registerTool, removeTool } = useCodeTool(setTools)
 
   // 展开/折叠工具
   useEffect(() => {
     registerTool({
       ...TOOL_SPECS.expand,
-      icon: isExpanded ? <ChevronsDownUp className="icon" /> : <ChevronsUpDown className="icon" />,
-      tooltip: isExpanded ? t('code_block.collapse') : t('code_block.expand'),
+      icon: expandOverride ? <ChevronsDownUp className="icon" /> : <ChevronsUpDown className="icon" />,
+      tooltip: expandOverride ? t('code_block.collapse') : t('code_block.expand'),
       visible: () => {
-        const scrollHeight = codeContentRef.current?.scrollHeight
-        return codeCollapsible && (scrollHeight ?? 0) > 350
+        const scrollHeight = scrollerRef.current?.scrollHeight
+        return codeCollapsible && (scrollHeight ?? 0) > MAX_COLLAPSE_HEIGHT
       },
-      onClick: () => setIsExpanded((prev) => !prev)
+      onClick: () => setExpandOverride((prev) => !prev)
     })
 
     return () => removeTool(TOOL_SPECS.expand.id)
-  }, [codeCollapsible, isExpanded, registerTool, removeTool, t])
+  }, [codeCollapsible, expandOverride, registerTool, removeTool, t])
 
   // 自动换行工具
   useEffect(() => {
     registerTool({
       ...TOOL_SPECS.wrap,
-      icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
-      tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
+      icon: unwrapOverride ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
+      tooltip: unwrapOverride ? t('code_block.wrap.on') : t('code_block.wrap.off'),
       visible: () => codeWrappable,
-      onClick: () => setIsUnwrapped((prev) => !prev)
+      onClick: () => setUnwrapOverride((prev) => !prev)
     })
 
     return () => removeTool(TOOL_SPECS.wrap.id)
-  }, [codeWrappable, isUnwrapped, registerTool, removeTool, t])
+  }, [codeWrappable, unwrapOverride, registerTool, removeTool, t])
 
-  // 更新展开状态
+  // 重置用户操作（可以考虑移除，保持用户操作结果）
   useEffect(() => {
-    setIsExpanded(!codeCollapsible)
+    setExpandOverride(!codeCollapsible)
   }, [codeCollapsible])
 
-  // 更新换行状态
+  // 重置用户操作（可以考虑移除，保持用户操作结果）
   useEffect(() => {
-    setIsUnwrapped(!codeWrappable)
+    setUnwrapOverride(!codeWrappable)
   }, [codeWrappable])
 
-  // 处理尾部空白字符
-  const safeCodeString = useMemo(() => {
-    return typeof children === 'string' ? children.trimEnd() : ''
-  }, [children])
+  const shouldCollapse = useMemo(() => codeCollapsible && !expandOverride, [codeCollapsible, expandOverride])
+  const shouldWrap = useMemo(() => codeWrappable && !unwrapOverride, [codeWrappable, unwrapOverride])
 
-  const highlightCode = useCallback(async () => {
-    if (!safeCodeString) return
+  // 计算行号数字位数
+  const gutterDigits = useMemo(
+    () => (codeShowLineNumbers ? Math.max(rawLines.length.toString().length, 1) : 0),
+    [codeShowLineNumbers, rawLines.length]
+  )
 
-    if (prevCodeLengthRef.current === safeCodeString.length) return
+  // 设置 pre 标签属性
+  useLayoutEffect(() => {
+    getShikiPreProperties(language).then((properties) => {
+      const shikiTheme = shikiThemeRef.current
+      if (shikiTheme) {
+        shikiTheme.className = `${properties.class || 'shiki'}`
+        // 滚动条适应 shiki 主题变化而非应用主题
+        shikiTheme.classList.add(isShikiThemeDark ? 'shiki-dark' : 'shiki-light')
 
-    // 捕获当前状态
-    const startPos = prevCodeLengthRef.current
-    const endPos = safeCodeString.length
-
-    // 添加到处理队列，确保按顺序处理
-    highlightQueueRef.current = highlightQueueRef.current.then(async () => {
-      // FIXME: 长度有问题，或者破坏了流式内容，需要清理 tokenizer 并使用完整代码重新高亮
-      if (prevCodeLengthRef.current > safeCodeString.length || !safeCodeString.startsWith(safeCodeStringRef.current)) {
-        cleanupTokenizers(callerId)
-        prevCodeLengthRef.current = 0
-        safeCodeStringRef.current = ''
-
-        const result = await highlightCodeChunk(safeCodeString, language, callerId)
-        setTokenLines(result.lines)
-
-        prevCodeLengthRef.current = safeCodeString.length
-        safeCodeStringRef.current = safeCodeString
-
-        return
-      }
-
-      // 跳过 race condition，延迟到后续任务
-      if (prevCodeLengthRef.current !== startPos) {
-        return
-      }
-
-      const incrementalCode = safeCodeString.slice(startPos, endPos)
-      const result = await highlightCodeChunk(incrementalCode, language, callerId)
-      setTokenLines((lines) => [...lines.slice(0, Math.max(0, lines.length - result.recall)), ...result.lines])
-      prevCodeLengthRef.current = endPos
-      safeCodeStringRef.current = safeCodeString
-    })
-  }, [callerId, cleanupTokenizers, highlightCodeChunk, language, safeCodeString])
-
-  // 主题变化时强制重新高亮
-  useEffect(() => {
-    if (shikiThemeRef.current !== activeShikiTheme) {
-      prevCodeLengthRef.current++
-      shikiThemeRef.current = activeShikiTheme
-    }
-  }, [activeShikiTheme])
-
-  // 组件卸载时清理资源
-  useEffect(() => {
-    return () => cleanupTokenizers(callerId)
-  }, [callerId, cleanupTokenizers])
-
-  // 触发代码高亮
-  // - 进入视口后触发第一次高亮
-  // - 内容变化后触发之后的高亮
-  useEffect(() => {
-    let isMounted = true
-
-    if (prevCodeLengthRef.current > 0) {
-      setTimeout(highlightCode, 0)
-      return
-    }
-
-    const codeElement = codeContentRef.current
-    if (!codeElement) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].intersectionRatio > 0 && isMounted) {
-          setTimeout(highlightCode, 0)
-          observer.disconnect()
+        if (properties.style) {
+          shikiTheme.style.cssText += `${properties.style}`
         }
-      },
-      {
-        rootMargin: '50px 0px 50px 0px'
+        shikiTheme.tabIndex = properties.tabindex
       }
-    )
+    })
+  }, [language, getShikiPreProperties, isShikiThemeDark])
 
-    observer.observe(codeElement)
+  // Virtualizer 配置
+  const getScrollElement = useCallback(() => scrollerRef.current, [])
+  const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
+  const estimateSize = useCallback(() => (fontSize - 1) * 1.6, [fontSize]) // 同步全局样式
 
-    return () => {
-      isMounted = false
-      observer.disconnect()
+  // 创建 virtualizer 实例
+  const virtualizer = useVirtualizer({
+    count: rawLines.length,
+    getScrollElement,
+    getItemKey,
+    estimateSize,
+    overscan: 20
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // 使用代码高亮 Hook
+  const { tokenLines, highlightLines } = useCodeHighlight({
+    rawLines,
+    language,
+    callerId
+  })
+
+  // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
+  const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
+
+  // 渐进式高亮
+  useEffect(() => {
+    if (virtualItems.length > 0 && shikiThemeRef.current) {
+      const lastIndex = virtualItems[virtualItems.length - 1].index
+      debouncedHighlightLines(lastIndex + 1)
     }
-  }, [highlightCode])
-
-  const hasHighlightedCode = useMemo(() => {
-    return tokenLines.length > 0
-  }, [tokenLines.length])
+  }, [virtualItems, debouncedHighlightLines])
 
   return (
-    <ContentContainer
-      ref={codeContentRef}
-      $lineNumbers={codeShowLineNumbers}
-      $wrap={codeWrappable && !isUnwrapped}
-      $fadeIn={hasHighlightedCode}
-      style={{
-        fontSize: fontSize - 1,
-        maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
-      }}>
-      {hasHighlightedCode ? (
-        <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
-      ) : (
-        <CodePlaceholder>{children}</CodePlaceholder>
-      )}
-    </ContentContainer>
+    <div ref={shikiThemeRef}>
+      <ScrollContainer
+        ref={scrollerRef}
+        className="shiki-scroller"
+        $wrap={shouldWrap}
+        style={
+          {
+            '--gutter-width': `${gutterDigits}ch`,
+            fontSize: `${fontSize - 1}px`,
+            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined
+          } as React.CSSProperties
+        }>
+        <div
+          className="shiki-list"
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative'
+          }}>
+          <div
+            style={{
+              /*
+               * FIXME: @tanstack/react-virtual 使用绝对定位，但是会导致
+               * 有气泡样式 `self-end` 并且气泡中只有代码块时整个代码块收缩
+               * 到最小宽度（目前应该是工具栏的宽度）。改为相对定位可以保证宽
+               * 度足够，目前没有发现其他副作用。
+               * 如果发现破坏虚拟列表功能，或者将来有更好的解决方案，再调整。
+               */
+              position: 'relative',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
+              willChange: 'transform'
+            }}>
+            {virtualizer.getVirtualItems().map((virtualItem) => (
+              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
+                <VirtualizedRow
+                  rawLine={rawLines[virtualItem.index]}
+                  tokenLine={tokenLines[virtualItem.index]}
+                  showLineNumbers={codeShowLineNumbers}
+                  index={virtualItem.index}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </ScrollContainer>
+    </div>
   )
 }
 
+CodePreview.displayName = 'CodePreview'
+
+interface VirtualizedRowData {
+  rawLine: string
+  tokenLine?: any[]
+  showLineNumbers: boolean
+}
+
 /**
- * 渲染 Shiki 高亮后的 tokens
- *
- * 独立出来，方便将来做 virtual list
+ * 单行代码渲染
  */
-const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[][] }> = memo(
-  ({ language, tokenLines }) => {
-    const { getShikiPreProperties } = useCodeStyle()
-    const rendererRef = useRef<HTMLPreElement>(null)
-
-    // 设置 pre 标签属性
-    useEffect(() => {
-      getShikiPreProperties(language).then((properties) => {
-        const pre = rendererRef.current
-        if (pre) {
-          pre.className = properties.class
-          pre.style.cssText = properties.style
-          pre.tabIndex = properties.tabindex
-        }
-      })
-    }, [language, getShikiPreProperties])
-
+const VirtualizedRow = memo(
+  ({ rawLine, tokenLine, showLineNumbers, index }: VirtualizedRowData & { index: number }) => {
     return (
-      <pre className="shiki" ref={rendererRef}>
-        <code>
-          {tokenLines.map((lineTokens, lineIndex) => (
-            <span key={`line-${lineIndex}`} className="line">
-              {lineTokens.map((token, tokenIndex) => (
-                <span key={`token-${tokenIndex}`} style={getReactStyleFromToken(token)}>
-                  {token.content}
-                </span>
-              ))}
-            </span>
-          ))}
-        </code>
-      </pre>
+      <div className="line">
+        {showLineNumbers && <span className="line-number">{index + 1}</span>}
+        <span className="line-content">
+          {tokenLine ? (
+            // 渲染高亮后的内容
+            tokenLine.map((token, tokenIndex) => (
+              <span key={tokenIndex} style={getReactStyleFromToken(token)}>
+                {token.content}
+              </span>
+            ))
+          ) : (
+            // 渲染原始内容
+            <span className="line-content-raw">{rawLine || ' '}</span>
+          )}
+        </span>
+      </div>
     )
   }
 )
 
-const ContentContainer = styled.div<{
-  $lineNumbers: boolean
-  $wrap: boolean
-  $fadeIn: boolean
+VirtualizedRow.displayName = 'VirtualizedRow'
+
+const ScrollContainer = styled.div<{
+  $wrap?: boolean
 }>`
-  position: relative;
-  overflow: auto;
-  border: 0.5px solid transparent;
-  border-radius: 5px;
-  margin-top: 0;
-
-  .shiki {
-    padding: 1em;
-
-    code {
-      display: flex;
-      flex-direction: column;
-
-      .line {
-        display: block;
-        min-height: 1.3rem;
-        padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
-
-        * {
-          overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
-          white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
-        }
-      }
-    }
-  }
-
-  ${(props) =>
-    props.$lineNumbers &&
-    `
-      code {
-        counter-reset: step;
-        counter-increment: step 0;
-        position: relative;
-      }
-
-      code .line::before {
-        content: counter(step);
-        counter-increment: step;
-        width: 1rem;
-        position: absolute;
-        left: 0;
-        text-align: right;
-        opacity: 0.35;
-      }
-    `}
-
-  @keyframes contentFadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
-`
-
-const CodePlaceholder = styled.div`
   display: block;
-  opacity: 0.1;
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow-x: hidden;
-  min-height: 1.3rem;
-`
+  overflow: auto;
+  position: relative;
+  border-radius: inherit;
+  height: auto;
+  padding: 0.5em 1em;
 
-CodePreview.displayName = 'CodePreview'
+  .line {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+
+    .line-number {
+      width: var(--gutter-width, 1.2ch);
+      text-align: right;
+      opacity: 0.35;
+      margin-right: 1rem;
+      user-select: none;
+      flex-shrink: 0;
+      overflow: hidden;
+      line-height: inherit;
+      font-family: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .line-content {
+      flex: 1;
+      line-height: inherit;
+      * {
+        white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
+        overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
+      }
+    }
+
+    .line-content-raw {
+      opacity: 0.35;
+    }
+  }
+`
 
 export default memo(CodePreview)

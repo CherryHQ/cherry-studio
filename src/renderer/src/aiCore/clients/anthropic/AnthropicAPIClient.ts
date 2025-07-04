@@ -52,7 +52,7 @@ import {
   TextDeltaChunk,
   ThinkingDeltaChunk
 } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message } from '@renderer/types/newMessage'
 import {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,
@@ -66,7 +66,7 @@ import {
   mcpToolCallResponseToAnthropicMessage,
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -94,7 +94,8 @@ export class AnthropicAPIClient extends BaseApiClient<
       baseURL: this.getBaseURL(),
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19'
+        'anthropic-beta': 'output-128k-2025-02-19',
+        ...this.provider.extra_headers
       }
     })
     return this.sdkInstance
@@ -191,7 +192,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: getMainTextContent(message)
+        text: await this.getMessageContent(message)
       }
     ]
 
@@ -492,7 +493,8 @@ export class AnthropicAPIClient extends BaseApiClient<
           system: systemMessage ? [systemMessage] : undefined,
           thinking: this.getBudgetToken(assistant, model),
           tools: tools.length > 0 ? tools : undefined,
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const finalParams: MessageCreateParams = streamOutput

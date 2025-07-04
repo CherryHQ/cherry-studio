@@ -10,7 +10,11 @@ const NarrowLayout: FC<Props> = ({ children, ...props }) => {
   const { narrowMode } = useSettings()
 
   if (narrowMode) {
-    return <Container {...props}>{children}</Container>
+    return (
+      <Container className="narrow-mode" {...props}>
+        {children}
+      </Container>
+    )
   }
 
   return children

@@ -86,7 +86,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           const groupKey = block.map((imageBlock) => imageBlock.id).join('-')
           return (
             <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-              <ImageBlockGroup>
+              <ImageBlockGroup count={block.length}>
                 {block.map((imageBlock) => (
                   <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
                 ))}
@@ -162,19 +162,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
 export default React.memo(MessageBlockRenderer)
 
-const ImageBlockGroup = styled.div`
+const ImageBlockGroup = styled.div<{ count: number }>`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(${({ count }) => Math.min(count, 3)}, minmax(200px, 1fr));
   gap: 8px;
   max-width: 960px;
-  /* > * {
-    min-width: 200px;
-  } */
-  @media (min-width: 1536px) {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    max-width: 1280px;
-    > * {
-      min-width: 250px;
-    }
-  }
 `

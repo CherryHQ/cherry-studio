@@ -47,7 +47,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 }
 
 <div
-  data-color="var(--color-background-mute)"
+  data-color="var(--color-background)"
   data-placement="top"
   data-styles="{"body":{"border":"1px solid var(--color-border)","padding":"12px","borderRadius":"8px"}}"
   data-testid="tooltip-wrapper"

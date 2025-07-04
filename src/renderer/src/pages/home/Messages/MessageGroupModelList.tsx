@@ -6,8 +6,10 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
+import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
+import { motion } from 'motion/react'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -26,50 +28,62 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   const { foldDisplayMode } = useSettings()
   const isCompact = foldDisplayMode === 'compact'
 
+  const isMessageProcessing = useCallback((message: Message) => {
+    return [
+      AssistantMessageStatus.PENDING,
+      AssistantMessageStatus.PROCESSING,
+      AssistantMessageStatus.SEARCHING
+    ].includes(message.status as AssistantMessageStatus)
+  }, [])
+
   const renderLabel = useCallback(
     (message: Message) => {
       const modelTip = message.model?.name
+      const isProcessing = isMessageProcessing(message)
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5}>
+          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
               onClick={() => {
                 setSelectedMessage(message)
               }}>
-              <ModelAvatar model={message.model as Model} size={22} />
+              <motion.span variants={lightbulbSoftVariants} animate={isProcessing ? 'active' : 'idle'} initial="idle">
+                <ModelAvatar model={message.model as Model} size={22} />
+              </motion.span>
             </AvatarWrapper>
           </Tooltip>
         )
       }
       return (
         <SegmentedLabel>
-          <ModelAvatar model={message.model as Model} size={20} />
+          <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={message.model as Model} size={20} />
           <ModelName>{message.model?.name}</ModelName>
         </SegmentedLabel>
       )
     },
-    [isCompact, selectMessageId, setSelectedMessage]
+    [isCompact, isMessageProcessing, selectMessageId, setSelectedMessage]
   )
 
   return (
     <Container>
-      <DisplayModeToggle
-        displayMode={foldDisplayMode}
-        onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
-        <Tooltip
-          title={
-            isCompact
-              ? t(`message.message.multi_model_style.fold.expand`)
-              : t('message.message.multi_model_style.fold.compress')
-          }
-          placement="top">
+      <Tooltip
+        title={
+          isCompact
+            ? t(`message.message.multi_model_style.fold.expand`)
+            : t('message.message.multi_model_style.fold.compress')
+        }
+        placement="top"
+        mouseEnterDelay={0.5}
+        mouseLeaveDelay={0}>
+        <DisplayModeToggle
+          displayMode={foldDisplayMode}
+          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
           {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
-        </Tooltip>
-      </DisplayModeToggle>
-
+        </DisplayModeToggle>
+      </Tooltip>
       <ModelsContainer $displayMode={foldDisplayMode}>
         {isCompact ? (
           /* Compact style display */

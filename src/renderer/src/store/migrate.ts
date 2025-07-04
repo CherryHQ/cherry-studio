@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
@@ -7,6 +7,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1189,7 +1190,6 @@ const migrateConfig = {
       console.error(error)
       return state
     }
-
     return state
   },
   '87': (state: RootState) => {
@@ -1542,7 +1542,7 @@ const migrateConfig = {
         state.paintings.tokenFluxPaintings = []
       }
       state.settings.showTokens = true
-      state.settings.earlyAccess = false
+      state.settings.testPlan = false
       return state
     } catch (error) {
       return state
@@ -1603,6 +1603,124 @@ const migrateConfig = {
           state.settings.exportMenuOptions.plain_text = true
         }
       }
+      if (state.settings) {
+        state.settings.enableSpellCheck = false
+        state.settings.spellCheckLanguages = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '115': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (!assistant.settings) {
+          assistant.settings = {
+            temperature: DEFAULT_TEMPERATURE,
+            contextCount: DEFAULT_CONTEXTCOUNT,
+            topP: 1,
+            toolUseMode: 'prompt',
+            customParameters: [],
+            streamOutput: true,
+            enableMaxTokens: false
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '116': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        // migrate contentLimit to cutoffLimit
+        // @ts-ignore eslint-disable-next-line
+        if (state.websearch.contentLimit) {
+          state.websearch.compressionConfig = {
+            method: 'cutoff',
+            cutoffUnit: 'char',
+            // @ts-ignore eslint-disable-next-line
+            cutoffLimit: state.websearch.contentLimit
+          }
+        } else {
+          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+        }
+
+        // @ts-ignore eslint-disable-next-line
+        delete state.websearch.contentLimit
+      }
+      if (state.settings) {
+        state.settings.testChannel = UpgradeChannel.LATEST
+      }
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '117': (state: RootState) => {
+    try {
+      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      const modelsToRemove = [
+        'qwen/qwen-2.5-72b-instruct',
+        'qwen/qwen2.5-32b-instruct',
+        'meta-llama/llama-3.1-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+        '01-ai/yi-1.5-34b-chat',
+        '01-ai/yi-1.5-9b-chat',
+        'thudm/glm-z1-32b-0414',
+        'thudm/glm-z1-9b-0414'
+      ]
+      if (ppioProvider) {
+        updateProvider(state, 'ppio', {
+          models: [
+            ...ppioProvider.models.filter((model) => !modelsToRemove.includes(model.id)),
+            ...SYSTEM_MODELS.ppio.filter(
+              (systemModel) => !ppioProvider.models.some((existingModel) => existingModel.id === systemModel.id)
+            )
+          ],
+          apiHost: 'https://api.ppinfra.com/v3/openai/'
+        })
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+          assistant.settings = {
+            ...assistant.settings,
+            streamOutput: true
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '118': (state: RootState) => {
+    try {
+      addProvider(state, 'ph8')
+      state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
+
+      if (!state.settings.userId) {
+        state.settings.userId = uuid()
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'mistral') {
+          provider.type = 'mistral'
+        }
+      })
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '119': (state: RootState) => {
+    try {
+      addProvider(state, 'new-api')
+      state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
       return state
     } catch (error) {
       return state

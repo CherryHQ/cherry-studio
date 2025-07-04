@@ -3,6 +3,8 @@ import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
+export * from './file'
+import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
 export type Assistant = {
@@ -81,7 +83,7 @@ export type LegacyMessage = {
   status: 'sending' | 'pending' | 'searching' | 'success' | 'paused' | 'error'
   modelId?: string
   model?: Model
-  files?: FileType[]
+  files?: FileMetadata[]
   images?: string[]
   usage?: Usage
   metrics?: Metrics
@@ -161,6 +163,7 @@ export type Provider = {
   isNotSupportArrayContent?: boolean
   isVertex?: boolean
   notes?: string
+  extra_headers?: Record<string, string>
 }
 
 export type ProviderType =
@@ -171,8 +174,11 @@ export type ProviderType =
   | 'qwenlm'
   | 'azure-openai'
   | 'vertexai'
+  | 'mistral'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
+
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -189,6 +195,8 @@ export type Model = {
   description?: string
   type?: ModelType[]
   pricing?: ModelPricing
+  endpoint_type?: EndpointType
+  supported_endpoint_types?: EndpointType[]
 }
 
 export type Suggestion = {
@@ -198,7 +206,7 @@ export type Suggestion = {
 export type PaintingParams = {
   id: string
   urls: string[]
-  files: FileType[]
+  files: FileMetadata[]
 }
 
 export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
@@ -236,7 +244,7 @@ export interface GeneratePainting extends PaintingParams {
 
 export interface EditPainting extends PaintingParams {
   imageFile: string
-  mask: FileType
+  mask: FileMetadata
   model: string
   prompt: string
   numImages?: number
@@ -324,28 +332,6 @@ export type MinAppType = {
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
-export interface FileType {
-  id: string
-  name: string
-  origin_name: string
-  path: string
-  size: number
-  ext: string
-  type: FileTypes
-  created_at: string
-  count: number
-  tokens?: number
-}
-
-export enum FileTypes {
-  IMAGE = 'image',
-  VIDEO = 'video',
-  AUDIO = 'audio',
-  TEXT = 'text',
-  DOCUMENT = 'document',
-  OTHER = 'other'
-}
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -387,6 +373,7 @@ export type AppInfo = {
   logsPath: string
   arch: string
   isPortable: boolean
+  installPath: string
 }
 
 export interface Shortcut {
@@ -407,7 +394,7 @@ export type KnowledgeItem = {
   uniqueId?: string
   uniqueIds?: string[]
   type: KnowledgeItemType
-  content: string | FileType
+  content: string | FileMetadata
   remark?: string
   created_at: number
   updated_at: number
@@ -415,13 +402,14 @@ export type KnowledgeItem = {
   processingProgress?: number
   processingError?: string
   retryCount?: number
+  isPreprocessed?: boolean
 }
 
 export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -433,6 +421,11 @@ export interface KnowledgeBase {
   threshold?: number
   rerankModel?: Model
   // topN?: number
+  // preprocessing?: boolean
+  preprocessOrOcrProvider?: {
+    type: 'preprocess' | 'ocr'
+    provider: PreprocessProvider | OcrProvider
+  }
 }
 
 export type KnowledgeBaseParams = {
@@ -450,6 +443,31 @@ export type KnowledgeBaseParams = {
   rerankModel?: string
   rerankModelProvider?: string
   documentCount?: number
+  // preprocessing?: boolean
+  preprocessOrOcrProvider?: {
+    type: 'preprocess' | 'ocr'
+    provider: PreprocessProvider | OcrProvider
+  }
+}
+
+export interface PreprocessProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+  options?: any
+  quota?: number
+}
+
+export interface OcrProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+  options?: any
+  quota?: number
 }
 
 export type GenerateImageParams = {
@@ -498,7 +516,6 @@ export type WebSearchProvider = {
   url?: string
   basicAuthUsername?: string
   basicAuthPassword?: string
-  contentLimit?: number
   usingBrowser?: boolean
 }
 
@@ -540,12 +557,20 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+
+export type WebSearchStatus = {
+  phase: WebSearchPhase
+  countBefore?: number
+  countAfter?: number
+}
+
 export type KnowledgeReference = {
   id: number
   content: string
   sourceUrl: string
   type: KnowledgeItemType
-  file?: FileType
+  file?: FileMetadata
 }
 
 export type MCPArgType = 'string' | 'list' | 'number'

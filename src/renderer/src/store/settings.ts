@@ -11,6 +11,8 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { uuid } from '@renderer/utils'
+import { UpgradeChannel } from '@shared/config/constant'
 
 import { WebDAVSyncState } from './backup'
 
@@ -46,6 +48,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  userId: string
   showPrompt: boolean
   showTokens: boolean
   showMessageDivider: boolean
@@ -67,7 +70,8 @@ export interface SettingsState {
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
-  earlyAccess: boolean
+  testPlan: boolean
+  testChannel: UpgradeChannel
   renderInputMessageAsMarkdown: boolean
   // 代码执行
   codeExecution: {
@@ -155,6 +159,8 @@ export interface SettingsState {
   minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
+  enableSpellCheck: boolean
+  spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
   exportMenuOptions: {
@@ -178,7 +184,7 @@ export interface SettingsState {
   notification: {
     assistant: boolean
     backup: boolean
-    knowledgeEmbed: boolean
+    knowledge: boolean
   }
   // Local backup settings
   localBackupDir: string
@@ -201,6 +207,7 @@ export const initialState: SettingsState = {
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  userId: uuid(),
   showPrompt: true,
   showTokens: true,
   showMessageDivider: true,
@@ -224,7 +231,8 @@ export const initialState: SettingsState = {
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
-  earlyAccess: false,
+  testPlan: false,
+  testChannel: UpgradeChannel.LATEST,
   renderInputMessageAsMarkdown: false,
   codeExecution: {
     enabled: false,
@@ -304,6 +312,8 @@ export const initialState: SettingsState = {
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
   enableDataCollection: false,
+  enableSpellCheck: false,
+  spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
   exportMenuOptions: {
@@ -326,7 +336,7 @@ export const initialState: SettingsState = {
   notification: {
     assistant: false,
     backup: false,
-    knowledgeEmbed: false
+    knowledge: false
   },
   // Local backup settings
   localBackupDir: '',
@@ -434,8 +444,11 @@ const settingsSlice = createSlice({
     setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
       state.autoCheckUpdate = action.payload
     },
-    setEarlyAccess: (state, action: PayloadAction<boolean>) => {
-      state.earlyAccess = action.payload
+    setTestPlan: (state, action: PayloadAction<boolean>) => {
+      state.testPlan = action.payload
+    },
+    setTestChannel: (state, action: PayloadAction<UpgradeChannel>) => {
+      state.testChannel = action.payload
     },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
@@ -669,6 +682,12 @@ const settingsSlice = createSlice({
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
+    setEnableSpellCheck: (state, action: PayloadAction<boolean>) => {
+      state.enableSpellCheck = action.payload
+    },
+    setSpellCheckLanguages: (state, action: PayloadAction<string[]>) => {
+      state.spellCheckLanguages = action.payload
+    },
     setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
       state.exportMenuOptions = action.payload
     },
@@ -742,7 +761,8 @@ export const {
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
-  setEarlyAccess,
+  setTestPlan,
+  setTestChannel,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
   setSkipBackupFile,
@@ -804,8 +824,10 @@ export const {
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
   setEnableDataCollection,
-  setEnableQuickPanelTriggers,
+  setEnableSpellCheck,
+  setSpellCheckLanguages,
   setExportMenuOptions,
+  setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,

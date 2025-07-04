@@ -113,6 +113,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     if (!reasoningEffort) {
+      if (model.provider === 'openrouter') {
+        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+          return {}
+        }
+        return { reasoning: { enabled: false, exclude: true } }
+      }
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { enable_thinking: false }
       }
@@ -122,12 +128,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
-        // openrouter没有提供一个不推理的选项，先隐藏
-        if (this.provider.id === 'openrouter') {
-          return { reasoning: { max_tokens: 0, exclude: true } }
-        }
         if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-          return { reasoning_effort: 'none' }
+          return {
+            extra_body: {
+              google: {
+                thinking_config: {
+                  thinking_budget: 0
+                }
+              }
+            }
+          }
         }
         return {}
       }
@@ -170,9 +180,34 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
       return {
         reasoning_effort: reasoningEffort
+      }
+    }
+
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      if (reasoningEffort === 'auto') {
+        return {
+          extra_body: {
+            google: {
+              thinking_config: {
+                thinking_budget: -1,
+                include_thoughts: true
+              }
+            }
+          }
+        }
+      }
+      return {
+        extra_body: {
+          google: {
+            thinking_config: {
+              thinking_budget: budgetTokens,
+              include_thoughts: true
+            }
+          }
+        }
       }
     }
 
@@ -472,7 +507,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
@@ -640,9 +676,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
           if (!choice) return
 
-          // 对于流式响应，使用delta；对于非流式响应，使用message
-          const contentSource: OpenAISdkRawContentSource | null =
-            'delta' in choice ? choice.delta : 'message' in choice ? choice.message : null
+          // 对于流式响应，使用 delta；对于非流式响应，使用 message。
+          // 然而某些 OpenAI 兼容平台在非流式请求时会错误地返回一个空对象的 delta 字段。
+          // 如果 delta 为空对象，应当忽略它并回退到 message，避免造成内容缺失。
+          let contentSource: OpenAISdkRawContentSource | null = null
+          if ('delta' in choice && choice.delta && Object.keys(choice.delta).length > 0) {
+            contentSource = choice.delta
+          } else if ('message' in choice) {
+            contentSource = choice.message
+          }
 
           if (!contentSource) return
 

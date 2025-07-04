@@ -4,11 +4,14 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
-import { Button, Divider, Empty } from 'antd'
+import { Button, Divider, Empty, Segmented } from 'antd'
 import dayjs from 'dayjs'
 import { groupBy, isEmpty, orderBy } from 'lodash'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+type SortType = 'createdAt' | 'updatedAt'
 
 type Props = {
   keywords: string
@@ -20,15 +23,16 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   const { assistants } = useAssistants()
   const { t } = useTranslation()
   const { handleScroll, containerRef } = useScrollPosition('TopicsHistory')
+  const [sortType, setSortType] = useState<SortType>('createdAt')
 
-  const topics = orderBy(assistants.map((assistant) => assistant.topics).flat(), 'createdAt', 'desc')
+  const topics = orderBy(assistants.map((assistant) => assistant.topics).flat(), sortType, 'desc')
 
   const filteredTopics = topics.filter((topic) => {
     return topic.name.toLowerCase().includes(keywords.toLowerCase())
   })
 
   const groupedTopics = groupBy(filteredTopics, (topic) => {
-    return dayjs(topic.createdAt).format('MM/DD')
+    return dayjs(topic[sortType]).format('MM/DD')
   })
 
   if (isEmpty(filteredTopics)) {
@@ -46,6 +50,16 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
 
   return (
     <ListContainer {...props} ref={containerRef} onScroll={handleScroll}>
+      <Segmented
+        shape="round"
+        size="small"
+        value={sortType}
+        onChange={setSortType}
+        options={[
+          { label: t('export.created'), value: 'createdAt' },
+          { label: t('export.last_updated'), value: 'updatedAt' }
+        ]}
+      />
       <ContainerWrapper>
         {Object.entries(groupedTopics).map(([date, items]) => (
           <ListItem key={date}>
@@ -59,7 +73,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
                   onClick(_topic)
                 }}>
                 <TopicName>{topic.name.substring(0, 50)}</TopicName>
-                <TopicDate>{dayjs(topic.updatedAt).format('HH:mm')}</TopicDate>
+                <TopicDate>{dayjs(topic[sortType]).format('HH:mm')}</TopicDate>
               </TopicItem>
             ))}
           </ListItem>
@@ -78,7 +92,8 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
 }
 
 const ContainerWrapper = styled.div`
-  width: 800px;
+  width: 100%;
+  padding: 0 16px;
   display: flex;
   flex-direction: column;
 `
@@ -90,7 +105,7 @@ const ListContainer = styled.div`
   overflow-y: scroll;
   width: 100%;
   align-items: center;
-  padding-top: 20px;
+  padding-top: 10px;
   padding-bottom: 20px;
 `
 

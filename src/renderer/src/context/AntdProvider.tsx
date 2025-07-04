@@ -38,7 +38,20 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             boxShadowSecondary: 'none',
             defaultShadow: 'none',
             dangerShadow: 'none',
-            primaryShadow: 'none'
+            primaryShadow: 'none',
+            controlHeight: 30,
+            paddingInline: 10
+          },
+          Input: {
+            controlHeight: 30,
+            colorBorder: 'var(--color-border)'
+          },
+          InputNumber: {
+            colorBorder: 'var(--color-border)'
+          },
+          Select: {
+            controlHeight: 30,
+            colorBorder: 'var(--color-border)'
           },
           Collapse: {
             headerBg: 'transparent'
@@ -50,13 +63,48 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             fontFamily: 'var(--code-font-family)'
           },
           Segmented: {
-            itemActiveBg: 'var(--color-background-mute)',
-            itemHoverBg: 'var(--color-background-mute)'
+            itemActiveBg: 'var(--color-background-soft)',
+            itemHoverBg: 'var(--color-background-soft)',
+            trackBg: 'rgba(153,153,153,0.15)'
+          },
+          Switch: {
+            colorTextQuaternary: 'rgba(153,153,153,0.20)',
+            trackMinWidth: 40,
+            handleSize: 19,
+            trackMinWidthSM: 28,
+            trackHeightSM: 17,
+            handleSizeSM: 14,
+            trackPadding: 1.5
+          },
+          Dropdown: {
+            controlPaddingHorizontal: 8,
+            borderRadiusLG: 10,
+            borderRadiusSM: 8,
+            paddingXS: 4
+          },
+          Popover: {
+            borderRadiusLG: 10
+          },
+          Slider: {
+            handleLineWidth: 1.5,
+            handleSize: 15,
+            handleSizeHover: 15,
+            dotSize: 7,
+            railSize: 5,
+            colorBgElevated: '#ffffff'
+          },
+          Modal: {
+            colorBgElevated: 'var(--modal-background)'
+          },
+          Divider: {
+            colorSplit: 'rgba(128,128,128,0.15)'
           }
         },
         token: {
           colorPrimary: colorPrimary,
-          fontFamily: 'var(--font-family)'
+          fontFamily: 'var(--font-family)',
+          colorBgMask: _theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',
+          motionDurationMid: '100ms'
         }
       }}>
       {children}

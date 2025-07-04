@@ -21,6 +21,8 @@ import {
 import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
 
+import { EndpointType } from './index'
+
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
 export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
 export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
@@ -36,7 +38,7 @@ export type SdkToolCall =
   | FunctionCall
   | OpenAIResponseSdkToolCall
 export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool | OpenAIResponseSdkTool
-export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
+export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel | NewApiModel
 
 export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions
 
@@ -48,11 +50,12 @@ type OpenAIParamsWithoutReasoningEffort = Omit<OpenAI.Chat.Completions.ChatCompl
 
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
-  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string } | OpenAI.Reasoning
+  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
   enable_thinking?: boolean
   thinking_budget?: number
   enable_reasoning?: boolean
+  extra_body?: Record<string, any>
   // Add any other potential reasoning-related keys here if they exist
 }
 
@@ -104,4 +107,11 @@ export type GeminiOptions = {
   streamOutput: boolean
   signal?: AbortSignal
   timeout?: number
+}
+
+/**
+ * New API
+ */
+export interface NewApiModel extends OpenAI.Models.Model {
+  supported_endpoint_types?: EndpointType[]
 }

@@ -255,6 +255,10 @@ function buildParamsWithToolResults(
   // 从回复中构建助手消息
   const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, toolCalls)
 
+  if (output && ctx._internal.toolProcessingState) {
+    ctx._internal.toolProcessingState.output = undefined
+  }
+
   // 估算新增消息的 token 消耗并累加到 usage 中
   if (ctx._internal.observer?.usage && newReqMessages.length > currentReqMessages.length) {
     try {

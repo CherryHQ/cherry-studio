@@ -5,22 +5,74 @@ html {
 }
 
 :root {
-  --color-selection-toolbar-background: rgba(20, 20, 20, 0.95);
-  --color-selection-toolbar-border: rgba(55, 55, 55, 0.5);
-  --color-selection-toolbar-shadow: rgba(50, 50, 50, 0.3);
-
-  --color-selection-toolbar-text: rgba(255, 255, 245, 0.9);
-  --color-selection-toolbar-hover-bg: #222222;
-
+  // Basic Colors
   --color-primary: #00b96b;
   --color-error: #f44336;
+
+  --selection-toolbar-color-primary: var(--color-primary);
+  --selection-toolbar-color-error: var(--color-error);
+
+  // Toolbar
+  --selection-toolbar-height: 36px; // default: 36px   max: 42px
+  --selection-toolbar-font-size: 14px; // default: 14px
+
+  --selection-toolbar-logo-display: flex; // values: flex | none
+  --selection-toolbar-logo-size: 22px; // default: 22px
+  --selection-toolbar-logo-border-width: 0.5px 0 0.5px 0.5px; // default: none
+  --selection-toolbar-logo-border-style: solid; // default: none
+  --selection-toolbar-logo-border-color: rgba(255, 255, 255, 0.2);
+  --selection-toolbar-logo-margin: 0; // default: 0
+  --selection-toolbar-logo-padding: 0 6px 0 8px; // default: 0 4px 0 8px
+  --selection-toolbar-logo-background: transparent; // default: transparent
+
+  // DO NOT MODIFY THESE VALUES, IF YOU DON'T KNOW WHAT YOU ARE DOING
+  --selection-toolbar-padding: 0; // default: 0
+  --selection-toolbar-margin: 2px 3px 5px 3px; // default: 2px 3px 5px 3px
+  // ------------------------------------------------------------
+
+  --selection-toolbar-border-radius: 10px;
+  --selection-toolbar-border: none;
+  --selection-toolbar-box-shadow: 0px 2px 3px rgba(50, 50, 50, 0.3);
+  --selection-toolbar-background: rgba(20, 20, 20, 0.95);
+
+  // Buttons
+  --selection-toolbar-buttons-border-width: 0.5px 0.5px 0.5px 0;
+  --selection-toolbar-buttons-border-style: solid;
+  --selection-toolbar-buttons-border-color: rgba(255, 255, 255, 0.2);
+  --selection-toolbar-buttons-border-radius: 0 var(--selection-toolbar-border-radius)
+    var(--selection-toolbar-border-radius) 0;
+
+  --selection-toolbar-button-icon-size: 16px; // default: 16px
+  --selection-toolbar-button-direction: row; // default: row | column
+  --selection-toolbar-button-text-margin: 0 0 0 0; // default: 0 0 0 0
+  --selection-toolbar-button-margin: 0; // default: 0
+  --selection-toolbar-button-padding: 0 8px; // default: 0 8px
+  --selection-toolbar-button-last-padding: 0 12px 0 8px;
+  --selection-toolbar-button-border-radius: 0; // default: 0
+  --selection-toolbar-button-border: none; // default: none
+  --selection-toolbar-button-box-shadow: none; // default: none
+
+  --selection-toolbar-button-text-color: rgba(255, 255, 245, 0.9);
+  --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
+  --selection-toolbar-button-text-color-hover: var(--selection-toolbar-color-primary);
+  --selection-toolbar-button-icon-color-hover: var(--selection-toolbar-color-primary);
+  --selection-toolbar-button-bgcolor: transparent; // default: transparent
+  --selection-toolbar-button-bgcolor-hover: #333333;
 }
 
 [theme-mode='light'] {
-  --color-selection-toolbar-background: rgba(245, 245, 245, 0.95);
-  --color-selection-toolbar-border: rgba(200, 200, 200, 0.5);
-  --color-selection-toolbar-shadow: rgba(50, 50, 50, 0.3);
+  --selection-toolbar-border: none;
+  --selection-toolbar-box-shadow: 0px 2px 3px rgba(50, 50, 50, 0.1);
+  --selection-toolbar-background: rgba(245, 245, 245, 0.95);
 
-  --color-selection-toolbar-text: rgba(0, 0, 0, 1);
-  --color-selection-toolbar-hover-bg: rgba(0, 0, 0, 0.04);
+  // Buttons
+  --selection-toolbar-buttons-border-color: rgba(0, 0, 0, 0.08);
+
+  --selection-toolbar-logo-border-color: rgba(0, 0, 0, 0.08);
+
+  --selection-toolbar-button-text-color: rgba(0, 0, 0, 1);
+  --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
+  --selection-toolbar-button-text-color-hover: var(--selection-toolbar-color-primary);
+  --selection-toolbar-button-icon-color-hover: var(--selection-toolbar-color-primary);
+  --selection-toolbar-button-bgcolor-hover: rgba(0, 0, 0, 0.04);
 }

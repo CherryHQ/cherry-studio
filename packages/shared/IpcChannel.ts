@@ -3,6 +3,8 @@ export enum IpcChannel {
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
+  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
+  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
   App_Reload = 'app:reload',
@@ -13,7 +15,8 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetFeedUrl = 'app:set-feed-url',
+  App_SetTestPlan = 'app:set-test-plan',
+  App_SetTestChannel = 'app:set-test-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
@@ -29,12 +32,16 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
+  App_MacRequestProcessTrust = 'app:mac-request-process-trust',
+
   App_QuoteToMain = 'app:quote-to-main',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
+  Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
 
   // Open
   Open_Path = 'open:path',
@@ -66,6 +73,9 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+
+  // Python
+  Python_Execute = 'python:execute',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -108,6 +118,7 @@ export enum IpcChannel {
   KnowledgeBase_Remove = 'knowledge-base:remove',
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
+  KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
 
   //file
   File_Open = 'file:open',
@@ -118,9 +129,10 @@ export enum IpcChannel {
   File_Clear = 'file:clear',
   File_Read = 'file:read',
   File_Delete = 'file:delete',
+  File_DeleteDir = 'file:deleteDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
-  File_Create = 'file:create',
+  File_CreateTempFile = 'file:createTempFile',
   File_Write = 'file:write',
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
@@ -132,6 +144,12 @@ export enum IpcChannel {
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+
+  // file service
+  FileService_Upload = 'file-service:upload',
+  FileService_List = 'file-service:list',
+  FileService_Delete = 'file-service:delete',
+  FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
 
