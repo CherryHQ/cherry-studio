@@ -262,6 +262,7 @@
       "topics.copy.image": "Copy as image",
       "topics.copy.md": "Copy as markdown",
       "topics.copy.plain_text": "Copy as plain text (remove Markdown)",
+      "topics.copy.new_topic": "Copy as new topic",
       "topics.copy.title": "Copy",
       "topics.delete.shortcut": "Hold {{key}} to delete directly",
       "topics.edit.placeholder": "Enter new name",
