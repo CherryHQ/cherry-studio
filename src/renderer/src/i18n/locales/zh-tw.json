@@ -303,6 +303,7 @@
       "topics.export.obsidian_root_directory": "根目錄",
       "topics.export.title": "匯出",
       "topics.export.word": "匯出為 Word",
+      "topics.export.pdf": "匯出為 PDF",
       "topics.export.yuque": "匯出到語雀",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
@@ -1168,6 +1169,7 @@
           "siyuan": "匯出到思源筆記",
           "joplin": "匯出到 Joplin",
           "docx": "匯出為 Word",
+          "pdf": "匯出為 PDF",
           "plain_text": "複製為純文本"
         },
         "joplin": {

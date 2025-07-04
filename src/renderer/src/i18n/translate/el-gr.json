@@ -228,6 +228,7 @@
       "topics.export.obsidian_title_required": "Ο τίτλος δεν μπορεί να είναι κενός",
       "topics.export.title": "Εξαγωγή",
       "topics.export.word": "Εξαγωγή ως Word",
+      "topics.export.pdf": "Εξαγωγή ως PDF",
       "topics.export.yuque": "Εξαγωγή στο Yuque",
       "topics.list": "Λίστα θεμάτων",
       "topics.move_to": "Μετακίνηση στο",
@@ -1073,7 +1074,8 @@
           "obsidian": "Εξαγωγή στο Obsidian",
           "siyuan": "Εξαγωγή στο Ση-Υάν",
           "joplin": "Εξαγωγή στο Joplin",
-          "docx": "Εξαγωγή σε Word"
+          "docx": "Εξαγωγή σε Word",
+          "pdf": "Εξαγωγή σε PDF"
         },
         "siyuan": {
           "check": {

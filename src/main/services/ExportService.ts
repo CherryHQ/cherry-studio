@@ -17,7 +17,7 @@ import {
   VerticalAlign,
   WidthType
 } from 'docx'
-import { dialog } from 'electron'
+import { BrowserWindow, dialog } from 'electron'
 import Logger from 'electron-log'
 import MarkdownIt from 'markdown-it'
 
@@ -403,6 +403,35 @@ export class ExportService {
       }
     } catch (error) {
       Logger.error('[ExportService] Export to Word failed:', error)
+      throw error
+    }
+  }
+
+  public exportToPDF = async (_: Electron.IpcMainInvokeEvent, data: string, fileName: string): Promise<void> => {
+    try {
+      const win = new BrowserWindow({ show: false, webPreferences: { offscreen: true } })
+      let html = ''
+      if (data.trim().startsWith('data:image')) {
+        html = `<img style="width:100%" src="${data}" />`
+      } else {
+        html = this.md.render(data)
+      }
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      const buffer = await win.webContents.printToPDF({})
+      win.destroy()
+
+      const filePath = dialog.showSaveDialogSync({
+        title: '保存文件',
+        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+        defaultPath: fileName
+      })
+
+      if (filePath) {
+        await this.fileManager.writeFile(_, filePath, buffer)
+        Logger.info('[ExportService] PDF exported successfully')
+      }
+    } catch (error) {
+      Logger.error('[ExportService] Export to PDF failed:', error)
       throw error
     }
   }

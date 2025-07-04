@@ -92,7 +92,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
 3. **Document & Data Processing**:
 
-- 📄 Support for Text, Images, Office, PDF, and more
+- 📄 Support for Text, Images, Office formats and PDF, with export options for Word and PDF
 - ☁️ WebDAV File Management and Backup
 - 📊 Mermaid Chart Visualization
 - 💻 Code Syntax Highlighting

@@ -303,6 +303,7 @@
       "topics.export.obsidian_root_directory": "ルートディレクトリ",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
+      "topics.export.pdf": "PDFとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
@@ -1166,6 +1167,7 @@
           "siyuan": "思源ノートにエクスポート",
           "joplin": "Joplinにエクスポート",
           "docx": "Wordとしてエクスポート",
+          "pdf": "PDFとしてエクスポート",
           "plain_text": "プレーンテキストとしてコピー"
         },
         "joplin": {
