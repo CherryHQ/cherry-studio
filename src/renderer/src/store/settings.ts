@@ -345,8 +345,8 @@ export const initialState: SettingsState = {
   // Local backup settings
   localBackupDir: '',
   localBackupAutoSync: false,
-  localBackupSyncInterval: 60,
-  localBackupMaxBackups: 5,
+  localBackupSyncInterval: 0,
+  localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
   defaultPaintingProvider: 'aihubmix'
 }
