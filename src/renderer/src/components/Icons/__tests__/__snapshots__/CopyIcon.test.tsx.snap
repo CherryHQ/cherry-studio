@@ -2,6 +2,6 @@
 
 exports[`CopyIcon > should match snapshot 1`] = `
 <i
-  class="iconfont icon-copy"
+  class="iconfont icon-copy undefined"
 />
 `;
