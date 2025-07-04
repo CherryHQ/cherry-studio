@@ -10,8 +10,6 @@ permissions:
 jobs:
   dispatch-docs-update:
     runs-on: ubuntu-latest
-    # 只有当 Release 被标记为“最新版本”时才运行此 Job
-    if: github.event.release.make_latest
 
     steps:
       - name: Debug Release Event Context # 新增的调试步骤
