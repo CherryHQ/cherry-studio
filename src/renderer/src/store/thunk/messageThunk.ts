@@ -1509,13 +1509,15 @@ export const appendAssistantResponseThunk =
  * Updates the DB and Redux message/block state for the new topic.
  * Assumes the newTopic object already exists in Redux topic state and DB.
  * @param sourceTopicId The ID of the topic to branch from.
- * @param branchPointIndex The index *after* which messages should NOT be copied (slice endpoint).
+ * @param startIndex The starting index (inclusive) of messages to clone.
+ * @param endIndex The ending index (exclusive) of messages to clone.
  * @param newTopic The newly created Topic object (created and added to Redux/DB by the caller).
  */
 export const cloneMessagesToNewTopicThunk =
   (
     sourceTopicId: string,
-    branchPointIndex: number,
+    startIndex: number,
+    endIndex: number,
     newTopic: Topic // Receive newTopic object
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<boolean> => {
@@ -1533,9 +1535,11 @@ export const cloneMessagesToNewTopicThunk =
       }
 
       // 1. Slice messages to clone
-      const messagesToClone = sourceMessages.slice(0, branchPointIndex)
+      const messagesToClone = sourceMessages.slice(startIndex, endIndex)
       if (messagesToClone.length === 0) {
-        console.warn(`[cloneMessagesToNewTopicThunk] No messages to branch (index ${branchPointIndex}).`)
+        console.warn(
+          `[cloneMessagesToNewTopicThunk] No messages to branch (range ${startIndex}-${endIndex}).`
+        )
         return true // Nothing to clone, operation considered successful but did nothing.
       }
 
