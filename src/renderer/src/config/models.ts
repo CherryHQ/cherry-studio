@@ -524,6 +524,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina AI'
     }
   ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    }
+  ],
   aihubmix: [
     {
       id: 'o3',
@@ -844,18 +858,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ppio',
       name: 'Qwen3 Reranker 8B',
       group: 'qwen'
-    },
-    {
-      id: 'thudm/glm-z1-32b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 32B',
-      group: 'thudm'
-    },
-    {
-      id: 'thudm/glm-z1-9b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 9B',
-      group: 'thudm'
     }
   ],
   alayanew: [],
@@ -2233,7 +2235,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

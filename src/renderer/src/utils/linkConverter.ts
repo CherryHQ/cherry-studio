@@ -1,3 +1,5 @@
+import { WebSearchResponse, WebSearchSource } from '@renderer/types'
+
 // Counter for numbering links
 let linkCounter = 1
 // Buffer to hold incomplete link fragments across chunks
@@ -126,9 +128,12 @@ export function convertLinksToHunyuan(text: string, webSearch: any[], resetCount
  *
  * @param {string} text The current chunk of text to process
  * @param {boolean} resetCounter Whether to reset the counter and buffer
- * @returns {string} Processed text with complete links converted
+ * @returns {{text: string, hasBufferedContent: boolean}} Processed text and whether content was buffered
  */
-export function convertLinks(text: string, resetCounter: boolean = false): string {
+export function convertLinks(
+  text: string,
+  resetCounter: boolean = false
+): { text: string; hasBufferedContent: boolean } {
   if (resetCounter) {
     linkCounter = 1
     buffer = ''
@@ -158,18 +163,31 @@ export function convertLinks(text: string, resetCounter: boolean = false): strin
     } else if (buffer[i] === '[') {
       // Check if this could be the start of a regular link
       const substring = buffer.substring(i)
-      const match = /^\[([^\]]+)\]\(([^)]+)\)/.exec(substring)
 
-      if (!match) {
+      // 检查是否是真正的不完整链接：[text]( 但没有完整的 url)
+      const incompleteLink = /^\[([^\]]+)\]\s*\([^)]*$/.test(substring)
+      if (incompleteLink) {
         safePoint = i
         break
       }
+
+      // 检查是否是完整的链接但需要验证
+      const completeLink = /^\[([^\]]+)\]\(([^)]+)\)/.test(substring)
+      if (completeLink) {
+        // 如果是完整链接，继续处理，不设置safePoint
+        continue
+      }
+
+      // 如果不是潜在的链接格式，继续检查
     }
   }
 
   // Extract the part of the buffer that we can safely process
   const safeBuffer = buffer.substring(0, safePoint)
   buffer = buffer.substring(safePoint)
+
+  // 检查是否有内容被保留在buffer中
+  const hasBufferedContent = buffer.length > 0
 
   // Process the safe buffer to handle complete links
   let result = ''
@@ -220,11 +238,13 @@ export function convertLinks(text: string, resetCounter: boolean = false): strin
         }
 
         // Rule 3: If the link text is not a URL/host, keep the text and add the numbered link
-        if (!isHost(linkText)) {
-          result += `${linkText} [<sup>${counter}</sup>](${url})`
-        } else {
-          // Rule 2: If the link text is a URL/host, replace with numbered link
+        // 增加一个条件：如果 linkText 是纯数字，也直接替换
+        if (isHost(linkText) || /^\d+$/.test(linkText)) {
+          // Rule 2: If the link text is a URL/host or purely digits, replace with numbered link
           result += `[<sup>${counter}</sup>](${url})`
+        } else {
+          // If the link text is neither a URL/host nor purely digits, keep the text and add the numbered link
+          result += `${linkText} [<sup>${counter}</sup>](${url})`
         }
 
         position += match[0].length
@@ -237,7 +257,10 @@ export function convertLinks(text: string, resetCounter: boolean = false): strin
     position++
   }
 
-  return result
+  return {
+    text: result,
+    hasBufferedContent
+  }
 }
 
 /**
@@ -312,6 +335,25 @@ export function completeLinks(text: string, webSearch: any[]): string {
     // 检查 webSearch 数组中是否存在对应的 URL
     if (index >= 0 && index < webSearch.length && webSearch[index]?.link) {
       return `[<sup>${num}</sup>](${webSearch[index].link})`
+    }
+    // 如果没有找到对应的 URL，保持原样
+    return match
+  })
+}
+
+/**
+ * 根据webSearch结果补全链接，将[num]转换为[num](webSearch[num-1].url)
+ * @param {string} text 原始文本
+ * @param {any[]} webSearch webSearch结果
+ * @returns {string} 补全后的文本
+ */
+export function completionPerplexityLinks(text: string, webSearch: any[]): string {
+  return text.replace(/\[(\d+)\]/g, (match, numStr) => {
+    const num = parseInt(numStr)
+    const index = num - 1
+    // 检查 webSearch 数组中是否存在对应的 URL
+    if (index >= 0 && index < webSearch.length && webSearch[index].url) {
+      return `[${num}](${webSearch[index].url})`
     }
     // 如果没有找到对应的 URL，保持原样
     return match
@@ -439,13 +481,23 @@ export function extractWebSearchReferences(text: string): Array<{
  * @param {any[]} webSearchResults Web搜索结果数组
  * @param {string} providerType Provider类型 ('openai', 'zhipu', 'hunyuan', 'openrouter', etc.)
  * @param {boolean} resetCounter 是否重置计数器
- * @returns {string} 转换后的文本
+ * @returns {{text: string, hasBufferedContent: boolean}} 转换后的文本和是否有内容被缓冲
  */
 export function smartLinkConverter(
   text: string,
   providerType: string = 'openai',
-  resetCounter: boolean = false
-): string {
+  resetCounter: boolean = false,
+  webSearchResults?: WebSearchResponse
+): { text: string; hasBufferedContent: boolean } {
+  if (webSearchResults) {
+    const webSearch = webSearchResults.results
+    switch (webSearchResults.source) {
+      case WebSearchSource.PERPLEXITY: {
+        text = completionPerplexityLinks(text, webSearch as any[])
+        break
+      }
+    }
+  }
   // 检测文本中的引用模式
   const references = extractWebSearchReferences(text)
 
@@ -458,10 +510,26 @@ export function smartLinkConverter(
   const hasZhipuPattern = references.some((ref) => ref.placeholder.includes('ref_'))
 
   if (hasZhipuPattern) {
-    return convertLinksToZhipu(text, resetCounter)
+    return {
+      text: convertLinksToZhipu(text, resetCounter),
+      hasBufferedContent: false
+    }
   } else if (providerType === 'openrouter') {
-    return convertLinksToOpenRouter(text, resetCounter)
+    return {
+      text: convertLinksToOpenRouter(text, resetCounter),
+      hasBufferedContent: false
+    }
   } else {
     return convertLinks(text, resetCounter)
   }
+}
+
+/**
+ * 强制返回buffer中的所有内容，用于流结束时清空缓冲区
+ * @returns {string} buffer中剩余的所有内容
+ */
+export function flushLinkConverterBuffer(): string {
+  const remainingBuffer = buffer
+  buffer = ''
+  return remainingBuffer
 }

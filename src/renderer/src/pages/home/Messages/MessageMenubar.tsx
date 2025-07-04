@@ -346,7 +346,7 @@ const MessageMenubar: FC<Props> = (props) => {
       return () => true
     }
     const state = store.getState()
-    const topicMessages = selectMessagesForTopic(state, topic.id)
+    const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
     // 理论上助手消息只会关联一条用户消息
     const relatedUserMessage = topicMessages.find((msg) => {
       return msg.role === 'user' && message.askId === msg.id
@@ -360,7 +360,11 @@ const MessageMenubar: FC<Props> = (props) => {
       messageBlocksSelectors.selectById(store.getState(), msgBlockId)
     )
 
-    if (relatedUserMessageBlocks.some((block) => block.type === MessageBlockType.IMAGE)) {
+    if (!relatedUserMessageBlocks) {
+      return () => true
+    }
+
+    if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
       return (m: Model) => isVisionModel(m)
     } else {
       return () => true

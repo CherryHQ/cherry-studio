@@ -3,7 +3,7 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileType, KnowledgeBase } from '@renderer/types'
+import { FileMetadata, KnowledgeBase } from '@renderer/types'
 import { Divider, Input, InputRef, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -23,7 +23,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
+  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<InputRef>(null)
@@ -149,14 +149,17 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
               <List.Item>
                 <ResultItem>
                   <MetadataContainer>
-                    <Text type="secondary" ellipsis>
+                    <Text type="secondary">
                       {t('knowledge.source')}:{' '}
                       {item.file ? (
                         <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
                           {item.file.origin_name}
                         </a>
                       ) : (
-                        item.metadata.source
+                        // item.metadata.source
+                        <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
+                          {item.metadata.source.split('/').pop() || item.metadata.source}
+                        </a>
                       )}
                     </Text>
                     <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>

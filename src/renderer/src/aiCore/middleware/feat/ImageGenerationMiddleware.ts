@@ -3,6 +3,7 @@ import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { defaultTimeout } from '@shared/config/constant'
 import OpenAI from 'openai'
 import { toFile } from 'openai/uploads'
 
@@ -74,8 +75,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
 
           const startTime = Date.now()
           let response: OpenAI.Images.ImagesResponse
-
-          const options = { signal, timeout: 300_000 }
+          const options = { signal, timeout: defaultTimeout }
 
           if (imageFiles.length > 0) {
             response = await sdk.images.edit(
