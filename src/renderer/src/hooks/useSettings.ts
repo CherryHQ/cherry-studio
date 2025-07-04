@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setDisableHardwareAcceleration,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -18,8 +19,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
-  setWindowStyle,
-  setDisableHardwareAcceleration
+  setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { UpgradeChannel } from '@shared/config/constant'
