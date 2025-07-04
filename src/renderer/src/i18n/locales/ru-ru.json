@@ -303,6 +303,7 @@
       "topics.export.obsidian_root_directory": "Корневая директория",
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
+      "topics.export.pdf": "Экспорт в PDF",
       "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
@@ -1167,6 +1168,7 @@
           "siyuan": "Экспорт в SiYuan Note",
           "joplin": "Экспорт в Joplin",
           "docx": "Экспорт в Word",
+          "pdf": "Экспорт в PDF",
           "plain_text": "Копировать как чистый текст"
         },
         "joplin": {

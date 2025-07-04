@@ -269,6 +269,15 @@ const MessageMenubar: FC<Props> = (props) => {
               window.api.export.toWord(markdown, title)
             }
           },
+          exportMenuOptions.pdf && {
+            label: t('chat.topics.export.pdf'),
+            key: 'pdf',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              const title = await getMessageTitle(message)
+              window.api.export.toPDF(markdown, title)
+            }
+          },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',

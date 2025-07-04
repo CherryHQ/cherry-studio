@@ -322,6 +322,7 @@
       "topics.export.obsidian_reasoning": "导出思维链",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
+      "topics.export.pdf": "导出为 PDF",
       "topics.export.yuque": "导出到语雀",
       "topics.list": "话题列表",
       "topics.move_to": "移动到",
@@ -1169,6 +1170,7 @@
           "siyuan": "导出到思源笔记",
           "joplin": "导出到 Joplin",
           "docx": "导出为 Word",
+          "pdf": "导出为 PDF",
           "plain_text": "复制为纯文本"
         },
         "joplin": {
