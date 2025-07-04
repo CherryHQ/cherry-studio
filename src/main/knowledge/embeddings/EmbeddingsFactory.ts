@@ -3,13 +3,14 @@ import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
 import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-openai-embeddings'
 import { getInstanceName } from '@main/utils'
-import { KnowledgeBaseParams } from '@types'
+import { ApiClient } from '@types'
 
 import { SUPPORTED_DIM_MODELS as VOYAGE_SUPPORTED_DIM_MODELS, VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
-  static create({ model, provider, apiKey, apiVersion, baseURL, dimensions }: KnowledgeBaseParams): BaseEmbeddings {
+  static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): BaseEmbeddings {
     const batchSize = 10
+    const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
     if (provider === 'voyageai') {
       if (VOYAGE_SUPPORTED_DIM_MODELS.includes(model)) {
         return new VoyageEmbeddings({

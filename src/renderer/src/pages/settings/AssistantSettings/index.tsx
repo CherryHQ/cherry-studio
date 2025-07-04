@@ -11,6 +11,7 @@ import styled from 'styled-components'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
+import AssistantMemorySettings from './AssistantMemorySettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
@@ -20,7 +21,14 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
+type AssistantSettingPopupTab =
+  | 'prompt'
+  | 'model'
+  | 'messages'
+  | 'knowledge_base'
+  | 'mcp'
+  | 'regular_phrases'
+  | 'memory'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -73,6 +81,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'regular_phrases',
       label: t('assistants.settings.regular_phrases.title', 'Regular Prompts')
+    },
+    {
+      key: 'memory',
+      label: t('memory.title', 'Memories')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -139,6 +151,14 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           )}
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
+          )}
+          {menu === 'memory' && (
+            <AssistantMemorySettings
+              assistant={assistant}
+              updateAssistant={updateAssistant}
+              updateAssistantSettings={updateAssistantSettings}
+              onClose={onCancel}
+            />
           )}
         </Settings>
       </HStack>

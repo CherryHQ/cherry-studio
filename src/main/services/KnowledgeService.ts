@@ -21,10 +21,10 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import Embeddings from '@main/knowledage/embeddings/Embeddings'
-import { addFileLoader } from '@main/knowledage/loader'
-import { NoteLoader } from '@main/knowledage/loader/noteLoader'
-import Reranker from '@main/knowledage/reranker/Reranker'
+import Embeddings from '@main/knowledge/embeddings/Embeddings'
+import { addFileLoader } from '@main/knowledge/loader'
+import { NoteLoader } from '@main/knowledge/loader/noteLoader'
+import Reranker from '@main/knowledge/reranker/Reranker'
 import OcrProvider from '@main/ocr/OcrProvider'
 import PreprocessProvider from '@main/preprocess/PreprocessProvider'
 import { windowService } from '@main/services/WindowService'
@@ -120,22 +120,14 @@ class KnowledgeService {
 
   private getRagApplication = async ({
     id,
-    model,
-    provider,
-    apiKey,
-    apiVersion,
-    baseURL,
+    embedApiClient,
     dimensions
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
-      model,
-      provider,
-      apiKey,
-      apiVersion,
-      baseURL,
+      embedApiClient,
       dimensions
-    } as KnowledgeBaseParams)
+    })
     try {
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')

@@ -1721,6 +1721,13 @@ const migrateConfig = {
     try {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
+      // migrate to enable memory feature on sidebar
+      if (state.settings && state.settings.sidebarIcons) {
+        // Check if 'memory' is not already in visible icons
+        if (!state.settings.sidebarIcons.visible.includes('memory')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'memory']
+        }
+      }
       return state
     } catch (error) {
       return state
