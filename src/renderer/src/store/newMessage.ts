@@ -116,6 +116,13 @@ const messagesSlice = createSlice({
         state.loadingByTopic[topicId] = false
       }
     },
+    setMessageCollapsed(state, action: PayloadAction<{ messageId: string; collapsed: boolean }>) {
+      const { messageId, collapsed } = action.payload
+      const message = state.entities[messageId]
+      if (message) {
+        messagesAdapter.updateOne(state, { id: messageId, changes: { collapsed } })
+      }
+    },
     updateMessage(
       state,
       action: PayloadAction<{
