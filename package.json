@@ -104,7 +104,7 @@
     "@langchain/community": "^0.3.36",
     "@langchain/ollama": "^0.2.1",
     "@mistralai/mistralai": "^1.6.0",
-    "@modelcontextprotocol/sdk": "^1.11.4",
+    "@modelcontextprotocol/sdk": "^1.12.3",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@playwright/test": "^1.52.0",

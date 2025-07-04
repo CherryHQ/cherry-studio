@@ -702,11 +702,15 @@
       "success.yuque.export": "Успешный экспорт в Yuque",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "tools": {
+        "aborted": "Вызов инструмента прерван",
+        "abort_failed": "Вызов инструмента прерван",
         "completed": "Завершено",
         "invoking": "Вызов",
         "error": "Произошла ошибка",
         "raw": "Исходный",
-        "preview": "Предпросмотр"
+        "preview": "Предпросмотр",
+        "pending": "Ожидание",
+        "cancelled": "Отменено"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",

@@ -703,11 +703,15 @@
       "success.yuque.export": "成功匯出到語雀",
       "switch.disabled": "請等待當前回覆完成",
       "tools": {
+        "aborted": "工具調用已中斷",
+        "abort_failed": "工具調用中斷失敗",
         "completed": "已完成",
         "invoking": "調用中",
         "error": "發生錯誤",
         "raw": "原始碼",
-        "preview": "預覽"
+        "preview": "預覽",
+        "pending": "等待中",
+        "cancelled": "已取消"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",

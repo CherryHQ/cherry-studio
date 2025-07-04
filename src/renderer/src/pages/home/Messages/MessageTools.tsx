@@ -1,8 +1,12 @@
-import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
+import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
+import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { message } from 'antd'
+import Logger from 'electron-log/renderer'
+import { PauseCircle } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -14,11 +18,23 @@ interface Props {
 const MessageTools: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
-  const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
 
   const toolResponse = block.metadata?.rawMcpToolResponse
+
+  const { id, tool, status, response } = toolResponse!
+
+  const isPending = status === 'pending'
+  const isInvoking = status === 'invoking'
+  const isDone = status === 'done'
+
+  const argsString = useMemo(() => {
+    if (toolResponse?.arguments) {
+      return JSON.stringify(toolResponse.arguments, null, 2)
+    }
+    return 'No arguments'
+  }, [toolResponse])
 
   const resultString = useMemo(() => {
     try {
@@ -50,13 +66,34 @@ const MessageTools: FC<Props> = ({ block }) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
   }
 
+  const handleConfirmTool = () => {
+    confirmToolAction(id)
+  }
+
+  const handleCancelTool = () => {
+    cancelToolAction(id)
+  }
+
+  const handleAbortTool = async () => {
+    if (toolResponse?.id) {
+      try {
+        const success = await window.api.mcp.abortTool(toolResponse.id)
+        if (success) {
+          message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
+        } else {
+          message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+        }
+      } catch (error) {
+        Logger.error('Failed to abort tool:', error)
+        message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+      }
+    }
+  }
+
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
-    const { id, tool, status, response } = toolResponse
-    const isInvoking = status === 'invoking'
-    const isDone = status === 'done'
-    const hasError = isDone && response?.isError === true
+    const hasError = response?.isError === true
     const result = {
       params: toolResponse.arguments,
       response: toolResponse.response
@@ -68,34 +105,93 @@ const MessageTools: FC<Props> = ({ block }) => {
         <MessageTitleLabel>
           <TitleContent>
             <ToolName>{tool.name}</ToolName>
-            <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
-              {isInvoking
-                ? t('message.tools.invoking')
-                : hasError
-                  ? t('message.tools.error')
-                  : t('message.tools.completed')}
-              {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
-              {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
-              {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
+            <StatusIndicator status={status} hasError={hasError}>
+              {(() => {
+                switch (status) {
+                  case 'pending':
+                    return (
+                      <>
+                        {t('message.tools.pending')}
+                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
+                      </>
+                    )
+                  case 'invoking':
+                    return (
+                      <>
+                        {t('message.tools.invoking')}
+                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
+                      </>
+                    )
+                  case 'cancelled':
+                    return (
+                      <>
+                        {t('message.tools.cancelled')}
+                        <CloseOutlined style={{ marginLeft: 6 }} />
+                      </>
+                    )
+                  case 'done':
+                    if (hasError) {
+                      return (
+                        <>
+                          {t('message.tools.error')}
+                          <WarningOutlined style={{ marginLeft: 6 }} />
+                        </>
+                      )
+                    } else {
+                      return (
+                        <>
+                          {t('message.tools.completed')}
+                          <CheckOutlined style={{ marginLeft: 6 }} />
+                        </>
+                      )
+                    }
+                  default:
+                    return ''
+                }
+              })()}
             </StatusIndicator>
           </TitleContent>
           <ActionButtonsContainer>
-            {isDone && response && (
+            {isPending && (
               <>
-                <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+                <Tooltip title={t('common.cancel')} mouseEnterDelay={0.3}>
                   <ActionButton
-                    className="message-action-button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setExpandedResponse({
-                        content: JSON.stringify(response, null, 2),
-                        title: tool.name
-                      })
+                      handleCancelTool()
                     }}
-                    aria-label={t('common.expand')}>
-                    <ExpandOutlined />
+                    aria-label={t('common.cancel')}>
+                    <CloseOutlined style={{ fontSize: '14px' }} />
                   </ActionButton>
                 </Tooltip>
+                <Tooltip title={t('common.confirm')} mouseEnterDelay={0.3}>
+                  <ActionButton
+                    className="confirm-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleConfirmTool()
+                    }}
+                    aria-label={t('common.confirm')}>
+                    <CheckOutlined style={{ fontSize: '14px' }} />
+                  </ActionButton>
+                </Tooltip>
+              </>
+            )}
+            {isInvoking && toolResponse?.id && (
+              <Tooltip title={t('chat.input.pause')} mouseEnterDelay={0.3}>
+                <ActionButton
+                  className="abort-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleAbortTool()
+                  }}
+                  aria-label={t('chat.input.pause')}>
+                  <PauseCircle color="var(--color-error)" size={14} />
+                </ActionButton>
+              </Tooltip>
+            )}
+            {isDone && response && (
+              <>
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
                   <ActionButton
                     className="message-action-button"
@@ -113,98 +209,38 @@ const MessageTools: FC<Props> = ({ block }) => {
           </ActionButtonsContainer>
         </MessageTitleLabel>
       ),
-      children: isDone && result && (
-        <ToolResponseContainer
-          style={{
-            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-            fontSize: '12px'
-          }}>
-          <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
-        </ToolResponseContainer>
-      )
+      children:
+        isDone && result ? (
+          <ToolResponseContainer
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
+            <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
+          </ToolResponseContainer>
+        ) : argsString ? (
+          <>
+            <ToolResponseContainer>
+              <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={argsString} />
+            </ToolResponseContainer>
+          </>
+        ) : null
     })
 
     return items
   }
 
-  const renderPreview = (content: string) => {
-    if (!content) return null
-
-    try {
-      const parsedResult = JSON.parse(content)
-      switch (parsedResult.content[0]?.type) {
-        case 'text':
-          return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
-        default:
-          return <PreviewBlock>{content}</PreviewBlock>
-      }
-    } catch (e) {
-      console.error('failed to render the preview of mcp results:', e)
-      return <PreviewBlock>{content}</PreviewBlock>
-    }
-  }
-
   return (
-    <>
+    <ToolContainer>
       <CollapseContainer
         activeKey={activeKeys}
         size="small"
         onChange={handleCollapseChange}
         className="message-tools-container"
         items={getCollapseItems()}
-        expandIcon={({ isActive }) => (
-          <CollapsibleIcon className={`iconfont ${isActive ? 'icon-chevron-down' : 'icon-chevron-right'}`} />
-        )}
+        expandIconPosition="end"
       />
-
-      <Modal
-        title={expandedResponse?.title}
-        open={!!expandedResponse}
-        onCancel={() => setExpandedResponse(null)}
-        footer={null}
-        width="80%"
-        centered
-        transitionName="animation-move-down"
-        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
-        {expandedResponse && (
-          <ExpandedResponseContainer
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            }}>
-            <Tabs
-              tabBarExtraContent={
-                <ActionButton
-                  className="copy-expanded-button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)
-                    )
-                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
-                  }}
-                  aria-label={t('common.copy')}>
-                  <i className="iconfont icon-copy"></i>
-                </ActionButton>
-              }
-              items={[
-                {
-                  key: 'preview',
-                  label: t('message.tools.preview'),
-                  children: <CollapsedContent isExpanded={true} resultString={resultString} />
-                },
-                {
-                  key: 'raw',
-                  label: t('message.tools.raw'),
-                  children: renderPreview(expandedResponse.content)
-                }
-              ]}
-            />
-          </ExpandedResponseContainer>
-        )}
-      </Modal>
-    </>
+    </ToolContainer>
   )
 }
 
@@ -230,15 +266,25 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
 }
 
 const CollapseContainer = styled(Collapse)`
-  margin-top: 10px;
-  margin-bottom: 12px;
   border-radius: 8px;
+  border: none;
   overflow: hidden;
 
   .ant-collapse-header {
     background-color: var(--color-bg-2);
     transition: background-color 0.2s;
-
+    display: flex;
+    align-items: center;
+    .ant-collapse-expand-icon {
+      height: 100% !important;
+    }
+    .ant-collapse-arrow {
+      height: 28px !important;
+      svg {
+        width: 14px;
+        height: 14px;
+      }
+    }
     &:hover {
       background-color: var(--color-bg-3);
     }
@@ -247,6 +293,15 @@ const CollapseContainer = styled(Collapse)`
   .ant-collapse-content-box {
     padding: 0 !important;
   }
+`
+
+const ToolContainer = styled.div`
+  margin-top: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-2);
+  border-radius: 8px;
+  overflow: hidden;
 `
 
 const MarkdownContainer = styled.div`
@@ -267,6 +322,7 @@ const MessageTitleLabel = styled.div`
   min-height: 26px;
   gap: 10px;
   padding: 0;
+  margin-left: 4px;
 `
 
 const TitleContent = styled.div`
@@ -282,18 +338,27 @@ const ToolName = styled.span`
   font-size: 13px;
 `
 
-const StatusIndicator = styled.span<{ $isInvoking: boolean; $hasError?: boolean }>`
+const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
   color: ${(props) => {
-    if (props.$hasError) return 'var(--color-error, #ff4d4f)'
-    if (props.$isInvoking) return 'var(--color-primary)'
-    return 'var(--color-success, #52c41a)'
+    switch (props.status) {
+      case 'pending':
+        return 'var(--color-text-2)'
+      case 'invoking':
+        return 'var(--color-primary)'
+      case 'cancelled':
+        return 'var(--color-error, #ff4d4f)' // Assuming cancelled should also be an error color
+      case 'done':
+        return props.hasError ? 'var(--color-error, #ff4d4f)' : 'var(--color-success, #52c41a)'
+      default:
+        return 'var(--color-text)'
+    }
   }};
   font-size: 11px;
   display: flex;
   align-items: center;
   opacity: 0.85;
   border-left: 1px solid var(--color-border);
-  padding-left: 8px;
+  padding-left: 12px;
 `
 
 const ActionButtonsContainer = styled.div`
@@ -307,18 +372,30 @@ const ActionButton = styled.button`
   border: none;
   color: var(--color-text-2);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0.7;
   transition: all 0.2s;
   border-radius: 4px;
+  gap: 4px;
+  min-width: 28px;
+  height: 28px;
 
   &:hover {
     opacity: 1;
     color: var(--color-text);
-    background-color: var(--color-bg-1);
+    background-color: var(--color-bg-3);
+  }
+
+  &.confirm-button {
+    color: var(--color-primary);
+
+    &:hover {
+      background-color: var(--color-primary-bg);
+      color: var(--color-primary);
+    }
   }
 
   &:focus-visible {
@@ -332,49 +409,12 @@ const ActionButton = styled.button`
   }
 `
 
-const CollapsibleIcon = styled.i`
-  color: var(--color-text-2);
-  font-size: 12px;
-  transition: transform 0.2s;
-`
-
 const ToolResponseContainer = styled.div`
   border-radius: 0 0 4px 4px;
   overflow: auto;
   max-height: 300px;
   border-top: none;
   position: relative;
-`
-
-const PreviewBlock = styled.div`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  user-select: text;
-`
-
-const ExpandedResponseContainer = styled.div`
-  background: var(--color-bg-1);
-  border-radius: 8px;
-  padding: 16px;
-  position: relative;
-
-  .copy-expanded-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: var(--color-bg-2);
-    border-radius: 4px;
-    z-index: 1;
-  }
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--color-text);
-  }
 `
 
 export default memo(MessageTools)

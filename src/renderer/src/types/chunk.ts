@@ -13,6 +13,7 @@ export enum ChunkType {
   KNOWLEDGE_SEARCH_IN_PROGRESS = 'knowledge_search_in_progress',
   KNOWLEDGE_SEARCH_COMPLETE = 'knowledge_search_complete',
   MCP_TOOL_CREATED = 'mcp_tool_created',
+  MCP_TOOL_PENDING = 'mcp_tool_pending',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
@@ -260,6 +261,11 @@ export interface MCPToolCreatedChunk {
   tool_use_responses?: ToolUseResponse[] // 工具使用响应
 }
 
+export interface MCPToolPendingChunk {
+  type: ChunkType.MCP_TOOL_PENDING
+  responses: MCPToolResponse[]
+}
+
 export interface MCPToolInProgressChunk {
   /**
    * The type of the chunk
@@ -353,6 +359,7 @@ export type Chunk =
   | KnowledgeSearchInProgressChunk // 知识库搜索进行中
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
   | MCPToolCreatedChunk // MCP工具被大模型创建
+  | MCPToolPendingChunk // MCP工具调用等待中
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器

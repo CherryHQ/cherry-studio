@@ -89,6 +89,11 @@ function createToolHandlingTransform(
   let hasToolUseResponses = false
   let streamEnded = false
 
+  // 存储已执行的工具结果
+  const executedToolResults: SdkMessageParam[] = []
+  const executedToolCalls: SdkToolCall[] = []
+  const executionPromises: Promise<void>[] = []
+
   return new TransformStream({
     async transform(chunk: GenericChunk, controller) {
       try {
@@ -98,22 +103,64 @@ function createToolHandlingTransform(
 
           // 1. 处理Function Call方式的工具调用
           if (createdChunk.tool_calls && createdChunk.tool_calls.length > 0) {
-            toolCalls.push(...createdChunk.tool_calls)
             hasToolCalls = true
+
+            for (const toolCall of createdChunk.tool_calls) {
+              toolCalls.push(toolCall)
+
+              const executionPromise = (async () => {
+                try {
+                  const result = await executeToolCalls(
+                    ctx,
+                    [toolCall],
+                    mcpTools,
+                    allToolResponses,
+                    currentParams.onChunk,
+                    currentParams.assistant.model!
+                  )
+
+                  // 缓存执行结果
+                  executedToolResults.push(...result.toolResults)
+                  executedToolCalls.push(...result.confirmedToolCalls)
+                } catch (error) {
+                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool call asynchronously:`, error)
+                }
+              })()
+
+              executionPromises.push(executionPromise)
+            }
           }
 
           // 2. 处理Tool Use方式的工具调用
           if (createdChunk.tool_use_responses && createdChunk.tool_use_responses.length > 0) {
-            toolUseResponses.push(...createdChunk.tool_use_responses)
             hasToolUseResponses = true
+            for (const toolUseResponse of createdChunk.tool_use_responses) {
+              toolUseResponses.push(toolUseResponse)
+              const executionPromise = (async () => {
+                try {
+                  const result = await executeToolUseResponses(
+                    ctx,
+                    [toolUseResponse], // 单个执行
+                    mcpTools,
+                    allToolResponses,
+                    currentParams.onChunk,
+                    currentParams.assistant.model!
+                  )
+
+                  // 缓存执行结果
+                  executedToolResults.push(...result.toolResults)
+                } catch (error) {
+                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool use response asynchronously:`, error)
+                  // 错误时不影响其他工具的执行
+                }
+              })()
+
+              executionPromises.push(executionPromise)
+            }
           }
-
-          // 不转发MCP工具进展chunks，避免重复处理
-          return
+        } else {
+          controller.enqueue(chunk)
         }
-
-        // 转发其他所有chunk
-        controller.enqueue(chunk)
       } catch (error) {
         console.error(`🔧 [${MIDDLEWARE_NAME}] Error processing chunk:`, error)
         controller.error(error)
@@ -121,43 +168,33 @@ function createToolHandlingTransform(
     },
 
     async flush(controller) {
-      const shouldExecuteToolCalls = hasToolCalls && toolCalls.length > 0
-      const shouldExecuteToolUseResponses = hasToolUseResponses && toolUseResponses.length > 0
-
-      if (!streamEnded && (shouldExecuteToolCalls || shouldExecuteToolUseResponses)) {
+      // 在流结束时等待所有异步工具执行完成，然后进行递归调用
+      if (!streamEnded && (hasToolCalls || hasToolUseResponses)) {
         streamEnded = true
 
         try {
-          let toolResult: SdkMessageParam[] = []
-
-          if (shouldExecuteToolCalls) {
-            toolResult = await executeToolCalls(
-              ctx,
-              toolCalls,
-              mcpTools,
-              allToolResponses,
-              currentParams.onChunk,
-              currentParams.assistant.model!
-            )
-          } else if (shouldExecuteToolUseResponses) {
-            toolResult = await executeToolUseResponses(
-              ctx,
-              toolUseResponses,
-              mcpTools,
-              allToolResponses,
-              currentParams.onChunk,
-              currentParams.assistant.model!
-            )
-          }
-
-          if (toolResult.length > 0) {
+          await Promise.all(executionPromises)
+          if (executedToolResults.length > 0) {
             const output = ctx._internal.toolProcessingState?.output
+            const newParams = buildParamsWithToolResults(
+              ctx,
+              currentParams,
+              output,
+              executedToolResults,
+              executedToolCalls
+            )
 
-            const newParams = buildParamsWithToolResults(ctx, currentParams, output, toolResult, toolCalls)
+            // 在递归调用前通知UI开始新的LLM响应处理
+            if (currentParams.onChunk) {
+              currentParams.onChunk({
+                type: ChunkType.LLM_RESPONSE_CREATED
+              })
+            }
+
             await executeWithToolHandling(newParams, depth + 1)
           }
         } catch (error) {
-          console.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
+          Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
           controller.error(error)
         } finally {
           hasToolCalls = false
@@ -178,8 +215,7 @@ async function executeToolCalls(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<SdkMessageParam[]> {
-  // 转换为MCPToolResponse格式
+): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
       const mcpTool = ctx.apiClientInstance.convertSdkToolCallToMcp(toolCall, mcpTools)
@@ -192,11 +228,11 @@ async function executeToolCalls(
 
   if (mcpToolResponses.length === 0) {
     console.warn(`🔧 [${MIDDLEWARE_NAME}] No valid MCP tool responses to execute`)
-    return []
+    return { toolResults: [], confirmedToolCalls: [] }
   }
 
   // 使用现有的parseAndCallTools函数执行工具
-  const toolResults = await parseAndCallTools(
+  const { toolResults, confirmedToolResponses } = await parseAndCallTools(
     mcpToolResponses,
     allToolResponses,
     onChunk,
@@ -204,10 +240,24 @@ async function executeToolCalls(
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
-    mcpTools
+    mcpTools,
+    ctx._internal?.flowControl?.abortSignal
   )
 
-  return toolResults
+  // 找出已确认工具对应的原始toolCalls
+  const confirmedToolCalls = toolCalls.filter((toolCall) => {
+    return confirmedToolResponses.find((confirmed) => {
+      // 根据不同的ID字段匹配原始toolCall
+      return (
+        ('name' in toolCall &&
+          (toolCall.name?.includes(confirmed.tool.name) || toolCall.name?.includes(confirmed.tool.id))) ||
+        confirmed.tool.name === toolCall.id ||
+        confirmed.tool.id === toolCall.id
+      )
+    })
+  })
+
+  return { toolResults, confirmedToolCalls }
 }
 
 /**
@@ -221,9 +271,9 @@ async function executeToolUseResponses(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<SdkMessageParam[]> {
+): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
-  const toolResults = await parseAndCallTools(
+  const { toolResults } = await parseAndCallTools(
     toolUseResponses,
     allToolResponses,
     onChunk,
@@ -231,10 +281,11 @@ async function executeToolUseResponses(
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
-    mcpTools
+    mcpTools,
+    ctx._internal?.flowControl?.abortSignal
   )
 
-  return toolResults
+  return { toolResults }
 }
 
 /**
@@ -245,7 +296,7 @@ function buildParamsWithToolResults(
   currentParams: CompletionsParams,
   output: SdkRawOutput | string | undefined,
   toolResults: SdkMessageParam[],
-  toolCalls: SdkToolCall[]
+  confirmedToolCalls: SdkToolCall[]
 ): CompletionsParams {
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
   const currentReqMessages = getCurrentReqMessages(ctx)
@@ -253,7 +304,7 @@ function buildParamsWithToolResults(
   const apiClient = ctx.apiClientInstance
 
   // 从回复中构建助手消息
-  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, toolCalls)
+  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, confirmedToolCalls)
 
   if (output && ctx._internal.toolProcessingState) {
     ctx._internal.toolProcessingState.output = undefined
