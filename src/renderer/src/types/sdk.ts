@@ -21,6 +21,8 @@ import {
 import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
 
+import { EndpointType } from './index'
+
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
 export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
 export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
@@ -36,7 +38,7 @@ export type SdkToolCall =
   | FunctionCall
   | OpenAIResponseSdkToolCall
 export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool | OpenAIResponseSdkTool
-export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
+export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel | NewApiModel
 
 export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions
 
@@ -105,4 +107,11 @@ export type GeminiOptions = {
   streamOutput: boolean
   signal?: AbortSignal
   timeout?: number
+}
+
+/**
+ * New API
+ */
+export interface NewApiModel extends OpenAI.Models.Model {
+  supported_endpoint_types?: EndpointType[]
 }

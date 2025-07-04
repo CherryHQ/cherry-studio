@@ -1067,6 +1067,7 @@
       "modelscope": "ModelScope 魔搭",
       "moonshot": "月之暗面",
       "nvidia": "輝達",
+      "new-api": "New API",
       "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
@@ -1088,7 +1089,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "藍耘",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "ph8": "PH8 大模型開放平台"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1634,6 +1636,7 @@
       "messages.use_serif_font": "使用襯線字型",
       "model": "預設模型",
       "models.add.add_model": "新增模型",
+      "models.add.batch_add_models": "批量新增模型",
       "models.add.group_name": "群組名稱",
       "models.add.group_name.placeholder": "選填，例如 ChatGPT",
       "models.add.group_name.tooltip": "選填，例如 ChatGPT",
@@ -1644,6 +1647,10 @@
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
       "models.add.model_name.tooltip": "例如 GPT-4",
+      "models.add.endpoint_type": "端點類型",
+      "models.add.endpoint_type.placeholder": "選擇端點類型",
+      "models.add.endpoint_type.tooltip": "選擇 API 的端點類型格式",
+      "models.add.endpoint_type.required": "請選擇端點類型",
       "models.check.all": "所有",
       "models.check.all_models_passed": "所有模型檢查通過",
       "models.check.button_caption": "健康檢查",
@@ -1698,6 +1705,7 @@
       "models.provider_key_no_change": "{{provider}} 的 API 密鑰沒有變化",
       "models.provider_key_add_failed_by_empty_data": "添加提供者 API 密鑰失敗，數據為空",
       "models.provider_key_add_failed_by_invalid_data": "添加提供者 API 密鑰失敗，數據格式錯誤",
+      "models.provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰, 是否覆蓋？",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
       "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
@@ -1810,6 +1818,13 @@
         "title": "代理伺服器設定"
       },
       "proxy.title": "代理伺服器地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重新啟動",
+          "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",

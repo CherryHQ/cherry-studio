@@ -1067,6 +1067,7 @@
       "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
+      "new-api": "New API",
       "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
@@ -1088,7 +1089,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "LANYUN",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "ph8": "PH8"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1643,6 +1645,7 @@
       "messages.use_serif_font": "Use serif font",
       "model": "Default Model",
       "models.add.add_model": "Add Model",
+      "models.add.batch_add_models": "Batch Add Models",
       "models.add.group_name": "Group Name",
       "models.add.group_name.placeholder": "Optional e.g. ChatGPT",
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
@@ -1652,6 +1655,10 @@
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.tooltip": "Optional e.g. GPT-4",
+      "models.add.endpoint_type": "Endpoint Type",
+      "models.add.endpoint_type.placeholder": "Select endpoint type",
+      "models.add.endpoint_type.tooltip": "Select the API endpoint type format",
+      "models.add.endpoint_type.required": "Please select an endpoint type",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
       "models.check.all": "All",
       "models.check.all_models_passed": "All models check passed",
@@ -1701,9 +1708,13 @@
       "models.base_url": "Base URL",
       "models.api_key": "API Key",
       "models.provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
+      "models.provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
       "models.provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
       "models.provider_key_added": "Successfully added API key for {{provider}}",
       "models.provider_key_overridden": "Successfully updated API key for {{provider}}",
+      "models.provider_key_no_change": "API key for {{provider}} has not changed",
+      "models.provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
+      "models.provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
       "moresetting": "More Settings",
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
@@ -1822,6 +1833,13 @@
         "title": "Proxy Settings"
       },
       "proxy.title": "Proxy Address",
+      "hardware_acceleration": {
+        "title": "Disable Hardware Acceleration",
+        "confirm": {
+          "title": "Restart Required",
+          "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",

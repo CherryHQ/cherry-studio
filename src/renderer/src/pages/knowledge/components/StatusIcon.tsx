@@ -28,7 +28,7 @@ const StatusIcon: FC<StatusIconProps> = ({
   const errorText = item?.processingError
   console.log('[StatusIcon] Rendering for item:', item?.id, 'Status:', status, 'Progress:', progress)
 
-  const statusDisplay = useMemo(() => {
+  return useMemo(() => {
     if (!status) {
       if (item?.uniqueId) {
         if (isPreprocessed && item.type === 'file') {
@@ -83,9 +83,7 @@ const StatusIcon: FC<StatusIconProps> = ({
       default:
         return null
     }
-  }, [status, item?.uniqueId, type, progress, errorText, t])
-
-  return statusDisplay
+  }, [status, item?.uniqueId, item?.type, t, isPreprocessed, errorText, type, progress])
 }
 
 const StatusDot = styled.div<{ $status: 'pending' | 'processing' | 'new' }>`
