@@ -47,10 +47,9 @@ export class ApiClientFactory {
     // 然后检查标准的provider type
     switch (provider.type) {
       case 'openai':
-      case 'azure-openai':
-        console.log(`[ApiClientFactory] Creating OpenAIApiClient for provider: ${provider.id}`)
         instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
+      case 'azure-openai':
       case 'openai-response':
         instance = new OpenAIResponseAPIClient(provider) as BaseApiClient
         break
