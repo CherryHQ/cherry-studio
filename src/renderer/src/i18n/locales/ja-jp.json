@@ -1787,6 +1787,13 @@
         "title": "プロキシ設定"
       },
       "proxy.title": "プロキシアドレス",
+      "hardware_acceleration": {
+        "title": "ハードウェアアクセラレーションを無効にする",
+        "confirm": {
+          "title": "再起動が必要",
+          "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",

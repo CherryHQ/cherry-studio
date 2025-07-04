@@ -1805,6 +1805,13 @@
         "title": "代理设置"
       },
       "proxy.title": "代理地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重启应用",
+          "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",

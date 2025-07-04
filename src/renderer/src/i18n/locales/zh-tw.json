@@ -1790,6 +1790,13 @@
         "title": "代理伺服器設定"
       },
       "proxy.title": "代理伺服器地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重新啟動",
+          "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
