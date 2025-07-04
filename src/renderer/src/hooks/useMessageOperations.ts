@@ -23,6 +23,10 @@ import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import db from '@renderer/databases'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { TopicManager } from './useTopic'
+import { addTopic } from '@renderer/store/assistants'
 import { throttle } from 'lodash'
 import { useCallback } from 'react'
 
@@ -462,4 +466,34 @@ export const useTopicMessages = (topicId: string) => {
 
 export const useTopicLoading = (topic: Topic) => {
   return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
+}
+
+/**
+ * Duplicate an existing topic along with all of its messages.
+ * A new topic will be created for the specified assistant and
+ * all messages from the source topic will be cloned into it.
+ * @param sourceTopic The topic to be duplicated
+ * @param assistant The assistant that owns the new topic
+ * @returns The newly created topic
+ */
+export async function duplicateTopic(sourceTopic: Topic, assistant: Assistant) {
+  const newTopic = getDefaultTopic(assistant.id)
+
+  // Persist empty topic record before cloning
+  await db.topics.add({ id: newTopic.id, messages: [] })
+
+  // Add topic to Redux store
+  store.dispatch(addTopic({ assistantId: assistant.id, topic: newTopic }))
+
+  // Ensure messages for source topic are loaded
+  await TopicManager.getTopicMessages(sourceTopic.id)
+
+  const state = store.getState()
+  const sourceMessages = selectMessagesForTopic(state, sourceTopic.id) || []
+
+  await store.dispatch(
+    cloneMessagesToNewTopicThunk(sourceTopic.id, 0, sourceMessages.length, newTopic)
+  )
+
+  return newTopic
 }
