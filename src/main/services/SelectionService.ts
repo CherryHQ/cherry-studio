@@ -429,6 +429,8 @@ export class SelectionService {
       }
     })
 
+    this.toolbarWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
     // Hide when losing focus
     this.toolbarWindow.on('blur', () => {
       if (this.toolbarWindow!.isVisible()) {
@@ -508,13 +510,6 @@ export class SelectionService {
     //set the window to always on top (highest level)
     //should set every time the window is shown
     this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
-
-    // [macOS] force the toolbar window to be visible on current desktop
-    // but it will make docker icon flash. And we found that it's not necessary now.
-    // will remove after testing
-    // if (isMac) {
-    //   this.toolbarWindow!.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    // }
 
     // [macOS] MUST use `showInactive()` to prevent other windows bring to front together
     // [Windows] is OK for both `show()` and `showInactive()` because of `focusable: false`
@@ -1228,6 +1223,7 @@ export class SelectionService {
       })
 
       actionWindow.show()
+
       return
     }
 
