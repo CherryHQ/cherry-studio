@@ -35,7 +35,9 @@ const GeneralSettings: FC = () => {
     tray,
     proxyMode: storeProxyMode,
     enableDataCollection,
-    enableSpellCheck
+    enableSpellCheck,
+    disableHardwareAcceleration,
+    setDisableHardwareAcceleration
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
@@ -147,6 +149,21 @@ const GeneralSettings: FC = () => {
     window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
+  const handleHardwareAccelerationChange = (checked: boolean) => {
+    window.modal.confirm({
+      title: t('settings.hardware_acceleration.confirm.title'),
+      content: t('settings.hardware_acceleration.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk() {
+        setDisableHardwareAcceleration(checked)
+        // 重启应用
+        window.api.relaunchApp()
+      }
+    })
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -223,6 +240,11 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
+          <Switch checked={disableHardwareAcceleration} onChange={handleHardwareAccelerationChange} />
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>

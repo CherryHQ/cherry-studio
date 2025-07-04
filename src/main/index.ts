@@ -29,6 +29,14 @@ import { windowService } from './services/WindowService'
 Logger.initialize()
 
 /**
+ * Disable hardware acceleration if setting is enabled
+ */
+const disableHardwareAcceleration = configManager.getDisableHardwareAcceleration()
+if (disableHardwareAcceleration) {
+  app.disableHardwareAcceleration()
+}
+
+/**
  * Disable chromium's window animations
  * main purpose for this is to avoid the transparent window flashing when it is shown
  * (especially on Windows for SelectionAssistant Toolbar)

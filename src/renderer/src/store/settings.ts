@@ -163,6 +163,8 @@ export interface SettingsState {
   spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
+  // 硬件加速设置
+  disableHardwareAcceleration: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -316,6 +318,8 @@ export const initialState: SettingsState = {
   spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
+  // 硬件加速设置
+  disableHardwareAcceleration: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -697,6 +701,9 @@ const settingsSlice = createSlice({
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
     },
+    setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
+      state.disableHardwareAcceleration = action.payload
+    },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
@@ -829,6 +836,7 @@ export const {
   setExportMenuOptions,
   setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
+  setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,

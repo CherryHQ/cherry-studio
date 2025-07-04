@@ -18,7 +18,8 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
-  setWindowStyle
+  setWindowStyle,
+  setDisableHardwareAcceleration
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { UpgradeChannel } from '@shared/config/constant'
@@ -100,6 +101,10 @@ export function useSettings() {
     },
     setShowTokens(showTokens: boolean) {
       dispatch(setShowTokens(showTokens))
+    },
+    setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
+      dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
+      window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
     }
   }
 }
