@@ -14,6 +14,13 @@ jobs:
     if: github.event.release.make_latest
 
     steps:
+      - name: Debug Release Event Context # 新增的调试步骤
+        run: |
+          echo "github.event.release.make_latest: ${{ github.event.release.make_latest }}"
+          echo "github.event.action: ${{ github.event.action }}"
+          echo "Full github.event.release object:"
+          echo "${{ toJSON(github.event.release) }}" # 打印整个 release 对象
+          
       - name: Get release tag
         id: get-tag
         shell: bash
