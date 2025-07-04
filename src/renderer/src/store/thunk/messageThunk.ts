@@ -888,10 +888,9 @@ export const sendMessage =
       }
     } catch (error) {
       console.error('Error in sendMessage thunk:', error)
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
-    // finally {
-    //   handleChangeLoadingOfTopic(topicId)
-    // }
   }
 
 /**
