@@ -1,8 +1,8 @@
-name: Publish Docs Update on Release
+name: Dispatch Docs Update on Release
 
 on:
   release:
-    types: [published, edited]
+    types: [published, edited] # 监听 Release 被“发布”和“编辑”的事件
 
 permissions:
   contents: write
@@ -10,31 +10,38 @@ permissions:
 jobs:
   dispatch-docs-update:
     runs-on: ubuntu-latest
-    # 暂时移除这一行，以便 Job 总是运行，我们可以查看日志
-    # if: github.event.release.make_latest
-
     steps:
-      - name: Debug Release Event Context # 新增的调试步骤
-        run: |
-          echo "github.event.release.make_latest: ${{ github.event.release.make_latest }}"
-          echo "github.event.action: ${{ github.event.action }}"
-          echo "Full github.event.release object:"
-          echo "${{ toJSON(github.event.release) }}" # 打印整个 release 对象
-
-      - name: Get release tag
-        id: get-tag
+      - name: Get Release Tag from Event
+        id: get-event-tag
         shell: bash
         run: |
+          # 从当前 Release 事件中获取 tag_name
           echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
 
+      - name: Fetch Latest Release Tag via API # 新增步骤：通过 API 获取实际的最新 Release
+        id: get-latest-tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用内置的 GITHUB_TOKEN 进行认证
+        run: |
+          # 调用 GitHub API 获取仓库的最新 Release。
+          # /releases/latest 端点会自动返回非预发布、非草稿的最新 Release。
+          LATEST_RELEASE_JSON=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+
+          # 使用 jq 工具从 JSON 响应中提取 tag_name
+          LATEST_TAG=$(echo "$LATEST_RELEASE_JSON" | jq -r '.tag_name')
+
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Fetched latest tag via API: $LATEST_TAG"
+          echo "Event tag: ${{ steps.get-event-tag.outputs.tag }}"
+
       - name: Dispatch update-download-version workflow to cherry-studio-docs
-        # 暂时修改此 if 条件，使其在调试阶段不跳过
-        # 或者您可以直接删除此 if 条件，在调试成功后再添加回来
-        if: true # 临时设置为 true，确保此步骤运行
+        # 只有当当前事件的 Release 标签与通过 API 获取到的最新 Release 标签一致时，才发送调度事件
+        if: ${{ steps.get-event-tag.outputs.tag == steps.get-latest-tag.outputs.latest_tag }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.REPO_DISPATCH_TOKEN }}
           repository: CherryHQ/cherry-studio-docs
           event-type: update-download-version
-          client-payload: '{"version": "${{ steps.get-tag.outputs.tag }}"}'
-
+          client-payload: '{"version": "${{ steps.get-event-tag.outputs.tag }}"}'
