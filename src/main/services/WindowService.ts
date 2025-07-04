@@ -5,9 +5,10 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
+import { Shortcut } from '@types'
 import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
-import windowStateKeeper from 'electron-window-state'
+const windowStateKeeper = require('electron-window-state')
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
@@ -211,7 +212,7 @@ export class WindowService {
         if (mainWindow.isFullScreen()) {
           // 获取 shortcuts 配置
           const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+          const exitFullscreenShortcut = shortcuts.find((s: Shortcut) => s.key === 'exit_fullscreen')
           if (exitFullscreenShortcut == undefined) {
             mainWindow.setFullScreen(false)
             return
@@ -425,9 +426,17 @@ export class WindowService {
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    const miniWindowState = windowStateKeeper({
+      defaultWidth: 550,
+      defaultHeight: 400,
+      file: 'mini-window-state.json'
+    })
+
     this.miniWindow = new BrowserWindow({
-      width: 550,
-      height: 400,
+      x: miniWindowState.x,
+      y: miniWindowState.y,
+      width: miniWindowState.width,
+      height: miniWindowState.height,
       minWidth: 350,
       minHeight: 380,
       maxWidth: 1024,
@@ -476,6 +485,8 @@ export class WindowService {
         this.hideMiniWindow()
       }
     })
+
+    miniWindowState.manage(this.miniWindow)
 
     this.miniWindow.on('closed', () => {
       this.miniWindow = null
