@@ -62,6 +62,7 @@
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
+    "electron-window-state": "^5.0.3",
     "jsdom": "26.1.0",
     "macos-release": "^3.4.0",
     "node-stream-zip": "^1.15.0",
@@ -69,7 +70,6 @@
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
     "selection-hook": "^1.0.4",
-    "electron-window-state": "^5.0.3",
     "turndown": "7.2.0"
   },
   "devDependencies": {
