@@ -36,6 +36,7 @@ import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButt
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
+import UrlContextButton from './UrlContextbutton'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
 export interface InputbarToolsRef {
@@ -59,6 +60,7 @@ export interface InputbarToolsProps {
   extensions: string[]
   showThinkingButton: boolean
   showKnowledgeIcon: boolean
+  showUrlContextIcon: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
   setText: Dispatch<SetStateAction<string>>
@@ -323,6 +325,12 @@ const InputbarTools = ({
         key: 'web_search',
         label: t('chat.input.web_search'),
         component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
+      },
+      {
+        key: 'url_context',
+        label: t('chat.input.url_context'),
+        component: <UrlContextButton assistant={assistant} ToolbarButton={ToolbarButton} />,
+        condition: model.id.toLowerCase().includes('gemini')
       },
       {
         key: 'knowledge_base',
