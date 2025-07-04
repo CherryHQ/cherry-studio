@@ -1,8 +1,7 @@
 import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
-import { WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
+import { Citation, WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import type OpenAI from 'openai'
@@ -160,9 +159,19 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
+      case WebSearchSource.PERPLEXITY: {
+        formattedCitations =
+          (block.response.results as any[])?.map((result, index) => ({
+            number: index + 1,
+            url: result.url || result, // 兼容旧数据
+            title: result.title || new URL(result).hostname, // 兼容旧数据
+            showFavicon: true,
+            type: 'websearch'
+          })) || []
+        break
+      }
       case WebSearchSource.GROK:
       case WebSearchSource.OPENROUTER:
-      case WebSearchSource.PERPLEXITY:
         formattedCitations =
           (block.response.results as any[])?.map((url, index) => {
             try {

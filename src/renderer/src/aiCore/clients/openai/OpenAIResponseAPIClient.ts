@@ -492,6 +492,10 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             case 'response.output_item.added':
               if (chunk.item.type === 'function_call') {
                 outputItems.push(chunk.item)
+              } else if (chunk.item.type === 'web_search_call') {
+                controller.enqueue({
+                  type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                })
               }
               break
             case 'response.reasoning_summary_part.added':
