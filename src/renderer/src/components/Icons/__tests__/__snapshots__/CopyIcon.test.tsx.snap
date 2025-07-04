@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CopyIcon > should match snapshot 1`] = `
+<i
+  class="iconfont icon-copy"
+/>
+`;
