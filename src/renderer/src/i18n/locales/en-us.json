@@ -1805,6 +1805,13 @@
         "title": "Proxy Settings"
       },
       "proxy.title": "Proxy Address",
+      "hardware_acceleration": {
+        "title": "Disable Hardware Acceleration",
+        "confirm": {
+          "title": "Restart Required",
+          "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",

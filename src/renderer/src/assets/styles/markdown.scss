@@ -323,6 +323,11 @@ mjx-container {
   margin-top: -2px;
 }
 
+/* Shiki 相关样式 */
+.shiki {
+  font-family: var(--code-font-family);
+}
+
 /* CodeMirror 相关样式 */
 .cm-editor {
   border-radius: inherit;
