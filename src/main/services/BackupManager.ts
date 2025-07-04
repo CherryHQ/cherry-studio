@@ -489,14 +489,7 @@ class BackupManager {
     Logger.log(`[BackupManager] Starting S3 backup to ${filename}`)
 
     const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
-    const s3Client = new S3Storage({
-      endpoint: s3Config.endpoint,
-      region: s3Config.region,
-      bucket: s3Config.bucket,
-      access_key_id: s3Config.access_key_id,
-      secret_access_key: s3Config.secret_access_key,
-      root: s3Config.root || ''
-    })
+    const s3Client = new S3Storage(s3Config)
     try {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
       const result = await s3Client.putFileContents(filename, fileBuffer)
@@ -516,14 +509,7 @@ class BackupManager {
 
     Logger.log(`[BackupManager] Starting restore from S3: ${filename}`)
 
-    const s3Client = new S3Storage({
-      endpoint: s3Config.endpoint,
-      region: s3Config.region,
-      bucket: s3Config.bucket,
-      access_key_id: s3Config.access_key_id,
-      secret_access_key: s3Config.secret_access_key,
-      root: s3Config.root || ''
-    })
+    const s3Client = new S3Storage(s3Config)
     try {
       const retrievedFile = await s3Client.getFileContents(filename)
       const backupedFilePath = path.join(this.backupDir, filename)
@@ -548,14 +534,7 @@ class BackupManager {
 
   listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
     try {
-      const s3Client = new S3Storage({
-        endpoint: s3Config.endpoint,
-        region: s3Config.region,
-        bucket: s3Config.bucket,
-        access_key_id: s3Config.access_key_id,
-        secret_access_key: s3Config.secret_access_key,
-        root: s3Config.root || ''
-      })
+      const s3Client = new S3Storage(s3Config)
 
       const objects = await s3Client.listFiles()
       const files = objects
@@ -579,14 +558,7 @@ class BackupManager {
 
   async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
     try {
-      const s3Client = new S3Storage({
-        endpoint: s3Config.endpoint,
-        region: s3Config.region,
-        bucket: s3Config.bucket,
-        access_key_id: s3Config.access_key_id,
-        secret_access_key: s3Config.secret_access_key,
-        root: s3Config.root || ''
-      })
+      const s3Client = new S3Storage(s3Config)
       return await s3Client.deleteFile(fileName)
     } catch (error: any) {
       Logger.error('Failed to delete S3 file:', error)
@@ -595,14 +567,7 @@ class BackupManager {
   }
 
   async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const s3Client = new S3Storage({
-      endpoint: s3Config.endpoint,
-      region: s3Config.region,
-      bucket: s3Config.bucket,
-      access_key_id: s3Config.access_key_id,
-      secret_access_key: s3Config.secret_access_key,
-      root: s3Config.root || ''
-    })
+    const s3Client = new S3Storage(s3Config)
     return await s3Client.checkConnection()
   }
 }

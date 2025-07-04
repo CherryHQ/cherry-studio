@@ -6,7 +6,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { S3Config, setS3 } from '@renderer/store/settings'
+import { setS3Partial } from '@renderer/store/settings'
+import { S3Config } from '@renderer/types'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -49,7 +50,7 @@ const S3Settings: FC = () => {
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
-    dispatch(setS3({ ...s3, syncInterval: value, autoSync: value !== 0 }))
+    dispatch(setS3Partial({ syncInterval: value, autoSync: value !== 0 }))
     if (value === 0) {
       stopAutoSync()
     } else {
@@ -59,12 +60,12 @@ const S3Settings: FC = () => {
 
   const onMaxBackupsChange = (value: number) => {
     setMaxBackups(value)
-    dispatch(setS3({ ...s3, maxBackups: value }))
+    dispatch(setS3Partial({ maxBackups: value }))
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
-    dispatch(setS3({ ...s3, skipBackupFile: value }))
+    dispatch(setS3Partial({ skipBackupFile: value }))
   }
 
   const renderSyncStatus = () => {
@@ -115,7 +116,7 @@ const S3Settings: FC = () => {
           onChange={(e) => setEndpoint(e.target.value)}
           style={{ width: 250 }}
           type="url"
-          onBlur={() => dispatch(setS3({ ...s3, endpoint: endpoint || '' }))}
+          onBlur={() => dispatch(setS3Partial({ endpoint: endpoint || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -126,7 +127,7 @@ const S3Settings: FC = () => {
           value={region}
           onChange={(e) => setRegion(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, region: region || '' }))}
+          onBlur={() => dispatch(setS3Partial({ region: region || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -137,7 +138,7 @@ const S3Settings: FC = () => {
           value={bucket}
           onChange={(e) => setBucket(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, bucket: bucket || '' }))}
+          onBlur={() => dispatch(setS3Partial({ bucket: bucket || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -148,7 +149,7 @@ const S3Settings: FC = () => {
           value={accessKeyId}
           onChange={(e) => setAccessKeyId(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, accessKeyId: accessKeyId || '' }))}
+          onBlur={() => dispatch(setS3Partial({ accessKeyId: accessKeyId || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -159,7 +160,7 @@ const S3Settings: FC = () => {
           value={secretAccessKey}
           onChange={(e) => setSecretAccessKey(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, secretAccessKey: secretAccessKey || '' }))}
+          onBlur={() => dispatch(setS3Partial({ secretAccessKey: secretAccessKey || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -170,7 +171,7 @@ const S3Settings: FC = () => {
           value={root}
           onChange={(e) => setRoot(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, root: root || '' }))}
+          onBlur={() => dispatch(setS3Partial({ root: root || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -263,8 +264,8 @@ const S3Settings: FC = () => {
             endpoint,
             region,
             bucket,
-            access_key_id: accessKeyId,
-            secret_access_key: secretAccessKey,
+            accessKeyId,
+            secretAccessKey,
             root
           }}
         />

@@ -5,13 +5,14 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
 import { setS3SyncState } from '@renderer/store/backup'
+import { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
 import { NotificationService } from './NotificationService'
 
 // 重试删除S3文件的辅助函数
-async function deleteS3FileWithRetry(fileName: string, s3Config: any, maxRetries = 3) {
+async function deleteS3FileWithRetry(fileName: string, s3Config: S3Config, maxRetries = 3) {
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -36,7 +37,7 @@ async function deleteS3FileWithRetry(fileName: string, s3Config: any, maxRetries
 }
 
 // 重试删除WebDAV文件的辅助函数
-async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: any, maxRetries = 3) {
+async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavConfig, maxRetries = 3) {
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -316,18 +317,7 @@ export async function backupToS3({
 
   store.dispatch(setS3SyncState({ syncing: true, lastSyncError: null }))
 
-  const {
-    s3: {
-      endpoint: s3Endpoint,
-      region: s3Region,
-      bucket: s3Bucket,
-      accessKeyId: s3AccessKeyId,
-      secretAccessKey: s3SecretAccessKey,
-      root: s3Root,
-      maxBackups: s3MaxBackups,
-      skipBackupFile: s3SkipBackupFile
-    }
-  } = store.getState().settings
+  const s3Config = store.getState().settings.s3
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -342,77 +332,67 @@ export async function backupToS3({
   const backupData = await getBackupData()
 
   try {
-    await window.api.backup.backupToS3(backupData, {
-      endpoint: s3Endpoint,
-      region: s3Region,
-      bucket: s3Bucket,
-      access_key_id: s3AccessKeyId,
-      secret_access_key: s3SecretAccessKey,
-      root: s3Root,
-      fileName: finalFileName,
-      skipBackupFile: s3SkipBackupFile
+    const success = await window.api.backup.backupToS3(backupData, {
+      ...s3Config,
+      fileName: finalFileName
     })
 
-    store.dispatch(
-      setS3SyncState({
-        lastSyncError: null,
-        syncing: false,
-        lastSyncTime: Date.now()
+    if (success) {
+      store.dispatch(
+        setS3SyncState({
+          lastSyncError: null,
+          syncing: false,
+          lastSyncTime: Date.now()
+        })
+      )
+      notificationService.send({
+        id: uuid(),
+        type: 'success',
+        title: i18n.t('common.success'),
+        message: i18n.t('message.backup.success'),
+        silent: false,
+        timestamp: Date.now(),
+        source: 'backup'
       })
-    )
-    notificationService.send({
-      id: uuid(),
-      type: 'success',
-      title: i18n.t('common.success'),
-      message: i18n.t('message.backup.success'),
-      silent: false,
-      timestamp: Date.now(),
-      source: 'backup'
-    })
-    showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
 
-    // 清理旧备份文件
-    if (s3MaxBackups > 0) {
-      try {
-        const files = await window.api.backup.listS3Files({
-          endpoint: s3Endpoint,
-          region: s3Region,
-          bucket: s3Bucket,
-          access_key_id: s3AccessKeyId,
-          secret_access_key: s3SecretAccessKey,
-          root: s3Root
-        })
+      // 清理旧备份文件
+      if (s3Config.maxBackups > 0) {
+        try {
+          // 获取所有备份文件
+          const files = await window.api.backup.listS3Files(s3Config)
 
-        // 筛选当前设备的备份文件
-        const currentDeviceFiles = files.filter((file) => {
-          return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
-        })
+          // 筛选当前设备的备份文件
+          const currentDeviceFiles = files.filter((file) => {
+            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
+          })
 
-        // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
-        if (currentDeviceFiles.length > s3MaxBackups) {
-          const filesToDelete = currentDeviceFiles.slice(s3MaxBackups)
+          // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
+          if (currentDeviceFiles.length > s3Config.maxBackups) {
+            const filesToDelete = currentDeviceFiles.slice(s3Config.maxBackups)
 
-          Logger.log(`[Backup] Cleaning up ${filesToDelete.length} old backup files`)
+            Logger.log(`[Backup] Cleaning up ${filesToDelete.length} old backup files`)
 
-          for (let i = 0; i < filesToDelete.length; i++) {
-            const file = filesToDelete[i]
-            await deleteS3FileWithRetry(file.fileName, {
-              endpoint: s3Endpoint,
-              region: s3Region,
-              bucket: s3Bucket,
-              access_key_id: s3AccessKeyId,
-              secret_access_key: s3SecretAccessKey,
-              root: s3Root
-            })
+            for (let i = 0; i < filesToDelete.length; i++) {
+              const file = filesToDelete[i]
+              await deleteS3FileWithRetry(file.fileName, s3Config)
 
-            if (i < filesToDelete.length - 1) {
-              await new Promise((resolve) => setTimeout(resolve, 500))
+              if (i < filesToDelete.length - 1) {
+                await new Promise((resolve) => setTimeout(resolve, 500))
+              }
             }
           }
+        } catch (error) {
+          Logger.error('[Backup] Failed to clean up old backup files:', error)
         }
-      } catch (error) {
-        Logger.error('[Backup] Failed to clean up old backup files:', error)
       }
+    } else {
+      if (autoBackupProcess) {
+        throw new Error(i18n.t('message.backup.failed'))
+      }
+
+      store.dispatch(setS3SyncState({ lastSyncError: 'Backup failed' }))
+      showMessage && window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
     }
   } catch (error: any) {
     if (autoBackupProcess) {
@@ -446,38 +426,22 @@ export async function backupToS3({
 
 // 从 S3 恢复
 export async function restoreFromS3(fileName?: string) {
-  const {
-    s3: {
-      endpoint: s3Endpoint,
-      region: s3Region,
-      bucket: s3Bucket,
-      accessKeyId: s3AccessKeyId,
-      secretAccessKey: s3SecretAccessKey,
-      root: s3Root
-    }
-  } = store.getState().settings
-  let data = ''
+  const s3Config = store.getState().settings.s3
 
-  try {
-    data = await window.api.backup.restoreFromS3({
-      endpoint: s3Endpoint,
-      region: s3Region,
-      bucket: s3Bucket,
-      access_key_id: s3AccessKeyId,
-      secret_access_key: s3SecretAccessKey,
-      root: s3Root,
-      fileName
-    })
-  } catch (error: any) {
-    console.error('[Backup] restoreFromS3: Error downloading file from S3:', error)
-    window.modal.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
+  if (!fileName) {
+    const files = await window.api.backup.listS3Files(s3Config)
+    if (files.length > 0) {
+      fileName = files[0].fileName
+    }
   }
 
-  try {
-    await handleData(JSON.parse(data))
+  if (fileName) {
+    const restoreData = await window.api.backup.restoreFromS3({
+      ...s3Config,
+      fileName
+    })
+    const data = JSON.parse(restoreData)
+    await handleData(data)
     store.dispatch(
       setS3SyncState({
         lastSyncTime: Date.now(),
@@ -485,9 +449,6 @@ export async function restoreFromS3(fileName?: string) {
         lastSyncError: null
       })
     )
-  } catch (error) {
-    console.error('[Backup] Error downloading file from S3:', error)
-    window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
   }
 }
 
@@ -501,11 +462,12 @@ export function startAutoSync(immediate = false) {
     return
   }
 
-  const {
-    webdavAutoSync,
-    webdavHost,
-    s3: { autoSync: s3AutoSync, endpoint: s3Endpoint }
-  } = store.getState().settings
+  const settings = store.getState().settings
+  const { webdavAutoSync, webdavHost } = settings
+  const s3Settings = settings.s3
+
+  const s3AutoSync = s3Settings?.autoSync
+  const s3Endpoint = s3Settings?.endpoint
 
   // 检查WebDAV或S3自动同步配置
   const hasWebdavConfig = webdavAutoSync && webdavHost
@@ -534,17 +496,16 @@ export function startAutoSync(immediate = false) {
       syncTimeout = null
     }
 
-    const {
-      webdavSyncInterval: _webdavSyncInterval,
-      s3: { syncInterval: _s3SyncInterval }
-    } = store.getState().settings
+    const settings = store.getState().settings
+    const _webdavSyncInterval = settings.webdavSyncInterval
+    const _s3SyncInterval = settings.s3?.syncInterval
     const { webdavSync, s3Sync } = store.getState().backup
 
     // 使用当前激活的同步配置
     const syncInterval = hasWebdavConfig ? _webdavSyncInterval : _s3SyncInterval
     const lastSyncTime = hasWebdavConfig ? webdavSync?.lastSyncTime : s3Sync?.lastSyncTime
 
-    if (syncInterval <= 0) {
+    if (!syncInterval || syncInterval <= 0) {
       Logger.log('[AutoSync] Invalid sync interval, auto sync disabled')
       stopAutoSync()
       return

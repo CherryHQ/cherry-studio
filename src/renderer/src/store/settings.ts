@@ -8,13 +8,14 @@ import {
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
+  S3Config,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 
-import { WebDAVSyncState } from './backup'
+import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -30,25 +31,12 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
-export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type UserTheme = {
   colorPrimary: string
-}
-
-export interface S3Config {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-  root: string
-  autoSync: boolean
-  syncInterval: number
-  maxBackups: number
-  skipBackupFile: boolean
 }
 
 export interface SettingsState {
@@ -732,6 +720,9 @@ const settingsSlice = createSlice({
     },
     setS3: (state, action: PayloadAction<S3Config>) => {
       state.s3 = action.payload
+    },
+    setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
+      state.s3 = { ...state.s3, ...action.payload }
     }
   }
 })
@@ -842,7 +833,8 @@ export const {
   setOpenAIServiceTier,
   setNotificationSettings,
   setDefaultPaintingProvider,
-  setS3
+  setS3,
+  setS3Partial
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

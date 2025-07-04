@@ -1,14 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-export interface WebDAVSyncState {
+export interface RemoteSyncState {
   lastSyncTime: number | null
   syncing: boolean
   lastSyncError: string | null
 }
 
 export interface BackupState {
-  webdavSync: WebDAVSyncState
-  s3Sync: WebDAVSyncState
+  webdavSync: RemoteSyncState
+  s3Sync: RemoteSyncState
 }
 
 const initialState: BackupState = {
@@ -28,10 +28,10 @@ const backupSlice = createSlice({
   name: 'backup',
   initialState,
   reducers: {
-    setWebDAVSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
+    setWebDAVSyncState: (state, action: PayloadAction<Partial<RemoteSyncState>>) => {
       state.webdavSync = { ...state.webdavSync, ...action.payload }
     },
-    setS3SyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
+    setS3SyncState: (state, action: PayloadAction<Partial<RemoteSyncState>>) => {
       state.s3Sync = { ...state.s3Sync, ...action.payload }
     }
   }

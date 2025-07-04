@@ -35,7 +35,7 @@ export default class S3Storage {
   private root: string
 
   constructor(config: S3Config) {
-    const { endpoint, region, access_key_id, secret_access_key, bucket, root } = config
+    const { endpoint, region, accessKeyId, secretAccessKey, bucket, root } = config
 
     const usePathStyle = (() => {
       if (!endpoint) return false
@@ -59,8 +59,8 @@ export default class S3Storage {
       region,
       endpoint: endpoint || undefined,
       credentials: {
-        accessKeyId: access_key_id,
-        secretAccessKey: secret_access_key
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey
       },
       forcePathStyle: usePathStyle
     })

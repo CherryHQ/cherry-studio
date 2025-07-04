@@ -754,11 +754,14 @@ export type S3Config = {
   endpoint: string
   region: string
   bucket: string
-  access_key_id: string
-  secret_access_key: string
+  accessKeyId: string
+  secretAccessKey: string
   root?: string
   fileName?: string
-  skipBackupFile?: boolean
+  skipBackupFile: boolean
+  autoSync: boolean
+  syncInterval: number
+  maxBackups: number
 }
 
 export type { Message } from './newMessage'
