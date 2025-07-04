@@ -18,7 +18,7 @@ jobs:
           # 从当前 Release 事件中获取 tag_name
           echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
 
-      - name: Fetch Latest Release Tag via API # 新增步骤：通过 API 获取实际的最新 Release
+      - name: Fetch Latest Release Tag via API # 通过 API 获取实际的最新 Release
         id: get-latest-tag
         shell: bash
         env:
