@@ -11,6 +11,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -42,7 +44,9 @@ import {
   Share,
   Split,
   ThumbsUp,
-  Trash
+  Trash,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,6 +75,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const dispatch = useAppDispatch()
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -390,6 +395,17 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
+  const onToggleCollapse = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      dispatch(newMessagesActions.setMessageCollapsed({
+        messageId: message.id,
+        collapsed: !message.collapsed
+      }))
+    },
+    [dispatch, message]
+  )
+
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
@@ -534,6 +550,13 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Tooltip>
       )}
+      <Tooltip
+        title={message.collapsed ? t('common.expand') : t('common.collapse')}
+        mouseEnterDelay={0.8}>
+        <ActionButton className="message-action-button" onClick={onToggleCollapse} $softHoverBg={softHoverBg}>
+          {message.collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </ActionButton>
+      </Tooltip>
       <Popconfirm
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}
