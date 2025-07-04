@@ -1071,8 +1071,25 @@ export const clearTopicMessagesThunk =
       if (blockIdsToDelete.length > 0) {
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
-    } catch (error) {
+  } catch (error) {
       console.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error)
+    }
+  }
+
+export const reorderMessagesThunk =
+  (topicId: string, messageIds: string[]) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      dispatch(newMessagesActions.reorderMessages({ topicId, messageIds }))
+
+      const finalMessagesToSave = messageIds
+        .map((id) => getState().messages.entities[id])
+        .filter((m): m is Message => !!m)
+
+      await db.topics.update(topicId, { messages: finalMessagesToSave })
+      dispatch(updateTopicUpdatedAt({ topicId }))
+    } catch (error) {
+      console.error(`[reorderMessagesThunk] Failed to reorder messages for topic ${topicId}:`, error)
     }
   }
 
