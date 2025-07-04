@@ -1,0 +1,30 @@
+name: Dispatch Docs Update on Release
+
+on:
+  release:
+    types: [published, edited] # 同时监听 Release 被“发布”和“编辑”的事件
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch-docs-update:
+    runs-on: ubuntu-latest
+    # 只有当 Release 被标记为“最新版本”时才运行此 Job
+    if: github.event.release.make_latest
+
+    steps:
+      - name: Get release tag
+        id: get-tag
+        shell: bash
+        run: |
+          # 当 release 事件触发时，tag_name 在 github.event.release.tag_name 中
+          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+
+      - name: Dispatch update-download-version workflow to cherry-studio-docs
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.REPO_DISPATCH_TOKEN }}
+          repository: CherryHQ/cherry-studio-docs
+          event-type: update-download-version
+          client-payload: '{"version": "${{ steps.get-tag.outputs.tag }}"}'
