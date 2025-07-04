@@ -1011,6 +1011,7 @@
     "provider": {
       "aihubmix": "AiHubMix",
       "burncloud": "BurnCloud",
+      "huaweicloudmaas": "Huawei Cloud MaaS",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
