@@ -157,7 +157,16 @@ const GeneralSettings: FC = () => {
       cancelText: t('common.cancel'),
       centered: true,
       onOk() {
-        setDisableHardwareAcceleration(checked)
+        try {
+          setDisableHardwareAcceleration(checked)
+        } catch (error) {
+          window.message.error({
+            content: (error as Error).message,
+            key: 'disable-hardware-acceleration-error'
+          })
+          return
+        }
+
         // 重启应用
         setTimeout(() => {
           window.api.relaunchApp()
