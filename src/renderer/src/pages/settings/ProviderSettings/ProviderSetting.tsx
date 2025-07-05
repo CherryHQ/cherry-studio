@@ -2,6 +2,7 @@ import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -14,10 +15,10 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Checkbox, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,7 +41,6 @@ import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
 import ProviderOAuth from './ProviderOAuth'
-import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
@@ -58,6 +58,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
   const [modelSearchText, setModelSearchText] = useState('')
+  const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(provider?.isNotSupportArrayContent || false)
   const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
@@ -303,14 +304,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!provider.isSystem && (
-            <Button
-              type="text"
-              size="small"
-              onClick={() => ProviderSettingsPopup.show({ provider })}
-              icon={<Settings2 size={14} />}
-            />
-          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -425,6 +418,18 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
+      <SettingSubtitle>{t('settings.provider.misc')}</SettingSubtitle>
+      <Checkbox
+        checked={isNotSupportArrayContent}
+        onChange={(e) => {
+          setIsNotSupportArrayContent(e.target.checked)
+          updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
+        }}>
+        <CheckboxLabelContainer>
+          {t('settings.provider.is_not_support_array_content')}
+          <InfoTooltip content={t('settings.provider.is_not_support_array_content.tip')} />
+        </CheckboxLabelContainer>
+      </Checkbox>
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <HStack alignItems="center" gap={8} mb={5}>
@@ -459,6 +464,12 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
+`
+
+const CheckboxLabelContainer = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
 `
 
 export default ProviderSetting

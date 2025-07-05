@@ -46,7 +46,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       type,
       logo: logo || undefined
     }
-
     resolve(result)
   }
 
@@ -245,7 +244,12 @@ export default class AddProviderPopup {
     TopView.hide('AddProviderPopup')
   }
   static show(provider?: Provider) {
-    return new Promise<{ name: string; type: ProviderType; logo?: string; logoFile?: File }>((resolve) => {
+    return new Promise<{
+      name: string
+      type: ProviderType
+      logo?: string
+      logoFile?: File
+    }>((resolve) => {
       TopView.show(
         <PopupContainer
           provider={provider}
