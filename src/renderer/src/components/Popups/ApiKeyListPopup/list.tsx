@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiKeyStatus, ProviderUnion } from './types'
+import { ApiKeyWithStatus, ProviderUnion } from './types'
 
 interface ApiKeyListProps {
   provider: ProviderUnion
@@ -72,12 +72,12 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider }) =>
   }
 
   // 合并真实 keys 和临时新项
-  const displayKeys: ApiKeyStatus[] = pendingNewKey
+  const displayKeys: ApiKeyWithStatus[] = pendingNewKey
     ? [
         ...keys,
         {
           key: pendingNewKey.key,
-          connectivity: 'not_checked',
+          status: 'not_checked',
           checking: false
         }
       ]

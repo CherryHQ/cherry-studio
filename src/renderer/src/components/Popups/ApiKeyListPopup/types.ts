@@ -1,11 +1,10 @@
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 
 /**
- * API key 连通性检查的状态接口
+ * API Key 连通性检查的状态
  */
-export type ApiKeyStatus = {
-  key: string
-  connectivity: 'success' | 'error' | 'not_checked'
+export type ApiKeyConnectivity = {
+  status: 'success' | 'error' | 'not_checked'
   checking?: boolean
   error?: string
   model?: Model
@@ -13,9 +12,11 @@ export type ApiKeyStatus = {
 }
 
 /**
- * API Key 连通性检查的 UI 状态接口
+ * API key 及其连通性检查的状态
  */
-export type ConnectivityState = Omit<ApiKeyStatus, 'key'>
+export type ApiKeyWithStatus = {
+  key: string
+} & ApiKeyConnectivity
 
 /**
  * API key 格式有效性

@@ -7,10 +7,10 @@ import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ApiKeyStatus, ApiKeyValidity } from './types'
+import { ApiKeyValidity, ApiKeyWithStatus } from './types'
 
 export interface ApiKeyItemProps {
-  keyStatus: ApiKeyStatus
+  keyStatus: ApiKeyWithStatus
   onUpdate: (newKey: string) => ApiKeyValidity
   onRemove: () => void
   onCheck: () => Promise<void>
@@ -37,8 +37,8 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const inputRef = useRef<InputRef>(null)
 
   const disabled = keyStatus.checking || _disabled
-  const isNotChecked = keyStatus.connectivity === 'not_checked'
-  const isSuccess = keyStatus.connectivity === 'success'
+  const isNotChecked = keyStatus.status === 'not_checked'
+  const isSuccess = keyStatus.status === 'success'
   const statusColor = isSuccess ? 'var(--color-status-success)' : 'var(--color-status-error)'
 
   useEffect(() => {

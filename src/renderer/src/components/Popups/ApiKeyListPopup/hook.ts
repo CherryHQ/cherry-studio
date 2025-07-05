@@ -11,7 +11,7 @@ import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ApiKeyStatus, ApiKeyValidity, ConnectivityState, ProviderUnion } from './types'
+import { ApiKeyConnectivity, ApiKeyValidity, ApiKeyWithStatus, ProviderUnion } from './types'
 
 interface UseApiKeysProps {
   provider: ProviderUnion
@@ -25,7 +25,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   const { t } = useTranslation()
 
   // 连通性检查的 UI 状态管理
-  const [connectivityStates, setConnectivityStates] = useState<Map<string, ConnectivityState>>(new Map())
+  const [connectivityStates, setConnectivityStates] = useState<Map<string, ApiKeyConnectivity>>(new Map())
 
   // 保存 apiKey 到 provider
   const updateProviderWithKey = useCallback(
@@ -46,10 +46,10 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   }, [provider.apiKey])
 
   // 合并基本数据和连通性状态
-  const keysWithStatus = useMemo((): ApiKeyStatus[] => {
+  const keysWithStatus = useMemo((): ApiKeyWithStatus[] => {
     return keys.map((key) => {
       const connectivityState = connectivityStates.get(key) || {
-        connectivity: 'not_checked' as const,
+        status: 'not_checked' as const,
         checking: false,
         error: undefined,
         model: undefined,
@@ -63,11 +63,11 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   }, [keys, connectivityStates])
 
   // 更新单个 key 的连通性状态
-  const updateConnectivityState = useCallback((key: string, state: Partial<ConnectivityState>) => {
+  const updateConnectivityState = useCallback((key: string, state: Partial<ApiKeyConnectivity>) => {
     setConnectivityStates((prev) => {
       const newMap = new Map(prev)
       const currentState = prev.get(key) || {
-        connectivity: 'not_checked' as const,
+        status: 'not_checked' as const,
         checking: false,
         error: undefined,
         model: undefined,
@@ -167,10 +167,10 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
 
   // 移除连通性检查失败的 keys
   const removeInvalidKeys = useCallback(() => {
-    const validKeys = keysWithStatus.filter((keyStatus) => keyStatus.connectivity !== 'error').map((k) => k.key)
+    const validKeys = keysWithStatus.filter((keyStatus) => keyStatus.status !== 'error').map((k) => k.key)
 
     // 清除被删除的 keys 的连通性状态
-    const keysToRemove = keysWithStatus.filter((keyStatus) => keyStatus.connectivity === 'error').map((k) => k.key)
+    const keysToRemove = keysWithStatus.filter((keyStatus) => keyStatus.status === 'error').map((k) => k.key)
 
     setConnectivityStates((prev) => {
       const newMap = new Map(prev)
@@ -204,7 +204,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         // 连通性检查成功
         updateConnectivityState(keyToCheck, {
           checking: false,
-          connectivity: 'success',
+          status: 'success',
           model,
           latency,
           error: undefined
@@ -213,7 +213,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         // 连通性检查失败
         updateConnectivityState(keyToCheck, {
           checking: false,
-          connectivity: 'error',
+          status: 'error',
           error: formatErrorMessage(error),
           model: undefined,
           latency: undefined
