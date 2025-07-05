@@ -21,6 +21,8 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
+  const isCollapsed = useMemo(() => activeKey === '', [activeKey])
+
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
   useEffect(() => {
@@ -50,25 +52,31 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   if (!block.content) {
     return null
   }
-
   return (
     <CollapseContainer
       activeKey={activeKey}
       size="small"
-      onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
+      onChange={() => {
+        if (activeKey === 'thought') {
+          setActiveKey('')
+        } else {
+          setActiveKey('thought')
+        }
+      }}
       className="message-thought-container"
-      expandIcon={({ isActive }) => (
+      expandIcon={() => (
         <ChevronRight
           color="var(--color-text-3)"
           size={16}
           strokeWidth={1.5}
-          style={{ transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)' }}
+          style={{ transform: isCollapsed ? 'rotate(90deg)' : 'rotate(-90deg)' }}
         />
       )}
       expandIconPosition="end"
       items={[
         {
           key: 'thought',
+          showArrow: false,
           label: (
             <MessageTitleLabel>
               <motion.span
@@ -108,6 +116,10 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               <Markdown block={block} />
             </div>
           )
+        },
+        {
+          key: 'never',
+          label: isCollapsed ? t('chat.input.expand') : t('chat.input.collapse')
         }
       ]}
     />

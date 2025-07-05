@@ -112,5 +112,14 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
       </div>
     </div>
   </div>
+  <div
+    data-testid="collapse-item-never"
+  >
+    <div
+      data-testid="collapse-header-never"
+    >
+      chat.input.collapse
+    </div>
+  </div>
 </div>
 `;
