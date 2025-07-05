@@ -1,4 +1,4 @@
-import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -11,10 +11,10 @@ import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, 
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface CodePreviewProps {
-  children: string
+import { BasicPreviewProps } from './types'
+
+interface CodePreviewProps extends BasicPreviewProps {
   language: string
-  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 const MAX_COLLAPSE_HEIGHT = 350
