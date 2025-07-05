@@ -2,35 +2,13 @@ name: Dispatch Docs Update on Release
 
 on:
   release:
-    # 监听所有可能的发布相关事件，以便调试
-    types: [published, edited, prereleased, released, created, deleted]
+    types: [released]
 
 permissions:
-  contents: write # 确保工作流有写入权限，以便后续的 dispatch 操作
+  contents: write
 
 jobs:
-  debug_release_event:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print Event Details for Debugging
-        run: |
-          echo "--- GitHub Release Event Details ---"
-          echo "Event Action: ${{ github.event.action }}" # 打印触发的事件类型
-          echo "Is Prerelease: ${{ github.event.release.prerelease }}" # 打印发布是否为预发布
-          echo "Release Tag: ${{ github.event.release.tag_name }}"
-          echo "Release Name: ${{ github.event.release.name }}"
-          echo "Release URL: ${{ github.event.release.html_url }}"
-          echo "------------------------------------"
-          # 打印整个事件 payload，这会提供最详细的信息
-          # 如果需要更详细的原始数据，可以取消下面这行的注释
-          # echo "${{ toJson(github.event) }}"
-
   dispatch-docs-update:
-    # 只有当事件类型是 'released' 时才执行后续的 dispatch 步骤
-    # 或者，如果 'edited' 事件触发，且编辑后变为非预发布，也可以考虑触发
-    if: |
-      github.event.action == 'released' ||
-      (github.event.action == 'edited' && github.event.release.prerelease == false)
     runs-on: ubuntu-latest
     steps:
       - name: Get Release Tag from Event
