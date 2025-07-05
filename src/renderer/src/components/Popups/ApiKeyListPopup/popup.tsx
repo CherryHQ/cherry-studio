@@ -3,10 +3,12 @@ import { Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ApiKeyList from './list'
+import { LlmApiKeyList, WebSearchApiKeyList } from './list'
+import { ApiKeySourceType } from './types'
 
 interface ShowParams {
   providerId: string
+  providerType: ApiKeySourceType
   title?: string
 }
 
@@ -18,7 +20,7 @@ interface Props extends ShowParams {
  * API Key 列表弹窗容器组件
  * 重构后简化接口，ApiKeyList 直接与 store 交互
  */
-const PopupContainer: React.FC<Props> = ({ providerId, title, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
 
@@ -48,7 +50,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve }) => {
       centered
       width={600}
       footer={null}>
-      <ApiKeyList providerId={providerId} />
+      {providerType === 'llm-provider' ? (
+        <LlmApiKeyList providerId={providerId} />
+      ) : (
+        <WebSearchApiKeyList providerId={providerId} />
+      )}
     </Modal>
   )
 }

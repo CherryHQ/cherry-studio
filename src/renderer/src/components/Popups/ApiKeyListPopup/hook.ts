@@ -1,8 +1,8 @@
 import Logger from '@renderer/config/logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { useProvider } from '@renderer/hooks/useProvider'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider } from '@renderer/types'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -11,18 +11,17 @@ import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ApiKeyStatus, ApiKeyValidity } from './types'
+import { ApiKeyStatus, ApiKeyValidity, ConnectivityState, ProviderUnion } from './types'
 
-/**
- * API Key 连通性检查的 UI 状态接口
- */
-type ConnectivityState = Omit<ApiKeyStatus, 'key'>
+interface UseApiKeysProps {
+  provider: ProviderUnion
+  updateProvider: (provider: Partial<ProviderUnion>) => void
+}
 
 /**
  * API Keys 管理 hook
  */
-export function useApiKeys(providerId: string) {
-  const { provider, updateProvider } = useProvider(providerId)
+export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   const { t } = useTranslation()
 
   // 连通性检查的 UI 状态管理
@@ -109,7 +108,7 @@ export function useApiKeys(providerId: string) {
       updateProviderWithKey([...keys, key.trim()])
       return { isValid: true }
     },
-    [keys, validateApiKey, updateProviderWithKey]
+    [validateApiKey, keys, updateProviderWithKey]
   )
 
   // 更新 key
@@ -184,7 +183,7 @@ export function useApiKeys(providerId: string) {
 
   // 检查单个 key 的连通性，不负责选择和验证模型
   const runConnectivityCheck = useCallback(
-    async (index: number, model: Model): Promise<void> => {
+    async (index: number, model?: Model): Promise<void> => {
       const keyToCheck = keys[index]
       const currentState = connectivityStates.get(keyToCheck)
       if (currentState?.checking) return
@@ -194,7 +193,12 @@ export function useApiKeys(providerId: string) {
 
       try {
         const startTime = Date.now()
-        await checkApi({ ...provider, apiKey: keyToCheck }, model)
+        if (isLlmProvider(provider) && model) {
+          await checkApi({ ...provider, apiKey: keyToCheck }, model)
+        } else {
+          const result = await WebSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
+          if (!result.valid) throw new Error(result.error)
+        }
         const latency = Date.now() - startTime
 
         // 连通性检查成功
@@ -218,7 +222,7 @@ export function useApiKeys(providerId: string) {
         Logger.error('[ApiKeyList] failed to validate the connectivity of the api key', error)
       }
     },
-    [provider, keys, connectivityStates, updateConnectivityState]
+    [keys, connectivityStates, updateConnectivityState, provider]
   )
 
   // 检查单个 key 的连通性
@@ -230,8 +234,8 @@ export function useApiKeys(providerId: string) {
       const currentState = connectivityStates.get(keyToCheck)
       if (currentState?.checking) return
 
-      const model = await getModelForCheck(provider, t)
-      if (!model) return
+      const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
+      if (model === null) return
 
       await runConnectivityCheck(index, model)
     },
@@ -242,8 +246,8 @@ export function useApiKeys(providerId: string) {
   const checkAllKeysConnectivity = useCallback(async () => {
     if (!provider || keys.length === 0) return
 
-    const model = await getModelForCheck(provider, t)
-    if (!model) return
+    const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
+    if (model === null) return
 
     await Promise.allSettled(keys.map((_, index) => runConnectivityCheck(index, model)))
   }, [provider, keys, t, runConnectivityCheck])
@@ -254,7 +258,6 @@ export function useApiKeys(providerId: string) {
   }, [connectivityStates])
 
   return {
-    provider,
     keys: keysWithStatus,
     addKey,
     updateKey,
@@ -266,8 +269,12 @@ export function useApiKeys(providerId: string) {
   }
 }
 
+export function isLlmProvider(provider: ProviderUnion): provider is Provider {
+  return 'models' in provider
+}
+
 // 获取模型用于检查
-export async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model | null> {
+async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model | null> {
   const modelsToCheck = provider.models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
   if (isEmpty(modelsToCheck)) {

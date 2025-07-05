@@ -1,12 +1,13 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
+import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { Info } from 'lucide-react'
+import { Info, List } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -34,14 +35,15 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
+  const [isApiKeyListOpen, setIsApiKeyListOpen] = useState(false)
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
   const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
+    if (apiKey !== provider.apiKey && !isApiKeyListOpen) {
+      updateProvider({ apiKey })
     }
   }
 
@@ -51,7 +53,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== provider.apiHost) {
-      updateProvider({ ...provider, apiHost: trimmedHost })
+      updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(provider.apiHost || '')
     }
@@ -61,7 +63,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      updateProvider({ ...provider, basicAuthUsername: basicAuthUsername })
+      updateProvider({ basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -71,10 +73,20 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      updateProvider({ ...provider, basicAuthPassword: basicAuthPassword })
+      updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
+  }
+
+  const onOpenApiKeyList = async () => {
+    setIsApiKeyListOpen(true)
+    await ApiKeyListPopup.show({
+      providerId: provider.id,
+      providerType: 'websearch-provider',
+      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
+    })
+    setIsApiKeyListOpen(false)
   }
 
   async function checkSearch() {
@@ -103,7 +115,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
       if (result?.validKeys) {
         setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
+        updateProvider({ apiKey: result.validKeys.join(',') })
       }
       return
     }
@@ -161,7 +173,21 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {hasObjectKey(provider, 'apiKey') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            <Space>{t('settings.provider.api_key')}</Space>
+            <Space>
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={onOpenApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            </Space>
+          </SettingSubtitle>
           <Flex gap={8}>
             <Input.Password
               value={apiKey}

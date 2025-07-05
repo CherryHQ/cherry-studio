@@ -1,6 +1,8 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
@@ -8,25 +10,25 @@ import { Trash } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useApiKeys } from './hook'
+import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiKeyStatus } from './types'
+import { ApiKeyStatus, ProviderUnion } from './types'
 
-interface Props {
-  providerId: string
+interface ApiKeyListProps {
+  provider: ProviderUnion
+  updateProvider: (provider: Partial<ProviderUnion>) => void
 }
 
 /**
  * Api key 列表，管理 CRUD 操作、连接检查
  */
-const ApiKeyList: FC<Props> = ({ providerId }) => {
+export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider }) => {
   const { t } = useTranslation()
 
   // 临时新项状态
   const [pendingNewKey, setPendingNewKey] = useState<{ key: string; id: string } | null>(null)
 
   const {
-    provider,
     keys,
     addKey,
     updateKey,
@@ -35,9 +37,7 @@ const ApiKeyList: FC<Props> = ({ providerId }) => {
     checkKeyConnectivity,
     checkAllKeysConnectivity,
     isChecking
-  } = useApiKeys(providerId)
-
-  const isCopilot = provider.id === 'copilot'
+  } = useApiKeys({ provider, updateProvider })
 
   // 创建一个临时新项
   const handleAddNew = () => {
@@ -67,7 +67,8 @@ const ApiKeyList: FC<Props> = ({ providerId }) => {
   }
 
   const shouldAutoFocus = () => {
-    return provider.enabled && !provider.apiKey && !isProviderSupportAuth(provider)
+    if (provider.apiKey) return false
+    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
   }
 
   // 合并真实 keys 和临时新项
@@ -109,7 +110,6 @@ const ApiKeyList: FC<Props> = ({ providerId }) => {
                     onUpdate={(newKey) => handleUpdate(index, newKey, !!isNew)}
                     onRemove={() => handleRemove(index, !!isNew)}
                     onCheck={() => checkKeyConnectivity(index)}
-                    isCopilot={isCopilot}
                   />
                 )
               }}
@@ -123,49 +123,57 @@ const ApiKeyList: FC<Props> = ({ providerId }) => {
         <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
 
         {/* 标题和操作按钮 */}
-        {!isCopilot && (
-          <Space style={{ gap: 6 }}>
-            {/* 批量删除无效 keys */}
-            {keys.length > 1 && (
-              <Space style={{ gap: 0 }}>
-                <Popconfirm
-                  title={t('common.delete_confirm')}
-                  onConfirm={removeInvalidKeys}
-                  okText={t('common.confirm')}
-                  cancelText={t('common.cancel')}
-                  okButtonProps={{ danger: true }}>
-                  <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
-                    <Button type="text" icon={<Trash size={16} />} disabled={isChecking || !!pendingNewKey} danger />
-                  </Tooltip>
-                </Popconfirm>
-
-                {/* 批量检查 */}
-                <Tooltip title={t('settings.provider.check_all_keys')} placement="top" mouseLeaveDelay={0}>
-                  <Button
-                    type="text"
-                    icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}
-                    onClick={checkAllKeysConnectivity}
-                    disabled={isChecking || !!pendingNewKey}
-                  />
+        <Space style={{ gap: 6 }}>
+          {/* 批量删除无效 keys */}
+          {keys.length > 1 && (
+            <Space style={{ gap: 0 }}>
+              <Popconfirm
+                title={t('common.delete_confirm')}
+                onConfirm={removeInvalidKeys}
+                okText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                okButtonProps={{ danger: true }}>
+                <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
+                  <Button type="text" icon={<Trash size={16} />} disabled={isChecking || !!pendingNewKey} danger />
                 </Tooltip>
-              </Space>
-            )}
+              </Popconfirm>
 
-            {/* 添加新 key */}
-            <Button
-              key="add"
-              type="primary"
-              onClick={handleAddNew}
-              icon={<PlusOutlined />}
-              autoFocus={shouldAutoFocus()}
-              disabled={isChecking || !!pendingNewKey}>
-              {t('common.add')}
-            </Button>
-          </Space>
-        )}
+              {/* 批量检查 */}
+              <Tooltip title={t('settings.provider.check_all_keys')} placement="top" mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}
+                  onClick={checkAllKeysConnectivity}
+                  disabled={isChecking || !!pendingNewKey}
+                />
+              </Tooltip>
+            </Space>
+          )}
+
+          {/* 添加新 key */}
+          <Button
+            key="add"
+            type="primary"
+            onClick={handleAddNew}
+            icon={<PlusOutlined />}
+            autoFocus={shouldAutoFocus()}
+            disabled={isChecking || !!pendingNewKey}>
+            {t('common.add')}
+          </Button>
+        </Space>
       </Flex>
     </>
   )
 }
 
-export default ApiKeyList
+export const LlmApiKeyList: FC<{ providerId: string }> = ({ providerId }) => {
+  const { provider, updateProvider } = useProvider(providerId)
+
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} />
+}
+
+export const WebSearchApiKeyList: FC<{ providerId: string }> = ({ providerId }) => {
+  const { provider, updateProvider } = useWebSearchProvider(providerId)
+
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} />
+}

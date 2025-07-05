@@ -134,6 +134,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setIsApiKeyListOpen(true)
     await ApiKeyListPopup.show({
       providerId: provider.id,
+      providerType: 'llm-provider',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
     setIsApiKeyListOpen(false)
@@ -355,9 +356,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             }}>
             <Space>{t('settings.provider.api_key')}</Space>
             <Space>
-              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={onOpenApiKeyList} icon={<List size={14} />} />
-              </Tooltip>
+              {provider.id !== 'copilot' && (
+                <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                  <Button type="text" size="small" onClick={onOpenApiKeyList} icon={<List size={14} />} />
+                </Tooltip>
+              )}
             </Space>
           </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>

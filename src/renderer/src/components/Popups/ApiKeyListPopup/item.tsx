@@ -20,7 +20,6 @@ export interface ApiKeyItemProps {
   onRemove: () => void
   onCheck: () => Promise<void>
   disabled?: boolean
-  isCopilot: boolean
   isNew?: boolean
 }
 
@@ -34,7 +33,6 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   onRemove,
   onCheck,
   disabled: _disabled = false,
-  isCopilot,
   isNew = false
 }) => {
   const { t } = useTranslation()
@@ -176,32 +174,30 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
               {renderStatusIcon()}
             </Tooltip>
 
-            {!isCopilot && (
-              <Flex gap={0} align="center">
-                <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
-                  <Button
-                    type="text"
-                    icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
-                    onClick={onCheck}
-                    disabled={disabled || isCopilot}
-                  />
-                </Tooltip>
-                <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
-                  <Button type="text" icon={<PenLine size={16} />} onClick={handleEdit} disabled={disabled} />
-                </Tooltip>
-                <Popconfirm
-                  title={t('common.delete_confirm')}
-                  onConfirm={onRemove}
+            <Flex gap={0} align="center">
+              <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
+                  onClick={onCheck}
                   disabled={disabled}
-                  okText={t('common.confirm')}
-                  cancelText={t('common.cancel')}
-                  okButtonProps={{ danger: true }}>
-                  <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
-                    <Button type="text" icon={<MinusOutlined />} disabled={disabled} />
-                  </Tooltip>
-                </Popconfirm>
-              </Flex>
-            )}
+                />
+              </Tooltip>
+              <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
+                <Button type="text" icon={<PenLine size={16} />} onClick={handleEdit} disabled={disabled} />
+              </Tooltip>
+              <Popconfirm
+                title={t('common.delete_confirm')}
+                onConfirm={onRemove}
+                disabled={disabled}
+                okText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                okButtonProps={{ danger: true }}>
+                <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                  <Button type="text" icon={<MinusOutlined />} disabled={disabled} />
+                </Tooltip>
+              </Popconfirm>
+            </Flex>
           </Flex>
         </ItemInnerContainer>
       )}
