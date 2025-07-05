@@ -98,6 +98,8 @@ export const IMAGE_MERGE_MODELS = [
   }
 ]
 
+export const ALL_MODELS = [...TEXT_TO_IMAGES_MODELS, ...IMAGE_EDIT_MODELS, ...IMAGE_MERGE_MODELS]
+
 export const IMAGE_SIZES = [
   {
     label: '1:1',

@@ -1,8 +1,7 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { VStack } from '@renderer/components/Layout'
-import { HStack } from '@renderer/components/Layout'
+import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
@@ -19,8 +18,7 @@ import { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, Radio, Segmented, Select, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
-import React, { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import React, { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -32,13 +30,13 @@ import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
 import {
+  ALL_MODELS,
   COURSE_URL,
   DEFAULT_PAINTING,
   IMAGE_SIZES,
   MODEL_GROUPS,
   MODEOPTIONS,
-  STYLE_TYPE_OPTIONS,
-  TEXT_TO_IMAGES_MODELS
+  STYLE_TYPE_OPTIONS
 } from './config/DmxapiConfig'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
@@ -147,7 +145,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectModel = (modelId: string) => {
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === modelId)
+    const model = ALL_MODELS.find((m) => m.id === modelId)
     if (model) {
       updatePaintingState({ model: modelId })
     }
