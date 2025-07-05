@@ -13,19 +13,19 @@ import { useTranslation } from 'react-i18next'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiKeySourceType, ApiKeyWithStatus, ProviderUnion } from './types'
+import { ApiKeyWithStatus, ApiProviderKind, ApiProviderUnion } from './types'
 
 interface ApiKeyListProps {
-  provider: ProviderUnion
-  updateProvider: (provider: Partial<ProviderUnion>) => void
-  providerType: ApiKeySourceType
+  provider: ApiProviderUnion
+  updateProvider: (provider: Partial<ApiProviderUnion>) => void
+  providerKind: ApiProviderKind
   showHealthCheck?: boolean
 }
 
 /**
  * Api key 列表，管理 CRUD 操作、连接检查
  */
-export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, providerType, showHealthCheck = true }) => {
+export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, providerKind, showHealthCheck = true }) => {
   const { t } = useTranslation()
 
   // 临时新项状态
@@ -40,7 +40,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
     checkKeyConnectivity,
     checkAllKeysConnectivity,
     isChecking
-  } = useApiKeys({ provider, updateProvider, providerType })
+  } = useApiKeys({ provider, updateProvider, providerKind: providerKind })
 
   // 创建一个临时新项
   const handleAddNew = () => {
@@ -71,7 +71,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
 
   const shouldAutoFocus = () => {
     if (provider.apiKey) return false
-    return isLlmProvider(provider, providerType) && provider.enabled && !isProviderSupportAuth(provider)
+    return isLlmProvider(provider, providerKind) && provider.enabled && !isProviderSupportAuth(provider)
   }
 
   // 合并真实 keys 和临时新项
@@ -172,18 +172,18 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
 
 interface SpecificApiKeyListProps {
   providerId: string
-  providerType: ApiKeySourceType
+  providerKind: ApiProviderKind
   showHealthCheck?: boolean
 }
 
-export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, providerType, showHealthCheck = true }) => {
+export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, providerKind, showHealthCheck = true }) => {
   const { provider, updateProvider } = useProvider(providerId)
 
   return (
     <ApiKeyList
       provider={provider}
       updateProvider={updateProvider}
-      providerType={providerType}
+      providerKind={providerKind}
       showHealthCheck={showHealthCheck}
     />
   )
@@ -191,7 +191,7 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, provide
 
 export const WebSearchApiKeyList: FC<SpecificApiKeyListProps> = ({
   providerId,
-  providerType,
+  providerKind,
   showHealthCheck = true
 }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
@@ -200,7 +200,7 @@ export const WebSearchApiKeyList: FC<SpecificApiKeyListProps> = ({
     <ApiKeyList
       provider={provider}
       updateProvider={updateProvider}
-      providerType={providerType}
+      providerKind={providerKind}
       showHealthCheck={showHealthCheck}
     />
   )
@@ -208,7 +208,7 @@ export const WebSearchApiKeyList: FC<SpecificApiKeyListProps> = ({
 
 export const DocPreprocessApiKeyList: FC<SpecificApiKeyListProps> = ({
   providerId,
-  providerType,
+  providerKind,
   showHealthCheck = true
 }) => {
   const { provider, updateProvider } = usePreprocessProvider(providerId)
@@ -217,7 +217,7 @@ export const DocPreprocessApiKeyList: FC<SpecificApiKeyListProps> = ({
     <ApiKeyList
       provider={provider}
       updateProvider={updateProvider}
-      providerType={providerType}
+      providerKind={providerKind}
       showHealthCheck={showHealthCheck}
     />
   )

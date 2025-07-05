@@ -4,11 +4,11 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DocPreprocessApiKeyList, LlmApiKeyList, WebSearchApiKeyList } from './list'
-import { ApiKeySourceType } from './types'
+import { ApiProviderKind } from './types'
 
 interface ShowParams {
   providerId: string
-  providerType: ApiKeySourceType
+  providerKind: ApiProviderKind
   title?: string
   showHealthCheck?: boolean
 }
@@ -20,40 +20,35 @@ interface Props extends ShowParams {
 /**
  * API Key 列表弹窗容器组件
  */
-const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, resolve, showHealthCheck = true }) => {
+const PopupContainer: React.FC<Props> = ({ providerId, providerKind, title, resolve, showHealthCheck = true }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-
-  const onOk = () => {
-    setOpen(false)
-  }
 
   const onCancel = () => {
     setOpen(false)
   }
 
   const onClose = () => {
-    resolve({})
+    resolve(null)
   }
 
   const ListComponent = useMemo(() => {
-    switch (providerType) {
-      case 'llm-provider':
+    switch (providerKind) {
+      case 'llm':
         return LlmApiKeyList
-      case 'websearch-provider':
+      case 'websearch':
         return WebSearchApiKeyList
-      case 'doc-preprocess-provider':
+      case 'doc-preprocess':
         return DocPreprocessApiKeyList
       default:
         return null
     }
-  }, [providerType])
+  }, [providerKind])
 
   return (
     <Modal
       title={title || t('settings.provider.api.key.list.title')}
       open={open}
-      onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
       transitionName="animation-move-down"
@@ -61,7 +56,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, reso
       width={600}
       footer={null}>
       {ListComponent && (
-        <ListComponent providerId={providerId} providerType={providerType} showHealthCheck={showHealthCheck} />
+        <ListComponent providerId={providerId} providerKind={providerKind} showHealthCheck={showHealthCheck} />
       )}
     </Modal>
   )
@@ -78,7 +73,16 @@ export default class ApiKeyListPopup {
 
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(<PopupContainer {...props} resolve={(v) => resolve(v)} />, TopViewKey)
+      TopView.show(
+        <PopupContainer
+          {...props}
+          resolve={(v) => {
+            resolve(v)
+            TopView.hide(TopViewKey)
+          }}
+        />,
+        TopViewKey
+      )
     })
   }
 }

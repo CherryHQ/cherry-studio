@@ -26,6 +26,6 @@ export type ApiKeyValidity = {
   error?: string
 }
 
-export type ProviderUnion = Provider | WebSearchProvider | PreprocessProvider
+export type ApiProviderUnion = Provider | WebSearchProvider | PreprocessProvider
 
-export type ApiKeySourceType = 'llm-provider' | 'websearch-provider' | 'doc-preprocess-provider'
+export type ApiProviderKind = 'llm' | 'websearch' | 'doc-preprocess'
