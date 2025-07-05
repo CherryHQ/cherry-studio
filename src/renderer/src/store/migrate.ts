@@ -1721,6 +1721,7 @@ const migrateConfig = {
     try {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
+      state.settings.disableHardwareAcceleration = false
       return state
     } catch (error) {
       return state
