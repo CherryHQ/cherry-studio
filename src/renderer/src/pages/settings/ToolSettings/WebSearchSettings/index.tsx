@@ -53,7 +53,7 @@ const WebSearchSettings: FC = () => {
       </SettingGroup>
       {!isLocalProvider && (
         <SettingGroup theme={themeMode}>
-          {selectedProvider && <WebSearchProviderSetting provider={selectedProvider} />}
+          {selectedProvider && <WebSearchProviderSetting providerId={selectedProvider.id} />}
         </SettingGroup>
       )}
       <BasicSettings />

@@ -614,8 +614,11 @@ const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
-    updateProvider: (state, action: PayloadAction<Provider>) => {
-      state.providers = state.providers.map((p) => (p.id === action.payload.id ? { ...p, ...action.payload } : p))
+    updateProvider: (state, action: PayloadAction<Partial<Provider> & { id: string }>) => {
+      const index = state.providers.findIndex((p) => p.id === action.payload.id)
+      if (index !== -1) {
+        Object.assign(state.providers[index], action.payload)
+      }
     },
     updateProviders: (state, action: PayloadAction<Provider[]>) => {
       state.providers = action.payload
