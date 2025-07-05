@@ -309,6 +309,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.copy.plain_text'),
             key: 'plain_text',
             onClick: () => copyTopicAsPlainText(topic)
+          },
+          {
+            label: t('chat.topics.copy.new_topic'),
+            key: 'new_topic',
+            onClick: () => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_TO_NEW, topic)
           }
         ]
       },
@@ -338,6 +343,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             onClick: async () => {
               const markdown = await topicToMarkdown(topic)
               window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+            }
+          },
+          exportMenuOptions.pdf && {
+            label: t('chat.topics.export.pdf'),
+            key: 'pdf',
+            onClick: async () => {
+              const markdown = await topicToMarkdown(topic)
+              window.api.export.toPDF(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
           exportMenuOptions.notion && {

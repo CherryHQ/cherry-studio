@@ -419,6 +419,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // export
   ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord)
+  ipcMain.handle(IpcChannel.Export_PDF, exportService.exportToPDF)
 
   // open path
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {

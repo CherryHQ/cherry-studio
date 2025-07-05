@@ -1071,8 +1071,25 @@ export const clearTopicMessagesThunk =
       if (blockIdsToDelete.length > 0) {
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
-    } catch (error) {
+  } catch (error) {
       console.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error)
+    }
+  }
+
+export const reorderMessagesThunk =
+  (topicId: string, messageIds: string[]) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      dispatch(newMessagesActions.reorderMessages({ topicId, messageIds }))
+
+      const finalMessagesToSave = messageIds
+        .map((id) => getState().messages.entities[id])
+        .filter((m): m is Message => !!m)
+
+      await db.topics.update(topicId, { messages: finalMessagesToSave })
+      dispatch(updateTopicUpdatedAt({ topicId }))
+    } catch (error) {
+      console.error(`[reorderMessagesThunk] Failed to reorder messages for topic ${topicId}:`, error)
     }
   }
 
@@ -1492,13 +1509,15 @@ export const appendAssistantResponseThunk =
  * Updates the DB and Redux message/block state for the new topic.
  * Assumes the newTopic object already exists in Redux topic state and DB.
  * @param sourceTopicId The ID of the topic to branch from.
- * @param branchPointIndex The index *after* which messages should NOT be copied (slice endpoint).
+ * @param startIndex The starting index (inclusive) of messages to clone.
+ * @param endIndex The ending index (exclusive) of messages to clone.
  * @param newTopic The newly created Topic object (created and added to Redux/DB by the caller).
  */
 export const cloneMessagesToNewTopicThunk =
   (
     sourceTopicId: string,
-    branchPointIndex: number,
+    startIndex: number,
+    endIndex: number,
     newTopic: Topic // Receive newTopic object
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<boolean> => {
@@ -1516,9 +1535,11 @@ export const cloneMessagesToNewTopicThunk =
       }
 
       // 1. Slice messages to clone
-      const messagesToClone = sourceMessages.slice(0, branchPointIndex)
+      const messagesToClone = sourceMessages.slice(startIndex, endIndex)
       if (messagesToClone.length === 0) {
-        console.warn(`[cloneMessagesToNewTopicThunk] No messages to branch (index ${branchPointIndex}).`)
+        console.warn(
+          `[cloneMessagesToNewTopicThunk] No messages to branch (range ${startIndex}-${endIndex}).`
+        )
         return true // Nothing to clone, operation considered successful but did nothing.
       }
 
@@ -1627,6 +1648,127 @@ export const cloneMessagesToNewTopicThunk =
     } catch (error) {
       console.error(`[cloneMessagesToNewTopicThunk] Failed to clone messages:`, error)
       return false // Indicate failure
+    }
+  }
+
+/**
+ * Move or copy a set of messages from one topic to another.
+ * Messages will be cloned with new IDs before being inserted into the target topic.
+ * If `removeFromSource` is true, the original messages and blocks will be deleted
+ * from the source topic after cloning.
+ */
+export const moveSelectedMessagesToTopicThunk =
+  (
+    sourceTopicId: string,
+    targetTopic: Topic,
+    messageIds: string[],
+    removeFromSource: boolean = true
+  ) =>
+  async (dispatch: AppDispatch, getState: () => RootState): Promise<boolean> => {
+    if (!targetTopic || !targetTopic.id) return false
+
+    try {
+      const state = getState()
+      const sourceMessages = selectMessagesForTopic(state, sourceTopicId)
+      const targetMessages = selectMessagesForTopic(state, targetTopic.id)
+
+      const messagesToMove = sourceMessages.filter((m) => messageIds.includes(m.id))
+      if (messagesToMove.length === 0) return false
+
+      const idMap = new Map<string, string>()
+      const clonedMessages: Message[] = []
+      const clonedBlocks: MessageBlock[] = []
+      const filesToUpdate: FileMetadata[] = []
+
+      for (const msg of messagesToMove) {
+        idMap.set(msg.id, uuid())
+      }
+
+      for (const msg of messagesToMove) {
+        const newId = idMap.get(msg.id) as string
+        let newAskId: string | undefined = undefined
+        if (msg.role === 'assistant' && msg.askId) {
+          const mapped = idMap.get(msg.askId)
+          if (mapped) newAskId = mapped
+        }
+
+        const newBlockIds: string[] = []
+        if (msg.blocks && msg.blocks.length > 0) {
+          for (const blockId of msg.blocks) {
+            const oldBlock = state.messageBlocks.entities[blockId]
+            if (!oldBlock) continue
+            const newBlockId = uuid()
+            const newBlock: MessageBlock = { ...oldBlock, id: newBlockId, messageId: newId }
+            clonedBlocks.push(newBlock)
+            newBlockIds.push(newBlockId)
+            if (
+              newBlock.type === MessageBlockType.FILE ||
+              newBlock.type === MessageBlockType.IMAGE
+            ) {
+              const file = (newBlock as FileMessageBlock | ImageMessageBlock).file
+              if (file) filesToUpdate.push(file)
+            }
+          }
+        }
+
+        const newMessage: Message = { ...msg, id: newId, topicId: targetTopic.id, blocks: newBlockIds }
+        if (newMessage.role === 'assistant') newMessage.askId = newAskId
+        clonedMessages.push(newMessage)
+      }
+
+      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+        const targetDbTopic = await db.topics.get(targetTopic.id)
+        const updatedTargetMessages = targetDbTopic?.messages
+          ? [...targetDbTopic.messages, ...clonedMessages]
+          : clonedMessages
+        await db.topics.put({ id: targetTopic.id, messages: updatedTargetMessages })
+
+        if (clonedBlocks.length > 0) {
+          await db.message_blocks.bulkAdd(clonedBlocks)
+        }
+
+        const uniqueFiles = [...new Map(filesToUpdate.map((f) => [f.id, f])).values()]
+        for (const file of uniqueFiles) {
+          await db.files
+            .where('id')
+            .equals(file.id)
+            .modify((f) => {
+              if (f) {
+                f.count = (f.count || 0) + 1
+              }
+            })
+        }
+      })
+
+      dispatch(newMessagesActions.messagesReceived({
+        topicId: targetTopic.id,
+        messages: [...targetMessages, ...clonedMessages]
+      }))
+      if (clonedBlocks.length > 0) {
+        dispatch(upsertManyBlocks(clonedBlocks))
+      }
+      dispatch(updateTopicUpdatedAt({ topicId: targetTopic.id }))
+
+      if (removeFromSource) {
+        const blockIdsToDelete = messagesToMove.flatMap((m) => m.blocks || [])
+        dispatch(newMessagesActions.removeMessages({ topicId: sourceTopicId, messageIds }))
+        cleanupMultipleBlocks(dispatch, blockIdsToDelete)
+
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          if (blockIdsToDelete.length > 0) {
+            await db.message_blocks.bulkDelete(blockIdsToDelete)
+          }
+          const remaining = selectMessagesForTopic(getState(), sourceTopicId)
+          await db.topics.update(sourceTopicId, { messages: remaining })
+        })
+
+        dispatch(updateTopicUpdatedAt({ topicId: sourceTopicId }))
+      }
+
+      return true
+    } catch (error) {
+      console.error('[moveSelectedMessagesToTopicThunk] Failed to move messages:', error)
+      return false
     }
   }
 

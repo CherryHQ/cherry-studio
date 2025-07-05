@@ -116,6 +116,13 @@ const messagesSlice = createSlice({
         state.loadingByTopic[topicId] = false
       }
     },
+    setMessageCollapsed(state, action: PayloadAction<{ messageId: string; collapsed: boolean }>) {
+      const { messageId, collapsed } = action.payload
+      const message = state.entities[messageId]
+      if (message) {
+        messagesAdapter.updateOne(state, { id: messageId, changes: { collapsed } })
+      }
+    },
     updateMessage(
       state,
       action: PayloadAction<{
@@ -193,6 +200,13 @@ const messagesSlice = createSlice({
         state.messageIdsByTopic[topicId] = currentTopicIds.filter((id) => !idsToRemoveSet.has(id))
       }
       messagesAdapter.removeMany(state, messageIds)
+    },
+    reorderMessages(
+      state,
+      action: PayloadAction<{ topicId: string; messageIds: string[] }>
+    ) {
+      const { topicId, messageIds } = action.payload
+      state.messageIdsByTopic[topicId] = messageIds
     },
     upsertBlockReference(state, action: PayloadAction<UpsertBlockReferencePayload>) {
       const { messageId, blockId, status } = action.payload

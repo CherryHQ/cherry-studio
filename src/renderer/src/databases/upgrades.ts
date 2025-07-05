@@ -308,3 +308,22 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 
   Logger.log('DB migration to version 7 finished successfully.')
 }
+
+export async function upgradeToV8(tx: Transaction): Promise<void> {
+  const topics = await tx.table('topics').toArray()
+
+  for (const topic of topics) {
+    let updated = false
+    if (Array.isArray(topic.messages)) {
+      for (const message of topic.messages) {
+        if (message && message.collapsed === undefined) {
+          message.collapsed = false
+          updated = true
+        }
+      }
+    }
+    if (updated) {
+      await tx.table('topics').put(topic)
+    }
+  }
+}

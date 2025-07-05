@@ -130,7 +130,10 @@ const api = {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding)
   },
   export: {
-    toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
+    toWord: (markdown: string, fileName: string) =>
+      ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName),
+    toPDF: (data: string, fileName: string) =>
+      ipcRenderer.invoke(IpcChannel.Export_PDF, data, fileName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
   shortcuts: {

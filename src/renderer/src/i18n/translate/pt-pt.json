@@ -229,6 +229,7 @@
       "topics.export.obsidian_title_required": "O título não pode estar vazio",
       "topics.export.title": "Exportar",
       "topics.export.word": "Exportar como Word",
+      "topics.export.pdf": "Exportar como PDF",
       "topics.export.yuque": "Exportar para Yuque",
       "topics.list": "Lista de tópicos",
       "topics.move_to": "Mover para",
@@ -1074,7 +1075,8 @@
           "obsidian": "Exportar para Obsidian",
           "siyuan": "Exportar para Siyuan Notes",
           "joplin": "Exportar para Joplin",
-          "docx": "Exportar como Word"
+          "docx": "Exportar como Word",
+          "pdf": "Exportar como PDF"
         },
         "siyuan": {
           "check": {

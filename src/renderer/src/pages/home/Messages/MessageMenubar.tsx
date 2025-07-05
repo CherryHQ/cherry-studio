@@ -11,6 +11,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -42,7 +44,9 @@ import {
   Share,
   Split,
   ThumbsUp,
-  Trash
+  Trash,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,6 +75,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const dispatch = useAppDispatch()
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -133,6 +138,16 @@ const MessageMenubar: FC<Props> = (props) => {
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
   }, [index, t, loading])
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const onNewBranchRange = useCallback(
+    async (start: number, end: number) => {
+      if (loading) return
+      EventEmitter.emit(EVENT_NAMES.NEW_BRANCH_RANGE, [start, end])
+      window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
+    },
+    [loading, t]
+  )
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
@@ -264,6 +279,15 @@ const MessageMenubar: FC<Props> = (props) => {
               window.api.export.toWord(markdown, title)
             }
           },
+          exportMenuOptions.pdf && {
+            label: t('chat.topics.export.pdf'),
+            key: 'pdf',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              const title = await getMessageTitle(message)
+              window.api.export.toPDF(markdown, title)
+            }
+          },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
@@ -388,6 +412,17 @@ const MessageMenubar: FC<Props> = (props) => {
       editMessage(message.id, { useful: !message.useful })
     },
     [message, editMessage]
+  )
+
+  const onToggleCollapse = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      dispatch(newMessagesActions.setMessageCollapsed({
+        messageId: message.id,
+        collapsed: !message.collapsed
+      }))
+    },
+    [dispatch, message]
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
@@ -534,6 +569,13 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Tooltip>
       )}
+      <Tooltip
+        title={message.collapsed ? t('common.expand') : t('common.collapse')}
+        mouseEnterDelay={0.8}>
+        <ActionButton className="message-action-button" onClick={onToggleCollapse} $softHoverBg={softHoverBg}>
+          {message.collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </ActionButton>
+      </Tooltip>
       <Popconfirm
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}

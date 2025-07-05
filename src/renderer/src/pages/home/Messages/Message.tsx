@@ -153,42 +153,40 @@ const MessageItem: FC<Props> = ({
           onCancel={handleEditCancel}
         />
       )}
-      {!isEditing && (
-        <>
-          <MessageContentContainer
-            className={
-              message.role === 'user'
-                ? 'message-content-container message-content-container-user'
-                : message.role === 'assistant'
-                  ? 'message-content-container message-content-container-assistant'
-                  : 'message-content-container'
-            }
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize,
-              overflowY: 'visible'
-            }}>
-            <MessageErrorBoundary>
-              <MessageContent message={message} />
-            </MessageErrorBoundary>
-          </MessageContentContainer>
-          {showMenubar && (
-            <MessageFooter className="MessageFooter">
-              <MessageMenubar
-                message={message}
-                assistant={assistant}
-                model={model}
-                index={index}
-                topic={topic}
-                isLastMessage={isLastMessage}
-                isAssistantMessage={isAssistantMessage}
-                isGrouped={isGrouped}
-                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                setModel={setModel}
-              />
-            </MessageFooter>
-          )}
-        </>
+      {!isEditing && !message.collapsed && (
+        <MessageContentContainer
+          className={
+            message.role === 'user'
+              ? 'message-content-container message-content-container-user'
+              : message.role === 'assistant'
+                ? 'message-content-container message-content-container-assistant'
+                : 'message-content-container'
+          }
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize,
+            overflowY: 'visible'
+          }}>
+          <MessageErrorBoundary>
+            <MessageContent message={message} />
+          </MessageErrorBoundary>
+        </MessageContentContainer>
+      )}
+      {!isEditing && showMenubar && (
+        <MessageFooter className="MessageFooter">
+          <MessageMenubar
+            message={message}
+            assistant={assistant}
+            model={model}
+            index={index}
+            topic={topic}
+            isLastMessage={isLastMessage}
+            isAssistantMessage={isAssistantMessage}
+            isGrouped={isGrouped}
+            messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+            setModel={setModel}
+          />
+        </MessageFooter>
       )}
     </MessageContainer>
   )

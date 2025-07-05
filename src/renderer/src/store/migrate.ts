@@ -1726,6 +1726,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '120': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.exportMenuOptions) {
+        if (typeof state.settings.exportMenuOptions.pdf === 'undefined') {
+          state.settings.exportMenuOptions.pdf = true
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
