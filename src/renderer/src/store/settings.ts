@@ -188,6 +188,12 @@ export interface SettingsState {
     backup: boolean
     knowledge: boolean
   }
+  // Local backup settings
+  localBackupDir: string
+  localBackupAutoSync: boolean
+  localBackupSyncInterval: number
+  localBackupMaxBackups: number
+  localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
 }
 
@@ -336,6 +342,12 @@ export const initialState: SettingsState = {
     backup: false,
     knowledge: false
   },
+  // Local backup settings
+  localBackupDir: '',
+  localBackupAutoSync: false,
+  localBackupSyncInterval: 0,
+  localBackupMaxBackups: 0,
+  localBackupSkipBackupFile: false,
   defaultPaintingProvider: 'aihubmix'
 }
 
@@ -701,6 +713,22 @@ const settingsSlice = createSlice({
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
     },
+    // Local backup settings
+    setLocalBackupDir: (state, action: PayloadAction<string>) => {
+      state.localBackupDir = action.payload
+    },
+    setLocalBackupAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.localBackupAutoSync = action.payload
+    },
+    setLocalBackupSyncInterval: (state, action: PayloadAction<number>) => {
+      state.localBackupSyncInterval = action.payload
+    },
+    setLocalBackupMaxBackups: (state, action: PayloadAction<number>) => {
+      state.localBackupMaxBackups = action.payload
+    },
+    setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.localBackupSkipBackupFile = action.payload
+    },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
     }
@@ -812,6 +840,12 @@ export const {
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
+  // Local backup settings
+  setLocalBackupDir,
+  setLocalBackupAutoSync,
+  setLocalBackupSyncInterval,
+  setLocalBackupMaxBackups,
+  setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider
 } = settingsSlice.actions
 
