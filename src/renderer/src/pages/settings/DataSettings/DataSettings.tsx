@@ -86,8 +86,8 @@ const DataSettings: FC = () => {
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: 'settings.data.data.title', icon: <FolderCog size={16} /> },
-    { key: 'local_backup', title: 'settings.data.local.title', icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
+    { key: 'local_backup', title: 'settings.data.local.title', icon: <FolderCog size={16} /> },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
     { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
