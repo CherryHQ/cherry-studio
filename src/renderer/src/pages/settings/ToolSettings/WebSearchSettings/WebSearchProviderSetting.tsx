@@ -20,7 +20,6 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '../..'
-import ApiCheckPopup from '../../ProviderSettings/ApiCheckPopup'
 
 interface Props {
   provider: WebSearchProvider
@@ -79,7 +78,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
-  const onOpenApiKeyList = async () => {
+  const openApiKeyList = async () => {
     setIsApiKeyListOpen(true)
     await ApiKeyListPopup.show({
       providerId: provider.id,
@@ -101,22 +100,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        apiKeys: keys,
-        type: 'websearch'
-      })
-
-      if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ apiKey: result.validKeys.join(',') })
-      }
+      await openApiKeyList()
       return
     }
 
@@ -184,11 +168,11 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <Space>{t('settings.provider.api_key')}</Space>
             <Space>
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={onOpenApiKeyList} icon={<List size={14} />} />
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
               </Tooltip>
             </Space>
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key')}
@@ -211,7 +195,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Flex>
+          </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.tool.websearch.get_api_key')}
