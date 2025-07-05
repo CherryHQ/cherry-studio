@@ -124,6 +124,7 @@ export const builtinMCPServers: MCPServer[] = [
     name: '@cherry/filesystem',
     type: 'inMemory',
     description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器',
+    args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     isActive: false,
     provider: 'CherryAI'
   },
