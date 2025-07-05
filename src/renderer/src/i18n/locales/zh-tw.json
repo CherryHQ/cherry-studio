@@ -1659,12 +1659,6 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
-      "models.quick_assistant_model": "快捷助手模型",
-      "models.quick_assistant_model_description": "快捷助手使用的預設模型",
-      "models.quick_assistant_selection": "選擇助手",
-      "models.quick_assistant_default_tag": "預設",
-      "models.use_model": "預設模型",
-      "models.use_assistant": "使用助手",
       "models.provider_key_confirm_title": "為{{provider}}添加 API 密鑰",
       "models.provider_name": "提供者名稱",
       "models.provider_id": "提供者 ID",
@@ -1802,7 +1796,14 @@
         "enable_quick_assistant": "啟用快捷助手",
         "read_clipboard_at_startup": "啟動時讀取剪貼簿",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動"
+        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動",
+        "use_existing_assistant": {
+          "title": "使用已有助手",
+          "tooltip": "開啟時可選擇已有助手作為快捷助手，關閉時僅使用預設對話模型",
+          "select.placeholder": "選擇已有助手",
+          "select.default_tag": "預設",
+          "select.default_tag.tooltip": "這是預設助手"
+        }
       },
       "shortcuts": {
         "action": "操作",

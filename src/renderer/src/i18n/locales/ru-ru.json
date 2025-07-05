@@ -1656,12 +1656,6 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
-      "models.quick_assistant_model": "Модель быстрого помощника",
-      "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
-      "models.quick_assistant_selection": "Выберите помощника",
-      "models.quick_assistant_default_tag": "умолчанию",
-      "models.use_model": "модель по умолчанию",
-      "models.use_assistant": "Использование ассистентов",
       "models.provider_key_confirm_title": "Добавить API ключ для {{provider}}",
       "models.provider_name": "Имя провайдера",
       "models.provider_id": "ID провайдера",
@@ -1799,7 +1793,14 @@
         "enable_quick_assistant": "Включить быстрый помощник",
         "read_clipboard_at_startup": "Чтение буфера обмена при запуске",
         "title": "Быстрый помощник",
-        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
+        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска",
+        "use_existing_assistant": {
+          "title": "Использовать существующего помощника",
+          "tooltip": "При включении вы можете выбрать существующего помощника в качестве быстрого помощника, в противном случае будет использоваться только модель по умолчанию",
+          "select.placeholder": "Выберите существующего помощника",
+          "select.default_tag": "По умолчанию",
+          "select.default_tag.tooltip": "Этот помощник по умолчанию"
+        }
       },
       "shortcuts": {
         "action": "Действие",
