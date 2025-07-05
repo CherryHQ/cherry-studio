@@ -33,14 +33,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
-  const [isApiKeyListOpen, setIsApiKeyListOpen] = useState(false)
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
   const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey && !isApiKeyListOpen) {
+    if (apiKey !== provider.apiKey) {
       updateProvider({ apiKey })
     }
   }
@@ -78,13 +77,11 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   }
 
   const openApiKeyList = async () => {
-    setIsApiKeyListOpen(true)
     await ApiKeyListPopup.show({
       providerId: provider.id,
       providerType: 'websearch-provider',
       title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
     })
-    setIsApiKeyListOpen(false)
   }
 
   async function checkSearch() {

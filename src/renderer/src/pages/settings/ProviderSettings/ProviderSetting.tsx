@@ -73,8 +73,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const fancyProviderName = getFancyProviderName(provider)
 
-  const [inputApiKey, _setInputApiKey] = useState(provider.apiKey)
-  const [isApiKeyListOpen, setIsApiKeyListOpen] = useState(false)
+  const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     status: 'not_checked',
     checking: false
@@ -83,34 +82,27 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
-      updateApiKey(value)
-    }, 100),
+      updateProvider({ apiKey: formatApiKeys(value) })
+    }, 150),
     []
   )
 
-  // 仅用于更新 provider.apiKey
-  const updateApiKey = useCallback(
-    (value: string) => {
-      if (value === provider.apiKey) return
-
-      const formatted = formatApiKeys(value)
-      if (formatted !== provider.apiKey) {
-        updateProvider({ apiKey: formatted })
-      }
-    },
-    [provider.apiKey, updateProvider]
-  )
-
-  // 设置密钥输入框的值，同步到 provider.apiKey
+  // 同步 provider.apiKey 到 localApiKey
   // 重置连通性检查状态
-  const setApiKey = useCallback(
-    (value: string) => {
-      _setInputApiKey(formatApiKeys(value))
-      debouncedUpdateApiKey(value)
-      setApiKeyConnectivity({ status: 'not_checked' })
-    },
-    [_setInputApiKey, debouncedUpdateApiKey]
-  )
+  useEffect(() => {
+    setLocalApiKey(provider.apiKey)
+    setApiKeyConnectivity({ status: 'not_checked' })
+  }, [provider.apiKey])
+
+  // 同步 localApiKey 到 provider.apiKey（防抖）
+  useEffect(() => {
+    if (localApiKey !== provider.apiKey) {
+      debouncedUpdateApiKey(localApiKey)
+    }
+
+    // 卸载时取消任何待执行的更新
+    return () => debouncedUpdateApiKey.cancel()
+  }, [localApiKey, provider.apiKey, debouncedUpdateApiKey])
 
   const isApiKeyConnectable = useMemo(() => {
     return apiKeyConnectivity.status === 'success'
@@ -142,20 +134,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const onUpdateApiVersion = () => updateProvider({ apiVersion })
 
   const openApiKeyList = async () => {
-    setIsApiKeyListOpen(true)
     await ApiKeyListPopup.show({
       providerId: provider.id,
       providerType: 'llm-provider',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
-    setIsApiKeyListOpen(false)
   }
-
-  useEffect(() => {
-    if (isApiKeyListOpen) {
-      _setInputApiKey(provider.apiKey)
-    }
-  }, [provider.apiKey, isApiKeyListOpen])
 
   const onHealthCheck = async () => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
@@ -355,7 +339,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isProviderSupportAuth(provider) && <ProviderOAuth provider={provider} setApiKey={setApiKey} />}
+      {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id !== 'vertexai' && (
@@ -376,11 +360,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
-              value={inputApiKey}
+              value={localApiKey}
               placeholder={t('settings.provider.api_key')}
-              onChange={(e) => setApiKey(e.target.value)}
-              onPressEnter={(e) => setApiKey(e.currentTarget.value)}
-              onBlur={(e) => setApiKey(e.currentTarget.value)}
+              onChange={(e) => setLocalApiKey(e.target.value)}
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
@@ -459,7 +441,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       )}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
-      {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} setApiKey={setApiKey} />}
+      {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>

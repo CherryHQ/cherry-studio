@@ -10,7 +10,6 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingTitle
 
 interface GithubCopilotSettingsProps {
   providerId: string
-  setApiKey: (apiKey: string) => void
 }
 
 enum AuthStatus {
@@ -19,7 +18,7 @@ enum AuthStatus {
   AUTHENTICATED
 }
 
-const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, setApiKey }) => {
+const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
   const { username, avatar, defaultHeaders, updateState, updateDefaultHeaders } = useCopilot()
@@ -78,7 +77,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, set
         setAuthStatus(AuthStatus.AUTHENTICATED)
         updateState({ username: login, avatar: avatar })
         updateProvider({ ...provider, apiKey: token, isAuthed: true })
-        setApiKey(token)
         message.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
@@ -87,7 +85,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, set
     } finally {
       setLoading(false)
     }
-  }, [deviceCode, t, updateProvider, provider, setApiKey, updateState, defaultHeaders])
+  }, [deviceCode, t, updateProvider, provider, updateState, defaultHeaders])
 
   // 登出
   const handleLogout = useCallback(async () => {
@@ -96,7 +94,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, set
 
       // 1. 保存登出状态到本地
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
-      setApiKey('')
 
       // 3. 清除本地存储的token
       await window.api.copilot.logout()
@@ -113,11 +110,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, set
       message.error(t('settings.provider.copilot.logout_failed'))
       // 如果登出失败，重置登出状态
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
-      setApiKey('')
     } finally {
       setLoading(false)
     }
-  }, [t, updateProvider, provider, setApiKey])
+  }, [t, updateProvider, provider])
 
   // 复制用户代码
   const handleCopyUserCode = useCallback(() => {
