@@ -19,8 +19,6 @@ jobs:
           echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
 
       - name: Dispatch update-download-version workflow to cherry-studio-docs
-        # 只有当当前事件的 Release 标签与通过 API 获取到的最新 Release 标签一致时，才发送调度事件
-        if: ${{ steps.get-event-tag.outputs.tag == steps.get-latest-tag.outputs.latest_tag }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.REPO_DISPATCH_TOKEN }}
