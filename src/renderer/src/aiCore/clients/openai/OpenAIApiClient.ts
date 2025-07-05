@@ -32,7 +32,7 @@ import {
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
+import { Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
 import {
   OpenAISdkMessageParam,
   OpenAISdkParams,
@@ -41,6 +41,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { safelyToString } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -48,7 +49,7 @@ import {
   mcpToolsToOpenAIChatTools,
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { findAllBlocks, findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
@@ -259,7 +260,62 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
    * @param model - The model
    * @returns The message parameter
    */
-  public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam> {
+  public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam[]> {
+    if (message.role === 'user') {
+      return [await this.convertUserMessageToSdkParam(message, model)]
+    } else if (message.role === 'assistant') {
+      return await this.convertAssistantMessageToSdkParam(message)
+    } else {
+      // system prompt不通过该函数转换
+      console.error('Unexpected message role', message.role)
+      return []
+    }
+  }
+
+  public async convertAssistantMessageToSdkParam(message: Message): Promise<OpenAISdkMessageParam[]> {
+    const params: OpenAISdkMessageParam[] = []
+    const blocks: MessageBlock[] = findAllBlocks(message)
+    let contentBuffer = ''
+    for (const block of blocks) {
+      switch (block.type) {
+        case MessageBlockType.MAIN_TEXT:
+          contentBuffer += block.content
+          break
+        case MessageBlockType.TOOL:
+          params.push({
+            role: 'assistant',
+            content: contentBuffer,
+            tool_calls: [
+              {
+                id: block.toolId || '',
+                type: 'function',
+                function: {
+                  name: block.metadata?.rawMcpToolResponse?.tool.name || '',
+                  arguments: JSON.stringify(block.metadata?.rawMcpToolResponse?.arguments ?? {}, null, 2)
+                }
+              }
+            ]
+          })
+          params.push({
+            role: 'tool',
+            content: safelyToString(block.metadata?.rawMcpToolResponse?.response) || '',
+            tool_call_id: block.metadata?.rawMcpToolResponse?.id || ''
+          })
+          contentBuffer = ''
+          break
+      }
+    }
+    // 构造无tool call的最后一条消息
+    if (contentBuffer) {
+      params.push({
+        role: 'assistant',
+        content: contentBuffer
+      })
+    }
+    return params
+  }
+
+  public async convertUserMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
     const fileBlocks = findFileBlocks(message)
@@ -267,7 +323,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (fileBlocks.length === 0 && imageBlocks.length === 0) {
       return {
-        role: message.role === 'system' ? 'user' : message.role,
+        role: 'user',
         content
       } as OpenAISdkMessageParam
     }
@@ -277,7 +333,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       const fileContent = await this.extractFileContent(message)
 
       return {
-        role: message.role === 'system' ? 'user' : message.role,
+        role: 'user',
         content: content + '\n\n---\n\n' + fileContent
       } as OpenAISdkMessageParam
     }
@@ -316,7 +372,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     return {
-      role: message.role === 'system' ? 'user' : message.role,
+      role: 'user',
       content: parts
     } as OpenAISdkMessageParam
   }
@@ -469,7 +525,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         } else {
           const processedMessages = addImageFileToContents(messages)
           for (const message of processedMessages) {
-            userMessages.push(await this.convertMessageToSdkParam(message, model))
+            userMessages.push(...(await this.convertMessageToSdkParam(message, model)))
           }
         }
 

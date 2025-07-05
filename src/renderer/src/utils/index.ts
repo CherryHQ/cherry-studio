@@ -227,6 +227,18 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
   return null
 }
 
+export function safelyToString(value: any): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  try {
+    return JSON.stringify(value)
+  } catch (e) {
+    Logger.log('safelyToString', e)
+    return ''
+  }
+}
+
 export * from './file'
 export * from './image'
 export * from './json'
