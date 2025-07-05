@@ -1,6 +1,6 @@
 import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
-import { upgradeToV7 } from '@renderer/databases/upgrades'
+import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
@@ -389,7 +389,7 @@ export function stopAutoSync() {
 export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
-    version: 4,
+    version: 5,
     localStorage,
     indexedDB: await backupDatabase()
   })
@@ -423,6 +423,12 @@ export async function handleData(data: Record<string, any>) {
       await db.transaction('rw', db.tables, async (tx) => {
         await db.table('message_blocks').clear()
         await upgradeToV7(tx)
+      })
+    }
+
+    if (data.version === 4) {
+      await db.transaction('rw', db.tables, async (tx) => {
+        await upgradeToV8(tx)
       })
     }
 

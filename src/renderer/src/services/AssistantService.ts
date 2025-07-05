@@ -2,7 +2,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Agent, Assistant, AssistantSettings, Model, Provider, Topic } from '@renderer/types'
+import type { Agent, Assistant, AssistantSettings, Language, Model, Provider, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 export function getDefaultAssistant(): Assistant {
@@ -28,7 +28,7 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: string, text: string): Assistant {
+export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): Assistant {
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
   assistant.model = translateModel
@@ -39,7 +39,7 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
 
   assistant.prompt = store
     .getState()
-    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage)
+    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
     .replaceAll('{{text}}', text)
   return assistant
 }

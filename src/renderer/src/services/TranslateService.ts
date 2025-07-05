@@ -1,12 +1,13 @@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
+import { Language } from '@renderer/types'
 
 import { fetchTranslate } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
 export const translateText = async (
   text: string,
-  targetLanguage: string,
+  targetLanguage: Language,
   onResponse?: (text: string, isComplete: boolean) => void
 ) => {
   const translateModel = store.getState().llm.translateModel

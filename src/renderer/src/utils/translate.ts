@@ -1,13 +1,15 @@
+import { LanguagesEnum } from '@renderer/config/translate'
+import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { MutableRefObject } from 'react'
 
 /**
  * 使用Unicode字符范围检测语言
  * 适用于较短文本的语言检测
- * @param {string} text 需要检测语言的文本
- * @returns {string} 检测到的语言代码
+ * @param text 需要检测语言的文本
+ * @returns 检测到的语言
  */
-export const detectLanguageByUnicode = (text: string): string => {
+export const detectLanguageByUnicode = (text: string): Language => {
   const counts = {
     zh: 0,
     ja: 0,
@@ -40,8 +42,8 @@ export const detectLanguageByUnicode = (text: string): string => {
     }
   }
 
-  if (totalChars === 0) return 'en'
-  let maxLang = 'en'
+  if (totalChars === 0) return LanguagesEnum.enUS
+  let maxLang = ''
   let maxCount = 0
 
   for (const [lang, count] of Object.entries(counts)) {
@@ -52,73 +54,68 @@ export const detectLanguageByUnicode = (text: string): string => {
   }
 
   if (maxCount / totalChars < 0.3) {
-    return 'en'
+    return LanguagesEnum.enUS
   }
-  return maxLang
+
+  switch (maxLang) {
+    case 'zh':
+      return LanguagesEnum.zhCN
+    case 'ja':
+      return LanguagesEnum.jaJP
+    case 'ko':
+      return LanguagesEnum.koKR
+    case 'ru':
+      return LanguagesEnum.ruRU
+    case 'ar':
+      return LanguagesEnum.arAR
+    case 'en':
+      return LanguagesEnum.enUS
+    default:
+      console.error(`Unknown language: ${maxLang}`)
+      return LanguagesEnum.enUS
+  }
 }
 
 /**
  * 检测输入文本的语言
- * @param {string} inputText 需要检测语言的文本
- * @returns {Promise<string>} 检测到的语言代码
+ * @param inputText 需要检测语言的文本
+ * @returns 检测到的语言
  */
-export const detectLanguage = async (inputText: string): Promise<string> => {
+export const detectLanguage = async (inputText: string): Promise<Language> => {
   const text = inputText.trim()
-  if (!text) return 'any'
-  let code: string
+  if (!text) return LanguagesEnum.zhCN
+  let lang: Language
 
   // 如果文本长度小于20个字符，使用Unicode范围检测
   if (text.length < 20) {
-    code = detectLanguageByUnicode(text)
+    lang = detectLanguageByUnicode(text)
   } else {
     // franc 返回 ISO 639-3 代码
     const iso3 = franc(text)
-    const isoMap: Record<string, string> = {
-      cmn: 'zh',
-      jpn: 'ja',
-      kor: 'ko',
-      rus: 'ru',
-      ara: 'ar',
-      spa: 'es',
-      fra: 'fr',
-      deu: 'de',
-      ita: 'it',
-      por: 'pt',
-      eng: 'en',
-      pol: 'pl',
-      tur: 'tr',
-      tha: 'th',
-      vie: 'vi',
-      ind: 'id',
-      urd: 'ur',
-      zsm: 'ms'
+    const isoMap: Record<string, Language> = {
+      cmn: LanguagesEnum.zhCN,
+      jpn: LanguagesEnum.jaJP,
+      kor: LanguagesEnum.koKR,
+      rus: LanguagesEnum.ruRU,
+      ara: LanguagesEnum.arAR,
+      spa: LanguagesEnum.esES,
+      fra: LanguagesEnum.frFR,
+      deu: LanguagesEnum.deDE,
+      ita: LanguagesEnum.itIT,
+      por: LanguagesEnum.ptPT,
+      eng: LanguagesEnum.enUS,
+      pol: LanguagesEnum.plPL,
+      tur: LanguagesEnum.trTR,
+      tha: LanguagesEnum.thTH,
+      vie: LanguagesEnum.viVN,
+      ind: LanguagesEnum.idID,
+      urd: LanguagesEnum.urPK,
+      zsm: LanguagesEnum.msMY
     }
-    code = isoMap[iso3] || 'en'
+    lang = isoMap[iso3] || LanguagesEnum.enUS
   }
 
-  // 映射到应用使用的语言键
-  const languageMap: Record<string, string> = {
-    zh: 'chinese',
-    ja: 'japanese',
-    ko: 'korean',
-    ru: 'russian',
-    es: 'spanish',
-    fr: 'french',
-    de: 'german',
-    it: 'italian',
-    pt: 'portuguese',
-    ar: 'arabic',
-    en: 'english',
-    pl: 'polish',
-    tr: 'turkish',
-    th: 'thai',
-    vi: 'vietnamese',
-    id: 'indonesian',
-    ur: 'urdu',
-    ms: 'malay'
-  }
-
-  return languageMap[code] || 'english'
+  return lang
 }
 
 /**
@@ -127,10 +124,13 @@ export const detectLanguage = async (inputText: string): Promise<string> => {
  * @param languagePair 配置的语言对
  * @returns 目标语言
  */
-export const getTargetLanguageForBidirectional = (sourceLanguage: string, languagePair: [string, string]): string => {
-  if (sourceLanguage === languagePair[0]) {
+export const getTargetLanguageForBidirectional = (
+  sourceLanguage: Language,
+  languagePair: [Language, Language]
+): Language => {
+  if (sourceLanguage.langCode === languagePair[0].langCode) {
     return languagePair[1]
-  } else if (sourceLanguage === languagePair[1]) {
+  } else if (sourceLanguage.langCode === languagePair[1].langCode) {
     return languagePair[0]
   }
   return languagePair[0] !== sourceLanguage ? languagePair[0] : languagePair[1]
@@ -142,8 +142,8 @@ export const getTargetLanguageForBidirectional = (sourceLanguage: string, langua
  * @param languagePair 配置的语言对
  * @returns 是否在语言对中
  */
-export const isLanguageInPair = (sourceLanguage: string, languagePair: [string, string]): boolean => {
-  return [languagePair[0], languagePair[1]].includes(sourceLanguage)
+export const isLanguageInPair = (sourceLanguage: Language, languagePair: [Language, Language]): boolean => {
+  return [languagePair[0].langCode, languagePair[1].langCode].includes(sourceLanguage.langCode)
 }
 
 /**
@@ -155,11 +155,11 @@ export const isLanguageInPair = (sourceLanguage: string, languagePair: [string, 
  * @returns 处理结果对象
  */
 export const determineTargetLanguage = (
-  sourceLanguage: string,
-  targetLanguage: string,
+  sourceLanguage: Language,
+  targetLanguage: Language,
   isBidirectional: boolean,
-  bidirectionalPair: [string, string]
-): { success: boolean; language?: string; errorType?: 'same_language' | 'not_in_pair' } => {
+  bidirectionalPair: [Language, Language]
+): { success: boolean; language?: Language; errorType?: 'same_language' | 'not_in_pair' } => {
   if (isBidirectional) {
     if (!isLanguageInPair(sourceLanguage, bidirectionalPair)) {
       return { success: false, errorType: 'not_in_pair' }
@@ -169,7 +169,7 @@ export const determineTargetLanguage = (
       language: getTargetLanguageForBidirectional(sourceLanguage, bidirectionalPair)
     }
   } else {
-    if (sourceLanguage === targetLanguage) {
+    if (sourceLanguage.langCode === targetLanguage.langCode) {
       return { success: false, errorType: 'same_language' }
     }
     return { success: true, language: targetLanguage }
@@ -227,4 +227,22 @@ export const createOutputScrollHandler = (
     if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
     handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
   }
+}
+
+/**
+ * 根据语言代码获取对应的语言对象
+ * @param langcode - 语言代码
+ * @returns 返回对应的语言对象，如果找不到则返回英语(enUS)
+ * @example
+ * ```typescript
+ * const language = getLanguageByLangcode('zh-cn') // 返回中文语言对象
+ * ```
+ */
+export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
+  const result = Object.values(LanguagesEnum).find((item) => item.langCode === langcode)
+  if (!result) {
+    console.error(`Language not found for langcode: ${langcode}`)
+    return LanguagesEnum.enUS
+  }
+  return result
 }

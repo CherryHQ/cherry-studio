@@ -8,6 +8,7 @@ import {
   isSupportedFlexServiceTier,
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
+import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -44,14 +45,7 @@ import {
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import {
-  Assistant,
-  AssistantSettings,
-  CodeStyleVarious,
-  MathEngine,
-  ThemeMode,
-  TranslateLanguageVarious
-} from '@renderer/types'
+import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { Button, Col, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
@@ -625,14 +619,10 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
             <Selector
               value={targetLanguage}
-              onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
-              options={[
-                { value: 'chinese', label: t('settings.input.target_language.chinese') },
-                { value: 'chinese-traditional', label: t('settings.input.target_language.chinese-traditional') },
-                { value: 'english', label: t('settings.input.target_language.english') },
-                { value: 'japanese', label: t('settings.input.target_language.japanese') },
-                { value: 'russian', label: t('settings.input.target_language.russian') }
-              ]}
+              onChange={(value) => setTargetLanguage(value)}
+              options={translateLanguageOptions.map((item) => {
+                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
+              })}
             />
           </SettingRow>
           <SettingDivider />

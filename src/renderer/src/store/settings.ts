@@ -199,7 +199,7 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'english' as TranslateLanguageVarious,
+  targetLanguage: 'en-us',
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
