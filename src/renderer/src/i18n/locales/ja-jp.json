@@ -1194,7 +1194,11 @@
           "backup.manager.columns.fileName": "ファイル名",
           "backup.manager.columns.modifiedTime": "更新日時",
           "backup.manager.columns.size": "サイズ",
-          "backup.manager.columns.actions": "操作"
+          "backup.manager.columns.actions": "操作",
+          "directory.select_error_app_data_path": "新パスはアプリデータパスと同じです。別のパスを選択してください",
+          "directory.select_error_in_app_install_path": "新パスはアプリインストールパスと同じです。別のパスを選択してください",
+          "directory.select_error_write_permission": "新パスに書き込み権限がありません",
+          "directory.select_title": "バックアップディレクトリを選択"
         },
         "export_menu": {
           "title": "エクスポートメニュー設定",

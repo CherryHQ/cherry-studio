@@ -1196,7 +1196,11 @@
           "backup.manager.columns.fileName": "Имя файла",
           "backup.manager.columns.modifiedTime": "Время изменения",
           "backup.manager.columns.size": "Размер",
-          "backup.manager.columns.actions": "Действия"
+          "backup.manager.columns.actions": "Действия",
+          "directory.select_error_app_data_path": "Новый путь не может совпадать с путем данных приложения",
+          "directory.select_error_in_app_install_path": "Новый путь не может совпадать с путем установки приложения",
+          "directory.select_error_write_permission": "Новый путь не имеет разрешения на запись",
+          "directory.select_title": "Выберите каталог для резервных копий"
         },
         "export_menu": {
           "title": "Настройки меню экспорта",

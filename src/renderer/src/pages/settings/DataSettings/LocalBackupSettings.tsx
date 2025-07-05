@@ -13,6 +13,7 @@ import {
   setLocalBackupSkipBackupFile as _setLocalBackupSkipBackupFile,
   setLocalBackupSyncInterval as _setLocalBackupSyncInterval
 } from '@renderer/store/settings'
+import { AppInfo } from '@renderer/types'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -34,6 +35,8 @@ const LocalBackupSettings: FC = () => {
 
   const [syncInterval, setSyncInterval] = useState<number>(localBackupSyncIntervalSetting)
   const [maxBackups, setMaxBackups] = useState<number>(localBackupMaxBackupsSetting)
+
+  const [appInfo] = useState<AppInfo>()
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -66,14 +69,41 @@ const LocalBackupSettings: FC = () => {
 
   const handleBrowseDirectory = async () => {
     try {
-      const selected = await window.api.file.selectFolder()
-      if (selected) {
-        setLocalBackupDir(selected)
-        dispatch(_setLocalBackupDir(selected))
+      const newLocalBackupDir = await window.api.select({
+        properties: ['openDirectory', 'createDirectory'],
+        title: t('settings.data.local.directory.select_title')
+      })
 
-        // Create directory if it doesn't exist and set it in the backend
-        await window.api.backup.setLocalBackupDir(selected)
+      if (!newLocalBackupDir) {
+        return
       }
+
+      // check new local backup dir is not in app data path
+      // if is in app data path, show error
+      if (newLocalBackupDir.startsWith(appInfo?.appDataPath)) {
+        window.message.error(t('settings.data.local.directory.select_error_app_data_path'))
+        return
+      }
+
+      // check new local backup dir is not in app install path
+      // if is in app install path, show error
+      if (newLocalBackupDir.startsWith(appInfo?.installPath)) {
+        window.message.error(t('settings.data.local.directory.select_error_in_app_install_path'))
+        return
+      }
+
+      // check new app data path has write permission
+      const hasWritePermission = await window.api.hasWritePermission(newLocalBackupDir)
+      if (!hasWritePermission) {
+        window.message.error(t('settings.data.local.directory.select_error_write_permission'))
+        return
+      }
+
+      setLocalBackupDir(newLocalBackupDir)
+      dispatch(_setLocalBackupDir(newLocalBackupDir))
+
+      // Create directory if it doesn't exist and set it in the backend
+      await window.api.backup.setLocalBackupDir(newLocalBackupDir)
     } catch (error) {
       console.error('Failed to select directory:', error)
     }

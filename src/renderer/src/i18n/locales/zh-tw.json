@@ -1196,7 +1196,11 @@
           "backup.manager.columns.fileName": "文件名",
           "backup.manager.columns.modifiedTime": "修改時間",
           "backup.manager.columns.size": "大小",
-          "backup.manager.columns.actions": "操作"
+          "backup.manager.columns.actions": "操作",
+          "directory.select_error_app_data_path": "新路徑不能與應用數據路徑相同",
+          "directory.select_error_in_app_install_path": "新路徑不能與應用安裝路徑相同",
+          "directory.select_error_write_permission": "新路徑沒有寫入權限",
+          "directory.select_title": "選擇備份目錄"
         },
         "export_menu": {
           "title": "匯出選單設定",

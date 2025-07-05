@@ -1196,7 +1196,11 @@
           "backup.manager.columns.fileName": "文件名",
           "backup.manager.columns.modifiedTime": "修改时间",
           "backup.manager.columns.size": "大小",
-          "backup.manager.columns.actions": "操作"
+          "backup.manager.columns.actions": "操作",
+          "directory.select_error_app_data_path": "新路径不能与应用数据路径相同",
+          "directory.select_error_in_app_install_path": "新路径不能与应用安装路径相同",
+          "directory.select_error_write_permission": "新路径没有写入权限",
+          "directory.select_title": "选择备份目录"
         },
         "export_menu": {
           "title": "导出菜单设置",
