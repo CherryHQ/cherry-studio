@@ -9,11 +9,6 @@ import styled from 'styled-components'
 
 import { ApiKeyStatus, ApiKeyValidity } from './types'
 
-const STATUS_COLORS = {
-  success: '#52c41a',
-  error: '#ff4d4f'
-}
-
 export interface ApiKeyItemProps {
   keyStatus: ApiKeyStatus
   onUpdate: (newKey: string) => ApiKeyValidity
@@ -42,6 +37,9 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const inputRef = useRef<InputRef>(null)
 
   const disabled = keyStatus.checking || _disabled
+  const isNotChecked = keyStatus.connectivity === 'not_checked'
+  const isSuccess = keyStatus.connectivity === 'success'
+  const statusColor = isSuccess ? 'var(--color-status-success)' : 'var(--color-status-error)'
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -84,15 +82,10 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   }
 
   const renderStatusIcon = () => {
-    if (!keyStatus.checking && keyStatus.connectivity === 'success') {
-      return <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
-    }
+    if (keyStatus.checking || isNotChecked) return null
 
-    if (!keyStatus.checking && keyStatus.connectivity === 'error') {
-      return <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
-    }
-
-    return null
+    const StatusIcon = isSuccess ? CheckCircleFilled : CloseCircleFilled
+    return <StatusIcon style={{ color: statusColor }} />
   }
 
   const renderKeyCheckResultTooltip = () => {
@@ -100,13 +93,11 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
       return t('settings.models.check.checking')
     }
 
-    if (keyStatus.connectivity === 'not_checked') {
+    if (isNotChecked) {
       return ''
     }
 
-    const isSuccess = keyStatus.connectivity === 'success'
     const statusTitle = isSuccess ? t('settings.models.check.passed') : t('settings.models.check.failed')
-    const statusColor = isSuccess ? STATUS_COLORS.success : STATUS_COLORS.error
 
     return (
       <div style={{ maxHeight: '200px', overflowY: 'auto', maxWidth: '300px', wordWrap: 'break-word' }}>
