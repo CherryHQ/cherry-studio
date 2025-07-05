@@ -19,7 +19,7 @@ const INDEX = [
 const fs = require('fs')
 import OpenAI from 'openai'
 
-const zh = JSON.parse(fs.readFileSync('src/renderer/src/i18n/locales/zh-cn.json', 'utf8')) as object
+const zh = JSON.parse(fs.readFileSync('../src/renderer/src/i18n/locales/zh-cn.json', 'utf8')) as object
 
 const openai = new OpenAI({
   apiKey: API_KEY,
@@ -123,11 +123,11 @@ MAKE SURE TO OUTPUT IN ${target}. DO NOT OUTPUT IN UNSPECIFIED LANGUAGE.
 
 ;(async () => {
   for (const { name, code, model } of INDEX) {
-    const obj = fs.existsSync(`src/renderer/src/i18n/translate/${code}.json`)
-      ? JSON.parse(fs.readFileSync(`src/renderer/src/i18n/translate/${code}.json`, 'utf8'))
+    const obj = fs.existsSync(`../src/renderer/src/i18n/translate/${code}.json`)
+      ? JSON.parse(fs.readFileSync(`../src/renderer/src/i18n/translate/${code}.json`, 'utf8'))
       : {}
     await translate(zh, obj, name, model, () => {
-      fs.writeFileSync(`src/renderer/src/i18n/translate/${code}.json`, JSON.stringify(obj, null, 2), 'utf8')
+      fs.writeFileSync(`../src/renderer/src/i18n/translate/${code}.json`, JSON.stringify(obj, null, 2), 'utf8')
     })
   }
 })()
