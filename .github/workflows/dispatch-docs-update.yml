@@ -2,7 +2,7 @@ name: Dispatch Docs Update on Release
 
 on:
   release:
-    types: [published, edited] # 监听 Release 被“发布”和“编辑”的事件
+    types: [released]
 
 permissions:
   contents: write
@@ -17,24 +17,6 @@ jobs:
         run: |
           # 从当前 Release 事件中获取 tag_name
           echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-
-      - name: Fetch Latest Release Tag via API # 通过 API 获取实际的最新 Release
-        id: get-latest-tag
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用内置的 GITHUB_TOKEN 进行认证
-        run: |
-          # 调用 GitHub API 获取仓库的最新 Release。
-          # /releases/latest 端点会自动返回非预发布、非草稿的最新 Release。
-          LATEST_RELEASE_JSON=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-
-          # 使用 jq 工具从 JSON 响应中提取 tag_name
-          LATEST_TAG=$(echo "$LATEST_RELEASE_JSON" | jq -r '.tag_name')
-
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "Fetched latest tag via API: $LATEST_TAG"
-          echo "Event tag: ${{ steps.get-event-tag.outputs.tag }}"
 
       - name: Dispatch update-download-version workflow to cherry-studio-docs
         # 只有当当前事件的 Release 标签与通过 API 获取到的最新 Release 标签一致时，才发送调度事件
