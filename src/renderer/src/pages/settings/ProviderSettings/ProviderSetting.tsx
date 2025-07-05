@@ -344,14 +344,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            <Space>{t('settings.provider.api_key')}</Space>
-            <Space>
-              {provider.id !== 'copilot' && (
-                <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                  <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
-                </Tooltip>
-              )}
-            </Space>
+            {t('settings.provider.api_key')}
+            {provider.id !== 'copilot' && (
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            )}
           </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
