@@ -10,6 +10,7 @@ import {
   KnowledgeItem,
   MCPServer,
   Provider,
+  S3Config,
   Shortcut,
   ThemeMode,
   WebDavConfig
@@ -72,9 +73,9 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
-    restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
+    backup: (filename: string, content: string, path: string, skipBackupFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, filename, content, path, skipBackupFile),
+    restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
@@ -86,7 +87,16 @@ const api = {
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
+    checkWebdavConnection: (webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
+
+    backupToS3: (data: string, s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, data, s3Config),
+    restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
+    listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
+    deleteS3File: (fileName: string, s3Config: S3Config) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
+    checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),

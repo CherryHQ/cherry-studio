@@ -58,6 +58,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
     "@cherrystudio/pdf-to-img-napi": "^0.0.1",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",

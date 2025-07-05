@@ -749,4 +749,19 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export type S3Config = {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
+  fileName?: string
+  skipBackupFile: boolean
+  autoSync: boolean
+  syncInterval: number
+  maxBackups: number
+}
+
 export type { Message } from './newMessage'
