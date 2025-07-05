@@ -39,6 +39,12 @@ const MiniAppSettings: FC = () => {
     updateDisabledMinapps([])
   }, [updateDisabledMinapps, updateMinapps])
 
+  const handleSwapMinApps = useCallback(() => {
+    const temp = visibleMiniApps
+    setVisibleMiniApps(disabledMiniApps)
+    setDisabledMiniApps(temp)
+  }, [disabledMiniApps, visibleMiniApps])
+
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
     dispatch(setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE))
@@ -77,9 +83,10 @@ const MiniAppSettings: FC = () => {
       <SettingTitle
         style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>{t('settings.miniapps.display_title')}</span>
-        <ResetButtonWrapper>
+        <ButtonWrapper>
+          <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
           <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
-        </ResetButtonWrapper>
+        </ButtonWrapper>
       </SettingTitle>
       <BorderedContainer>
         <MiniAppIconsManager
@@ -219,10 +226,11 @@ const ResetButton = styled.button`
   }
 `
 
-const ResetButtonWrapper = styled.div`
+const ButtonWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 `
 
 // 新增: 带边框的容器组件

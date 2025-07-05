@@ -412,6 +412,7 @@
       "save": "Save",
       "settings": "Settings",
       "search": "Search",
+      "swap": "Swap",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
       "selectedItems": "Selected {{count}} items",
