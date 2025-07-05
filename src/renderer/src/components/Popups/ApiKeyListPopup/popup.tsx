@@ -36,9 +36,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, reso
     resolve({})
   }
 
-  // 设置静态 hide 方法
-  ApiKeyListPopup.hide = onCancel
-
   return (
     <Modal
       title={title || t('settings.provider.api.key.list.title')}
@@ -70,16 +67,7 @@ export default class ApiKeyListPopup {
 
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={(v) => resolve(v)} />, TopViewKey)
     })
   }
 }

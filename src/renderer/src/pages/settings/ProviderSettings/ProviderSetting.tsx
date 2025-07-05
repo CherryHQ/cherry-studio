@@ -78,29 +78,32 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [isApiKeyListOpen, setIsApiKeyListOpen] = useState(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSetApiKey = useCallback(
+  const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
-      setApiKey(value)
+      updateApiKey(value)
     }, 100),
     []
   )
 
-  const setApiKey = useCallback(
+  const updateApiKey = useCallback(
     (value: string) => {
-      if (value !== provider.apiKey) {
-        updateProvider({ apiKey: formatApiKeys(value) })
+      if (value === provider.apiKey) return
+
+      const formatted = formatApiKeys(value)
+      if (formatted !== provider.apiKey) {
+        updateProvider({ apiKey: formatted })
       }
     },
     [provider.apiKey, updateProvider]
   )
 
   // 设置密钥输入框的值，同步到 provider.apiKey
-  const setInputApiKey = useCallback(
+  const setApiKey = useCallback(
     (value: string) => {
       _setInputApiKey(formatApiKeys(value))
-      debouncedSetApiKey(value)
+      debouncedUpdateApiKey(value)
     },
-    [_setInputApiKey, debouncedSetApiKey]
+    [_setInputApiKey, debouncedUpdateApiKey]
   )
 
   const moveProviderToTop = useCallback(
@@ -331,7 +334,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth provider={provider} setApiKey={setApiKey} />}
       {provider.id === 'openai' && <OpenAIAlert />}
-      {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
+      {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id !== 'vertexai' && (
         <>
           <SettingSubtitle
@@ -354,9 +357,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             <Input.Password
               value={inputApiKey}
               placeholder={t('settings.provider.api_key')}
-              onChange={(e) => setInputApiKey(e.target.value)}
-              onPressEnter={(e) => setInputApiKey(e.currentTarget.value)}
-              onBlur={(e) => setInputApiKey(e.currentTarget.value)}
+              onChange={(e) => setApiKey(e.target.value)}
+              onPressEnter={(e) => setApiKey(e.currentTarget.value)}
+              onBlur={(e) => setApiKey(e.currentTarget.value)}
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
@@ -427,7 +430,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       )}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
-      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
+      {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} setApiKey={setApiKey} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>

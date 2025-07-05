@@ -1,7 +1,6 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
 import { Alert, Button, Input, message, Popconfirm, Slider, Space, Tooltip, Typography } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +9,7 @@ import styled from 'styled-components'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingTitle } from '..'
 
 interface GithubCopilotSettingsProps {
-  provider: Provider
+  providerId: string
   setApiKey: (apiKey: string) => void
 }
 
@@ -20,9 +19,9 @@ enum AuthStatus {
   AUTHENTICATED
 }
 
-const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ provider: initialProvider, setApiKey }) => {
+const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId, setApiKey }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(initialProvider.id)
+  const { provider, updateProvider } = useProvider(providerId)
   const { username, avatar, defaultHeaders, updateState, updateDefaultHeaders } = useCopilot()
   // 状态管理
   const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.NOT_STARTED)
