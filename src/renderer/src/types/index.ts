@@ -178,7 +178,7 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -209,7 +209,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string

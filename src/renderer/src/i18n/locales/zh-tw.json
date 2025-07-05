@@ -468,6 +468,14 @@
       "messages": "訊息數",
       "user": "使用者"
     },
+    "endpoint_type": {
+      "openai": "OpenAI",
+      "openai-response": "OpenAI-Response",
+      "anthropic": "Anthropic",
+      "gemini": "Gemini",
+      "image-generation": "圖片生成",
+      "jina-rerank": "Jina Rerank"
+    },
     "files": {
       "actions": "操作",
       "all": "所有檔案",
@@ -861,6 +869,8 @@
       "title": "Ollama"
     },
     "paintings": {
+      "no_image_generation_model": "暫無可用的圖片生成模型，請先新增模型並設置端點類型為 {{endpoint_type}}",
+      "go_to_settings": "去設置",
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎？",
       "button.new.image": "新繪圖",
@@ -932,6 +942,9 @@
         "allow_all": "允許所有",
         "allow_adult": "允許成人",
         "allow_none": "不允許"
+      },
+      "image_size_options": {
+        "auto": "自動"
       },
       "quality": "品質",
       "moderation": "敏感度",

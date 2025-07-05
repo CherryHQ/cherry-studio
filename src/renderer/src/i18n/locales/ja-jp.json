@@ -468,6 +468,14 @@
       "messages": "メッセージ",
       "user": "ユーザー"
     },
+    "endpoint_type": {
+      "openai": "OpenAI",
+      "openai-response": "OpenAI-Response",
+      "anthropic": "Anthropic",
+      "gemini": "Gemini",
+      "image-generation": "画像生成",
+      "jina-rerank": "Jina Rerank"
+    },
     "files": {
       "actions": "操作",
       "all": "すべてのファイル",
@@ -861,6 +869,8 @@
       "title": "Ollama"
     },
     "paintings": {
+      "no_image_generation_model": "利用可能な画像生成モデルがありません。モデルを追加し、エンドポイントタイプを {{endpoint_type}} に設定してください",
+      "go_to_settings": "設定に移動",
       "button.delete.image": "画像を削除",
       "button.delete.image.confirm": "この画像を削除してもよろしいですか？",
       "button.new.image": "新しい画像",
@@ -931,6 +941,9 @@
         "allow_all": "許可する",
         "allow_adult": "許可する",
         "allow_none": "許可しない"
+      },
+      "image_size_options": {
+        "auto": "自動"
       },
       "quality": "品質",
       "moderation": "敏感度",

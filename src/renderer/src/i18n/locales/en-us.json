@@ -468,6 +468,14 @@
       "messages": "Messages",
       "user": "User"
     },
+    "endpoint_type": {
+      "openai": "OpenAI",
+      "openai-response": "OpenAI-Response",
+      "anthropic": "Anthropic",
+      "gemini": "Gemini",
+      "image-generation": "Image Generation",
+      "jina-rerank": "Jina Rerank"
+    },
     "files": {
       "actions": "Actions",
       "all": "All Files",
@@ -861,6 +869,8 @@
       "title": "Ollama"
     },
     "paintings": {
+      "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
+      "go_to_settings": "Go to Settings",
       "button.delete.image": "Delete Image",
       "button.delete.image.confirm": "Are you sure you want to delete this image?",
       "button.new.image": "New Image",
@@ -933,6 +943,9 @@
         "allow_all": "Allow all",
         "allow_adult": "Allow adult",
         "allow_none": "Not allowed"
+      },
+      "image_size_options": {
+        "auto": "Auto"
       },
       "quality": "Quality",
       "moderation": "Moderation",
