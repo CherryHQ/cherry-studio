@@ -1,4 +1,4 @@
-import { Model, Provider, WebSearchProvider } from '@renderer/types'
+import { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 
 /**
  * API Key 连通性检查的状态
@@ -26,6 +26,6 @@ export type ApiKeyValidity = {
   error?: string
 }
 
-export type ProviderUnion = Provider | WebSearchProvider
+export type ProviderUnion = Provider | WebSearchProvider | PreprocessProvider
 
-export type ApiKeySourceType = 'llm-provider' | 'websearch-provider'
+export type ApiKeySourceType = 'llm-provider' | 'websearch-provider' | 'doc-preprocess-provider'

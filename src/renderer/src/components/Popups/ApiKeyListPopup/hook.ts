@@ -3,7 +3,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Model, Provider } from '@renderer/types'
+import { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { TFunction } from 'i18next'
@@ -11,17 +11,18 @@ import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ApiKeyConnectivity, ApiKeyValidity, ApiKeyWithStatus, ProviderUnion } from './types'
+import { ApiKeyConnectivity, ApiKeySourceType, ApiKeyValidity, ApiKeyWithStatus, ProviderUnion } from './types'
 
 interface UseApiKeysProps {
   provider: ProviderUnion
   updateProvider: (provider: Partial<ProviderUnion>) => void
+  providerType: ApiKeySourceType
 }
 
 /**
  * API Keys 管理 hook
  */
-export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
+export function useApiKeys({ provider, updateProvider, providerType }: UseApiKeysProps) {
   const { t } = useTranslation()
 
   // 连通性检查的 UI 状态管理
@@ -193,7 +194,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
 
       try {
         const startTime = Date.now()
-        if (isLlmProvider(provider) && model) {
+        if (isLlmProvider(provider, providerType) && model) {
           await checkApi({ ...provider, apiKey: keyToCheck }, model)
         } else {
           const result = await WebSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
@@ -222,7 +223,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         Logger.error('[ApiKeyList] failed to validate the connectivity of the api key', error)
       }
     },
-    [keys, connectivityStates, updateConnectivityState, provider]
+    [keys, connectivityStates, updateConnectivityState, provider, providerType]
   )
 
   // 检查单个 key 的连通性
@@ -234,23 +235,23 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
       const currentState = connectivityStates.get(keyToCheck)
       if (currentState?.checking) return
 
-      const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
+      const model = isLlmProvider(provider, providerType) ? await getModelForCheck(provider, t) : undefined
       if (model === null) return
 
       await runConnectivityCheck(index, model)
     },
-    [provider, keys, connectivityStates, t, runConnectivityCheck]
+    [provider, keys, connectivityStates, providerType, t, runConnectivityCheck]
   )
 
   // 检查所有 keys 的连通性
   const checkAllKeysConnectivity = useCallback(async () => {
     if (!provider || keys.length === 0) return
 
-    const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
+    const model = isLlmProvider(provider, providerType) ? await getModelForCheck(provider, t) : undefined
     if (model === null) return
 
     await Promise.allSettled(keys.map((_, index) => runConnectivityCheck(index, model)))
-  }, [provider, keys, t, runConnectivityCheck])
+  }, [provider, keys, providerType, t, runConnectivityCheck])
 
   // 计算是否有 key 正在检查
   const isChecking = useMemo(() => {
@@ -269,8 +270,16 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   }
 }
 
-export function isLlmProvider(provider: ProviderUnion): provider is Provider {
-  return 'models' in provider
+export function isLlmProvider(obj: any, type: ApiKeySourceType): obj is Provider {
+  return type === 'llm-provider' && 'type' in obj && 'models' in obj
+}
+
+export function isWebSearchProvider(obj: any, type: ApiKeySourceType): obj is WebSearchProvider {
+  return type === 'websearch-provider' && ('url' in obj || 'engines' in obj)
+}
+
+export function isPreprocessProvider(obj: any, type: ApiKeySourceType): obj is PreprocessProvider {
+  return type === 'doc-preprocess-provider' && ('quota' in obj || 'options' in obj)
 }
 
 // 获取模型用于检查

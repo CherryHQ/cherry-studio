@@ -192,7 +192,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.tool.websearch.get_api_key')}
+              {t('settings.provider.api_key.tip')}
             </SettingHelpLink>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>

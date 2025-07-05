@@ -1856,7 +1856,6 @@
           "check": "檢查",
           "check_failed": "驗證失敗",
           "check_success": "驗證成功",
-          "get_api_key": "點選這裡取得金鑰",
           "no_provider_selected": "請選擇搜尋服務商後再檢查",
           "search_max_result": "搜尋結果個數",
           "search_max_result.tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens",

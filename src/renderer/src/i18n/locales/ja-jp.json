@@ -1853,7 +1853,6 @@
           "check": "チェック",
           "check_failed": "検証に失敗しました",
           "check_success": "検証に成功しました",
-          "get_api_key": "APIキーを取得",
           "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
           "search_max_result": "検索結果の数",
           "search_provider": "検索サービスプロバイダー",

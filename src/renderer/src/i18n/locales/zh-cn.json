@@ -1945,7 +1945,6 @@
           "check_success": "验证成功",
           "overwrite": "覆盖服务商搜索",
           "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-          "get_api_key": "点击这里获取密钥",
           "no_provider_selected": "请选择搜索服务商后再检测",
           "search_max_result": "搜索结果个数",
           "search_max_result.tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens",

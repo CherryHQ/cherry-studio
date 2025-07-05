@@ -15,6 +15,7 @@ export interface ApiKeyItemProps {
   onRemove: () => void
   onCheck: () => Promise<void>
   disabled?: boolean
+  showHealthCheck?: boolean
   isNew?: boolean
 }
 
@@ -28,6 +29,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   onRemove,
   onCheck,
   disabled: _disabled = false,
+  showHealthCheck = true,
   isNew = false
 }) => {
   const { t } = useTranslation()
@@ -166,14 +168,16 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             </Tooltip>
 
             <Flex gap={0} align="center">
-              <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
-                  onClick={onCheck}
-                  disabled={disabled}
-                />
-              </Tooltip>
+              {showHealthCheck && (
+                <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                  <Button
+                    type="text"
+                    icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
+                    onClick={onCheck}
+                    disabled={disabled}
+                  />
+                </Tooltip>
+              )}
               <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
                 <Button type="text" icon={<PenLine size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>

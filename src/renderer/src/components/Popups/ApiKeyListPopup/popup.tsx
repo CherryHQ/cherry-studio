@@ -1,15 +1,16 @@
 import { TopView } from '@renderer/components/TopView'
 import { Modal } from 'antd'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { LlmApiKeyList, WebSearchApiKeyList } from './list'
+import { DocPreprocessApiKeyList, LlmApiKeyList, WebSearchApiKeyList } from './list'
 import { ApiKeySourceType } from './types'
 
 interface ShowParams {
   providerId: string
   providerType: ApiKeySourceType
   title?: string
+  showHealthCheck?: boolean
 }
 
 interface Props extends ShowParams {
@@ -18,9 +19,8 @@ interface Props extends ShowParams {
 
 /**
  * API Key 列表弹窗容器组件
- * 重构后简化接口，ApiKeyList 直接与 store 交互
  */
-const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, resolve, showHealthCheck = true }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
 
@@ -36,6 +36,19 @@ const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, reso
     resolve({})
   }
 
+  const ListComponent = useMemo(() => {
+    switch (providerType) {
+      case 'llm-provider':
+        return LlmApiKeyList
+      case 'websearch-provider':
+        return WebSearchApiKeyList
+      case 'doc-preprocess-provider':
+        return DocPreprocessApiKeyList
+      default:
+        return null
+    }
+  }, [providerType])
+
   return (
     <Modal
       title={title || t('settings.provider.api.key.list.title')}
@@ -47,10 +60,8 @@ const PopupContainer: React.FC<Props> = ({ providerId, providerType, title, reso
       centered
       width={600}
       footer={null}>
-      {providerType === 'llm-provider' ? (
-        <LlmApiKeyList providerId={providerId} />
-      ) : (
-        <WebSearchApiKeyList providerId={providerId} />
+      {ListComponent && (
+        <ListComponent providerId={providerId} providerType={providerType} showHealthCheck={showHealthCheck} />
       )}
     </Modal>
   )
