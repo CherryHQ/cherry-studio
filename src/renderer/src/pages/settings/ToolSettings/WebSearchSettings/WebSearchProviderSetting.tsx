@@ -3,7 +3,6 @@ import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -22,11 +21,11 @@ import {
 } from '../..'
 
 interface Props {
-  provider: WebSearchProvider
+  providerId: string
 }
 
-const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
-  const { provider, updateProvider } = useWebSearchProvider(_provider.id)
+const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider } = useWebSearchProvider(providerId)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(provider.apiKey || '')
   const [apiHost, setApiHost] = useState(provider.apiHost || '')

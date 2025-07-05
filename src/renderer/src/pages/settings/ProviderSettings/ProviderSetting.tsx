@@ -12,7 +12,6 @@ import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { Provider } from '@renderer/types'
 import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
@@ -45,11 +44,11 @@ import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
 interface Props {
-  provider: Provider
+  providerId: string
 }
 
-const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
-  const { provider, updateProvider, models } = useProvider(_provider.id)
+const ProviderSetting: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
   const [apiHost, setApiHost] = useState(provider.apiHost)
