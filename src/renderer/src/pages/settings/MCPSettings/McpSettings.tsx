@@ -280,21 +280,26 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
-      try {
-        await window.api.mcp.restartServer(mcpServer)
-        updateMCPServer({ ...mcpServer, isActive: true })
-        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
-        setLoading(false)
-        setIsFormChanged(false)
-      } catch (error: any) {
+      if (server.isActive) {
+        try {
+          await window.api.mcp.restartServer(mcpServer)
+          updateMCPServer({ ...mcpServer, isActive: true })
+          window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+          setIsFormChanged(false)
+        } catch (error: any) {
+          updateMCPServer({ ...mcpServer, isActive: false })
+          window.modal.error({
+            title: t('settings.mcp.updateError'),
+            content: error.message,
+            centered: true
+          })
+        }
+      } else {
         updateMCPServer({ ...mcpServer, isActive: false })
-        window.modal.error({
-          title: t('settings.mcp.updateError'),
-          content: error.message,
-          centered: true
-        })
-        setLoading(false)
+        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+        setIsFormChanged(false)
       }
+      setLoading(false)
     } catch (error: any) {
       setLoading(false)
       console.error('Failed to save MCP server settings:', error)
