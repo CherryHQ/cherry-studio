@@ -427,7 +427,8 @@
       },
       "no_results": "无结果",
       "enabled": "已启用",
-      "disabled": "已禁用"
+      "disabled": "已禁用",
+      "llm": "大语言模型"
     },
     "docs": {
       "title": "帮助文档"
@@ -2037,7 +2038,12 @@
       },
       "title": "翻译",
       "tooltip.newline": "换行",
-      "detected.language": "自动检测"
+      "detected.language": "自动检测",
+      "detect.method": "自动检测方法",
+      "detect.method.placeholder": "选择自动检测方法",
+      "detect.method.algo": "自动检测算法",
+      "detect.method.llm": "大语言模型",
+      "detect.method.llm.tip": "将使用选择的翻译模型截取短文本片段进行语言检测"
     },
     "tray": {
       "quit": "退出",
