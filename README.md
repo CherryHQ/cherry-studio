@@ -182,7 +182,7 @@ Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contributio
 3. **Submit Changes**: Commit and push your changes.
 4. **Open a Pull Request**: Describe your changes and reasons.
 
-For more detailed guidelines, please refer to our [Contributing Guide](./CONTRIBUTING.md).
+For more detailed guidelines, please refer to our [Contributing Guide](CONTRIBUTING.md).
 
 Thank you for your support and contributions!
 

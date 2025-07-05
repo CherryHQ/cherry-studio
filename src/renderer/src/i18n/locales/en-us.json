@@ -1896,7 +1896,7 @@
           "search_max_result": "Number of search results",
           "search_provider": "Search service provider",
           "search_provider_placeholder": "Choose a search service provider.",
-          "search_result_default": "Default",
+          "search_max_result.tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens",
           "search_with_time": "Search with dates included",
           "tavily": {
             "api_key": "Tavily API Key",
@@ -1931,7 +1931,6 @@
             "cutoff.unit.token": "Token",
             "method.rag": "RAG",
             "rag.document_count": "Document Count",
-            "rag.document_count.default": "Default",
             "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
             "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
             "rag.embedding_dimensions.placeholder": "Leave empty",

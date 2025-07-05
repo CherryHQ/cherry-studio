@@ -1852,9 +1852,9 @@
           "get_api_key": "點選這裡取得金鑰",
           "no_provider_selected": "請選擇搜尋服務商後再檢查",
           "search_max_result": "搜尋結果個數",
+          "search_max_result.tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens",
           "search_provider": "搜尋服務商",
           "search_provider_placeholder": "選擇一個搜尋服務商",
-          "search_result_default": "預設",
           "search_with_time": "搜尋包含日期",
           "tavily": {
             "api_key": "Tavily API 金鑰",
@@ -1889,7 +1889,6 @@
             "cutoff.unit.token": "Token",
             "method.rag": "RAG",
             "rag.document_count": "文檔數量",
-            "rag.document_count.default": "預設",
             "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
             "rag.embedding_dimensions.auto_get": "自動獲取維度",
             "rag.embedding_dimensions.placeholder": "不設置維度",

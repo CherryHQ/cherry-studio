@@ -164,7 +164,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',

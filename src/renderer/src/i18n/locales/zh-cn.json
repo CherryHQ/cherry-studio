@@ -1941,6 +1941,7 @@
           "get_api_key": "点击这里获取密钥",
           "no_provider_selected": "请选择搜索服务商后再检测",
           "search_max_result": "搜索结果个数",
+          "search_max_result.tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens",
           "search_provider": "搜索服务商",
           "search_provider_placeholder": "选择一个搜索服务商",
           "subscribe": "黑名单订阅",
@@ -1951,7 +1952,6 @@
           "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
           "subscribe_add_success": "订阅源添加成功!",
           "subscribe_delete": "删除订阅源",
-          "search_result_default": "默认",
           "search_with_time": "搜索包含日期",
           "tavily": {
             "api_key": "Tavily API 密钥",
@@ -1976,7 +1976,6 @@
             "cutoff.unit.token": "Token",
             "method.rag": "RAG",
             "rag.document_count": "文档数量",
-            "rag.document_count.default": "默认",
             "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
             "rag.embedding_dimensions.auto_get": "自动获取维度",
             "rag.embedding_dimensions.placeholder": "不设置维度",

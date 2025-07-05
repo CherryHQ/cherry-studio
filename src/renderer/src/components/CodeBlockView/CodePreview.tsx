@@ -107,7 +107,8 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
-  const estimateSize = useCallback(() => (fontSize - 1) * 1.6, [fontSize]) // 同步全局样式
+  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
+  const estimateSize = useCallback(() => Math.round((fontSize - 1) * 1.6), [fontSize])
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -144,6 +145,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
         ref={scrollerRef}
         className="shiki-scroller"
         $wrap={shouldWrap}
+        $lineHeight={estimateSize()}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
@@ -229,18 +231,19 @@ VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ScrollContainer = styled.div<{
   $wrap?: boolean
+  $lineHeight?: number
 }>`
   display: block;
   overflow: auto;
   position: relative;
   border-radius: inherit;
-  height: auto;
   padding: 0.5em 1em;
 
   .line {
     display: flex;
     align-items: flex-start;
     width: 100%;
+    line-height: ${(props) => props.$lineHeight}px;
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
@@ -250,14 +253,12 @@ const ScrollContainer = styled.div<{
       user-select: none;
       flex-shrink: 0;
       overflow: hidden;
-      line-height: inherit;
       font-family: inherit;
       font-variant-numeric: tabular-nums;
     }
 
     .line-content {
       flex: 1;
-      line-height: inherit;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};

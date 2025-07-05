@@ -1851,7 +1851,7 @@
           "search_max_result": "検索結果の数",
           "search_provider": "検索サービスプロバイダー",
           "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-          "search_result_default": "デフォルト",
+          "search_max_result.tooltip": "検索結果の圧縮が無効な場合、結果の数が多すぎるとトークンが不足する可能性があります",
           "search_with_time": "日付を含む検索",
           "tavily": {
             "api_key": "Tavily API キー",
@@ -1886,7 +1886,6 @@
             "cutoff.unit.token": "トークン",
             "method.rag": "RAG",
             "rag.document_count": "文書数",
-            "rag.document_count.default": "デフォルト",
             "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
             "rag.embedding_dimensions.auto_get": "次元を自動取得",
             "rag.embedding_dimensions.placeholder": "次元を設定しない",
