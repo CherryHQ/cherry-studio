@@ -1668,12 +1668,6 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
-      "models.quick_assistant_model": "Quick Assistant Model",
-      "models.quick_assistant_model_description": "Default model used by Quick Assistant",
-      "models.quick_assistant_selection": "Select Assistant",
-      "models.quick_assistant_default_tag": "Default",
-      "models.use_model": "Default Model",
-      "models.use_assistant": "Use Assistant",
       "models.provider_key_confirm_title": "Add Provider API Key",
       "models.provider_name": "Provider Name",
       "models.provider_id": "Provider ID",
@@ -1817,7 +1811,14 @@
         "enable_quick_assistant": "Enable Quick Assistant",
         "read_clipboard_at_startup": "Read clipboard at startup",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "use_existing_assistant": {
+          "title": "Use Existing Assistant",
+          "tooltip": "When enabled, you can select an existing assistant as the quick assistant, otherwise only the default conversation model will be used",
+          "select.placeholder": "Select Existing Assistant",
+          "select.default_tag": "Default",
+          "select.default_tag.tooltip": "This is the default assistant"
+        }
       },
       "shortcuts": {
         "action": "Action",
