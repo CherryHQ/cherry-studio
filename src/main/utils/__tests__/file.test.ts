@@ -282,7 +282,7 @@ describe('file', () => {
         })
 
         const encoding = detectEncoding(mockFilePath)
-        expect(encoding).toMatch(/GB2312|GB18030|ISO-8859-1/i)
+        expect(encoding).toMatch(/GB2312|GB18030/i)
       })
 
       it('正确检测ASCII编码', () => {
