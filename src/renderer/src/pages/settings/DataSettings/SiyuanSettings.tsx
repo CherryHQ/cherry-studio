@@ -112,6 +112,7 @@ const SiyuanSettings: FC = () => {
             <Input.Password
               value={siyuanToken || ''}
               onChange={handleTokenChange}
+              onBlur={handleTokenChange}
               placeholder={t('settings.data.siyuan.token_placeholder')}
               style={{ width: '100%' }}
             />

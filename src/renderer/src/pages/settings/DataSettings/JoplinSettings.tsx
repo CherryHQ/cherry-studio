@@ -110,6 +110,7 @@ const JoplinSettings: FC = () => {
             <Input.Password
               value={joplinToken || ''}
               onChange={handleJoplinTokenChange}
+              onBlur={handleJoplinTokenChange}
               placeholder={t('settings.data.joplin.token_placeholder')}
               style={{ width: '100%' }}
             />
