@@ -262,6 +262,7 @@
       "topics.copy.image": "画像としてコピー",
       "topics.copy.md": "Markdownとしてコピー",
       "topics.copy.plain_text": "プレーンテキストとしてコピー（Markdownを除去）",
+      "topics.copy.new_topic": "新しいトピックとしてコピー",
       "topics.copy.title": "コピー",
       "topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
       "topics.edit.placeholder": "新しい名前を入力",
@@ -303,6 +304,7 @@
       "topics.export.obsidian_root_directory": "ルートディレクトリ",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
+      "topics.export.pdf": "PDFとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
@@ -390,6 +392,7 @@
       "docs": "ドキュメント",
       "download": "ダウンロード",
       "duplicate": "複製",
+      "move": "移動",
       "edit": "編集",
       "expand": "展開",
       "collapse": "折りたたむ",
@@ -1167,6 +1170,7 @@
           "siyuan": "思源ノートにエクスポート",
           "joplin": "Joplinにエクスポート",
           "docx": "Wordとしてエクスポート",
+          "pdf": "PDFとしてエクスポート",
           "plain_text": "プレーンテキストとしてコピー"
         },
         "joplin": {

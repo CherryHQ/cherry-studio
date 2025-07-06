@@ -262,6 +262,7 @@
       "topics.copy.image": "Скопировать как изображение",
       "topics.copy.md": "Скопировать как Markdown",
       "topics.copy.plain_text": "Копировать как обычный текст (удалить Markdown)",
+      "topics.copy.new_topic": "Копировать в новую тему",
       "topics.copy.title": "Скопировать",
       "topics.delete.shortcut": "Удерживайте {{key}} для мгновенного удаления",
       "topics.edit.placeholder": "Введите новый заголовок",
@@ -303,6 +304,7 @@
       "topics.export.obsidian_root_directory": "Корневая директория",
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
+      "topics.export.pdf": "Экспорт в PDF",
       "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
@@ -390,6 +392,7 @@
       "docs": "Документы",
       "download": "Скачать",
       "duplicate": "Дублировать",
+      "move": "Переместить",
       "edit": "Редактировать",
       "expand": "Развернуть",
       "collapse": "Свернуть",
@@ -1167,6 +1170,7 @@
           "siyuan": "Экспорт в SiYuan Note",
           "joplin": "Экспорт в Joplin",
           "docx": "Экспорт в Word",
+          "pdf": "Экспорт в PDF",
           "plain_text": "Копировать как чистый текст"
         },
         "joplin": {

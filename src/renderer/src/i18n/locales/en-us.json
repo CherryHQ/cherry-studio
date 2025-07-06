@@ -262,6 +262,7 @@
       "topics.copy.image": "Copy as image",
       "topics.copy.md": "Copy as markdown",
       "topics.copy.plain_text": "Copy as plain text (remove Markdown)",
+      "topics.copy.new_topic": "Copy as new topic",
       "topics.copy.title": "Copy",
       "topics.delete.shortcut": "Hold {{key}} to delete directly",
       "topics.edit.placeholder": "Enter new name",
@@ -303,6 +304,7 @@
       "topics.export.obsidian_root_directory": "Root Directory",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
+      "topics.export.pdf": "Export as PDF",
       "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
@@ -390,6 +392,7 @@
       "docs": "Docs",
       "download": "Download",
       "duplicate": "Duplicate",
+      "move": "Move",
       "edit": "Edit",
       "expand": "Expand",
       "collapse": "Collapse",
@@ -1169,6 +1172,7 @@
           "siyuan": "Export to SiYuan Note",
           "joplin": "Export to Joplin",
           "docx": "Export as Word",
+          "pdf": "Export as PDF",
           "plain_text": "Copy as Plain Text"
         },
         "joplin": {

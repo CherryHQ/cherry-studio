@@ -262,6 +262,7 @@
       "topics.copy.image": "複製為圖片",
       "topics.copy.md": "複製為 Markdown",
       "topics.copy.plain_text": "複製為純文字（移除 Markdown）",
+      "topics.copy.new_topic": "複製為新話題",
       "topics.copy.title": "複製",
       "topics.delete.shortcut": "按住 {{key}} 可直接刪除",
       "topics.edit.placeholder": "輸入新名稱",
@@ -303,6 +304,7 @@
       "topics.export.obsidian_root_directory": "根目錄",
       "topics.export.title": "匯出",
       "topics.export.word": "匯出為 Word",
+      "topics.export.pdf": "匯出為 PDF",
       "topics.export.yuque": "匯出到語雀",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
@@ -390,6 +392,7 @@
       "docs": "文件",
       "download": "下載",
       "duplicate": "複製",
+      "move": "移動",
       "edit": "編輯",
       "expand": "展開",
       "collapse": "折疊",
@@ -1169,6 +1172,7 @@
           "siyuan": "匯出到思源筆記",
           "joplin": "匯出到 Joplin",
           "docx": "匯出為 Word",
+          "pdf": "匯出為 PDF",
           "plain_text": "複製為純文本"
         },
         "joplin": {

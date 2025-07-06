@@ -5,9 +5,11 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
 import { Topic } from '@renderer/types'
+import { moveSelectedMessagesToTopicThunk } from '@renderer/store/thunk/messageThunk'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector, useStore } from 'react-redux'
+import { Select } from 'antd'
 
 export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
@@ -168,11 +170,47 @@ export const useChatContext = (activeTopic: Topic) => {
           }
           break
         }
+        case 'move': {
+          const assistants = store.getState().assistants.assistants
+          const assistant = assistants.find((a) => a.id === activeTopic.assistantId)
+          const topics = assistant?.topics.filter((t) => t.id !== activeTopic.id) || []
+          if (topics.length === 0) {
+            window.message.warning(t('chat.multiple.select.empty'))
+            break
+          }
+
+          let targetId = topics[0].id
+          window.modal.confirm({
+            title: t('chat.topics.move_to'),
+            icon: null,
+            centered: true,
+            content: (
+              <Select
+                style={{ width: '100%' }}
+                options={topics.map((tp) => ({ value: tp.id, label: tp.name }))}
+                defaultValue={targetId}
+                onChange={(v) => {
+                  targetId = v as string
+                }}
+              />
+            ),
+            onOk: async () => {
+              const target = topics.find((tp) => tp.id === targetId)
+              if (!target) return
+              await dispatch(
+                moveSelectedMessagesToTopicThunk(activeTopic.id, target, messageIds, true)
+              )
+              window.message.success(t('common.success'))
+              handleToggleMultiSelectMode(false)
+            }
+          })
+          break
+        }
         default:
           break
       }
     },
-    [t, store, activeTopic.id, deleteMessage, handleToggleMultiSelectMode]
+    [t, store, activeTopic.id, activeTopic.assistantId, deleteMessage, dispatch, handleToggleMultiSelectMode]
   )
 
   return {
