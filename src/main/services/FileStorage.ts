@@ -1,4 +1,4 @@
-import { decodeBuffer, detectEncoding, getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { detectEncoding, getFilesDir, getFileType, getTempDir, readFileUTF8 } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import * as crypto from 'crypto'
@@ -176,7 +176,6 @@ class FileStorage {
     const stats = await fs.promises.stat(destPath)
     const fileType = getFileType(ext)
 
-    // 读取文件前1KB来检测编码
     let encoding: string | undefined = undefined
     if (fileType === FileTypes.TEXT) {
       encoding = detectEncoding(destPath)
@@ -267,15 +266,13 @@ class FileStorage {
 
     if (encoding) {
       try {
-        const data = fs.readFileSync(filePath)
-        const result = decodeBuffer(data, encoding)
-        logger.log('specified encoding read result', result)
+        const result = readFileUTF8(filePath)
         return result
       } catch (error) {
         logger.error(error)
       }
     }
-
+    // 没有指定编码，直接使用 utf8 读取
     return fs.readFileSync(filePath, 'utf8')
   }
 
