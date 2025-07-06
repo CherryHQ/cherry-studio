@@ -210,7 +210,7 @@ export function getAppConfigDir(name: string) {
  * @param filePath - 文件路径
  * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
  */
-export function detectEncoding(filePath: string) {
+export function detectEncoding(filePath: string): string {
   // 读取文件前1KB来检测编码
   const buffer = Buffer.alloc(1024)
   fs.readSync(fs.openSync(filePath, 'r'), buffer, 0, 1024, 0)
