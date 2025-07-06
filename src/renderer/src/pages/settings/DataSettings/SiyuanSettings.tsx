@@ -5,12 +5,10 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
 import { Button, Tooltip } from 'antd'
-import Input from 'antd/es/input/Input'
-import { Eye, EyeOff } from 'lucide-react'
-import { FC, useState } from 'react'
+import { Input } from 'antd'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -19,16 +17,11 @@ const SiyuanSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const [showToken, setShowToken] = useState(false)
 
   const siyuanApiUrl = useSelector((state: RootState) => state.settings.siyuanApiUrl)
   const siyuanToken = useSelector((state: RootState) => state.settings.siyuanToken)
   const siyuanBoxId = useSelector((state: RootState) => state.settings.siyuanBoxId)
   const siyuanRootPath = useSelector((state: RootState) => state.settings.siyuanRootPath)
-
-  const toggleToken = () => {
-    setShowToken(!showToken)
-  }
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setSiyuanApiUrl(e.target.value))
@@ -115,16 +108,12 @@ const SiyuanSettings: FC = () => {
           </Tooltip>
         </SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <ApiKeyContainer>
-            <Input
-              type={showToken ? 'text' : 'password'}
-              value={siyuanToken || ''}
-              onChange={handleTokenChange}
-              placeholder={t('settings.data.siyuan.token_placeholder')}
-              style={{ width: '100%' }}
-            />
-            <EyeButton onClick={toggleToken}>{showToken ? <Eye size={16} /> : <EyeOff size={16} />}</EyeButton>
-          </ApiKeyContainer>
+          <Input.Password
+            value={siyuanToken || ''}
+            onChange={handleTokenChange}
+            placeholder={t('settings.data.siyuan.token_placeholder')}
+            style={{ width: '100%' }}
+          />
           <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
         </HStack>
       </SettingRow>
@@ -157,45 +146,5 @@ const SiyuanSettings: FC = () => {
     </SettingGroup>
   )
 }
-
-const ApiKeyContainer = styled.div`
-  display: flex;
-  align-items: center;
-  position: relative;
-  flex: 1;
-  width: 100%;
-
-  .ant-input {
-    padding-right: 30px;
-  }
-`
-
-const EyeButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 2px;
-  transition: all 0.2s ease;
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-
-  &:hover {
-    color: var(--color-text);
-    background-color: var(--color-background-mute);
-  }
-
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--color-primary-outline);
-  }
-`
 
 export default SiyuanSettings
