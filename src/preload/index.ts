@@ -93,7 +93,7 @@ const api = {
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
-    read: (fileId: string, encoding?: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId, encoding),
+    read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     /**

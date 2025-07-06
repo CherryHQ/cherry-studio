@@ -231,7 +231,7 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string, encoding?: string): Promise<string> => {
+  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
     const fileExtension = path.extname(filePath)
@@ -258,16 +258,13 @@ class FileStorage {
       }
     }
 
-    if (encoding) {
-      try {
-        const result = readTextFileUTF8(filePath)
-        return result
-      } catch (error) {
-        logger.error(error)
-      }
+    try {
+      const result = readTextFileUTF8(filePath)
+      return result
+    } catch (error) {
+      logger.error(error)
+      return 'failed to read file'
     }
-    // 没有指定编码，直接使用 utf8 读取
-    return fs.readFileSync(filePath, 'utf8')
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
