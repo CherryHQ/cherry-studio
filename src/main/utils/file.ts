@@ -205,6 +205,11 @@ export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
 }
 
+/**
+ * 使用 jschardet 库检测文件编码格式
+ * @param filePath - 文件路径
+ * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
+ */
 export function detectEncoding(filePath: string) {
   // 读取文件前1KB来检测编码
   const buffer = Buffer.alloc(1024)
@@ -215,10 +220,21 @@ export function detectEncoding(filePath: string) {
   return encoding
 }
 
+/**
+ * 使用 iconv-lite 库将 Buffer 按指定编码格式解码为字符串
+ * @param buffer - 要解码的 Buffer
+ * @param encoding - 编码格式
+ * @returns 解码后的字符串
+ */
 export function decodeBuffer(buffer: Buffer, encoding: string): string {
   return iconv.decode(buffer, encoding)
 }
 
+/**
+ * 读取文件内容并自动检测编码格式进行解码
+ * @param filePath - 文件路径
+ * @returns 解码后的文件内容
+ */
 export function readFileUTF8(filePath: string) {
   const encoding = detectEncoding(filePath)
   const data = fs.readFileSync(filePath)
