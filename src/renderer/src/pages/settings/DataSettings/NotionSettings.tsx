@@ -10,11 +10,13 @@ import {
   setNotionExportReasoning,
   setNotionPageNameKey
 } from '@renderer/store/settings'
-import { Button, Space, Switch, Tooltip } from 'antd'
+import { Button, Switch, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const NotionSettings: FC = () => {
@@ -22,11 +24,16 @@ const NotionSettings: FC = () => {
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
   const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
   const notionExportReasoning = useSelector((state: RootState) => state.settings.notionExportReasoning)
+
+  const toggleApiKey = () => {
+    setShowApiKey(!showApiKey)
+  }
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setNotionApiKey(e.target.value))
@@ -121,16 +128,18 @@ const NotionSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Space.Compact style={{ width: '100%' }}>
+          <ApiKeyContainer>
             <Input
-              type="password"
+              type={showApiKey ? 'text' : 'password'}
               value={notionApiKey || ''}
               onChange={handleNotionTokenChange}
               onBlur={handleNotionTokenChange}
               placeholder={t('settings.data.notion.api_key_placeholder')}
+              style={{ width: '100%' }}
             />
-            <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
-          </Space.Compact>
+            <EyeButton onClick={toggleApiKey}>{showApiKey ? <Eye size={16} /> : <EyeOff size={16} />}</EyeButton>
+          </ApiKeyContainer>
+          <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
         </HStack>
       </SettingRow>
       <SettingDivider />
@@ -144,5 +153,45 @@ const NotionSettings: FC = () => {
     </SettingGroup>
   )
 }
+
+const ApiKeyContainer = styled.div`
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  width: 100%;
+
+  .ant-input {
+    padding-right: 30px;
+  }
+`
+
+const EyeButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+
+  &:hover {
+    color: var(--color-text);
+    background-color: var(--color-background-mute);
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-outline);
+  }
+`
 
 export default NotionSettings
