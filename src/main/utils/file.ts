@@ -6,6 +6,7 @@ import { isLinux, isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
+import Logger from 'electron-log'
 import iconv from 'iconv-lite'
 import { detect as detectEncoding_, detectAll as detectEncodingAll } from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
@@ -231,7 +232,7 @@ export function readTextFileUTF8(filePath: string) {
   const content = iconv.decode(data, encoding)
 
   if (content.includes('\uFFFD') && encoding !== 'UTF-8') {
-    console.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
+    Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
     const buffer = Buffer.alloc(1024)
     fs.readSync(fs.openSync(filePath, 'r'), buffer, 0, 1024, 0)
     const encodings = detectEncodingAll(buffer)
@@ -240,17 +241,17 @@ export function readTextFileUTF8(filePath: string) {
         if (item.encoding === encoding) {
           continue
         }
-        console.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
+        Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
         const content = iconv.decode(buffer, item.encoding)
         if (!content.includes('\uFFFD')) {
-          console.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
+          Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
           return content
         } else {
-          console.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
+          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
         }
       }
     }
-    console.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
+    Logger.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
     return iconv.decode(buffer, 'UTF-8')
   }
 
