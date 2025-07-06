@@ -1333,7 +1333,10 @@
           "new_folder.button": "Новая папка"
         },
         "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков сообщений",
-        "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д."
+        "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д.",
+        "export_to_phone": "Экспорт на телефон",
+        "export_to_phone.button": "Экспорт",
+        "export_to_phone_use_lan.button": "Ландроп"
       },
       "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",
@@ -2242,6 +2245,11 @@
           }
         }
       }
+    },
+    "exportToPhone": {
+      "title": "Экспорт на телефон",
+      "confirm.button": "Выберите место экспорта",
+      "content": "Экспортировать некоторые данные, включая историю чатов и настройки. Обратите внимание, что процесс резервного копирования может занять некоторое время, спасибо за ваше терпение."
     }
   }
 }

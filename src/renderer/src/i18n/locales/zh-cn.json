@@ -1335,7 +1335,10 @@
           "new_folder.button.confirm": "确定",
           "new_folder.button.cancel": "取消",
           "new_folder.button": "新建文件夹"
-        }
+        },
+        "export_to_phone": "导出到移动端",
+        "export_to_phone.button": "导出",
+        "export_to_phone_use_lan.button": "局域网传输"
       },
       "display.assistant.title": "助手设置",
       "display.custom.css": "自定义 CSS",
@@ -2242,6 +2245,11 @@
           }
         }
       }
+    },
+    "exportToPhone": {
+      "title": "导出到手机",
+      "confirm.button": "选择导出位置",
+      "content": "导出部分数据，包括聊天记录、设置等。请注意备份过程可能需要一定时间，感谢您的耐心等待。"
     }
   }
 }

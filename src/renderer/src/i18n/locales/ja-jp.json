@@ -1333,7 +1333,10 @@
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
         "notion.title": "Notion 設定",
         "notion.export_reasoning.title": "エクスポート時に思考チェーンを含める",
-        "notion.export_reasoning.help": "有効にすると、Notionにエクスポートする際に思考チェーンの内容が含まれます。"
+        "notion.export_reasoning.help": "有効にすると、Notionにエクスポートする際に思考チェーンの内容が含まれます。",
+        "export_to_phone": "電話にエクスポート",
+        "export_to_phone.button": "エクスポート",
+        "export_to_phone_use_lan.button": "ランドロップ"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
@@ -2242,6 +2245,11 @@
           }
         }
       }
+    },
+    "exportToPhone": {
+      "title": "携帯電話にエクスポート",
+      "confirm.button": "エクスポート先を選択",
+      "content": "チャット履歴や設定を含むデータをエクスポートします。バックアップ処理には時間がかかる場合がありますので、お待ちいただきありがとうございます。"
     }
   }
 }

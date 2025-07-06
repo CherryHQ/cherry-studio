@@ -1335,7 +1335,10 @@
           "new_folder.button": "新建文件夾"
         },
         "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
-        "message_title.use_topic_naming.help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等"
+        "message_title.use_topic_naming.help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等",
+        "export_to_phone": "匯出到手機",
+        "export_to_phone.button": "匯出",
+        "export_to_phone_use_lan.button": "Landrop"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
@@ -2242,6 +2245,11 @@
           }
         }
       }
+    },
+    "exportToPhone": {
+      "title": "導出至手機",
+      "confirm.button": "選擇匯出位置",
+      "content": "導出部分數據，包括聊天記錄、設定。請注意備份過程可能需要一些時間，感謝您的耐心等待。"
     }
   }
 }

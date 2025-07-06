@@ -134,6 +134,11 @@
       },
       "title": "Data Backup"
     },
+    "exportToPhone": {
+      "title": "Export To Phone",
+      "confirm.button": "Select Export Location",
+      "content": "Export some data, including chat history, settings. Please note that the backup process may take some time, thank you for your patience."
+    },
     "button": {
       "add": "Add",
       "added": "Added",
@@ -1335,7 +1340,10 @@
           "new_folder.button": "New Folder"
         },
         "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
-        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
+        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods.",
+        "export_to_phone": "Export To Phone",
+        "export_to_phone.button": "Export",
+        "export_to_phone_use_lan.button": "Landrop"
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",

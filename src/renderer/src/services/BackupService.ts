@@ -445,6 +445,19 @@ async function backupDatabase() {
   return backup
 }
 
+async function backupPartialDatabase(tableNames: string[]) {
+  const backup = {}
+
+  for (const tableName of tableNames) {
+    const table = db.table(tableName)
+    if (table) {
+      backup[tableName] = await table.toArray()
+    }
+  }
+
+  return backup
+}
+
 async function restoreDatabase(backup: Record<string, any>) {
   await db.transaction('rw', db.tables, async () => {
     for (const tableName in backup) {
@@ -461,5 +474,35 @@ async function clearDatabase() {
     for (const storeName of storeNames) {
       await db[storeName].clear()
     }
+  })
+}
+/**
+ * Export to Phone
+ */
+export async function exportToPhone() {
+  const filename = `cherry-studio-app.${dayjs().format('YYYYMMDDHHmm')}.zip`
+  const fileContent = await getBackupDataToPhone()
+  const selectFolder = await window.api.file.selectFolder()
+  if (selectFolder) {
+    await window.api.backup.backup(filename, fileContent, selectFolder, true)
+    window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+  }
+}
+
+async function getBackupDataToPhone() {
+  const reduxData = {
+    assistants: store.getState().assistants,
+    llm: {
+      providers: store.getState().llm.providers
+    },
+    websearch: store.getState().websearch
+    // settings: store.getState().settings
+  }
+  const indexedDbData = await backupPartialDatabase(['topics', 'settings', 'message_blocks'])
+  return JSON.stringify({
+    time: new Date().getTime(),
+    version: 1,
+    redux: reduxData,
+    indexedDB: indexedDbData
   })
 }
