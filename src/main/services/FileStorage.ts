@@ -1,4 +1,4 @@
-import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { decodeBuffer, detectEncoding, getFilesDir, getFileType, getTempDir } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import * as crypto from 'crypto'
@@ -14,8 +14,6 @@ import logger from 'electron-log'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { decode as iconvDecode } from 'iconv-lite'
-import { detect as detectEncoding } from 'jschardet'
 import officeParser from 'officeparser'
 import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
@@ -181,12 +179,7 @@ class FileStorage {
     // 读取文件前1KB来检测编码
     let encoding: string | undefined = undefined
     if (fileType === FileTypes.TEXT) {
-      logger.info('detecting encoding for file:', destPath)
-      const buffer = Buffer.alloc(1024)
-      fs.readSync(fs.openSync(destPath, 'r'), buffer, 0, 1024, 0)
-      const { encoding: detectedEncoding } = detectEncoding(buffer)
-      logger.info('detected encoding:', detectedEncoding)
-      encoding = detectedEncoding
+      encoding = detectEncoding(destPath)
     }
 
     const fileMetadata: FileMetadata = {
@@ -275,7 +268,7 @@ class FileStorage {
     if (encoding) {
       try {
         const data = fs.readFileSync(filePath)
-        const result = iconvDecode(data, encoding)
+        const result = decodeBuffer(data, encoding)
         logger.log('specified encoding read result', result)
         return result
       } catch (error) {

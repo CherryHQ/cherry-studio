@@ -6,6 +6,8 @@ import { isLinux, isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
+import iconv from 'iconv-lite'
+import { detect as detectEncoding_ } from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -201,4 +203,25 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
+}
+
+export function detectEncoding(filePath: string) {
+  // 读取文件前1KB来检测编码
+  const buffer = Buffer.alloc(1024)
+  fs.readSync(fs.openSync(filePath, 'r'), buffer, 0, 1024, 0)
+  const { encoding } = detectEncoding_(buffer)
+  // UTF-8, ascii, GB2312, etc.
+
+  return encoding
+}
+
+export function decodeBuffer(buffer: Buffer, encoding: string): string {
+  return iconv.decode(buffer, encoding)
+}
+
+export function readFileUTF8(filePath: string) {
+  const encoding = detectEncoding(filePath)
+  const data = fs.readFileSync(filePath)
+  const content = decodeBuffer(data, encoding)
+  return content
 }
