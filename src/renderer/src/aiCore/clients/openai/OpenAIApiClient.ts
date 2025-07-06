@@ -307,7 +307,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = await (await window.api.file.read(file.id + file.ext, file.encoding)).trim()
         parts.push({
           type: 'text',
           text: file.origin_name + '\n' + fileContent

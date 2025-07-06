@@ -1,6 +1,6 @@
 import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
-import { FileMetadata } from '@types'
+import { FileMetadata, FileTypes } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -14,6 +14,8 @@ import logger from 'electron-log'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
+import { decode as iconvDecode } from 'iconv-lite'
+import { detect as detectEncoding } from 'jschardet'
 import officeParser from 'officeparser'
 import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
@@ -176,6 +178,17 @@ class FileStorage {
     const stats = await fs.promises.stat(destPath)
     const fileType = getFileType(ext)
 
+    // 读取文件前1KB来检测编码
+    let encoding: string | undefined = undefined
+    if (fileType === FileTypes.TEXT) {
+      logger.info('detecting encoding for file:', destPath)
+      const buffer = Buffer.alloc(1024)
+      fs.readSync(fs.openSync(destPath, 'r'), buffer, 0, 1024, 0)
+      const { encoding: detectedEncoding } = detectEncoding(buffer)
+      logger.info('detected encoding:', detectedEncoding)
+      encoding = detectedEncoding
+    }
+
     const fileMetadata: FileMetadata = {
       id: uuid,
       origin_name,
@@ -185,8 +198,11 @@ class FileStorage {
       size: stats.size,
       ext: ext,
       type: fileType,
-      count: 1
+      count: 1,
+      encoding
     }
+
+    logger.info('[FileStorage] File uploaded:', fileMetadata)
 
     return fileMetadata
   }
@@ -229,7 +245,7 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
+  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string, encoding?: string): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
     const fileExtension = path.extname(filePath)
@@ -253,6 +269,17 @@ class FileStorage {
         chdir(originalCwd)
         logger.error(error)
         throw error
+      }
+    }
+
+    if (encoding) {
+      try {
+        const data = fs.readFileSync(filePath)
+        const result = iconvDecode(data, encoding)
+        logger.log('specified encoding read result', result)
+        return result
+      } catch (error) {
+        logger.error(error)
       }
     }
 
