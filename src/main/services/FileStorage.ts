@@ -1,6 +1,6 @@
-import { detectEncoding, getFilesDir, getFileType, getTempDir, readFileUTF8 } from '@main/utils/file'
+import { getFilesDir, getFileType, getTempDir, readTextFileUTF8 } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
-import { FileMetadata, FileTypes } from '@types'
+import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -176,11 +176,6 @@ class FileStorage {
     const stats = await fs.promises.stat(destPath)
     const fileType = getFileType(ext)
 
-    let encoding: string | undefined = undefined
-    if (fileType === FileTypes.TEXT) {
-      encoding = detectEncoding(destPath)
-    }
-
     const fileMetadata: FileMetadata = {
       id: uuid,
       origin_name,
@@ -190,8 +185,7 @@ class FileStorage {
       size: stats.size,
       ext: ext,
       type: fileType,
-      count: 1,
-      encoding
+      count: 1
     }
 
     logger.info('[FileStorage] File uploaded:', fileMetadata)
@@ -266,7 +260,7 @@ class FileStorage {
 
     if (encoding) {
       try {
-        const result = readFileUTF8(filePath)
+        const result = readTextFileUTF8(filePath)
         return result
       } catch (error) {
         logger.error(error)

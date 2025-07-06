@@ -88,10 +88,6 @@ export interface FileMetadata {
    * 该文件预计的token大小 (可选)
    */
   tokens?: number
-  /**
-   * 文件编码 (可选)
-   */
-  encoding?: string
 }
 
 export interface FileType extends FileMetadata {}
