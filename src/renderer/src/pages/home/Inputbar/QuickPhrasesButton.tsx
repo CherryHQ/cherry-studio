@@ -37,13 +37,19 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
 
   const loadQuickListPhrases = useCallback(
     async (regularPhrases: QuickPhrase[] = []) => {
-      const phrases = await QuickPhraseService.getAll()
-      if (regularPhrases.length) {
-        setQuickPhrasesList([...regularPhrases, ...phrases])
-        return
+      try {
+        const phrases = await QuickPhraseService.getAll()
+        if (regularPhrases.length) {
+          setQuickPhrasesList([...regularPhrases, ...phrases])
+          return
+        }
+        const assistantPrompts = assistant.regularPhrases || []
+        setQuickPhrasesList([...assistantPrompts, ...phrases])
+      } catch (error) {
+        console.warn('Failed to load quick phrases:', error)
+        const assistantPrompts = assistant.regularPhrases || []
+        setQuickPhrasesList([...assistantPrompts, ...(regularPhrases || [])])
       }
-      const assistantPrompts = assistant.regularPhrases || []
-      setQuickPhrasesList([...assistantPrompts, ...phrases])
     },
     [assistant]
   )

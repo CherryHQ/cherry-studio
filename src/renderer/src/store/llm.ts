@@ -517,6 +517,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'bedrock',
+    name: 'Amazon Bedrock',
+    type: 'bedrock',
+    apiKey: 'default',
+    apiHost: '',
+    models: SYSTEM_MODELS.bedrock,
+    isSystem: true,
+    enabled: false
   }
 ]
 

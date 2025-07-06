@@ -146,7 +146,8 @@ export type User = {
   email: string
 }
 
-export type Provider = {
+// 基础 Provider 类型
+type BaseProvider = {
   id: string
   type: ProviderType
   name: string
@@ -164,6 +165,24 @@ export type Provider = {
   extra_headers?: Record<string, string>
 }
 
+// Bedrock 特有配置
+type BedrockConfig = {
+  accessKey?: string
+  secretKey?: string
+  region?: string
+  crossRegion?: boolean
+}
+
+// 统一的 Provider 类型，根据 type 自动推断配置
+export type Provider =
+  | (BaseProvider & { type: 'bedrock' } & BedrockConfig)
+  | (BaseProvider & { type: Exclude<ProviderType, 'bedrock'> })
+
+// 类型守卫函数
+export const isBedrock = (provider: Provider): provider is BaseProvider & { type: 'bedrock' } & BedrockConfig => {
+  return provider.type === 'bedrock'
+}
+
 export type ProviderType =
   | 'openai'
   | 'openai-response'
@@ -172,6 +191,7 @@ export type ProviderType =
   | 'qwenlm'
   | 'azure-openai'
   | 'vertexai'
+  | 'bedrock'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 

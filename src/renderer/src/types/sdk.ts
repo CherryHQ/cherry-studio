@@ -9,6 +9,13 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import {
+  BedrockRuntimeClient,
+  ConverseResponse,
+  ConverseStreamResponse,
+  Message as BedrockMessage,
+  Tool as BedrockTool
+} from '@aws-sdk/client-bedrock-runtime'
+import {
   Content,
   CreateChatParameters,
   FunctionCall,
@@ -21,24 +28,46 @@ import {
 import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
 
-export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
-export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
-export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
-export type SdkRawOutput = OpenAISdkRawOutput | OpenAIResponseSdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
+export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI | BedrockSdkInstance
+export type SdkParams =
+  | OpenAISdkParams
+  | OpenAIResponseSdkParams
+  | AnthropicSdkParams
+  | GeminiSdkParams
+  | BedrockSdkParams
+export type SdkRawChunk =
+  | OpenAISdkRawChunk
+  | OpenAIResponseSdkRawChunk
+  | AnthropicSdkRawChunk
+  | GeminiSdkRawChunk
+  | BedrockSdkRawChunk
+export type SdkRawOutput =
+  | OpenAISdkRawOutput
+  | OpenAIResponseSdkRawOutput
+  | AnthropicSdkRawOutput
+  | GeminiSdkRawOutput
+  | BedrockSdkRawOutput
 export type SdkMessageParam =
   | OpenAISdkMessageParam
   | OpenAIResponseSdkMessageParam
   | AnthropicSdkMessageParam
   | GeminiSdkMessageParam
+  | BedrockSdkMessageParam
 export type SdkToolCall =
   | OpenAI.Chat.Completions.ChatCompletionMessageToolCall
   | ToolUseBlock
   | FunctionCall
   | OpenAIResponseSdkToolCall
-export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool | OpenAIResponseSdkTool
+  | BedrockSdkToolCall
+export type SdkTool =
+  | OpenAI.Chat.Completions.ChatCompletionTool
+  | ToolUnion
+  | Tool
+  | OpenAIResponseSdkTool
+  | BedrockSdkTool
 export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
 
-export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions
+export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions | BedrockOptions
 
 /**
  * OpenAI
@@ -102,6 +131,44 @@ export type GeminiSdkMessageParam = Content
 export type GeminiSdkToolCall = FunctionCall
 
 export type GeminiOptions = {
+  streamOutput: boolean
+  signal?: AbortSignal
+  timeout?: number
+}
+
+/**
+ * AWS Bedrock
+ */
+
+export type BedrockSdkInstance = BedrockRuntimeClient
+export type BedrockSdkParams = {
+  modelId: string
+  messages: BedrockMessage[]
+  system?: Array<{ text: string }>
+  inferenceConfig?: {
+    maxTokens?: number
+    temperature?: number
+    topP?: number
+    additionalModelRequestFields?: Record<string, any>
+  }
+  toolConfig?: {
+    tools: BedrockTool[]
+  }
+  additionalModelRequestFields?: Record<string, any>
+  stream?: boolean
+}
+export type BedrockSdkRawOutput = AsyncIterable<ConverseStreamResponse> | ConverseResponse
+export type BedrockSdkRawChunk = ConverseStreamResponse | ConverseResponse
+export type BedrockSdkMessageParam = BedrockMessage
+export type BedrockSdkToolCall = {
+  toolUseId: string
+  name: string
+  input: any
+  type: 'tool_use'
+}
+export type BedrockSdkTool = BedrockTool
+
+export type BedrockOptions = {
   streamOutput: boolean
   signal?: AbortSignal
   timeout?: number

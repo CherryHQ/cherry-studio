@@ -1,5 +1,7 @@
 import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
+import BedrockLogo from '@renderer/assets/images/providers/bedrock.png'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
@@ -11,10 +13,10 @@ import i18n from '@renderer/i18n'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { Provider } from '@renderer/types'
+import { isBedrock, Provider } from '@renderer/types'
 import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
@@ -63,6 +65,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [inputValue, setInputValue] = useState(apiKey)
+  const isBedrockProvider = isBedrock(provider)
+  const [accessKey, setAccesskey] = useState<string>(isBedrock(provider) ? provider.accessKey || '' : '')
+  const [secretKey, setSecretKey] = useState<string>(isBedrock(provider) ? provider.secretKey || '' : '')
+  const [selectedRegion, setSelectedRegion] = useState<string>(isBedrock(provider) ? provider.region || '' : '')
+  const [crossRegion, setCrossRegion] = useState(isBedrock(provider) ? (provider.crossRegion ?? true) : true)
+  const [bedrockChecking, setBedrockChecking] = useState(false)
+  const [bedrockValid, setBedrockValid] = useState(false)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -282,7 +291,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost, provider.id])
+    if (isBedrockProvider) {
+      setAccesskey(provider.accessKey || '')
+      setSecretKey(provider.secretKey || '')
+      setSelectedRegion(provider.region || '')
+      setCrossRegion(provider.crossRegion ?? true)
+    }
+  }, [provider, isBedrockProvider])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -336,7 +351,117 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
-      {provider.id !== 'vertexai' && (
+      {isBedrockProvider && (
+        <>
+          <Container>
+            <ProviderLogo src={BedrockLogo} />
+            <HStack gap={10}>
+              <Button
+                style={{ width: 200 }}
+                shape="round"
+                type={bedrockValid ? 'primary' : 'default'}
+                disabled={!accessKey || !secretKey || !selectedRegion}
+                onClick={async () => {
+                  setBedrockChecking(true)
+                  try {
+                    const client = new BedrockRuntimeClient({
+                      region: selectedRegion,
+                      credentials: {
+                        accessKeyId: accessKey,
+                        secretAccessKey: secretKey
+                      }
+                    })
+                    const command = new ConverseCommand({
+                      modelId: crossRegion
+                        ? 'us.anthropic.claude-3-7-sonnet-20250219-v1:0'
+                        : 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+                      messages: [{ role: 'user', content: [{ text: 'Test' }] }]
+                    })
+                    await client.send(command)
+                    window.message.success({
+                      content: t('settings.provider.bedrock.check_success'),
+                      duration: 2
+                    })
+                    setBedrockValid(true)
+                    setTimeout(() => setBedrockValid(false), 3000)
+                  } catch {
+                    window.message.error({
+                      content: t('settings.provider.bedrock.check_failed'),
+                      duration: 5
+                    })
+                  } finally {
+                    setBedrockChecking(false)
+                  }
+                }}>
+                {bedrockChecking ? (
+                  <LoadingOutlined spin />
+                ) : bedrockValid ? (
+                  <CheckOutlined />
+                ) : (
+                  t('settings.provider.bedrock.check')
+                )}
+              </Button>
+            </HStack>
+          </Container>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.bedrock.access_key')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input
+              value={accessKey}
+              placeholder={t('settings.provider.bedrock.access_key_placeholder')}
+              onChange={(e) => {
+                setAccesskey(e.target.value)
+                updateProvider({ ...provider, accessKey: e.target.value })
+              }}
+              style={{ width: '100%' }}
+            />
+          </Space.Compact>
+          <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.bedrock.secret_key')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input.Password
+              value={secretKey}
+              placeholder={t('settings.provider.bedrock.secret_key_placeholder')}
+              onChange={(e) => {
+                setSecretKey(e.target.value)
+                updateProvider({ ...provider, secretKey: e.target.value })
+              }}
+              style={{ width: '100%' }}
+            />
+          </Space.Compact>
+          <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.bedrock.region')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Select
+              value={selectedRegion}
+              placeholder={t('settings.provider.bedrock.region_placeholder')}
+              style={{ width: '100%' }}
+              options={[
+                { label: 'us-east-1', value: 'us-east-1' },
+                { label: 'us-east-2', value: 'us-east-2' },
+                { label: 'us-west-2', value: 'us-west-2' },
+                { label: 'ap-northeast-1', value: 'ap-northeast-1' },
+                { label: 'ap-southeast-1', value: 'ap-southeast-1' },
+                { label: 'eu-central-1', value: 'eu-central-1' }
+              ]}
+              onChange={(value) => {
+                setSelectedRegion(value)
+                updateProvider({ ...provider, region: value })
+              }}
+            />
+          </Space.Compact>
+          <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.bedrock.cross_region')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Switch
+              checked={crossRegion}
+              onChange={(value) => {
+                setCrossRegion(value)
+                if (isBedrock(provider)) {
+                  updateProvider({ ...provider, crossRegion: value })
+                }
+              }}
+            />
+          </Space.Compact>
+        </>
+      )}
+      {provider.id !== 'vertexai' && !isBedrockProvider && (
         <>
           <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -454,6 +579,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     </SettingContainer>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 20px;
+`
+
+const ProviderLogo = styled.img`
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+`
 
 const ProviderName = styled.span`
   font-size: 14px;

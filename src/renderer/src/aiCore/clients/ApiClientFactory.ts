@@ -3,6 +3,7 @@ import { Provider } from '@renderer/types'
 import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
+import { BedrockAPIClient } from './bedrock/BedrockAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
@@ -57,6 +58,10 @@ export class ApiClientFactory {
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
         break
+      case 'bedrock':
+        console.log(`[ApiClientFactory] Creating BedrockAPIClient for provider: ${provider.id}`)
+        instance = new BedrockAPIClient(provider) as BaseApiClient
+        break
       default:
         console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)
         instance = new OpenAIAPIClient(provider) as BaseApiClient
@@ -68,5 +73,5 @@ export class ApiClientFactory {
 }
 
 export function isOpenAIProvider(provider: Provider) {
-  return !['anthropic', 'gemini'].includes(provider.type)
+  return !['anthropic', 'gemini', 'bedrock'].includes(provider.type)
 }

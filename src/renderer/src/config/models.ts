@@ -8,6 +8,7 @@ import AimassModelLogo from '@renderer/assets/images/models/aimass.png'
 import AimassModelLogoDark from '@renderer/assets/images/models/aimass_dark.png'
 import AisingaporeModelLogo from '@renderer/assets/images/models/aisingapore.png'
 import AisingaporeModelLogoDark from '@renderer/assets/images/models/aisingapore_dark.png'
+import NovaLogo from '@renderer/assets/images/models/amazon-nova.png'
 import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
 import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.png'
 import BgeModelLogo from '@renderer/assets/images/models/bge.webp'
@@ -184,7 +185,8 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'nova'
 ]
 
 const visionExcludedModels = [
@@ -239,7 +241,8 @@ export const FUNCTION_CALLING_MODELS = [
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'nova'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -400,7 +403,8 @@ export function getModelLogo(modelId: string) {
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
-    'nomic-': NomicLogo
+    'nomic-': NomicLogo,
+    nova: NovaLogo
   }
 
   for (const key in logoMap) {
@@ -2221,7 +2225,47 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  bedrock: [
+    // Claude Models
+    {
+      id: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+      provider: 'bedrock',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Claude'
+    },
+    {
+      id: 'anthropic.claude-sonnet-4-20250514-v1:0',
+      provider: 'bedrock',
+      name: 'Claude Sonnet 4',
+      group: 'Claude'
+    },
+    {
+      id: 'anthropic.claude-opus-4-20250514-v1:0',
+      provider: 'bedrock',
+      name: 'Claude Opus 4',
+      group: 'Claude'
+    },
+    // Nova Models
+    {
+      id: 'amazon.nova-lite-v1:0',
+      provider: 'bedrock',
+      name: 'Nova Lite',
+      group: 'Amazon Nova'
+    },
+    {
+      id: 'amazon.nova-pro-v1:0',
+      provider: 'bedrock',
+      name: 'Nova Pro',
+      group: 'Amazon Nova'
+    },
+    {
+      id: 'amazon.nova-premier-v1:0',
+      provider: 'bedrock',
+      name: 'Nova Premier',
+      group: 'Amazon Nova'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2559,10 +2603,7 @@ export function isClaudeReasoningModel(model?: Model): boolean {
     return false
   }
   return (
-    model.id.includes('claude-3-7-sonnet') ||
-    model.id.includes('claude-3.7-sonnet') ||
-    model.id.includes('claude-sonnet-4') ||
-    model.id.includes('claude-opus-4')
+    model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-sonnet-4') || model.id.includes('claude-opus-4')
   )
 }
 

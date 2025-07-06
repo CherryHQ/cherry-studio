@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "蓝耘科技",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -1756,6 +1757,18 @@
           },
           "documentation": "查看官方文档了解更多配置详情：",
           "learn_more": "了解更多"
+        },
+        "bedrock": {
+          "access_key": "输入Access Key",
+          "access_key_placeholder": "输入Access Key",
+          "secret_key": "输入Secret Key",
+          "secret_key_placeholder": "输入Secret Key",
+          "region": "选择区域",
+          "region_placeholder": "选择一个区域",
+          "cross_region": "跨区域",
+          "check":"使用Claude 3.7验证",
+          "check_success": "AWS 配置文件验证成功",
+          "check_failed": "AWS 配置文件验证失败"
         }
       },
       "proxy": {

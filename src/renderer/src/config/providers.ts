@@ -8,6 +8,7 @@ import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.p
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import BedrockProviderLogo from '@renderer/assets/images/providers/bedrock.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
@@ -102,7 +103,8 @@ const PROVIDER_LOGO_MAP = {
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
   lanyun: LanyunProviderLogo,
-  vertexai: VertexAIProviderLogo
+  vertexai: VertexAIProviderLogo,
+  bedrock: BedrockProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -664,6 +666,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.cloud.google.com/apis/credentials',
       docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
       models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
+    }
+  },
+  bedrock: {
+    api: {
+      url: ''
+    },
+    websites: {
+      official: 'https://aws.amazon.com/cn/bedrock',
+      apiKey: 'https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html',
+      docs: 'https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html',
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html'
     }
   }
 }

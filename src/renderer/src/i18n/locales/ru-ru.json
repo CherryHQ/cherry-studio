@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "LANYUN",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -1738,6 +1739,18 @@
           },
           "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
           "learn_more": "Узнать больше"
+        },
+        "bedrock": {
+          "access_key": "Введите ключ доступа",
+          "access_key_placeholder": "Введите ключ доступа",
+          "secret_key": "Введите секретный ключ",
+          "secret_key_placeholder": "Введите секретный ключ",
+          "region": "Выберите регион",
+          "region_placeholder": "Выберите регион",
+          "cross_region": "Межрегиональный",
+          "check":"Проверьте с помощью Claude 3.7",
+          "check_success": "Проверка профиля AWS прошла успешно",
+          "check_failed": "Проверка профиля AWS не прошла успешно"
         }
       },
       "proxy": {

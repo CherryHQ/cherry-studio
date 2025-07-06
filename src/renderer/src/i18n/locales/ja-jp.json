@@ -1043,7 +1043,8 @@
       "302ai": "302.AI",
       "cephalon": "Cephalon",
       "lanyun": "LANYUN",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -1738,6 +1739,18 @@
           },
           "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
           "learn_more": "詳細を確認"
+        },
+        "bedrock": {
+          "access_key": "アクセスキーを入力してください",
+          "access_key_placeholder": "アクセスキーを入力してください",
+          "secret_key": "シークレットキーを入力してください",
+          "secret_key_placeholder": "シークレットキーを入力してください",
+          "region": "リージョンを選択してください",
+          "region_placeholder": "リージョンを選択してください",
+          "cross_region": "クロスリージョン",
+          "check": "Claude 3.7を使用して確認",
+          "check_success": "AWSプロファイルの検証に成功しました",
+          "check_failed": "AWSプロファイルの検証に失敗しました"
         }
       },
       "proxy": {

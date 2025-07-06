@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "LANYUN",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1756,6 +1757,18 @@
           },
           "documentation": "View official documentation for more configuration details:",
           "learn_more": "Learn More"
+        },
+        "bedrock": {
+          "access_key": "Enter Access Key",
+          "access_key_placeholder": "Enter Access Key",
+          "secret_key": "Enter Secret Key",
+          "secret_key_placeholder": "Enter Secret Key",
+          "region": "Select a region",
+          "region_placeholder": "Select a region",
+          "cross_region": "Cross-region",
+          "check":"Check using Claude 3.7",
+          "check_success": "AWS Bedrock verification successful",
+          "check_failed": "AWS Bedrock verification failed"
         }
       },
       "proxy": {

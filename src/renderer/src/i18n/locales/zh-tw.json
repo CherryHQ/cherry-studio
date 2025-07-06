@@ -1043,7 +1043,8 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "lanyun": "藍耘",
-      "vertexai": "Vertex AI"
+      "vertexai": "Vertex AI",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1741,6 +1742,18 @@
           },
           "documentation": "檢視官方文件以取得更多設定詳細資訊：",
           "learn_more": "瞭解更多"
+        },
+        "bedrock": {
+          "access_key": "輸入Access Key",
+          "access_key_placeholder": "輸入Access Key",
+          "secret_key": "輸入Secret Key",
+          "secret_key_placeholder": "輸入Secret Key",
+          "region": "選擇區域",
+          "region_placeholder": "選擇一個區域",
+          "cross_region": "跨區域",
+          "check":"使用Claude 3.7檢查",
+          "check_success": "AWS 設定檔驗證成功",
+          "check_failed": "AWS 設定檔驗證失敗"
         }
       },
       "proxy": {
