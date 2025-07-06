@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
-import { Button, Tooltip } from 'antd'
+import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,13 +108,15 @@ const SiyuanSettings: FC = () => {
           </Tooltip>
         </SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input.Password
-            value={siyuanToken || ''}
-            onChange={handleTokenChange}
-            placeholder={t('settings.data.siyuan.token_placeholder')}
-            style={{ width: '100%' }}
-          />
-          <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input.Password
+              value={siyuanToken || ''}
+              onChange={handleTokenChange}
+              placeholder={t('settings.data.siyuan.token_placeholder')}
+              style={{ width: '100%' }}
+            />
+            <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+          </Space.Compact>
         </HStack>
       </SettingRow>
       <SettingDivider />

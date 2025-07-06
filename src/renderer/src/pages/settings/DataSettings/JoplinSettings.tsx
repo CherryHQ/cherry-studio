@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
-import { Button, Switch, Tooltip } from 'antd'
+import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,13 +106,15 @@ const JoplinSettings: FC = () => {
           </Tooltip>
         </SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input.Password
-            value={joplinToken || ''}
-            onChange={handleJoplinTokenChange}
-            placeholder={t('settings.data.joplin.token_placeholder')}
-            style={{ width: '100%' }}
-          />
-          <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input.Password
+              value={joplinToken || ''}
+              onChange={handleJoplinTokenChange}
+              placeholder={t('settings.data.joplin.token_placeholder')}
+              style={{ width: '100%' }}
+            />
+            <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
+          </Space.Compact>
         </HStack>
       </SettingRow>
       <SettingDivider />
