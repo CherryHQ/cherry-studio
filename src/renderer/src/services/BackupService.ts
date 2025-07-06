@@ -1,3 +1,4 @@
+import { PLATFORM_PERSIST_SUFFIX_ARRAY } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { upgradeToV7 } from '@renderer/databases/upgrades'
@@ -409,7 +410,7 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return
@@ -417,6 +418,9 @@ export async function handleData(data: Record<string, any>) {
 
   if (data.version >= 2) {
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    PLATFORM_PERSIST_SUFFIX_ARRAY.forEach((suffix) => {
+      localStorage.setItem(`persist:shortcuts${suffix}`, data.localStorage[`persist:shortcuts${suffix}`])
+    })
     await restoreDatabase(data.indexedDB)
 
     if (data.version === 3) {
