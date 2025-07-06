@@ -1,8 +1,9 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -45,6 +46,7 @@ const S3Settings: FC = () => {
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const { openMinapp } = useMinappPopup()
 
   const { s3Sync } = useAppSelector((state) => state.backup)
 
@@ -56,6 +58,14 @@ const S3Settings: FC = () => {
     } else {
       startAutoSync()
     }
+  }
+
+  const handleTitleClick = () => {
+    openMinapp({
+      id: 's3-help',
+      name: 'S3 Compatible Storage Help',
+      url: 'https://docs.cherry-ai.com/data-settings/s3-compatible'
+    })
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -105,7 +115,12 @@ const S3Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.data.s3.title')}</SettingTitle>
+      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
+        {t('settings.data.s3.title')}
+        <Tooltip title={t('settings.data.s3.title.tooltip')} placement="right">
+          <InfoCircleOutlined style={{ color: 'var(--color-text-2)', cursor: 'pointer' }} onClick={handleTitleClick} />
+        </Tooltip>
+      </SettingTitle>
       <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
       <SettingDivider />
       <SettingRow>

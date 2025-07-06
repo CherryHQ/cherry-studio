@@ -1272,6 +1272,7 @@
         },
         "s3": {
           "title": "S3 兼容存储",
+          "title.tooltip": "S3 兼容存储配置文档",
           "title.help": "与AWS S3 API兼容的对象存储服务, 例如AWS S3, Cloudflare R2, 阿里云OSS, 腾讯云COS等",
           "endpoint": "API 地址",
           "endpoint.placeholder": "https://s3.example.com",

@@ -1250,6 +1250,7 @@
         },
         "s3": {
           "title": "S3互換ストレージ",
+          "title.tooltip": "S3互換ストレージ設定ガイド",
           "title.help": "AWS S3 APIと互換性のあるオブジェクトストレージサービス（例：AWS S3、Cloudflare R2、Alibaba Cloud OSS、Tencent Cloud COSなど）",
           "endpoint": "APIエンドポイント",
           "endpoint.placeholder": "https://s3.example.com",
