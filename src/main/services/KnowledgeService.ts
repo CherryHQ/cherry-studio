@@ -25,13 +25,15 @@ import Embeddings from '@main/knowledage/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledage/loader'
 import { NoteLoader } from '@main/knowledage/loader/noteLoader'
 import Reranker from '@main/knowledage/reranker/Reranker'
+import OcrProvider from '@main/ocr/OcrProvider'
+import PreprocessProvider from '@main/preprocess/PreprocessProvider'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
+import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -39,12 +41,14 @@ export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload?: boolean
+  userId?: string
 }
 
 interface KnowledgeBaseAddItemOptionsNonNullableAttribute {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload: boolean
+  userId: string
 }
 
 interface EvaluateTaskWorkload {
@@ -96,7 +100,13 @@ class KnowledgeService {
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
   private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
-  private static ERROR_LOADER_RETURN: LoaderReturn = { entriesAdded: 0, uniqueId: '', uniqueIds: [''], loaderType: '' }
+  private static ERROR_LOADER_RETURN: LoaderReturn = {
+    entriesAdded: 0,
+    uniqueId: '',
+    uniqueIds: [''],
+    loaderType: '',
+    status: 'failed'
+  }
 
   constructor() {
     this.initStorageDir()
@@ -150,6 +160,7 @@ class KnowledgeService {
   }
 
   public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    console.log('id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })
@@ -162,28 +173,49 @@ class KnowledgeService {
       this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
     )
   }
-
   private fileTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
-    const { base, item, forceReload } = options
-    const file = item.content as FileType
+    const { base, item, forceReload, userId } = options
+    const file = item.content as FileMetadata
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            addFileLoader(ragApplication, file, base, forceReload)
-              .then((result) => {
-                loaderTask.loaderDoneReturn = result
-                return result
-              })
-              .catch((err) => {
-                Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+          task: async () => {
+            try {
+              // 添加预处理逻辑
+              const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
+
+              // 使用处理后的文件进行加载
+              return addFileLoader(ragApplication, fileToProcess, base, forceReload)
+                .then((result) => {
+                  loaderTask.loaderDoneReturn = result
+                  return result
+                })
+                .catch((e) => {
+                  Logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
+                  const errorResult: LoaderReturn = {
+                    ...KnowledgeService.ERROR_LOADER_RETURN,
+                    message: e.message,
+                    messageSource: 'embedding'
+                  }
+                  loaderTask.loaderDoneReturn = errorResult
+                  return errorResult
+                })
+            } catch (e: any) {
+              Logger.error(`Preprocessing failed for ${file.name}: ${e}`)
+              const errorResult: LoaderReturn = {
+                ...KnowledgeService.ERROR_LOADER_RETURN,
+                message: e.message,
+                messageSource: 'preprocess'
+              }
+              loaderTask.loaderDoneReturn = errorResult
+              return errorResult
+            }
+          },
           evaluateTaskWorkload: { workload: file.size }
         }
       ],
@@ -192,7 +224,6 @@ class KnowledgeService {
 
     return loaderTask
   }
-
   private directoryTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
@@ -232,7 +263,11 @@ class KnowledgeService {
             })
             .catch((err) => {
               Logger.error(err)
-              return KnowledgeService.ERROR_LOADER_RETURN
+              return {
+                ...KnowledgeService.ERROR_LOADER_RETURN,
+                message: `Failed to add dir loader: ${err.message}`,
+                messageSource: 'embedding'
+              }
             }),
         evaluateTaskWorkload: { workload: file.size }
       })
@@ -278,7 +313,11 @@ class KnowledgeService {
               })
               .catch((err) => {
                 Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add url loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               })
           },
           evaluateTaskWorkload: { workload: 2 * MB }
@@ -318,7 +357,11 @@ class KnowledgeService {
               })
               .catch((err) => {
                 Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add sitemap loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               }),
           evaluateTaskWorkload: { workload: 20 * MB }
         }
@@ -364,7 +407,11 @@ class KnowledgeService {
               })
               .catch((err) => {
                 Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add note loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               })
           },
           evaluateTaskWorkload: { workload: contentBytes.length }
@@ -430,10 +477,10 @@ class KnowledgeService {
     })
   }
 
-  public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
-      const { base, item, forceReload = false } = options
-      const optionsNonNullableAttribute = { base, item, forceReload }
+      const { base, item, forceReload = false, userId = '' } = options
+      const optionsNonNullableAttribute = { base, item, forceReload, userId }
       this.getRagApplication(base)
         .then((ragApplication) => {
           const task = (() => {
@@ -459,12 +506,20 @@ class KnowledgeService {
             })
             this.processingQueueHandle()
           } else {
-            resolve(KnowledgeService.ERROR_LOADER_RETURN)
+            resolve({
+              ...KnowledgeService.ERROR_LOADER_RETURN,
+              message: 'Unsupported item type',
+              messageSource: 'embedding'
+            })
           }
         })
         .catch((err) => {
           Logger.error(err)
-          resolve(KnowledgeService.ERROR_LOADER_RETURN)
+          resolve({
+            ...KnowledgeService.ERROR_LOADER_RETURN,
+            message: `Failed to add item: ${err.message}`,
+            messageSource: 'embedding'
+          })
         })
     })
   }
@@ -496,6 +551,69 @@ class KnowledgeService {
       return results
     }
     return await new Reranker(base).rerank(search, results)
+  }
+
+  public getStorageDir = (): string => {
+    return this.storageDir
+  }
+
+  private preprocessing = async (
+    file: FileMetadata,
+    base: KnowledgeBaseParams,
+    item: KnowledgeItem,
+    userId: string
+  ): Promise<FileMetadata> => {
+    let fileToProcess: FileMetadata = file
+    if (base.preprocessOrOcrProvider && file.ext.toLowerCase() === '.pdf') {
+      try {
+        let provider: PreprocessProvider | OcrProvider
+        if (base.preprocessOrOcrProvider.type === 'preprocess') {
+          provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
+        } else {
+          provider = new OcrProvider(base.preprocessOrOcrProvider.provider)
+        }
+        // 首先检查文件是否已经被预处理过
+        const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
+        if (alreadyProcessed) {
+          Logger.info(`File already preprocess processed, using cached result: ${file.path}`)
+          return alreadyProcessed
+        }
+
+        // 执行预处理
+        Logger.info(`Starting preprocess processing for scanned PDF: ${file.path}`)
+        const { processedFile, quota } = await provider.parseFile(item.id, file)
+        fileToProcess = processedFile
+        const mainWindow = windowService.getMainWindow()
+        mainWindow?.webContents.send('file-preprocess-finished', {
+          itemId: item.id,
+          quota: quota
+        })
+      } catch (err) {
+        Logger.error(`Preprocess processing failed: ${err}`)
+        // 如果预处理失败，使用原始文件
+        // fileToProcess = file
+        throw new Error(`Preprocess processing failed: ${err}`)
+      }
+    }
+
+    return fileToProcess
+  }
+
+  public checkQuota = async (
+    _: Electron.IpcMainInvokeEvent,
+    base: KnowledgeBaseParams,
+    userId: string
+  ): Promise<number> => {
+    try {
+      if (base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess') {
+        const provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
+        return await provider.checkQuota()
+      }
+      throw new Error('No preprocess provider configured')
+    } catch (err) {
+      Logger.error(`Failed to check quota: ${err}`)
+      throw new Error(`Failed to check quota: ${err}`)
+    }
   }
 }
 

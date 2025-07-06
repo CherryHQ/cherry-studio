@@ -29,6 +29,14 @@ import { windowService } from './services/WindowService'
 Logger.initialize()
 
 /**
+ * Disable hardware acceleration if setting is enabled
+ */
+const disableHardwareAcceleration = configManager.getDisableHardwareAcceleration()
+if (disableHardwareAcceleration) {
+  app.disableHardwareAcceleration()
+}
+
+/**
  * Disable chromium's window animations
  * main purpose for this is to avoid the transparent window flashing when it is shown
  * (especially on Windows for SelectionAssistant Toolbar)
@@ -124,10 +132,19 @@ if (!app.requestSingleInstanceLock()) {
   registerProtocolClient(app)
 
   // macOS specific: handle protocol when app is already running
+
   app.on('open-url', (event, url) => {
     event.preventDefault()
     handleProtocolUrl(url)
   })
+
+  const handleOpenUrl = (args: string[]) => {
+    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
+  }
+
+  // for windows to start with url
+  handleOpenUrl(process.argv)
 
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
@@ -135,8 +152,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Protocol handler for Windows/Linux
     // The commandLine is an array of strings where the last item might be the URL
-    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) handleProtocolUrl(url)
+    handleOpenUrl(argv)
   })
 
   app.on('browser-window-created', (_, window) => {

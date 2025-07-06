@@ -164,7 +164,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
@@ -522,6 +522,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-reranker-m0',
       provider: '302ai',
       group: 'Jina AI'
+    }
+  ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
     }
   ],
   aihubmix: [
@@ -2221,7 +2235,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

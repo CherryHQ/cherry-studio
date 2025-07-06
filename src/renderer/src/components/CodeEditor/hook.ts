@@ -1,22 +1,12 @@
+import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Extension } from '@uiw/react-codemirror'
 import { useEffect, useState } from 'react'
 
-let linterPromise: Promise<any> | null = null
-function importLintPackage() {
-  if (!linterPromise) {
-    linterPromise = import('@codemirror/lint').then((mod) => mod.linter)
-  }
-  return linterPromise
-}
-
 // 语言对应的 linter 加载器
 const linterLoaders: Record<string, () => Promise<any>> = {
   json: async () => {
-    const [linter, jsonParseLinter] = await Promise.all([
-      importLintPackage(),
-      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
-    ])
+    const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
     return linter(jsonParseLinter())
   }
 }

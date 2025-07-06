@@ -7,12 +7,13 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
+import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
@@ -27,16 +28,46 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
   const [activeKey, setActiveKey] = useState('files')
+  const [quota, setQuota] = useState<number | undefined>(undefined)
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
+  const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
   const providerName = getProviderName(base?.model.provider || '')
 
+  useEffect(() => {
+    const handlers = [
+      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId, quota }) => {
+        setPreprocessMap((prev) => new Map(prev).set(itemId, true))
+        if (quota) {
+          setQuota(quota)
+        }
+      }),
+
+      window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
+        setProgressMap((prev) => new Map(prev).set(itemId, progress))
+      }),
+
+      window.electron.ipcRenderer.on('file-ocr-progress', (_, { itemId, progress }) => {
+        setProgressMap((prev) => new Map(prev).set(itemId, progress))
+      }),
+
+      window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
+        console.log('[Progress] Directory:', itemId, percent)
+        setProgressMap((prev) => new Map(prev).set(itemId, percent))
+      })
+    ]
+
+    return () => {
+      handlers.forEach((cleanup) => cleanup())
+    }
+  }, [])
   const knowledgeItems = [
     {
       key: 'files',
       title: t('files.title'),
       icon: activeKey === 'files' ? <Book size={16} color="var(--color-primary)" /> : <Book size={16} />,
       items: fileItems,
-      content: <KnowledgeFiles selectedBase={selectedBase} />
+      content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />
     },
     {
       key: 'notes',
@@ -50,7 +81,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('knowledge.directories'),
       icon: activeKey === 'directories' ? <Folder size={16} color="var(--color-primary)" /> : <Folder size={16} />,
       items: directoryItems,
-      content: <KnowledgeDirectories selectedBase={selectedBase} />
+      content: <KnowledgeDirectories selectedBase={selectedBase} progressMap={progressMap} />
     },
     {
       key: 'urls',
@@ -93,7 +124,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <Button
             type="text"
             icon={<Settings size={18} color="var(--color-icon)" />}
-            onClick={() => KnowledgeSettingsPopup.show({ base })}
+            onClick={() => KnowledgeSettings.show({ base })}
             size="small"
           />
           <div className="model-row">
@@ -106,6 +137,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               </div>
             </Tooltip>
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
+            {base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess' && (
+              <QuotaTag base={base} providerId={base.preprocessOrOcrProvider?.provider.id} quota={quota} />
+            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">
@@ -264,7 +298,6 @@ export const StatusIconWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 2px;
 `
 
 export const RefreshIcon = styled(RedoOutlined)`

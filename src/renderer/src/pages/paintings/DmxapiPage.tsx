@@ -13,7 +13,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType, PaintingsState } from '@renderer/types'
+import type { FileMetadata, PaintingsState } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, Radio, Segmented, Select, Switch, Tooltip } from 'antd'
@@ -70,7 +70,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const location = useLocation()
 
   interface FileMapType {
-    imageFiles?: FileType[]
+    imageFiles?: FileMetadata[]
     paths?: string[]
   }
 
@@ -195,19 +195,19 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const currentFiles = prevFileMap.imageFiles || []
       const currentPaths = prevFileMap.paths || []
 
-      let newFiles: FileType[]
+      let newFiles: FileMetadata[]
       let newPaths: string[]
 
       if (index !== undefined) {
         // 替换指定索引的图片
         newFiles = [...currentFiles]
-        newFiles[index] = file as FileType
+        newFiles[index] = file as FileMetadata
 
         newPaths = [...currentPaths]
         newPaths[index] = path
       } else {
         // 添加新图片到最后
-        newFiles = [...currentFiles, file as FileType]
+        newFiles = [...currentFiles, file as FileMetadata]
         newPaths = [...currentPaths, path]
       }
 
@@ -465,7 +465,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 下载图像
       if (urls.length > 0) {
         const downloadedFiles = await downloadImages(urls)
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
 
         if (validFiles?.length > 0) {
           if (painting.autoCreate && painting.files.length > 0) {
