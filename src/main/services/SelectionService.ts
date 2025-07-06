@@ -419,9 +419,11 @@ export class SelectionService {
       backgroundMaterial: 'none',
 
       // Platform specific settings
-      //   [macOS] DO NOT set type to 'panel', it will not work because it conflicts with other settings
       //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
-      ...(isWin ? { type: 'toolbar', focusable: false } : {}),
+      //   [macOS] `panel` conflicts with other settings ,
+      //           and log will show `NSWindow does not support nonactivating panel styleMask 0x80`
+      //           but it seems still work on fullscreen apps, so we set this anyway
+      ...(isWin ? { type: 'toolbar', focusable: false } : { type: 'panel' }),
       hiddenInMissionControl: true, // [macOS only]
       acceptFirstMouse: true, // [macOS only]
 
