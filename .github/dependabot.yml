@@ -1,84 +1,17 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
-    target-branch: "main"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
-      - dependency-name: "@google/genai"
-      - dependency-name: "antd"
-      - dependency-name: "epub"
-      - dependency-name: "openai"
-    groups:
-      # CherryStudio 自定义包
-      cherrystudio-packages:
-        patterns:
-          - "@cherrystudio/*"
-          - "@kangfenmao/*"
-          - "selection-hook"
-
-      # 测试工具
-      testing-tools:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
-          - "playwright"
-          - "@playwright/*"
-          - "testing-library/*"
-          - "jest-styled-components"
-
-      # Lint 工具
-      lint-tools:
-        patterns:
-          - "eslint"
-          - "eslint-plugin-*"
-          - "@eslint/*"
-          - "@eslint-react/*"
-          - "@electron-toolkit/eslint-config-*"
-          - "prettier"
-          - "husky"
-          - "lint-staged"
-
-      # Markdown
-      markdown:
-        patterns:
-          - "react-markdown"
-          - "rehype-katex"
-          - "rehype-mathjax"
-          - "rehype-raw"
-          - "remark-cjk-friendly"
-          - "remark-gfm"
-          - "remark-math"
-          - "remove-markdown"
-          - "markdown-it"
-          - "@shikijs/markdown-it"
-          - "shiki"
-          - "@uiw/codemirror-extensions-langs"
-          - "@uiw/codemirror-themes-all"
-          - "@uiw/react-codemirror"
-          - "fast-diff"
-          - "mermaid"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+      interval: 'monthly'
     open-pull-requests-limit: 3
     commit-message:
-      prefix: "ci"
-      include: "scope"
+      prefix: 'ci'
+      include: 'scope'
     groups:
       github-actions:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'

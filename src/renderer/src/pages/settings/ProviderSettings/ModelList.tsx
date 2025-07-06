@@ -13,6 +13,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -29,12 +30,6 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '..'
 import AddModelPopup from './AddModelPopup'
 import EditModelsPopup from './EditModelsPopup'
 import ModelEditContent from './ModelEditContent'
-
-const STATUS_COLORS = {
-  success: '#52c41a',
-  error: '#ff4d4f',
-  warning: '#faad14'
-}
 
 export interface ModelStatus {
   model: Model
@@ -73,7 +68,7 @@ function useModelStatusRendering() {
         return (
           <div>
             <strong>{statusTitle}</strong>
-            {status.error && <div style={{ marginTop: 5, color: STATUS_COLORS.error }}>{status.error}</div>}
+            {status.error && <div style={{ marginTop: 5, color: 'var(--color-status-error)' }}>{status.error}</div>}
           </div>
         )
       }
@@ -92,7 +87,10 @@ function useModelStatusRendering() {
                 return (
                   <li
                     key={idx}
-                    style={{ marginBottom: '5px', color: kr.isValid ? STATUS_COLORS.success : STATUS_COLORS.error }}>
+                    style={{
+                      marginBottom: '5px',
+                      color: kr.isValid ? 'var(--color-status-success)' : 'var(--color-status-error)'
+                    }}>
                     {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
                     {kr.error && !kr.isValid && ` (${kr.error})`}
                     {kr.latency && kr.isValid && ` (${formatLatency(kr.latency)})`}
@@ -202,10 +200,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     EditModelsPopup.show({ provider })
   }, [provider])
 
-  const onAddModel = useCallback(
-    () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider }),
-    [provider, t]
-  )
+  const onAddModel = useCallback(() => {
+    if (provider.id === 'new-api') {
+      NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+    } else {
+      AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+    }
+  }, [provider, t])
 
   const onEditModel = useCallback((model: Model) => {
     setEditingModel(model)
@@ -336,6 +337,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
       </Flex>
       {models.map((model) => (
         <ModelEditContent
+          provider={provider}
           model={model}
           onUpdateModel={onUpdateModel}
           open={editingModel?.id === model.id}
@@ -378,11 +380,11 @@ const StatusIndicator = styled.div<{ $type: string }>`
   color: ${(props) => {
     switch (props.$type) {
       case 'success':
-        return STATUS_COLORS.success
+        return 'var(--color-status-success)'
       case 'error':
-        return STATUS_COLORS.error
+        return 'var(--color-status-error)'
       case 'partial':
-        return STATUS_COLORS.warning
+        return 'var(--color-status-warning)'
       default:
         return 'var(--color-text)'
     }

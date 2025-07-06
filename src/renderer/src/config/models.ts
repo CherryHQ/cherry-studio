@@ -165,7 +165,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
@@ -526,6 +526,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-reranker-m0',
       provider: '302ai',
       group: 'Jina AI'
+    }
+  ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
     }
   ],
   aihubmix: [
@@ -2226,6 +2240,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   lanyun: [],
+  'new-api': [],
   bedrock: [
     // Claude Models
     {
@@ -2349,8 +2364,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',

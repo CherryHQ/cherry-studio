@@ -190,7 +190,7 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Web search",
+      "input.web_search": "Web Search",
       "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
@@ -385,6 +385,7 @@
       "cut": "Cut",
       "default": "Default",
       "delete": "Delete",
+      "delete_confirm": "Are you sure you want to delete?",
       "description": "Description",
       "docs": "Docs",
       "download": "Download",
@@ -406,9 +407,11 @@
       "prompt": "Prompt",
       "provider": "Provider",
       "regenerate": "Regenerate",
+      "refresh": "Refresh",
       "rename": "Rename",
       "reset": "Reset",
       "save": "Save",
+      "settings": "Settings",
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
@@ -423,7 +426,9 @@
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
       },
-      "no_results": "No results"
+      "no_results": "No results",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     },
     "docs": {
       "title": "Docs"
@@ -443,6 +448,7 @@
         "504": "Gateway timeout. Please try again later"
       },
       "model.exists": "Model already exists",
+      "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {
@@ -498,6 +504,8 @@
       "title": "Topics Search"
     },
     "knowledge": {
+      "name_required": "Knowledge Base Name is required",
+      "embedding_model_required": "Knowledge Base Embedding Model is required",
       "add": {
         "title": "Add Knowledge Base"
       },
@@ -543,13 +551,21 @@
       "rename": "Rename",
       "search": "Search knowledge base",
       "search_placeholder": "Enter text to search",
-      "settings": "Knowledge Base Settings",
+      "settings": {
+        "title": "Knowledge Base Settings",
+        "preprocessing": "Preprocessing",
+        "preprocessing_tooltip": "Preprocess uploaded files with OCR"
+      },
       "sitemap_placeholder": "Enter Website Map URL",
       "sitemaps": "Websites",
       "source": "Source",
       "status": "Status",
       "status_completed": "Completed",
+      "status_embedding_completed": "Embedding Completed",
+      "status_preprocess_completed": "Preprocessing Completed",
       "status_failed": "Failed",
+      "status_embedding_failed": "Embedding Failed",
+      "status_preprocess_failed": "Preprocessing Failed",
       "status_new": "Added",
       "status_pending": "Pending",
       "status_processing": "Processing",
@@ -572,7 +588,9 @@
       "dimensions_error_invalid": "Please enter embedding dimension size",
       "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
       "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
-      "dimensions_default": "The model will use default embedding dimensions"
+      "dimensions_default": "The model will use default embedding dimensions",
+      "quota": "{{name}} Left Quota: {{quota}}",
+      "quota_infinity": "{{name}} Quota: Unlimited"
     },
     "languages": {
       "arabic": "Arabic",
@@ -835,7 +853,7 @@
     "notification": {
       "assistant": "Assistant Response",
       "knowledge.success": "Successfully added {{type}} to the knowledge base",
-      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -1022,6 +1040,7 @@
       "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
+      "new-api": "New API",
       "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
@@ -1044,6 +1063,7 @@
       "302ai": "302.AI",
       "lanyun": "LANYUN",
       "vertexai": "Vertex AI",
+      "ph8": "PH8",
       "bedrock": "Amazon Bedrock"
     },
     "restore": {
@@ -1599,6 +1619,7 @@
       "messages.use_serif_font": "Use serif font",
       "model": "Default Model",
       "models.add.add_model": "Add Model",
+      "models.add.batch_add_models": "Batch Add Models",
       "models.add.group_name": "Group Name",
       "models.add.group_name.placeholder": "Optional e.g. ChatGPT",
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
@@ -1608,6 +1629,10 @@
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.tooltip": "Optional e.g. GPT-4",
+      "models.add.endpoint_type": "Endpoint Type",
+      "models.add.endpoint_type.placeholder": "Select endpoint type",
+      "models.add.endpoint_type.tooltip": "Select the API endpoint type format",
+      "models.add.endpoint_type.required": "Please select an endpoint type",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
       "models.check.all": "All",
       "models.check.all_models_passed": "All models check passed",
@@ -1651,6 +1676,19 @@
       "models.quick_assistant_default_tag": "Default",
       "models.use_model": "Default Model",
       "models.use_assistant": "Use Assistant",
+      "models.provider_key_confirm_title": "Add Provider API Key",
+      "models.provider_name": "Provider Name",
+      "models.provider_id": "Provider ID",
+      "models.base_url": "Base URL",
+      "models.api_key": "API Key",
+      "models.provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
+      "models.provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
+      "models.provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
+      "models.provider_key_added": "Successfully added API key for {{provider}}",
+      "models.provider_key_overridden": "Successfully updated API key for {{provider}}",
+      "models.provider_key_no_change": "API key for {{provider}} has not changed",
+      "models.provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
+      "models.provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
       "moresetting": "More Settings",
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
@@ -1671,8 +1709,14 @@
         "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
         "api_host": "API Host",
         "api_key": "API Key",
-        "api_key.tip": "Multiple keys separated by commas",
+        "api_key.tip": "Multiple keys separated by commas or spaces",
         "api_version": "API Version",
+        "api.key.new_key.placeholder": "Enter one or more keys",
+        "api.key.error.duplicate": "API key already exists",
+        "api.key.error.empty": "API key cannot be empty",
+        "api.key.check.latency": "Latency",
+        "api.key.list.open": "Open Management Interface",
+        "api.key.list.title": "API Key Management",
         "basic_auth": "HTTP authentication",
         "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
         "basic_auth.user_name": "Username",
@@ -1781,6 +1825,13 @@
         "title": "Proxy Settings"
       },
       "proxy.title": "Proxy Address",
+      "hardware_acceleration": {
+        "title": "Disable Hardware Acceleration",
+        "confirm": {
+          "title": "Restart Required",
+          "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
@@ -1832,64 +1883,86 @@
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",
-      "websearch": {
-        "blacklist": "Blacklist",
-        "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
-        "check": "Check",
-        "check_failed": "Verification failed",
-        "check_success": "Verification successful",
-        "get_api_key": "Get API Key",
-        "no_provider_selected": "Please select a search service provider before checking.",
-        "search_max_result": "Number of search results",
-        "search_provider": "Search service provider",
-        "search_provider_placeholder": "Choose a search service provider.",
-        "search_result_default": "Default",
-        "search_with_time": "Search with dates included",
-        "tavily": {
-          "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter Tavily API Key",
-          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
-          "title": "Tavily"
+      "tool": {
+        "title": "Tools Settings",
+        "preprocessOrOcr.tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text.",
+        "preprocess": {
+          "title": "Pre Process",
+          "provider": "Pre Process Provider",
+          "provider_placeholder": "Choose a Pre Process provider"
         },
-        "title": "Web Search",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_update": "Update",
-        "subscribe_add": "Add Subscription",
-        "subscribe_url": "Subscription Url",
-        "subscribe_name": "Alternative name",
-        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "overwrite": "Override search service",
-        "overwrite_tooltip": "Force use search service instead of LLM",
-        "apikey": "API key",
-        "free": "Free",
-        "compression": {
-          "title": "Search Result Compression",
-          "method": "Compression Method",
-          "method.none": "None",
-          "method.cutoff": "Cutoff",
-          "cutoff.limit": "Cutoff Limit",
-          "cutoff.limit.placeholder": "Enter length",
-          "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
-          "cutoff.unit.char": "Char",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "Document Count",
-          "rag.document_count.default": "Default",
-          "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
-          "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
-          "rag.embedding_dimensions.placeholder": "Leave empty",
-          "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
-          "info": {
-            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR Provider",
+          "provider_placeholder": "Choose an OCR provider",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Recognition Mode",
+              "accurate": "Accurate",
+              "fast": "Fast"
+            },
+            "min_confidence": "Minimum Confidence"
+          }
+        },
+        "websearch": {
+          "blacklist": "Blacklist",
+          "blacklist_description": "Results from the following websites will not appear in search results",
+          "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+          "check": "Check",
+          "check_failed": "Verification failed",
+          "check_success": "Verification successful",
+          "no_provider_selected": "Please select a search service provider before checking.",
+          "search_max_result": "Number of search results",
+          "search_provider": "Search service provider",
+          "search_provider_placeholder": "Choose a search service provider.",
+          "search_max_result.tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens",
+          "search_with_time": "Search with dates included",
+          "tavily": {
+            "api_key": "Tavily API Key",
+            "api_key.placeholder": "Enter Tavily API Key",
+            "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+            "title": "Tavily"
           },
-          "error": {
-            "embedding_model_required": "Please select an embedding model first",
-            "dimensions_auto_failed": "Failed to auto-obtain dimensions",
-            "provider_not_found": "Provider not found",
-            "rag_failed": "RAG failed"
+          "content_limit": "Content length limit",
+          "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+          "title": "Web Search",
+          "subscribe": "Blacklist Subscription",
+          "subscribe_update": "Update",
+          "subscribe_add": "Add Subscription",
+          "subscribe_url": "Subscription Url",
+          "subscribe_name": "Alternative name",
+          "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+          "subscribe_add_success": "Subscription feed added successfully!",
+          "subscribe_delete": "Delete",
+          "overwrite": "Override search service",
+          "overwrite_tooltip": "Force use search service instead of LLM",
+          "apikey": "API key",
+          "free": "Free",
+          "compression": {
+            "title": "Search Result Compression",
+            "method": "Compression Method",
+            "method.none": "None",
+            "method.cutoff": "Cutoff",
+            "cutoff.limit": "Cutoff Limit",
+            "cutoff.limit.placeholder": "Enter length",
+            "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
+            "cutoff.unit.char": "Char",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "Document Count",
+            "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
+            "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
+            "rag.embedding_dimensions.placeholder": "Leave empty",
+            "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
+            "info": {
+              "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "Please select an embedding model first",
+              "dimensions_auto_failed": "Failed to auto-obtain dimensions",
+              "provider_not_found": "Provider not found",
+              "rag_failed": "RAG failed"
+            }
           }
         }
       },
@@ -1938,7 +2011,8 @@
         "service_tier.auto": "auto",
         "service_tier.default": "default",
         "service_tier.flex": "flex"
-      }
+      },
+      "mineru.api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
     },
     "translate": {
       "any.language": "Any language",
@@ -2034,14 +2108,29 @@
         "experimental": "Experimental Features",
         "enable": {
           "title": "Enable",
-          "description": "Currently only supported on Windows systems"
+          "description": "Currently only supported on Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "Accessibility Permission",
+            "description": [
+              "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
+              "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
+              "After completing the settings, please reopen the selection assistant."
+            ],
+            "button": {
+              "open_accessibility_settings": "Open Accessibility Settings",
+              "go_to_settings": "Go to Settings"
+            }
+          }
         },
         "toolbar": {
           "title": "Toolbar",
           "trigger_mode": {
             "title": "Trigger Mode",
             "description": "The way to trigger the selection assistant and show the toolbar",
-            "description_note": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
+            "description_note": {
+              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
+              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text."
+            },
             "selected": "Selection",
             "selected_note": "Show toolbar immediately when text is selected",
             "ctrlkey": "Ctrl Key",
@@ -2166,7 +2255,10 @@
         },
         "filter_modal": {
           "title": "Application Filter List",
-          "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "user_tips": {
+            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc.",
+            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc."
+          }
         }
       }
     }

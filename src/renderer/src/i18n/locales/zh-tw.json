@@ -385,6 +385,7 @@
       "cut": "剪下",
       "default": "預設",
       "delete": "刪除",
+      "delete_confirm": "確定要刪除嗎？",
       "description": "描述",
       "docs": "文件",
       "download": "下載",
@@ -406,9 +407,11 @@
       "prompt": "提示詞",
       "provider": "供應商",
       "regenerate": "重新生成",
+      "refresh": "重新整理",
       "rename": "重新命名",
       "reset": "重設",
       "save": "儲存",
+      "settings": "設定",
       "search": "搜尋",
       "select": "選擇",
       "selectedMessages": "選中 {{count}} 條訊息",
@@ -423,7 +426,9 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "沒有結果"
+      "no_results": "沒有結果",
+      "enabled": "已啟用",
+      "disabled": "已停用"
     },
     "docs": {
       "title": "說明文件"
@@ -443,6 +448,7 @@
         "504": "閘道器超時，請稍後再試"
       },
       "model.exists": "模型已存在",
+      "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
       "no_api_key": "API 金鑰未設定",
       "provider_disabled": "模型供應商未啟用",
       "render": {
@@ -543,7 +549,11 @@
       "rename": "重新命名",
       "search": "搜尋知識庫",
       "search_placeholder": "輸入查詢內容",
-      "settings": "知識庫設定",
+      "settings": {
+        "title": "知識庫設定",
+        "preprocessing": "預處理",
+        "preprocessing_tooltip": "預處理上傳的文件"
+      },
       "sitemap_placeholder": "請輸入網站地圖 URL",
       "sitemaps": "網站",
       "source": "來源",
@@ -567,12 +577,20 @@
       "urls": "網址",
       "dimensions": "嵌入維度",
       "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
-      "dimensions_size_placeholder": "嵌入維度大小，例如 1024",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "預處理完成",
+      "status_embedding_failed": "嵌入失敗",
+      "status_preprocess_failed": "預處理失敗",
+      "dimensions_size_placeholder": " 嵌入維度大小，例如 1024",
       "dimensions_auto_set": "自動設定嵌入維度",
       "dimensions_error_invalid": "請輸入嵌入維度大小",
       "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
       "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
-      "dimensions_default": "模型將使用預設嵌入維度"
+      "dimensions_default": "模型將使用預設嵌入維度",
+      "quota": "{{name}} 剩餘配額：{{quota}}",
+      "quota_infinity": "{{name}} 配額：無限制",
+      "name_required": "知識庫名稱為必填項目",
+      "embedding_model_required": "知識庫嵌入模型是必需的"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -1022,6 +1040,7 @@
       "modelscope": "ModelScope 魔搭",
       "moonshot": "月之暗面",
       "nvidia": "輝達",
+      "new-api": "New API",
       "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
@@ -1044,6 +1063,7 @@
       "302ai": "302.AI",
       "lanyun": "藍耘",
       "vertexai": "Vertex AI",
+      "ph8": "PH8 大模型開放平台",
       "bedrock": "Amazon Bedrock"
     },
     "restore": {
@@ -1590,6 +1610,7 @@
       "messages.use_serif_font": "使用襯線字型",
       "model": "預設模型",
       "models.add.add_model": "新增模型",
+      "models.add.batch_add_models": "批量新增模型",
       "models.add.group_name": "群組名稱",
       "models.add.group_name.placeholder": "選填，例如 ChatGPT",
       "models.add.group_name.tooltip": "選填，例如 ChatGPT",
@@ -1600,6 +1621,10 @@
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
       "models.add.model_name.tooltip": "例如 GPT-4",
+      "models.add.endpoint_type": "端點類型",
+      "models.add.endpoint_type.placeholder": "選擇端點類型",
+      "models.add.endpoint_type.tooltip": "選擇 API 的端點類型格式",
+      "models.add.endpoint_type.required": "請選擇端點類型",
       "models.check.all": "所有",
       "models.check.all_models_passed": "所有模型檢查通過",
       "models.check.button_caption": "健康檢查",
@@ -1642,6 +1667,19 @@
       "models.quick_assistant_default_tag": "預設",
       "models.use_model": "預設模型",
       "models.use_assistant": "使用助手",
+      "models.provider_key_confirm_title": "為{{provider}}添加 API 密鑰",
+      "models.provider_name": "提供者名稱",
+      "models.provider_id": "提供者 ID",
+      "models.base_url": "基礎 URL",
+      "models.api_key": "API 密鑰",
+      "models.provider_key_add_confirm": "是否要為 {{provider}} 添加 API 密鑰？",
+      "models.provider_key_already_exists": "{{provider}} 已存在相同API 密鑰, 不會重複添加",
+      "models.provider_key_added": "成功為 {{provider}} 添加 API 密鑰",
+      "models.provider_key_overridden": "成功更新 {{provider}} 的 API 密鑰",
+      "models.provider_key_no_change": "{{provider}} 的 API 密鑰沒有變化",
+      "models.provider_key_add_failed_by_empty_data": "添加提供者 API 密鑰失敗，數據為空",
+      "models.provider_key_add_failed_by_invalid_data": "添加提供者 API 密鑰失敗，數據格式錯誤",
+      "models.provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰, 是否覆蓋？",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
       "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
@@ -1656,8 +1694,14 @@
         "api.url.tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址",
         "api_host": "API 主機地址",
         "api_key": "API 金鑰",
-        "api_key.tip": "多個金鑰使用逗號分隔",
+        "api_key.tip": "多個金鑰使用逗號或空格分隔",
         "api_version": "API 版本",
+        "api.key.new_key.placeholder": "輸入一個或多個密鑰",
+        "api.key.error.duplicate": "API 密鑰已存在",
+        "api.key.error.empty": "API 密鑰不能為空",
+        "api.key.check.latency": "耗時",
+        "api.key.list.open": "打開管理界面",
+        "api.key.list.title": "API 密鑰管理",
         "basic_auth": "HTTP 認證",
         "basic_auth.tip": "適用於透過伺服器部署的實例（請參閱文檔）。目前僅支援 Basic 方案（RFC7617）",
         "basic_auth.user_name": "用戶",
@@ -1766,6 +1810,13 @@
         "title": "代理伺服器設定"
       },
       "proxy.title": "代理伺服器地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重新啟動",
+          "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
@@ -1809,75 +1860,97 @@
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
+      "tool": {
+        "title": "工具設定",
+        "websearch": {
+          "blacklist": "黑名單",
+          "blacklist_description": "以下網站不會出現在搜尋結果中",
+          "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "檢查",
+          "check_failed": "驗證失敗",
+          "check_success": "驗證成功",
+          "no_provider_selected": "請選擇搜尋服務商後再檢查",
+          "search_max_result": "搜尋結果個數",
+          "search_max_result.tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens",
+          "search_provider": "搜尋服務商",
+          "search_provider_placeholder": "選擇一個搜尋服務商",
+          "search_with_time": "搜尋包含日期",
+          "tavily": {
+            "api_key": "Tavily API 金鑰",
+            "api_key.placeholder": "請輸入 Tavily API 金鑰",
+            "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "網路搜尋",
+          "subscribe": "黑名單訂閱",
+          "subscribe_update": "更新",
+          "subscribe_add": "新增訂閱",
+          "subscribe_url": "訂閱網址",
+          "subscribe_name": "替代名稱",
+          "subscribe_name.placeholder": "下載的訂閱源沒有名稱時使用的替代名稱。",
+          "subscribe_add_success": "訂閱源新增成功!",
+          "subscribe_delete": "刪除",
+          "overwrite": "覆蓋搜尋服務",
+          "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
+          "apikey": "API 金鑰",
+          "free": "免費",
+          "content_limit": "內容長度限制",
+          "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
+          "compression": {
+            "title": "搜尋結果壓縮",
+            "method": "壓縮方法",
+            "method.none": "不壓縮",
+            "method.cutoff": "截斷",
+            "cutoff.limit": "截斷長度",
+            "cutoff.limit.placeholder": "輸入長度",
+            "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
+            "cutoff.unit.char": "字符",
+            "cutoff.unit.token": "Token",
+            "method.rag": "RAG",
+            "rag.document_count": "文檔數量",
+            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
+            "rag.embedding_dimensions.auto_get": "自動獲取維度",
+            "rag.embedding_dimensions.placeholder": "不設置維度",
+            "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
+            "info": {
+              "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"
+            },
+            "error": {
+              "embedding_model_required": "請先選擇嵌入模型",
+              "dimensions_auto_failed": "維度自動獲取失敗",
+              "provider_not_found": "未找到服務商",
+              "rag_failed": "RAG 失敗"
+            }
+          }
+        },
+        "preprocess": {
+          "title": "前置處理",
+          "provider": "前置處理供應商",
+          "provider_placeholder": "選擇一個預處理供應商"
+        },
+        "preprocessOrOcr.tooltip": "在「設定」->「工具」中設定文件預處理服務供應商或OCR。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能，而OCR僅能辨識文件內圖片文字或掃描PDF文字。",
+        "ocr": {
+          "title": "光學字符識別",
+          "provider": "OCR 供應商",
+          "provider_placeholder": "選擇一個OCR服務提供商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "識別模式",
+              "accurate": "準確",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
+        }
+      },
+      "topic.pin_to_top": "固定話題置頂",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "topic.pin_to_top": "固定話題置頂",
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
-      "websearch": {
-        "check_success": "驗證成功",
-        "get_api_key": "點選這裡取得金鑰",
-        "search_with_time": "搜尋包含日期",
-        "tavily": {
-          "api_key": "Tavily API 金鑰",
-          "api_key.placeholder": "請輸入 Tavily API 金鑰",
-          "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
-          "title": "Tavily"
-        },
-        "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜索結果中",
-        "search_max_result": "搜尋結果個數",
-        "search_result_default": "預設",
-        "check": "檢查",
-        "search_provider": "搜尋服務商",
-        "search_provider_placeholder": "選擇一個搜尋服務商",
-        "no_provider_selected": "請選擇搜索服務商後再檢查",
-        "check_failed": "驗證失敗",
-        "blacklist_tooltip": "匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "subscribe": "黑名單訂閱",
-        "subscribe_update": "更新",
-        "subscribe_add": "添加訂閱",
-        "subscribe_url": "訂閱源地址",
-        "subscribe_name": "替代名稱",
-        "subscribe_name.placeholder": "當下載的訂閱源沒有名稱時所使用的替代名稱",
-        "subscribe_add_success": "訂閱源添加成功！",
-        "subscribe_delete": "刪除",
-        "title": "網路搜尋",
-        "overwrite": "覆蓋搜尋服務商",
-        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
-        "apikey": "API 金鑰",
-        "free": "免費",
-        "compression": {
-          "title": "搜尋結果壓縮",
-          "method": "壓縮方法",
-          "method.none": "不壓縮",
-          "method.cutoff": "截斷",
-          "cutoff.limit": "截斷長度",
-          "cutoff.limit.placeholder": "輸入長度",
-          "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
-          "cutoff.unit.char": "字符",
-          "cutoff.unit.token": "Token",
-          "method.rag": "RAG",
-          "rag.document_count": "文檔數量",
-          "rag.document_count.default": "預設",
-          "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
-          "rag.embedding_dimensions.auto_get": "自動獲取維度",
-          "rag.embedding_dimensions.placeholder": "不設置維度",
-          "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
-          "info": {
-            "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"
-          },
-          "error": {
-            "embedding_model_required": "請先選擇嵌入模型",
-            "dimensions_auto_failed": "維度自動獲取失敗",
-            "provider_not_found": "未找到服務商",
-            "rag_failed": "RAG 失敗"
-          }
-        }
-      },
       "general.auto_check_update.title": "自動更新",
       "general.test_plan.title": "測試計畫",
       "general.test_plan.tooltip": "參與測試計畫，體驗最新功能，但同時也帶來更多風險，請務必提前備份數據",
@@ -1938,7 +2011,8 @@
         "assistant": "助手訊息",
         "backup": "備份訊息",
         "knowledge_embed": "知識庫訊息"
-      }
+      },
+      "mineru.api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。"
     },
     "translate": {
       "any.language": "任意語言",
@@ -2034,14 +2108,29 @@
         "experimental": "實驗性功能",
         "enable": {
           "title": "啟用",
-          "description": "目前僅支援 Windows 系統"
+          "description": "目前僅支援 Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "輔助使用權限",
+            "description": [
+              "劃詞助手需「<strong>輔助使用權限</strong>」才能正常工作。",
+              "請點擊「<strong>去設定</strong>」，並在稍後彈出的權限請求彈窗中點擊 「<strong>打開系統設定</strong>」 按鈕，然後在之後的應用程式列表中找到 「<strong>Cherry Studio</strong>」，並開啟權限開關。",
+              "完成設定後，請再次開啟劃詞助手。"
+            ],
+            "button": {
+              "open_accessibility_settings": "打開輔助使用設定",
+              "go_to_settings": "去設定"
+            }
+          }
         },
         "toolbar": {
           "title": "工具列",
           "trigger_mode": {
             "title": "取詞方式",
             "description": "劃詞後，觸發取詞並顯示工具列的方式",
-            "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
+            "description_note": {
+              "windows": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
+              "mac": "若使用了快捷鍵或鍵盤映射工具對 ⌘ 鍵進行了重新對應，可能導致部分應用程式無法劃詞。"
+            },
             "selected": "劃詞",
             "selected_note": "劃詞後，立即顯示工具列",
             "ctrlkey": "Ctrl 鍵",
@@ -2166,7 +2255,10 @@
         },
         "filter_modal": {
           "title": "應用篩選名單",
-          "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "user_tips": {
+            "windows": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
+            "mac": "請輸入應用的 Bundle ID，每行一個，不區分大小寫，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
+          }
         }
       }
     }

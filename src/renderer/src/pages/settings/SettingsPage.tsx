@@ -3,11 +3,11 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import {
   Cloud,
   Command,
-  Globe,
   HardDrive,
   Info,
   MonitorCog,
   Package,
+  PencilRuler,
   Rocket,
   Settings2,
   SquareTerminal,
@@ -31,7 +31,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
-import WebSearchSettings from './WebSearchSettings'
+import ToolSettings from './ToolSettings'
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
@@ -59,10 +59,10 @@ const SettingsPage: FC = () => {
               {t('settings.model')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/web-search">
-            <MenuItem className={isRoute('/settings/web-search')}>
-              <Globe size={18} />
-              {t('settings.websearch.title')}
+          <MenuItemLink to="/settings/tool">
+            <MenuItem className={isRoute('/settings/tool')}>
+              <PencilRuler size={18} />
+              {t('settings.tool.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/mcp">
@@ -124,9 +124,9 @@ const SettingsPage: FC = () => {
           <Routes>
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
-            <Route path="web-search" element={<WebSearchSettings />} />
+            <Route path="tool/*" element={<ToolSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="general" element={<GeneralSettings />} />
+            <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />

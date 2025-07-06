@@ -55,7 +55,6 @@ export interface LLMResponseInProgressChunk {
   response?: Response
   type: ChunkType.LLM_RESPONSE_IN_PROGRESS
 }
-
 export interface TextDeltaChunk {
   /**
    * The text content of the chunk

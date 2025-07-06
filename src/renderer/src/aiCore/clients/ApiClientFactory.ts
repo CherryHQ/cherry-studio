@@ -6,6 +6,7 @@ import { BaseApiClient } from './BaseApiClient'
 import { BedrockAPIClient } from './bedrock/BedrockAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
+import { NewAPIClient } from './NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
@@ -31,6 +32,11 @@ export class ApiClientFactory {
     if (provider.id === 'aihubmix') {
       console.log(`[ApiClientFactory] Creating AihubmixAPIClient for provider: ${provider.id}`)
       instance = new AihubmixAPIClient(provider) as BaseApiClient
+      return instance
+    }
+    if (provider.id === 'new-api') {
+      console.log(`[ApiClientFactory] Creating NewAPIClient for provider: ${provider.id}`)
+      instance = new NewAPIClient(provider) as BaseApiClient
       return instance
     }
     if (provider.id === 'ppio') {

@@ -47,6 +47,8 @@ export type SdkRawOutput =
   | AnthropicSdkRawOutput
   | GeminiSdkRawOutput
   | BedrockSdkRawOutput
+import { EndpointType } from './index'
+
 export type SdkMessageParam =
   | OpenAISdkMessageParam
   | OpenAIResponseSdkMessageParam
@@ -65,7 +67,7 @@ export type SdkTool =
   | Tool
   | OpenAIResponseSdkTool
   | BedrockSdkTool
-export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
+export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel | NewApiModel
 
 export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions | BedrockOptions
 
@@ -172,4 +174,11 @@ export type BedrockOptions = {
   streamOutput: boolean
   signal?: AbortSignal
   timeout?: number
+}
+
+/**
+ * New API
+ */
+export interface NewApiModel extends OpenAI.Models.Model {
+  supported_endpoint_types?: EndpointType[]
 }

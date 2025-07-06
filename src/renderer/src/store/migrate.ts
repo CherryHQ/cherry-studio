@@ -1190,7 +1190,6 @@ const migrateConfig = {
       console.error(error)
       return state
     }
-
     return state
   },
   '87': (state: RootState) => {
@@ -1685,6 +1684,44 @@ const migrateConfig = {
           apiHost: 'https://api.ppinfra.com/v3/openai/'
         })
       }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+          assistant.settings = {
+            ...assistant.settings,
+            streamOutput: true
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '118': (state: RootState) => {
+    try {
+      addProvider(state, 'ph8')
+      state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
+
+      if (!state.settings.userId) {
+        state.settings.userId = uuid()
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'mistral') {
+          provider.type = 'mistral'
+        }
+      })
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '119': (state: RootState) => {
+    try {
+      addProvider(state, 'new-api')
+      state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
+      state.settings.disableHardwareAcceleration = false
       return state
     } catch (error) {
       return state
