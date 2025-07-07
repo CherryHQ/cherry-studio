@@ -6,7 +6,7 @@ import { FileTypes } from '@types'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { detectEncoding } from '../file'
+import { detectEncoding, readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir } from '../file'
 
 // Mock dependencies
@@ -302,6 +302,45 @@ describe('file', () => {
 
       const encoding = detectEncoding(mockFilePath)
       expect(encoding.toLowerCase()).toBe('ascii')
+    })
+  })
+
+  describe('readTextFileWithAutoEncoding', () => {
+    const mockFilePath = '/path/to/mock/file.txt'
+
+    beforeEach(() => {
+      vi.mocked(fs.openSync).mockReturnValue(123)
+      vi.mocked(fs.closeSync).mockImplementation(() => {})
+    })
+
+    it('should read file with auto encoding', () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
+      })
+      vi.mocked(fs.readFileSync).mockReturnValue(buffer)
+
+      const result = readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
+    })
+
+    it('should try to fix bad detected encoding', () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
+      })
+      vi.mocked(fs.readFileSync).mockReturnValue(buffer)
+      vi.mocked(vi.fn(detectEncoding)).mockReturnValue('UTF-8')
+      const result = readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
     })
   })
 })
