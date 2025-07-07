@@ -197,7 +197,7 @@ const S3Settings: FC = () => {
             onClick={showBackupModal}
             icon={<SaveOutlined />}
             loading={backuping}
-            disabled={!accessKeyId || !secretAccessKey}>
+            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
