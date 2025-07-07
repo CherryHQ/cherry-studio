@@ -16,55 +16,58 @@ import { type Key, memo, useCallback, useRef } from 'react'
 /**
  * 泛型 Props，用于配置 DraggableVirtualList。
  *
- * @template T                        列表元素的类型
- * @property {T[]} list               渲染的数据源
- * @property {string} [className]     根节点附加 class
- * @property {React.CSSProperties} [style]       根节点附加样式
- * @property {React.CSSProperties} [listStyle]   每一行元素附加样式
- * @property {(item: T, index: number) => React.ReactNode} children 列表项渲染函数
- * @property {(list: T[]) => void} onUpdate       拖拽排序完成后的回调，返回新的列表顺序
- * @property {OnDragStartResponder} [onDragStart] 开始拖拽时的回调
- * @property {OnDragEndResponder}   [onDragEnd]   结束拖拽时的回调
+ * @template T 列表元素的类型
+ * @property {string} [className] 根节点附加 class
+ * @property {React.CSSProperties} [style] 根节点附加样式
+ * @property {React.CSSProperties} [itemStyle] 元素内容区域的附加样式
+ * @property {React.CSSProperties} [itemContainerStyle] 元素拖拽容器的附加样式
  * @property {Partial<DroppableProps>} [droppableProps] 透传给 Droppable 的额外配置
- * @property {(index: number) => Key} [itemKey]   提供给虚拟列表的行 key，若不提供默认使用 index
- * @property {number} [overscan=5]   额外渲染的行数，提升快速滚动时的体验
+ * @property {(list: T[]) => void} onUpdate 拖拽排序完成后的回调，返回新的列表顺序
+ * @property {OnDragStartResponder} [onDragStart] 开始拖拽时的回调
+ * @property {OnDragEndResponder}   [onDragEnd] 结束拖拽时的回调
+ * @property {T[]} list 渲染的数据源
+ * @property {(index: number) => Key} [itemKey] 提供给虚拟列表的行 key，若不提供默认使用 index
+ * @property {number} [overscan=5] 前后额外渲染的行数，提升快速滚动时的体验
+ * @property {(item: T, index: number) => React.ReactNode} children 列表项渲染函数
  */
-interface Props<T> {
+interface DraggableVirtualListProps<T> {
   ref?: React.Ref<HTMLDivElement>
-  list: T[]
   className?: string
   style?: React.CSSProperties
-  listStyle?: React.CSSProperties
-  children: (item: T, index: number) => React.ReactNode
+  itemStyle?: React.CSSProperties
+  itemContainerStyle?: React.CSSProperties
+  droppableProps?: Partial<DroppableProps>
   onUpdate: (list: T[]) => void
   onDragStart?: OnDragStartResponder
   onDragEnd?: OnDragEndResponder
-  droppableProps?: Partial<DroppableProps>
+  list: T[]
   itemKey?: (index: number) => Key
   overscan?: number
+  children: (item: T, index: number) => React.ReactNode
 }
 
 /**
  * 带虚拟滚动与拖拽排序能力的（垂直）列表组件。
  * - 滚动容器由该组件内部管理。
  * @template T 列表元素的类型
- * @param {Props<T>} props 组件参数
+ * @param {DraggableVirtualListProps<T>} props 组件参数
  * @returns {React.ReactElement}
  */
 function DraggableVirtualList<T>({
   ref,
-  children,
-  list,
   className,
   style,
-  listStyle,
+  itemStyle,
+  itemContainerStyle,
   droppableProps,
   onDragStart,
   onUpdate,
   onDragEnd,
+  list,
   itemKey,
-  overscan = 5
-}: Props<T>): React.ReactElement {
+  overscan = 5,
+  children
+}: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
     if (result.destination) {
@@ -87,7 +90,7 @@ function DraggableVirtualList<T>({
   })
 
   return (
-    <div ref={ref} className={className} style={{ height: '100%', ...style }}>
+    <div ref={ref} className={`${className} draggable-virtual-list`} style={{ height: '100%', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
         <Droppable
           droppableId="droppable"
@@ -100,7 +103,7 @@ function DraggableVirtualList<T>({
                 {...provided.dragHandleProps}
                 ref={provided.innerRef}
                 style={{
-                  ...listStyle,
+                  ...itemStyle,
                   ...provided.draggableProps.style
                 }}>
                 {item && children(item, rubric.source.index)}
@@ -119,7 +122,7 @@ function DraggableVirtualList<T>({
               <Scrollbar
                 ref={setRefs}
                 {...provided.droppableProps}
-                className="dnd-virtual-scroller"
+                className="virtual-scroller"
                 style={{
                   height: '100%',
                   width: '100%',
@@ -127,7 +130,7 @@ function DraggableVirtualList<T>({
                   position: 'relative'
                 }}>
                 <div
-                  className="dnd-virtual-list"
+                  className="virtual-list"
                   style={{
                     height: `${virtualizer.getTotalSize()}px`,
                     width: '100%',
@@ -138,7 +141,8 @@ function DraggableVirtualList<T>({
                       key={virtualItem.key}
                       virtualItem={virtualItem}
                       list={list}
-                      listStyle={listStyle}
+                      itemStyle={itemStyle}
+                      itemContainerStyle={itemContainerStyle}
                       virtualizer={virtualizer}
                       children={children}
                     />
@@ -156,10 +160,14 @@ function DraggableVirtualList<T>({
 /**
  * 渲染单个可拖拽的虚拟列表项，高度为动态测量
  */
-const VirtualRow = memo(({ virtualItem, list, children, listStyle, virtualizer }: any) => {
+const VirtualRow = memo(({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer }: any) => {
   const item = list[virtualItem.index]
+  const draggableId = String(virtualItem.key)
   return (
-    <Draggable draggableId={String(virtualItem.key)} index={virtualItem.index} key={virtualItem.key}>
+    <Draggable
+      key={`draggable_${draggableId}_${virtualItem.index}`}
+      draggableId={draggableId}
+      index={virtualItem.index}>
       {(provided) => {
         const setDragRefs = (el: HTMLElement | null) => {
           provided.innerRef(el)
@@ -179,20 +187,21 @@ const VirtualRow = memo(({ virtualItem, list, children, listStyle, virtualizer }
         return (
           <div
             {...provided.draggableProps}
-            {...provided.dragHandleProps}
             ref={setDragRefs}
-            className="dnd-virtual-row"
+            className="draggable-item"
             data-index={virtualItem.index}
             style={{
+              ...itemContainerStyle,
               ...dndStyle,
               position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              transform: combinedTransform,
-              ...listStyle
+              transform: combinedTransform
             }}>
-            {item && children(item, virtualItem.index)}
+            <div {...provided.dragHandleProps} className="draggable-content" style={{ ...itemStyle }}>
+              {item && children(item, virtualItem.index)}
+            </div>
           </div>
         )
       }}
