@@ -33,9 +33,9 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [mode, setMode] = useState<keyof PaintingsState>('generate')
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const filteredPaintings = useMemo(() => persistentData[mode] || [], [persistentData, mode])
+  const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
+  const { addPainting, removePainting, updatePainting, newApiPaintings } = usePaintings()
+  const filteredPaintings = useMemo(() => newApiPaintings[mode] || [], [newApiPaintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -63,8 +63,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const newApiProvider = providers.find((p) => p.id === 'new-api')!
 
   const modeOptions = [
-    { label: t('paintings.mode.generate'), value: 'generate' },
-    { label: t('paintings.mode.edit'), value: 'edit' }
+    { label: t('paintings.mode.generate'), value: 'openai_image_generate' },
+    { label: t('paintings.mode.edit'), value: 'openai_image_edit' }
   ]
 
   const textareaRef = useRef<any>(null)
@@ -233,7 +233,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const editUrl = newApiProvider.apiHost + `/v1/images/edits`
 
     try {
-      if (mode === 'generate') {
+      if (mode === 'openai_image_generate') {
         const requestData = {
           prompt,
           model: painting.model,
@@ -246,7 +246,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         body = JSON.stringify(requestData)
         headers['Content-Type'] = 'application/json'
-      } else if (mode === 'edit') {
+      } else if (mode === 'openai_image_edit') {
         // -------- Edit Mode --------
         if (editImages.length === 0) {
           window.message.warning({ content: t('paintings.image_file_required') })
@@ -283,7 +283,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         // For edit mode we do not set content-type; browser will set multipart boundary
       }
 
-      const requestUrl = mode === 'edit' ? editUrl : url
+      const requestUrl = mode === 'openai_image_edit' ? editUrl : url
       const response = await fetch(requestUrl, { method: 'POST', headers, body })
 
       if (!response.ok) {
@@ -415,8 +415,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   // 处理模式切换
   const handleModeChange = (value: string) => {
     setMode(value as keyof PaintingsState)
-    if (persistentData[value as keyof PaintingsState] && persistentData[value as keyof PaintingsState].length > 0) {
-      setPainting(persistentData[value as keyof PaintingsState][0])
+    if (newApiPaintings[value as keyof PaintingsState] && newApiPaintings[value as keyof PaintingsState].length > 0) {
+      setPainting(newApiPaintings[value as keyof PaintingsState][0])
     } else {
       setPainting(DEFAULT_PAINTING)
     }
@@ -512,7 +512,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {modelOptions.length > 0 && (
             <>
-              {mode === 'edit' && (
+              {mode === 'openai_image_edit' && (
                 <>
                   <SettingTitle style={{ marginTop: 20 }}>{t('paintings.input_image')}</SettingTitle>
                   <ImageUploadButton
@@ -570,38 +570,42 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               )}
 
               {/* Moderation */}
-              {mode !== 'edit' && selectedModelConfig?.moderation && selectedModelConfig.moderation.length > 0 && (
-                <>
-                  <SettingTitle>{t('paintings.moderation')}</SettingTitle>
-                  <Select
-                    value={painting.moderation}
-                    onChange={handleModerationChange}
-                    style={{ width: '100%', marginBottom: 15 }}>
-                    {selectedModelConfig.moderation.map((m) => (
-                      <Select.Option value={m.value} key={m.value}>
-                        {t(`paintings.moderation_options.${m.value}`, { defaultValue: m.value })}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </>
-              )}
+              {mode !== 'openai_image_edit' &&
+                selectedModelConfig?.moderation &&
+                selectedModelConfig.moderation.length > 0 && (
+                  <>
+                    <SettingTitle>{t('paintings.moderation')}</SettingTitle>
+                    <Select
+                      value={painting.moderation}
+                      onChange={handleModerationChange}
+                      style={{ width: '100%', marginBottom: 15 }}>
+                      {selectedModelConfig.moderation.map((m) => (
+                        <Select.Option value={m.value} key={m.value}>
+                          {t(`paintings.moderation_options.${m.value}`, { defaultValue: m.value })}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </>
+                )}
 
               {/* Background */}
-              {mode === 'edit' && selectedModelConfig?.background && selectedModelConfig.background.length > 0 && (
-                <>
-                  <SettingTitle>{t('paintings.background')}</SettingTitle>
-                  <Select
-                    value={painting.background}
-                    onChange={(value) => updatePaintingState({ background: value })}
-                    style={{ width: '100%', marginBottom: 15 }}>
-                    {selectedModelConfig.background.map((b) => (
-                      <Select.Option value={b.value} key={b.value}>
-                        {t(`paintings.background_options.${b.value}`, { defaultValue: b.value })}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </>
-              )}
+              {mode === 'openai_image_edit' &&
+                selectedModelConfig?.background &&
+                selectedModelConfig.background.length > 0 && (
+                  <>
+                    <SettingTitle>{t('paintings.background')}</SettingTitle>
+                    <Select
+                      value={painting.background}
+                      onChange={(value) => updatePaintingState({ background: value })}
+                      style={{ width: '100%', marginBottom: 15 }}>
+                      {selectedModelConfig.background.map((b) => (
+                        <Select.Option value={b.value} key={b.value}>
+                          {t(`paintings.background_options.${b.value}`, { defaultValue: b.value })}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </>
+                )}
 
               {/* Number of Images (n) */}
               {selectedModelConfig?.max_images && (
