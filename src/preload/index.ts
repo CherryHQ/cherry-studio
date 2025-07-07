@@ -293,7 +293,8 @@ const api = {
   webSocket: {
     start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),
     stop: () => ipcRenderer.invoke(IpcChannel.WebSocket_Stop),
-    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status)
+    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
+    sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>

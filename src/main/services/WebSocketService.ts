@@ -1,4 +1,6 @@
+import * as fs from 'fs'
 import { networkInterfaces } from 'os'
+import * as path from 'path'
 import { Server, Socket } from 'socket.io'
 
 import { windowService } from './WindowService'
@@ -116,6 +118,42 @@ class WebSocketService {
       port: this.isStarted ? this.port : undefined,
       ip: this.isStarted ? this.getLocalIpAddress() : undefined,
       clientConnected: this.connectedClients.size > 0
+    }
+  }
+
+  public sendFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!this.isStarted || !this.io) {
+      const errorMsg = 'WebSocket server is not running.'
+      console.error(errorMsg)
+      return { success: false, error: errorMsg }
+    }
+
+    if (this.connectedClients.size === 0) {
+      const errorMsg = 'No client connected.'
+      console.error(errorMsg)
+      return { success: false, error: errorMsg }
+    }
+
+    try {
+      const fileBuffer = await fs.promises.readFile(filePath)
+      const filename = path.basename(filePath)
+
+      console.log('fileBuffer', fileBuffer.length)
+
+      // 向所有客户端广播文件
+      this.io.emit('zip-file', { filename, data: fileBuffer })
+
+      console.log(`File ${filename} sent to ${this.connectedClients.size} clients.`)
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to read and send file:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   }
 }

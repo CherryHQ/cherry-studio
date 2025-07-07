@@ -1,6 +1,5 @@
-import { SettingRow, SettingTitle } from '@renderer/pages/settings'
-import { exportToPhone } from '@renderer/services/BackupService'
-import { Modal, Spin } from 'antd'
+import { SettingHelpText, SettingRow, SettingTitle } from '@renderer/pages/settings'
+import { Button, Modal, Space, Spin } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +15,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connected'>('disconnected')
   const [qrCodeValue, setQrCodeValue] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
+
   const { t } = useTranslation()
 
   const isConnected = connectionStatus === 'connected'
@@ -73,9 +75,35 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }, [])
 
+  const handleSelectZip = async () => {
+    const result = await window.api.file.select()
+    console.log('result', result)
+    if (result) {
+      const path = result[0].path
+      setSelectedFolderPath(path)
+    }
+  }
+
+  const handleSendZip = async () => {
+    if (!selectedFolderPath) {
+      console.error('No file selected')
+      return
+    }
+    setIsSending(true)
+    try {
+      // 假设你已经在 preload 脚本中暴露了 sendFile 方法
+      await window.api.webSocket.sendFile(selectedFolderPath)
+      // 你可以在这里添加成功提示，例如使用 antd 的 message 组件
+      console.log('File sent successfully')
+    } catch (error) {
+      console.error('Failed to send file:', error)
+      // 你可以在这里添加失败提示
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   const onOk = async () => {
-    if (!isConnected) return
-    await exportToPhone()
     setOpen(false)
   }
 
@@ -119,6 +147,24 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             }}
           />
         ) : null}
+      </SettingRow>
+
+      <SettingRow style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Space direction="vertical">
+          <Space>
+            <Button onClick={handleSelectZip}>{t('exportToPhone.lan.selectZip')}</Button>
+            <Button
+              type="primary"
+              onClick={handleSendZip}
+              disabled={!selectedFolderPath || !isConnected || isSending}
+              loading={isSending}>
+              {isSending ? t('common.sending') : t('exportToPhone.lan.sendZip')}
+            </Button>
+          </Space>
+          <SettingHelpText style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedFolderPath || t('exportToPhone.lan.noZipSelected')}
+          </SettingHelpText>
+        </Space>
       </SettingRow>
 
       <SettingRow style={{ textAlign: 'center' }}>

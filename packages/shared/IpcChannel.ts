@@ -234,5 +234,6 @@ export enum IpcChannel {
   // WebSocket
   WebSocket_Start = 'webSocket:start',
   WebSocket_Stop = 'webSocket:stop',
-  WebSocket_Status = 'webSocket:status'
+  WebSocket_Status = 'webSocket:status',
+  WebSocket_SendFile = 'webSocket:send-file'
 }
