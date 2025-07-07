@@ -1,7 +1,7 @@
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import { readTextFileUTF8 } from '@main/utils/file'
+import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'
@@ -114,7 +114,7 @@ export async function addFileLoader(
       // HTML类型处理
       loaderReturn = await ragApplication.addLoader(
         new WebLoader({
-          urlOrContent: readTextFileUTF8(file.path),
+          urlOrContent: readTextFileWithAutoEncoding(file.path),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,
@@ -124,7 +124,7 @@ export async function addFileLoader(
 
     case 'json':
       try {
-        jsonObject = JSON.parse(readTextFileUTF8(file.path))
+        jsonObject = JSON.parse(readTextFileWithAutoEncoding(file.path))
       } catch (error) {
         jsonParsed = false
         Logger.warn('[KnowledgeBase] failed parsing json file, falling back to text processing:', file.path, error)
@@ -140,7 +140,7 @@ export async function addFileLoader(
       // 如果是其他文本类型且尚未读取文件，则读取文件
       loaderReturn = await ragApplication.addLoader(
         new TextLoader({
-          text: readTextFileUTF8(file.path),
+          text: readTextFileWithAutoEncoding(file.path),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,

@@ -216,8 +216,8 @@ export function detectEncoding(filePath: string): string {
   const buffer = Buffer.alloc(1024)
   const fd = fs.openSync(filePath, 'r')
   fs.readSync(fd, buffer, 0, 1024, 0)
-  const { encoding } = detectEncoding_(buffer)
   fs.closeSync(fd)
+  const { encoding } = detectEncoding_(buffer)
   return encoding
 }
 
@@ -226,7 +226,7 @@ export function detectEncoding(filePath: string): string {
  * @param filePath - 文件路径
  * @returns 解码后的文件内容
  */
-export function readTextFileUTF8(filePath: string) {
+export function readTextFileWithAutoEncoding(filePath: string) {
   const encoding = detectEncoding(filePath)
   const data = fs.readFileSync(filePath)
   const content = iconv.decode(data, encoding)
@@ -234,7 +234,9 @@ export function readTextFileUTF8(filePath: string) {
   if (content.includes('\uFFFD') && encoding !== 'UTF-8') {
     Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
     const buffer = Buffer.alloc(1024)
-    fs.readSync(fs.openSync(filePath, 'r'), buffer, 0, 1024, 0)
+    const fd = fs.openSync(filePath, 'r')
+    fs.readSync(fd, buffer, 0, 1024, 0)
+    fs.closeSync(fd)
     const encodings = detectEncodingAll(buffer)
     if (encodings.length > 0) {
       for (const item of encodings) {
