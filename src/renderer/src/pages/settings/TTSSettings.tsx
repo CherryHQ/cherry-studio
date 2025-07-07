@@ -31,6 +31,32 @@ const TTSSettings: FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<TTSProvider | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
+  const [testText, setTestText] = useState<string>('你好，欢迎使用 Cherry Studio。')
+  const [isTesting, setIsTesting] = useState(false)
+
+  // ==================================================================
+  // 最终的、正确的修复方案：使用 useMemo 创建一个安全的派生状态
+  // ==================================================================
+  const providerForRender = useMemo(() => {
+    if (!selectedProvider) return null
+
+    // 深拷贝一份，避免直接修改原始 state
+    const newProvider = JSON.parse(JSON.stringify(selectedProvider))
+
+    if (newProvider.type === 'self_host') {
+      // 确保 self_host 对象及其属性永远存在
+      if (!newProvider.self_host) {
+        newProvider.self_host = { url: '', body: '' }
+      }
+      if (typeof newProvider.self_host.url === 'undefined') {
+        newProvider.self_host.url = ''
+      }
+      if (typeof newProvider.self_host.body === 'undefined') {
+        newProvider.self_host.body = '{"model": "tts-1", "input": "{{input}}"}'
+      }
+    }
+    return newProvider
+  }, [selectedProvider])
 
   // 过滤供应商（优化：使用 useMemo 避免不必要的重新计算）
   const filteredProviders = useMemo(() => {
@@ -208,7 +234,7 @@ const TTSSettings: FC = () => {
 
   // 渲染供应商设置
   const renderProviderSettings = () => {
-    if (!selectedProvider) {
+    if (!providerForRender) {
       return (
         <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
           <SettingTitle>{t('settings.tts.title')}</SettingTitle>
@@ -218,6 +244,8 @@ const TTSSettings: FC = () => {
     }
 
     const config = TTS_PROVIDER_CONFIG[selectedProvider.type]
+
+    
 
     const officialWebsite = config.websites?.official
 
@@ -831,8 +859,113 @@ const TTSSettings: FC = () => {
           </>
         )}
 
-        {/* TencentCloud 特有参数 */}
-        {selectedProvider.type === 'tencentcloud' && (
+        {/* ================================================================== */}
+        {/* 新增：自建服务 (Self-Host) 特有参数 (重构后)                     */}
+        {/* ================================================================== */}
+        {providerForRender.type === 'self_host' && (
+          <>
+            {/* URL 输入 */}
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.tts.self_host.url', 'URL')}</SettingRowTitle>
+              <Input
+                style={{ width: 300 }}
+                value={providerForRender.self_host?.url || ''}
+                placeholder="https://example.com/api/tts"
+                onChange={(e) => {
+                  const url = e.target.value
+                  const currentProviderInStore = tts.providers.find(
+                    (p) => p.id === providerForRender.id
+                  )
+                  if (!currentProviderInStore) return
+
+                  const updatedProvider = {
+                    ...currentProviderInStore,
+                    self_host: { ...(currentProviderInStore.self_host || { url: '', body: '' }), url }
+                  } as TTSProvider
+
+                  updateProvider(updatedProvider) // 更新本地状态以实现UI即时响应
+                  tts.setSelfHostConfig(providerForRender.id, { url }) // 更新 Redux
+                }}
+              />
+            </SettingRow>
+            <SettingHelpText>
+              {t('settings.tts.self_host.url_description', '你的自建 TTS 服务的完整请求 URL。')}
+            </SettingHelpText>
+
+            {/* 请求 Body 输入 */}
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.tts.self_host.body', '请求 Body')}</SettingRowTitle>
+              <Input.TextArea
+                rows={4}
+                style={{ width: 300 }}
+                value={providerForRender.self_host?.body || ''}
+                placeholder={'{"model": "tts-1", "input": "{{input}}"}'}
+                onChange={(e) => {
+                  const body = e.target.value
+                  const currentProviderInStore = tts.providers.find(
+                    (p) => p.id === providerForRender.id
+                  )
+                  if (!currentProviderInStore) return
+
+                  const updatedProvider = {
+                    ...currentProviderInStore,
+                    self_host: { ...(currentProviderInStore.self_host || { url: '', body: '' }), body }
+                  } as TTSProvider
+                  updateProvider(updatedProvider)
+                  tts.setSelfHostConfig(providerForRender.id, { body })
+                }}
+              />
+            </SettingRow>
+            <SettingHelpText>
+              {t(
+                'settings.tts.self_host.body_description',
+                '自定义请求的 JSON Body。请使用 {{input}} 作为文本占位符。'
+              )}
+            </SettingHelpText>
+
+            {/* 测试功能 */}
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.tts.test', '测试')}</SettingRowTitle>
+              <Input
+                style={{ width: 200, marginRight: '8px' }}
+                placeholder={t('settings.tts.test.text_placeholder', '输入测试文本')}
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+              />
+              <Button
+                type="primary"
+                loading={isTesting}
+                onClick={async () => {
+                  if (!providerForRender.self_host?.url || !providerForRender.self_host?.body) return
+                  setIsTesting(true)
+                  try {
+                    const finalBody = providerForRender.self_host.body.replace('{{input}}', testText)
+                    const response = await fetch(providerForRender.self_host.url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: finalBody
+                    })
+                    if (!response.ok) throw new Error(`Server error: ${response.status}`)
+                    const blob = await response.blob()
+                    const audio = new Audio(URL.createObjectURL(blob))
+                    audio.play()
+                  } catch (error) {
+                    console.error('Self-host TTS test failed:', error)
+                  } finally {
+                    setIsTesting(false)
+                  }
+                }}
+              >
+                {t('settings.tts.test.play', '测试播放')}
+              </Button>
+            </SettingRow>
+          </>
+        )}
+
+        {providerForRender.type === 'tencentcloud' && (
           <>
             {/* SecretKey */}
             <SettingDivider />

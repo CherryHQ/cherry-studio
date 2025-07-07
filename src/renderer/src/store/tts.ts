@@ -159,6 +159,20 @@ const ttsSlice = createSlice({
           state.currentProvider = enabledProvider?.id || null
         }
       }
+    },
+
+    // 新增：专门用于更新自建服务配置的 reducer
+    setSelfHostConfig: (
+      state,
+      // 修改：更新 payload 类型以匹配新需求
+      action: PayloadAction<{ id: string; config: { url?: string; body?: string } }>
+    ) => {
+      // 根据 id 查找 'self_host' provider
+      const provider = state.providers.find((p) => p.id === action.payload.id)
+      if (provider && provider.type === 'self_host') {
+        // 修改：确保 self_host 对象存在，并合并新配置
+        provider.self_host = { ...(provider.self_host || { url: '', body: '' }), ...action.payload.config }
+      }
     }
   }
 })
@@ -177,7 +191,9 @@ export const {
   updateTTSGlobalSettings,
   resetTTSSettings,
   addTTSProvider,
-  removeTTSProvider
+  removeTTSProvider,
+  // 新增：导出新的 action，以便在 UI 中使用
+  setSelfHostConfig
 } = ttsSlice.actions
 
 export default ttsSlice.reducer

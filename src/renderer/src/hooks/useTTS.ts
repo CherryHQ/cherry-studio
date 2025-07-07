@@ -6,6 +6,8 @@ import {
   removeTTSProvider,
   resetTTSSettings,
   setCurrentTTSProvider,
+  // 新增：导入 setSelfHostConfig action
+  setSelfHostConfig,
   setTTSAutoPlay,
   setTTSEnabled,
   setTTSProviderApiHost,
@@ -189,6 +191,14 @@ export const useTTS = () => {
     removeProvider: useCallback(
       (id: string) => {
         dispatch(removeTTSProvider(id))
+      },
+      [dispatch]
+    ),
+
+    // 新增：封装 setSelfHostConfig action
+    setSelfHostConfig: useCallback(
+      (id: string, config: { url?: string; body?: string }) => {
+        dispatch(setSelfHostConfig({ id, config }))
       },
       [dispatch]
     )

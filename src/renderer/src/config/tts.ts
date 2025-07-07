@@ -155,6 +155,25 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       pauseSupport: false
     },
     voices: []
+  },
+  // 新增：将自建服务添加到初始 Provider 列表中
+  {
+    id: 'self_host',
+    type: 'self_host',
+    name: '自建服务',
+    enabled: false,
+    isSystem: true, // 标记为系统内置，不可删除
+    settings: {
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+      autoPlay: false
+    },
+    self_host: {
+      url: '',
+      body: '{"model": "tts-1", "input": "{{input}}"}'
+    },
+    voices: []
   }
 ]
 
@@ -245,5 +264,13 @@ export const TTS_PROVIDER_CONFIG = {
       docs: 'https://cloud.google.com/text-to-speech/docs',
       models: 'https://cloud.google.com/text-to-speech/docs/voices'
     }
+  },
+  // 新增：为自建服务补全配置信息
+  self_host: {
+    name: '自建服务',
+    description: '连接到您自己的或指定的 TTS 服务器',
+    requiresApiKey: false, // 它需要的是 Endpoint，而不是 API Key
+    supportedFeatures: [], // 移除 'voice'
+    websites: {} // 没有官方网站，留空
   }
 }

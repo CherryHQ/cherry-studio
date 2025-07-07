@@ -6,6 +6,8 @@ export type TTSProviderType =
   | 'siliconflow'
   | 'tencentcloud'
   | 'googlecloud'
+  // 新增：将 'self_host' 添加到支持的 Provider 类型列表中
+  | 'self_host'
 
 export interface TTSVoice {
   id: string
@@ -25,6 +27,11 @@ export interface TTSProvider {
   apiHost?: string
   settings: TTSProviderSettings
   voices: TTSVoice[]
+  // 新增：为自建服务添加一个可选的、特定的配置对象
+  self_host?: {
+    url: string;      // 请求的 URL
+    body: string;     // 请求 Body 的 JSON 模板
+  }
 }
 
 export interface TTSProviderSettings {
