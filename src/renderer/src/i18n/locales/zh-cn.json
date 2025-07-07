@@ -2015,6 +2015,7 @@
         "content": "翻译后将覆盖原文，是否继续？",
         "title": "翻译确认"
       },
+      "success": "翻译完成",
       "error.failed": "翻译失败",
       "error.not_configured": "翻译模型未配置",
       "history": {

@@ -2017,6 +2017,7 @@
       },
       "error.failed": "翻訳に失敗しました",
       "error.not_configured": "翻訳モデルが設定されていません",
+      "success": "翻訳が完了しました。",
       "history": {
         "clear": "履歴をクリア",
         "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",

@@ -2018,6 +2018,7 @@
       },
       "error.failed": "Translation failed",
       "error.not_configured": "Translation model is not configured",
+      "success": "Translation completed",
       "history": {
         "clear": "Clear History",
         "clear_description": "Clear history will delete all translation history, continue?",

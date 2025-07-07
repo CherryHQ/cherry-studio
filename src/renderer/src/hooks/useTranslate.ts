@@ -7,6 +7,7 @@ import {
 } from '@renderer/store/translate'
 import { Assistant, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { t } from 'i18next'
 
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
@@ -40,6 +41,13 @@ export default function useTranslate() {
     await saveTranslateHistory(text, translatedContent, actualSourceLanguage, actualTargetLanguage)
 
     setTranslating(false)
+
+    const pathname = store.getState().runtime.activeRoute
+    console.log('get pathname', pathname)
+    if (pathname !== '/translate') {
+      // ALTERNATIVE: 也许可以改成通知的形式
+      window.message.success(t('translate.success'))
+    }
   }
 
   const saveTranslateHistory = async (
