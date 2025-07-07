@@ -30,19 +30,19 @@ export class AppService {
         const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
 
         if (isLaunchOnBoot) {
-          // 确保 autostart 目录存在
+          // Ensure autostart directory exists
           if (!fs.existsSync(autostartDir)) {
             fs.mkdirSync(autostartDir, { recursive: true })
           }
 
-          // 获取可执行文件路径
+          // Get executable path
           let executablePath = app.getPath('exe')
           if (process.env.APPIMAGE) {
-            // 如果是 AppImage 打包的应用，使用 APPIMAGE 环境变量
+            // For AppImage packaged apps, use APPIMAGE environment variable
             executablePath = process.env.APPIMAGE
           }
 
-          // 创建 desktop 文件内容
+          // Create desktop file content
           const desktopContent = `[Desktop Entry]
   Type=Application
   Name=Cherry Studio
@@ -55,11 +55,11 @@ export class AppService {
   X-GNOME-Autostart-enabled=true
   Hidden=false`
 
-          // 写入 desktop 文件
+          // Write desktop file
           fs.writeFileSync(desktopFile, desktopContent)
           log.info('Created autostart desktop file for Linux')
         } else {
-          // 删除 desktop 文件
+          // Remove desktop file
           if (fs.existsSync(desktopFile)) {
             fs.unlinkSync(desktopFile)
             log.info('Removed autostart desktop file for Linux')
