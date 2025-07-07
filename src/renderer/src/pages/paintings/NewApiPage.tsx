@@ -470,7 +470,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink target="_blank" href={newApiProvider.apiHost}>
+            <SettingHelpLink target="_blank" href={'https://docs.newapi.pro/apps/cherry-studio/'}>
               {t('paintings.learn_more')}
               <ProviderLogo
                 shape="square"
