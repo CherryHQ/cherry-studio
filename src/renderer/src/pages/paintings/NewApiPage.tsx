@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import AiProvider from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -10,6 +11,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
@@ -29,7 +31,6 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
-import PaintingsList from './components/PaintingsList'
 
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('generate')
@@ -205,7 +206,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    if (!newApiProvider.apiKey) {
+    const AI = new AiProvider(newApiProvider)
+
+    if (!AI.getApiKey()) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
@@ -224,15 +227,14 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     let body: string | FormData = ''
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${newApiProvider.apiKey}`
+      Authorization: `Bearer ${AI.getApiKey()}`
     }
     const url = newApiProvider.apiHost + `/v1/images/generations`
     const editUrl = newApiProvider.apiHost + `/v1/images/edits`
 
     try {
       if (mode === 'generate') {
-        let requestData: any = {}
-        requestData = {
+        const requestData = {
           prompt,
           model: painting.model,
           size: painting.size === 'auto' ? undefined : painting.size,
