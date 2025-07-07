@@ -29,8 +29,8 @@ export interface TTSProvider {
   voices: TTSVoice[]
   // 新增：为自建服务添加一个可选的、特定的配置对象
   self_host?: {
-    url: string;      // 请求的 URL
-    body: string;     // 请求 Body 的 JSON 模板
+    url: string // 请求的 URL
+    body: string // 请求 Body 的 JSON 模板
   }
 }
 

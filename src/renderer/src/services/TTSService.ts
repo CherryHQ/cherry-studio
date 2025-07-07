@@ -93,14 +93,19 @@ export class TTSService {
   /**
    * 语音合成
    */
-  async speak(text: string, options?: Partial<TTSSpeakOptions>): Promise<void> {
-    if (!this.currentProvider) {
+  async speak(text: string, options?: Partial<TTSSpeakOptions>, providerOverride?: TTSProvider): Promise<void> {
+    console.log('[TTSService] Speak called. Current provider is:', this.currentProvider)
+    // 如果传入了覆盖配置，则使用它；否则，使用内部的 currentProvider
+    const providerToUse = providerOverride ? TTSProviderFactory.create(providerOverride) : this.currentProvider
+
+    if (!providerToUse) {
       throw new Error('No TTS provider available')
     }
 
-    const provider = this.currentProvider.getProvider()
-    if (!provider.enabled) {
-      throw new Error('Current TTS provider is disabled')
+    const providerConfig = providerToUse.getProvider()
+    console.log('[TTSService] Provider config being used for speak:', JSON.parse(JSON.stringify(providerConfig)))
+    if (!providerConfig || !providerConfig.enabled) {
+      throw new Error('Current TTS provider is not configured or disabled')
     }
 
     // 停止所有正在播放的 TTS
@@ -111,24 +116,24 @@ export class TTSService {
 
     const speakOptions: TTSSpeakOptions = {
       text,
-      voice: options?.voice || provider.settings.voice,
-      rate: options?.rate || provider.settings.rate,
-      pitch: options?.pitch || provider.settings.pitch,
-      volume: options?.volume || provider.settings.volume
+      voice: options?.voice || providerConfig.settings.voice,
+      rate: options?.rate || providerConfig.settings.rate,
+      pitch: options?.pitch || providerConfig.settings.pitch,
+      volume: options?.volume || providerConfig.settings.volume
     }
 
     // 设置当前活跃供应商
-    this.activeProvider = this.currentProvider
+    this.activeProvider = providerToUse
 
     try {
-      await this.currentProvider.speak(speakOptions)
+      await providerToUse.speak(speakOptions)
       // 播放完成后清除活跃供应商
-      if (this.activeProvider === this.currentProvider) {
+      if (this.activeProvider === providerToUse) {
         this.activeProvider = null
       }
     } catch (error) {
       // 播放失败后清除活跃供应商
-      if (this.activeProvider === this.currentProvider) {
+      if (this.activeProvider === providerToUse) {
         this.activeProvider = null
       }
       throw error

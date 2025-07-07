@@ -16,7 +16,8 @@ const TTS_PROVIDER_LOGO_MAP = {
   elevenlabs: ElevenLabsProviderLogo,
   siliconflow: SiliconFlowProviderLogo,
   tencentcloud: TencentCloudProviderLogo,
-  googlecloud: GoogleProviderLogo
+  googlecloud: GoogleProviderLogo,
+  self_host: undefined // 自建服务暂无 logo
 } as const
 
 export function getTTSProviderLogo(providerId: string) {
@@ -156,13 +157,13 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
     },
     voices: []
   },
-  // 新增：将自建服务添加到初始 Provider 列表中
+  // 修复：确保初始配置的结构完全正确
   {
     id: 'self_host',
     type: 'self_host',
     name: '自建服务',
     enabled: false,
-    isSystem: true, // 标记为系统内置，不可删除
+    isSystem: true,
     settings: {
       rate: 1.0,
       pitch: 1.0,
@@ -265,12 +266,11 @@ export const TTS_PROVIDER_CONFIG = {
       models: 'https://cloud.google.com/text-to-speech/docs/voices'
     }
   },
-  // 新增：为自建服务补全配置信息
   self_host: {
     name: '自建服务',
     description: '连接到您自己的或指定的 TTS 服务器',
-    requiresApiKey: false, // 它需要的是 Endpoint，而不是 API Key
-    supportedFeatures: [], // 移除 'voice'
-    websites: {} // 没有官方网站，留空
+    requiresApiKey: false,
+    supportedFeatures: [],
+    websites: {}
   }
 }

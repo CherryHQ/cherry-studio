@@ -31,7 +31,9 @@ const TTSSettings: FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<TTSProvider | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const [testText, setTestText] = useState<string>('你好，欢迎使用 Cherry Studio。')
+  const [testText, setTestText] = useState<string>(
+    '你好，欢迎使用 Cherry Studio。今天过得好吗？'
+  )
   const [isTesting, setIsTesting] = useState(false)
 
   // ==================================================================
@@ -244,8 +246,6 @@ const TTSSettings: FC = () => {
     }
 
     const config = TTS_PROVIDER_CONFIG[selectedProvider.type]
-
-    
 
     const officialWebsite = config.websites?.official
 
@@ -874,18 +874,18 @@ const TTSSettings: FC = () => {
                 placeholder="https://example.com/api/tts"
                 onChange={(e) => {
                   const url = e.target.value
-                  const currentProviderInStore = tts.providers.find(
-                    (p) => p.id === providerForRender.id
-                  )
+                  const currentProviderInStore = tts.providers.find((p) => p.id === providerForRender.id)
+
                   if (!currentProviderInStore) return
 
                   const updatedProvider = {
                     ...currentProviderInStore,
-                    self_host: { ...(currentProviderInStore.self_host || { url: '', body: '' }), url }
+                    self_host: {
+                      ...(currentProviderInStore.self_host || { url: '', body: '' }),
+                      url
+                    }
                   } as TTSProvider
-
-                  updateProvider(updatedProvider) // 更新本地状态以实现UI即时响应
-                  tts.setSelfHostConfig(providerForRender.id, { url }) // 更新 Redux
+                  updateProvider(updatedProvider)
                 }}
               />
             </SettingRow>
@@ -904,17 +904,18 @@ const TTSSettings: FC = () => {
                 placeholder={'{"model": "tts-1", "input": "{{input}}"}'}
                 onChange={(e) => {
                   const body = e.target.value
-                  const currentProviderInStore = tts.providers.find(
-                    (p) => p.id === providerForRender.id
-                  )
+                  const currentProviderInStore = tts.providers.find((p) => p.id === providerForRender.id)
+
                   if (!currentProviderInStore) return
 
                   const updatedProvider = {
                     ...currentProviderInStore,
-                    self_host: { ...(currentProviderInStore.self_host || { url: '', body: '' }), body }
+                    self_host: {
+                      ...currentProviderInStore.self_host, // 保留 self_host 中的其他字段，如 url
+                      body // 只更新 body 字段
+                    }
                   } as TTSProvider
                   updateProvider(updatedProvider)
-                  tts.setSelfHostConfig(providerForRender.id, { body })
                 }}
               />
             </SettingRow>
@@ -929,7 +930,8 @@ const TTSSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.tts.test', '测试')}</SettingRowTitle>
-              <Input
+              <Input.TextArea
+                rows={3}
                 style={{ width: 200, marginRight: '8px' }}
                 placeholder={t('settings.tts.test.text_placeholder', '输入测试文本')}
                 value={testText}
@@ -937,29 +939,32 @@ const TTSSettings: FC = () => {
               />
               <Button
                 type="primary"
-                loading={isTesting}
-                onClick={async () => {
-                  if (!providerForRender.self_host?.url || !providerForRender.self_host?.body) return
-                  setIsTesting(true)
-                  try {
-                    const finalBody = providerForRender.self_host.body.replace('{{input}}', testText)
-                    const response = await fetch(providerForRender.self_host.url, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: finalBody
-                    })
-                    if (!response.ok) throw new Error(`Server error: ${response.status}`)
-                    const blob = await response.blob()
-                    const audio = new Audio(URL.createObjectURL(blob))
-                    audio.play()
-                  } catch (error) {
-                    console.error('Self-host TTS test failed:', error)
-                  } finally {
-                    setIsTesting(false)
+                loading={isPlaying}
+                disabled={!providerForRender.enabled}
+                icon={isPlaying ? <Square size={16} /> : <Play size={16} />}
+                onClick={() => {
+                  if (isPlaying) {
+                    tts.stop()
+                    setIsPlaying(false)
+                  } else {
+                    setIsPlaying(true)
+                    tts
+                      .speak(testText, {
+                        providerId: providerForRender.id,
+                        voice: providerForRender.settings.voice,
+                        rate: providerForRender.settings.rate,
+                        pitch: providerForRender.settings.pitch,
+                        volume: providerForRender.settings.volume
+                      })
+                      .catch((e) => {
+                        console.error('Self-host TTS test failed:', e)
+                      })
+                      .finally(() => {
+                        setIsPlaying(false)
+                      })
                   }
-                }}
-              >
-                {t('settings.tts.test.play', '测试播放')}
+                }}>
+                {isPlaying ? t('settings.tts.test.stop') : t('settings.tts.test.play')}
               </Button>
             </SettingRow>
           </>

@@ -1,159 +1,178 @@
-// =================================================================================
-// 导入依赖
-// =================================================================================
-import { TTSProviderConfig, Voice } from '@/types'
-import { BaseTTSProvider } from './BaseTTSProvider'
+import type { TTSSpeakOptions, Voice } from '@/types/tts'
 
-// =================================================================================
-// 配置接口定义
-// =================================================================================
-export interface SelfHostTTSConfig {
-  url: string
-  body: string
-}
+import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
-// =================================================================================
-// SelfHostTTSProvider 类定义
-// =================================================================================
 export class SelfHostTTSProvider extends BaseTTSProvider {
-  private config: SelfHostTTSConfig
-  private audioPlayer: HTMLAudioElement
-  private sentences: string[] = []
-  private currentIndex = 0
-  private isPlaying = false
-  private abortController: AbortController | null = null
-  private preloadedAudioUrl: string | null = null
-
-  constructor(config: TTSProviderConfig) {
-    super()
-    this.config = config.self_host as SelfHostTTSConfig
-    this.audioPlayer = new Audio()
-    this.audioPlayer.onended = this.handleAudioEnded.bind(this)
-    this.audioPlayer.onplay = this.handleAudioPlay.bind(this)
-  }
+  private sentenceQueue: string[] = []
+  private audioQueue: (Blob | 'EOS')[] = [] // EOS = End of Stream
+  private isSpeaking: boolean = false
+  private audioConsumerPromise: Promise<void> | null = null
+  private audioProducerPromise: Promise<void> | null = null
 
   public async getVoices(): Promise<Voice[]> {
+    // For self-hosted services, we currently don't support dynamic voice lists.
     return Promise.resolve([{ id: 'default', name: 'Default' }])
-  }
-
-  public async speak(text: string): Promise<void> {
-    if (this.isPlaying) {
-      this.stop()
-    }
-    if (!this.config?.url) {
-      console.error('Self-host TTS URL is not configured.')
-      return
-    }
-    this.sentences = this.splitIntoSentences(text)
-    if (this.sentences.length === 0) return
-    this.isPlaying = true
-    this.currentIndex = 0
-    this.playNextSentence()
-  }
-
-  public stop(): void {
-    this.isPlaying = false
-    this.audioPlayer.pause()
-    this.audioPlayer.src = ''
-    this.sentences = []
-    this.currentIndex = 0
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = null
-    }
-    if (this.preloadedAudioUrl) {
-      URL.revokeObjectURL(this.preloadedAudioUrl)
-      this.preloadedAudioUrl = null
-    }
-  }
-
-  public async check(): Promise<{ valid: boolean; message?: string }> {
-    if (!this.config?.url) {
-      return { valid: false, message: 'URL is not configured.' }
-    }
-    try {
-      const response = await fetch(this.config.url, { method: 'HEAD' })
-      return { valid: response.ok, message: response.ok ? '' : `Server returned status ${response.status}` }
-    } catch (error) {
-      return { valid: false, message: (error as Error).message }
-    }
-  }
-
-  private playNextSentence(): void {
-    if (!this.isPlaying || this.currentIndex >= this.sentences.length) {
-      this.stop()
-      return
-    }
-    if (this.preloadedAudioUrl) {
-      this.audioPlayer.src = this.preloadedAudioUrl
-      this.audioPlayer.play()
-      this.preloadedAudioUrl = null
-    } else {
-      this.fetchAndPlayCurrentSentence()
-    }
-  }
-
-  private async fetchAndPlayCurrentSentence(): Promise<void> {
-    const sentence = this.sentences[this.currentIndex]
-    if (!sentence) return
-    try {
-      const audioBlob = await this.fetchAudio(sentence)
-      const audioUrl = URL.createObjectURL(audioBlob)
-      this.audioPlayer.src = audioUrl
-      this.audioPlayer.play()
-    } catch (error) {
-      console.error('Error fetching audio for sentence:', sentence, error)
-      this.currentIndex++
-      this.playNextSentence()
-    }
-  }
-
-  private async preloadNextSentence(): Promise<void> {
-    const nextIndex = this.currentIndex + 1
-    if (nextIndex >= this.sentences.length) return
-    const nextSentence = this.sentences[nextIndex]
-    try {
-      const audioBlob = await this.fetchAudio(nextSentence)
-      this.preloadedAudioUrl = URL.createObjectURL(audioBlob)
-    } catch (error) {
-      console.error('Error preloading audio for sentence:', nextSentence, error)
-    }
-  }
-
-  private async fetchAudio(text: string): Promise<Blob> {
-    this.abortController = new AbortController()
-    const finalBody = this.config.body.replace('{{input}}', text)
-    const response = await fetch(this.config.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: finalBody,
-      signal: this.abortController.signal
-    })
-    if (!response.ok) {
-      throw new Error(`Server returned status ${response.status}`)
-    }
-    return response.blob()
-  }
-
-  private handleAudioEnded(): void {
-    if (this.audioPlayer.src) {
-      URL.revokeObjectURL(this.audioPlayer.src)
-    }
-    this.currentIndex++
-    this.playNextSentence()
-  }
-
-  private handleAudioPlay(): void {
-    this.preloadNextSentence()
   }
 
   private splitIntoSentences(text: string): string[] {
     if (!text) return []
-    return (
-      text
-        .replace(/(\r\n|\n|\r)/gm, ' ')
-        .match(/[^.!?。！？]+[.!?。！？]*/g)
-        ?.filter((s) => s.trim()) || []
-    )
+    // Regex to split by sentences, including both English and Chinese punctuation.
+    const sentences = text.match(/[^.!?。？！]+[.!?。？！\n]*/g) || [text]
+    return sentences.map((s) => s.trim()).filter((s) => s.length > 0)
+  }
+
+  public async speak(options: TTSSpeakOptions): Promise<void> {
+    await this.stop() // Ensure everything is clean before starting
+
+    const { text, volume } = options
+    if (!text.trim()) {
+      return
+    }
+
+    this.isSpeaking = true
+    this.sentenceQueue = this.splitIntoSentences(text)
+
+    if (this.sentenceQueue.length > 0) {
+      this.audioProducerPromise = this.producerLoop()
+      this.audioConsumerPromise = this.consumerLoop(volume)
+    }
+  }
+
+  public async stop(): Promise<void> {
+    if (this.isSpeaking) {
+      this.isSpeaking = false
+      // Wait for loops to terminate gracefully
+      await Promise.allSettled([this.audioProducerPromise, this.audioConsumerPromise])
+    }
+    this.sentenceQueue = []
+    this.audioQueue = []
+    await super.stop() // Stop the actual audio player
+  }
+
+  private async producerLoop(): Promise<void> {
+    while (this.isSpeaking && this.sentenceQueue.length > 0) {
+      const sentence = this.sentenceQueue.shift()!
+      try {
+        const audioBlob = await this.fetchAudio(sentence)
+        if (this.isSpeaking) {
+          this.audioQueue.push(audioBlob)
+        }
+      } catch (error) {
+        console.error(`[SelfHostTTSProvider] Failed to fetch audio for: "${sentence}"`, error)
+        this.isSpeaking = false // Stop everything on error
+      }
+    }
+    // When done, push the End of Stream signal
+    if (this.isSpeaking) {
+      this.audioQueue.push('EOS')
+    }
+  }
+
+  private async consumerLoop(volume?: number): Promise<void> {
+    while (this.isSpeaking) {
+      if (this.audioQueue.length > 0) {
+        const nextItem = this.audioQueue.shift()!
+
+        if (nextItem === 'EOS') {
+          this.isSpeaking = false // End of stream, we're done
+          break
+        }
+
+        try {
+          // This promise resolves when the audio has finished playing
+          await this.audioPlayer.playBlob(nextItem, volume)
+        } catch (error) {
+          console.error('[SelfHostTTSProvider] Failed to play audio blob.', error)
+          this.isSpeaking = false // Stop on playback error
+        }
+      } else {
+        // Wait for the producer to push more audio
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+  }
+
+  private async fetchAudio(text: string): Promise<Blob> {
+    const config = this.provider.self_host
+
+    if (!config?.url) {
+      throw new Error('Self-host TTS configuration is incomplete. URL is missing.')
+    }
+
+    // The body from config is expected to be a string.
+    const bodyString =
+      config.body && config.body.trim() !== ''
+        ? config.body
+        : JSON.stringify({ model: 'tts-1', input: '{{input}}' })
+
+    let bodyObject
+    try {
+      // Step 1: Parse the string from the config into a real object.
+      bodyObject = JSON.parse(bodyString)
+    } catch (e) {
+      throw new Error('Self-host TTS body in configuration is not valid JSON.')
+    }
+
+    // Step 2: Perform placeholder replacement on the parsed object.
+    const placeholderFound = this.findAndReplacePlaceholder(bodyObject, '{{input}}', text)
+    if (!placeholderFound) {
+      throw new Error("Could not find '{{input}}' placeholder in the TTS body configuration.")
+    }
+
+    // Step 3: Stringify the final object for the fetch request.
+    const finalBody = JSON.stringify(bodyObject)
+
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: finalBody
+    })
+
+    if (!response.ok) {
+      throw new Error(`Server returned status ${response.status}`)
+    }
+
+    return response.blob()
+  }
+
+  private findAndReplacePlaceholder(obj: any, placeholder: string, replacement: string): boolean {
+    let found = false
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+          // Recurse into objects and arrays
+          if (this.findAndReplacePlaceholder(obj[key], placeholder, replacement)) {
+            found = true
+          }
+        } else if (typeof obj[key] === 'string' && obj[key].includes(placeholder)) {
+          // Use replaceAll to handle multiple occurrences of the placeholder in a single string
+          obj[key] = obj[key].replaceAll(placeholder, replacement)
+          found = true
+        }
+      }
+    }
+    return found
+  }
+
+  public async check(): Promise<TTSCheckResult> {
+    // Correctly get the config from this.provider
+    const config = this.provider.self_host
+    if (!config?.url) {
+      return { valid: false, error: new Error('URL is not configured.') }
+    }
+    try {
+      // Use a HEAD request for a lightweight check
+      const response = await fetch(config.url, { method: 'HEAD' })
+      return {
+        valid: response.ok,
+        error: response.ok ? null : new Error(`Server returned status ${response.status}`)
+      }
+    } catch (error) {
+      return { valid: false, error: error as Error }
+    }
+  }
+
+  protected getDefaultApiHost(): string {
+    return ''
   }
 }

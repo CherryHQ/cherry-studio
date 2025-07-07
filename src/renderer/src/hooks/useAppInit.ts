@@ -30,6 +30,7 @@ export function useAppInit() {
   const memoryConfig = useAppSelector(selectMemoryConfig)
 
   useEffect(() => {
+    console.time('init')
     document.getElementById('spinner')?.remove()
     console.timeEnd('init')
 
