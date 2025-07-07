@@ -515,7 +515,7 @@ const ProvidersList: FC = () => {
           </Button>
         </AddButtonWrapper>
       </ProviderListContainer>
-      <ProviderSetting provider={selectedProvider} key={JSON.stringify(selectedProvider)} />
+      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
     </Container>
   )
 }

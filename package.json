@@ -68,7 +68,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.4",
+    "selection-hook": "^1.0.5",
     "turndown": "7.2.0"
   },
   "devDependencies": {
