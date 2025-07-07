@@ -1,5 +1,5 @@
 import { SettingHelpText, SettingRow, SettingTitle } from '@renderer/pages/settings'
-import { Button, Modal, Space, Spin } from 'antd'
+import { Button, Modal, Progress, Space, Spin } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
+  const [sendProgress, setSendProgress] = useState(0)
 
   const { t } = useTranslation()
 
@@ -58,6 +59,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       console.log(`收到移动端消息: ${JSON.stringify(data)}`)
     }
 
+    const handleSendProgress = (_event: any, data: { progress: number }) => {
+      setSendProgress(data.progress)
+    }
+
     const removeClientConnectedListener = window.electron.ipcRenderer.on(
       'websocket-client-connected',
       handleClientConnected
@@ -66,10 +71,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       'websocket-message-received',
       handleMessageReceived
     )
+    const removeSendProgressListener = window.electron.ipcRenderer.on('file-send-progress', handleSendProgress)
 
     return () => {
       removeClientConnectedListener()
       removeMessageReceivedListener()
+      removeSendProgressListener()
       // 当组件卸载时，确保WebSocket服务也停止
       window.api.webSocket.stop()
     }
@@ -91,13 +98,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
     setIsSending(true)
     try {
-      // 假设你已经在 preload 脚本中暴露了 sendFile 方法
       await window.api.webSocket.sendFile(selectedFolderPath)
-      // 你可以在这里添加成功提示，例如使用 antd 的 message 组件
       console.log('File sent successfully')
     } catch (error) {
       console.error('Failed to send file:', error)
-      // 你可以在这里添加失败提示
     } finally {
       setIsSending(false)
     }
@@ -150,7 +154,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </SettingRow>
 
       <SettingRow style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Space direction="vertical">
+        <Space direction="vertical" style={{ width: '100%' }}>
           <Space>
             <Button onClick={handleSelectZip}>{t('exportToPhone.lan.selectZip')}</Button>
             <Button
@@ -164,6 +168,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <SettingHelpText style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selectedFolderPath || t('exportToPhone.lan.noZipSelected')}
           </SettingHelpText>
+          {isSending && <Progress percent={Math.round(sendProgress)} />}
         </Space>
       </SettingRow>
 

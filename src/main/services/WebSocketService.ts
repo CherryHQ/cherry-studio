@@ -137,24 +137,46 @@ class WebSocketService {
       return { success: false, error: errorMsg }
     }
 
-    try {
-      const fileBuffer = await fs.promises.readFile(filePath)
+    const mainWindow = windowService.getMainWindow()
+
+    return new Promise((resolve, reject) => {
+      const stats = fs.statSync(filePath)
+      const totalSize = stats.size
       const filename = path.basename(filePath)
+      const stream = fs.createReadStream(filePath)
+      let bytesSent = 0
 
-      console.log('fileBuffer', fileBuffer.length)
+      console.log(`Starting to send file ${filename} (${totalSize} bytes)`)
+      // 向客户端发送文件开始的信号，包含文件名和总大小
+      this.io!.emit('zip-file-start', { filename, totalSize })
 
-      // 向所有客户端广播文件
-      this.io.emit('zip-file', { filename, data: fileBuffer })
+      stream.on('data', (chunk) => {
+        bytesSent += chunk.length
+        const progress = (bytesSent / totalSize) * 100
+        // 向客户端发送文件块
+        this.io!.emit('zip-file-chunk', chunk)
 
-      console.log(`File ${filename} sent to ${this.connectedClients.size} clients.`)
-      return { success: true }
-    } catch (error) {
-      console.error('Failed to read and send file:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
-    }
+        // 向渲染进程发送进度更新
+        mainWindow?.webContents.send('file-send-progress', { progress })
+      })
+
+      stream.on('end', () => {
+        console.log(`File ${filename} sent successfully.`)
+        // 确保发送100%的进度
+        mainWindow?.webContents.send('file-send-progress', { progress: 100 })
+        // 向客户端发送文件结束的信号
+        this.io!.emit('zip-file-end')
+        resolve({ success: true })
+      })
+
+      stream.on('error', (error) => {
+        console.error('Failed to read and send file:', error)
+        reject({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      })
+    })
   }
 }
 
