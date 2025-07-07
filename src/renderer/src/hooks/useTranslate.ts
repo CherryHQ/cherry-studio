@@ -43,7 +43,7 @@ export default function useTranslate() {
     setTranslating(false)
 
     const pathname = store.getState().runtime.activeRoute
-    console.log('get pathname', pathname)
+
     if (pathname !== '/translate') {
       // ALTERNATIVE: 也许可以改成通知的形式
       window.message.success(t('translate.success'))
