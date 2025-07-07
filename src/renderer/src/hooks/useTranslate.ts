@@ -5,7 +5,7 @@ import {
   setTranslatedContent as _setTranslatedContent,
   setTranslating as _setTranslating
 } from '@renderer/store/translate'
-import { Assistant, TranslateHistory } from '@renderer/types'
+import { Assistant, LanguageCode, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
 
@@ -26,8 +26,8 @@ export default function useTranslate() {
   const translate = async (
     text: string,
     assistant: Assistant,
-    actualSourceLanguage: string,
-    actualTargetLanguage: string
+    actualSourceLanguage: LanguageCode,
+    actualTargetLanguage: LanguageCode
   ) => {
     setTranslating(true)
     await fetchTranslate({
@@ -53,8 +53,8 @@ export default function useTranslate() {
   const saveTranslateHistory = async (
     sourceText: string,
     targetText: string,
-    sourceLanguage: string,
-    targetLanguage: string
+    sourceLanguage: LanguageCode,
+    targetLanguage: LanguageCode
   ) => {
     const history: TranslateHistory = {
       id: uuid(),
