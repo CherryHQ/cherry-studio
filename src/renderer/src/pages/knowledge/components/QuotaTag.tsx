@@ -12,7 +12,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
   quota: _quota
 }) => {
   const { t } = useTranslation()
-  const { provider, updatePreprocessProvider } = usePreprocessProvider(providerId)
+  const { provider, updateProvider } = usePreprocessProvider(providerId)
   const [quota, setQuota] = useState<number | undefined>(_quota)
 
   useEffect(() => {
@@ -21,7 +21,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
       // 使用用户的key时quota为无限
       if (provider.apiKey) {
         setQuota(-9999)
-        updatePreprocessProvider({ ...provider, quota: -9999 })
+        updateProvider({ quota: -9999 })
         return
       }
       if (quota === undefined) {
@@ -39,7 +39,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
       }
     }
     if (_quota !== undefined) {
-      updatePreprocessProvider({ ...provider, quota: _quota })
+      updateProvider({ quota: _quota })
       return
     }
     checkQuota()
