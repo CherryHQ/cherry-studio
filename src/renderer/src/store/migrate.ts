@@ -1738,7 +1738,7 @@ const migrateConfig = {
       return state
     }
   },
-  '120': (state: RootState) => {
+  '121': (state: RootState) => {
     try {
       const langMap: Record<string, LanguageCode> = {
         english: 'en-us',
