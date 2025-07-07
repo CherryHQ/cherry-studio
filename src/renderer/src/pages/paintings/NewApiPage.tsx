@@ -12,7 +12,12 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
-import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
+import {
+  DEFAULT_PAINTING,
+  getModelGroup,
+  MODELS,
+  SUPPORTED_MODELS
+} from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -89,10 +94,23 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       .map((m) => ({
         label: m.name,
         value: m.id,
-        custom: !SUPPORTED_MODELS.includes(m.id)
+        custom: !SUPPORTED_MODELS.includes(m.id),
+        group: getModelGroup(m.id)
       }))
     return [...customModels]
   }, [newApiProvider.models])
+
+  // 根据 group 将模型进行分组，便于在下拉列表中分组渲染
+  const groupedModelOptions = useMemo(() => {
+    return modelOptions.reduce<Record<string, typeof modelOptions>>((acc, option) => {
+      const groupName = option.group
+      if (!acc[groupName]) {
+        acc[groupName] = []
+      }
+      acc[groupName].push(option)
+      return acc
+    }, {})
+  }, [modelOptions])
 
   const getNewPainting = useCallback(() => {
     return {
@@ -531,10 +549,14 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {/* Model Selector */}
               <SettingTitle style={{ marginTop: 20 }}>{t('paintings.model')}</SettingTitle>
               <Select value={painting.model} onChange={handleModelChange} style={{ width: '100%', marginBottom: 15 }}>
-                {modelOptions.map((m) => (
-                  <Select.Option value={m.value} key={m.value}>
-                    {m.label}
-                  </Select.Option>
+                {Object.entries(groupedModelOptions).map(([groupName, options]) => (
+                  <Select.OptGroup label={groupName} key={groupName}>
+                    {options.map((m) => (
+                      <Select.Option value={m.value} key={m.value}>
+                        {m.label}
+                      </Select.Option>
+                    ))}
+                  </Select.OptGroup>
                 ))}
               </Select>
 
