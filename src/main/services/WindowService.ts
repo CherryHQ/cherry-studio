@@ -41,8 +41,8 @@ export class WindowService {
     }
 
     const mainWindowState = windowStateKeeper({
-      defaultWidth: 1080,
-      defaultHeight: 670,
+      defaultWidth: 960,
+      defaultHeight: 600,
       fullScreen: false,
       maximize: false
     })
@@ -52,7 +52,7 @@ export class WindowService {
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
-      minWidth: 1080,
+      minWidth: 960,
       minHeight: 600,
       show: false,
       autoHideMenuBar: true,

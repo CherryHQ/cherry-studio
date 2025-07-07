@@ -68,7 +68,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.4",
+    "selection-hook": "^1.0.5",
     "turndown": "7.2.0"
   },
   "devDependencies": {
@@ -112,6 +112,7 @@
     "@shikijs/markdown-it": "^3.7.0",
     "@swc/plugin-styled-components": "^7.1.5",
     "@tanstack/react-query": "^5.27.0",
+    "@tanstack/react-virtual": "^3.13.12",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

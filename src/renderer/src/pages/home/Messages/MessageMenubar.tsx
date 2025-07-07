@@ -15,7 +15,7 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
+import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -399,7 +399,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const softHoverBg = isBubbleStyle && !isLastMessage
 
   return (
-    <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
+    <MenusBar className={classNames({ menubar: true, show: isLastMessage })}>
       {message.role === 'user' && (
         <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
           <ActionButton

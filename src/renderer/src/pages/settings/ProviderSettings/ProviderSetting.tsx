@@ -1,26 +1,27 @@
-import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
+import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
+import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { Provider } from '@renderer/types'
-import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
+import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Checkbox, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { SquareArrowOutUpRight } from 'lucide-react'
+import { List, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
-import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,7 +33,6 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiCheckPopup from './ApiCheckPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
@@ -45,25 +45,20 @@ import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
 interface Props {
-  provider: Provider
+  providerId: string
 }
 
-const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
-  const { provider } = useProvider(_provider.id)
+const ProviderSetting: FC<Props> = ({ providerId }) => {
+  const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
-  const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [apiValid, setApiValid] = useState(false)
-  const [apiChecking, setApiChecking] = useState(false)
   const [modelSearchText, setModelSearchText] = useState('')
   const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(provider?.isNotSupportArrayContent || false)
   const deferredModelSearchText = useDeferredValue(modelSearchText)
-  const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -77,13 +72,42 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
+  const fancyProviderName = getFancyProviderName(provider)
+
+  const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
+  const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
+    status: 'not_checked',
+    checking: false
+  })
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSetApiKey = useCallback(
+  const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
-      setApiKey(formatApiKeys(value))
-    }, 100),
+      updateProvider({ apiKey: formatApiKeys(value) })
+    }, 150),
     []
   )
+
+  // 同步 provider.apiKey 到 localApiKey
+  // 重置连通性检查状态
+  useEffect(() => {
+    setLocalApiKey(provider.apiKey)
+    setApiKeyConnectivity({ status: 'not_checked' })
+  }, [provider.apiKey])
+
+  // 同步 localApiKey 到 provider.apiKey（防抖）
+  useEffect(() => {
+    if (localApiKey !== provider.apiKey) {
+      debouncedUpdateApiKey(localApiKey)
+    }
+
+    // 卸载时取消任何待执行的更新
+    return () => debouncedUpdateApiKey.cancel()
+  }, [localApiKey, provider.apiKey, debouncedUpdateApiKey])
+
+  const isApiKeyConnectable = useMemo(() => {
+    return apiKeyConnectivity.status === 'success'
+  }, [apiKeyConnectivity])
 
   const moveProviderToTop = useCallback(
     (providerId: string) => {
@@ -100,21 +124,23 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     [allProviders, updateProviders]
   )
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
-
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
-      updateProvider({ ...provider, apiHost })
+      updateProvider({ apiHost })
     } else {
       setApiHost(provider.apiHost)
     }
   }
 
-  const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
+  const onUpdateApiVersion = () => updateProvider({ apiVersion })
+
+  const openApiKeyList = async () => {
+    await ApiKeyListPopup.show({
+      providerId: provider.id,
+      providerKind: 'llm',
+      title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
+    })
+  }
 
   const onHealthCheck = async () => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
@@ -129,7 +155,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = splitApiKeyString(apiKey)
+    const keys = splitApiKeyString(provider.apiKey)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -194,6 +220,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onCheckApi = async () => {
+    // 如果存在多个密钥，直接打开管理窗口
+    if (provider.apiKey.includes(',')) {
+      await openApiKeyList()
+      return
+    }
+
     const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
@@ -213,58 +245,38 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    if (apiKey.includes(',')) {
-      const keys = splitApiKeyString(apiKey)
+    try {
+      setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: 'not_checked' }))
+      await checkApi({ ...provider, apiHost }, model)
 
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        model,
-        apiKeys: keys,
-        type: 'provider'
+      window.message.success({
+        key: 'api-check',
+        style: { marginTop: '3vh' },
+        duration: 2,
+        content: i18n.t('message.api.connection.success')
       })
 
-      if (result?.validKeys) {
-        const newApiKey = result.validKeys.join(',')
-        setInputValue(newApiKey)
-        setApiKey(newApiKey)
-        updateProvider({ ...provider, apiKey: newApiKey })
-      }
-    } else {
-      setApiChecking(true)
+      setApiKeyConnectivity((prev) => ({ ...prev, status: 'success' }))
+      setTimeout(() => {
+        setApiKeyConnectivity((prev) => ({ ...prev, status: 'not_checked' }))
+      }, 3000)
+    } catch (error: any) {
+      window.message.error({
+        key: 'api-check',
+        style: { marginTop: '3vh' },
+        duration: 8,
+        content: i18n.t('message.api.connection.failed')
+      })
 
-      try {
-        await checkApi({ ...provider, apiKey, apiHost }, model)
-
-        window.message.success({
-          key: 'api-check',
-          style: { marginTop: '3vh' },
-          duration: 2,
-          content: i18n.t('message.api.connection.success')
-        })
-
-        setApiValid(true)
-        setTimeout(() => setApiValid(false), 3000)
-      } catch (error: any) {
-        const errorMessage = error?.message ? ' ' + error.message : ''
-
-        window.message.error({
-          key: 'api-check',
-          style: { marginTop: '3vh' },
-          duration: 8,
-          content: i18n.t('message.api.connection.failed') + errorMessage
-        })
-
-        setApiValid(false)
-      } finally {
-        setApiChecking(false)
-      }
+      setApiKeyConnectivity((prev) => ({ ...prev, status: 'error', error: formatErrorMessage(error) }))
+    } finally {
+      setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
   }
 
   const onReset = () => {
     setApiHost(configedApiHost)
-    updateProvider({ ...provider, apiHost: configedApiHost })
+    updateProvider({ apiHost: configedApiHost })
   }
 
   const hostPreview = () => {
@@ -277,28 +289,31 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'responses'
   }
 
+  // API key 连通性检查状态指示器，目前仅在失败时显示
+  const renderStatusIndicator = () => {
+    if (apiKeyConnectivity.checking || apiKeyConnectivity.status !== 'error') {
+      return null
+    }
+
+    return (
+      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
+        <CloseCircleFilled style={{ color: 'var(--color-status-error)' }} />
+      </Tooltip>
+    )
+  }
+
   useEffect(() => {
     if (provider.id === 'copilot') {
       return
     }
-    setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost, provider.id])
-
-  // Save apiKey to provider when unmount
-  useEffect(() => {
-    return () => {
-      if (apiKey.trim() && apiKey !== provider.apiKey) {
-        updateProvider({ ...provider, apiKey })
-      }
-    }
-  }, [apiKey, provider, updateProvider])
+  }, [provider.apiHost, provider.id])
 
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={5}>
-          <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
+          <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
@@ -309,7 +324,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           value={provider.enabled}
           key={provider.id}
           onChange={(enabled) => {
-            updateProvider({ ...provider, apiKey, apiHost, enabled })
+            updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)
             }
@@ -317,45 +332,48 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isProviderSupportAuth(provider) && (
-        <ProviderOAuth
-          provider={provider}
-          setApiKey={(v) => {
-            setApiKey(v)
-            setInputValue(v)
-            updateProvider({ ...provider, apiKey: v })
-          }}
-        />
-      )}
+      {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
-      {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
+      {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id !== 'vertexai' && (
         <>
-          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            {t('settings.provider.api_key')}
+            {provider.id !== 'copilot' && (
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              </Tooltip>
+            )}
+          </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
-              value={inputValue}
+              value={localApiKey}
               placeholder={t('settings.provider.api_key')}
-              onChange={(e) => {
-                setInputValue(e.target.value)
-                debouncedSetApiKey(e.target.value)
-              }}
-              onBlur={() => {
-                const formattedValue = formatApiKeys(inputValue)
-                setInputValue(formattedValue)
-                setApiKey(formattedValue)
-                onUpdateApiKey()
-              }}
+              onChange={(e) => setLocalApiKey(e.target.value)}
               spellCheck={false}
-              autoFocus={provider.enabled && apiKey === '' && !isProviderSupportAuth(provider)}
+              autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
+              // FIXME：暂时用 prefix。因为 suffix 会被覆盖，实际上不起作用。
+              prefix={renderStatusIndicator()}
             />
             <Button
-              type={apiValid ? 'primary' : 'default'}
-              ghost={apiValid}
+              type={isApiKeyConnectable ? 'primary' : 'default'}
+              ghost={isApiKeyConnectable}
               onClick={onCheckApi}
-              disabled={!apiHost || apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.provider.check')}
+              disabled={!apiHost || apiKeyConnectivity.checking}>
+              {apiKeyConnectivity.checking ? (
+                <LoadingOutlined spin />
+              ) : apiKeyConnectivity.status === 'success' ? (
+                <CheckOutlined />
+              ) : (
+                t('settings.provider.check')
+              )}
             </Button>
           </Space.Compact>
           {apiKeyWebsite && (
@@ -416,7 +434,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
-      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
+      {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
       <SettingSubtitle>{t('settings.provider.misc')}</SettingSubtitle>
       <Checkbox
@@ -464,6 +482,14 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
+`
+
+const ErrorOverlay = styled.div`
+  max-height: 200px;
+  overflow-y: auto;
+  max-width: 300px;
+  word-wrap: break-word;
+  user-select: text;
 `
 
 const CheckboxLabelContainer = styled.div`

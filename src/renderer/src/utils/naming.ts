@@ -1,3 +1,6 @@
+import i18n from '@renderer/i18n'
+import { Provider } from '@renderer/types'
+
 /**
  * 从模型 ID 中提取默认组名。
  * 规则如下：
@@ -71,6 +74,15 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
   return getBaseModelName(id, delimiter).toLowerCase()
+}
+
+/**
+ * 获取模型服务商名称，根据是否内置服务商来决定要不要翻译
+ * @param provider 服务商
+ * @returns 描述性的名字
+ */
+export const getFancyProviderName = (provider: Provider) => {
+  return provider.isSystem ? i18n.t(`provider.${provider.id}`) : provider.name
 }
 
 /**

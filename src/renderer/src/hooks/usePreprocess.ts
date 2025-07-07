@@ -14,10 +14,11 @@ export const usePreprocessProvider = (id: string) => {
   if (!provider) {
     throw new Error(`preprocess provider with id ${id} not found`)
   }
-  const updatePreprocessProvider = (preprocessProvider: PreprocessProvider) => {
-    dispatch(_updatePreprocessProvider(preprocessProvider))
+
+  return {
+    provider,
+    updateProvider: (updates: Partial<PreprocessProvider>) => dispatch(_updatePreprocessProvider({ id, ...updates }))
   }
-  return { provider, updatePreprocessProvider }
 }
 
 export const usePreprocessProviders = () => {

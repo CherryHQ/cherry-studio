@@ -1,11 +1,16 @@
 :root {
-  --color-scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --color-scrollbar-thumb-dark: rgba(255, 255, 255, 0.15);
+  --color-scrollbar-thumb-dark-hover: rgba(255, 255, 255, 0.2);
+  --color-scrollbar-thumb-light: rgba(0, 0, 0, 0.15);
+  --color-scrollbar-thumb-light-hover: rgba(0, 0, 0, 0.2);
+
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
 }
 
 body[theme-mode='light'] {
-  --color-scrollbar-thumb: rgba(0, 0, 0, 0.15);
-  --color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-light);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-light-hover);
 }
 
 /* 全局初始化滚动条样式 */
@@ -33,4 +38,22 @@ pre:not(.shiki)::-webkit-scrollbar-thumb {
   &:hover {
     background: rgba(0, 0, 0, 0.15);
   }
+}
+
+.shiki-dark {
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
+}
+
+.shiki-light {
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-light);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-light-hover);
+}
+
+/* 用于截图时隐藏滚动条
+ * FIXME: 临时方案，因为 html-to-image 没有正确处理伪元素。
+ */
+.hide-scrollbar,
+.hide-scrollbar * {
+  scrollbar-width: none !important;
 }

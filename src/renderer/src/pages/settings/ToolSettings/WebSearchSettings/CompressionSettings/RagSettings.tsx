@@ -138,7 +138,7 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
-          <Tooltip title={t('settings.websearch.compression.rag.embedding_dimensions.tooltip')}>
+          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.tooltip')}>
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
@@ -179,7 +179,7 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('settings.tool.websearch.compression.rag.document_count')}
-          <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="right">
+          <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="top">
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
@@ -191,7 +191,7 @@ const RagSettings = () => {
             step={1}
             onChange={handleDocumentCountChange}
             marks={{
-              1: t('settings.tool.websearch.compression.rag.document_count.default'),
+              1: t('common.default'),
               3: '3',
               10: '10'
             }}

@@ -69,7 +69,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                 const extractionResults = tagExtractor.processText(textChunk.text)
 
                 for (const extractionResult of extractionResults) {
-                  if (extractionResult.complete && extractionResult.tagContentExtracted) {
+                  if (extractionResult.complete && extractionResult.tagContentExtracted?.trim()) {
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
@@ -89,12 +89,14 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                         thinkingStartTime = Date.now()
                       }
 
-                      const thinkingDeltaChunk: ThinkingDeltaChunk = {
-                        type: ChunkType.THINKING_DELTA,
-                        text: extractionResult.content,
-                        thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                      if (extractionResult.content?.trim()) {
+                        const thinkingDeltaChunk: ThinkingDeltaChunk = {
+                          type: ChunkType.THINKING_DELTA,
+                          text: extractionResult.content,
+                          thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                        }
+                        controller.enqueue(thinkingDeltaChunk)
                       }
-                      controller.enqueue(thinkingDeltaChunk)
                     } else {
                       // 发送清理后的文本内容
                       const cleanTextChunk: TextDeltaChunk = {
