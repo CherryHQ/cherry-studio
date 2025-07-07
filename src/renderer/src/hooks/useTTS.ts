@@ -53,18 +53,11 @@ export const useTTS = () => {
 
   // 同步 Redux 状态到 TTS 服务
   useEffect(() => {
-    console.log('[useTTS] useEffect triggered. Checking for provider changes.')
     const providersChanged = JSON.stringify(lastProvidersRef.current) !== JSON.stringify(ttsState.providers)
 
     if (providersChanged) {
-      console.log('[useTTS] Provider config changed. Reloading TTSService.', {
-        from: lastProvidersRef.current,
-        to: ttsState.providers
-      })
       ttsService.reloadProviders(ttsState.providers)
       lastProvidersRef.current = JSON.parse(JSON.stringify(ttsState.providers))
-    } else {
-      console.log('[useTTS] No provider config changes detected.')
     }
   }, [ttsService, ttsState.providers])
 

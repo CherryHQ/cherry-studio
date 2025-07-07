@@ -121,13 +121,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const { isBubbleStyle } = useMessageStyle()
 
-  // ==================================================================
-  // 调试日志：打印特定消息对象
-  // ==================================================================
-  console.log('[MessageMenubar] Inspecting problematic message object:', JSON.stringify(message, null, 2))
-
-  // ==================================================================
-
   const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
@@ -474,33 +467,25 @@ const MessageMenubar: FC<Props> = (props) => {
 
         // 使用状态机处理状态转移
         const { action } = manager.togglePlayback(message.id)
-        console.log(`[MessageMenubar] TTSToggle: messageId=${message.id}, action=${action}`)
 
         switch (action) {
           case 'start': {
             // 开始播放
-            console.log('[MessageMenubar] Action: start. Stopping all previous TTS.')
             tts.stopAll() // 先停止其他播放
             await new Promise((resolve) => setTimeout(resolve, 100))
 
             // 将 Markdown 转换为适合 TTS 播放的纯文本
             const ttsText = markdownToTTSText(mainTextContent)
-            console.log(`[MessageMenubar] mainTextContent: "${mainTextContent}"`)
-            console.log(`[MessageMenubar] ttsText (after markdownToTTSText): "${ttsText}"`)
-            console.log(`[MessageMenubar] Calling tts.speak() for messageId=${message.id}`)
 
             try {
               await tts.speak(ttsText)
-              console.log(`[MessageMenubar] tts.speak() finished for messageId=${message.id}`)
               // 播放完成，设置为空闲状态（只有在没有被手动停止的情况下）
               const currentInfo = manager.getPlaybackInfo()
               if (currentInfo.currentMessageId === message.id && currentInfo.state !== 'idle') {
-                console.log('[MessageMenubar] Playback finished naturally. Setting state to idle.')
                 manager.setPlaybackState('idle')
               }
             } catch (error) {
               // 播放出错，设置为空闲状态
-              console.error(`[MessageMenubar] tts.speak() caught an error for messageId=${message.id}`, error)
               manager.setPlaybackState('idle')
               throw error
             }
@@ -509,7 +494,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
           case 'stop':
             // 停止播放
-            console.log(`[MessageMenubar] Action: stop. Stopping TTS for messageId=${message.id}`)
             tts.stop()
             // 状态已经在 togglePlayback 中设置为 idle，无需重复设置
             break

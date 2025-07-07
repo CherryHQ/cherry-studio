@@ -177,23 +177,19 @@ export class TTSService {
    * 停止所有正在播放的 TTS
    */
   stopAll(): void {
-    console.log('[TTSService] stopAll() called.')
     try {
       // 停止当前活跃的供应商
       if (this.activeProvider) {
-        console.log(`[TTSService] Stopping active provider: ${this.activeProvider.getProvider().id}`)
         this.activeProvider.stop()
         this.activeProvider = null
       }
       // 也停止当前供应商（以防万一）
       if (this.currentProvider) {
-        console.log(`[TTSService] Stopping current provider: ${this.currentProvider.getProvider().id}`)
         this.currentProvider.stop()
       }
       // 停止所有供应商实例（确保彻底清理）
-      this.providers.forEach((provider, id) => {
+      this.providers.forEach((provider) => {
         try {
-          console.log(`[TTSService] Force stopping provider instance: ${id}`)
           provider.stop()
         } catch (error) {
           // 忽略单个供应商停止时的错误

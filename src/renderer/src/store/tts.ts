@@ -47,12 +47,10 @@ const ttsSlice = createSlice({
 
     // 启用/禁用 TTS 供应商
     setTTSProviderEnabled: (state, action: PayloadAction<{ id: string; enabled: boolean }>) => {
-      console.log('[TTS Store] setTTSProviderEnabled:', action.payload)
       const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         if (action.payload.enabled) {
           // 启用新供应商时，先禁用所有其他供应商
-          console.log('[TTS Store] Enabling provider, disabling others')
           state.providers.forEach((p) => {
             if (p.id !== action.payload.id) {
               p.enabled = false
@@ -62,11 +60,9 @@ const ttsSlice = createSlice({
           provider.enabled = true
           // 设为当前供应商
           state.currentProvider = action.payload.id
-          console.log('[TTS Store] Set current provider to:', action.payload.id)
         } else {
           // 禁用供应商
           provider.enabled = false
-          console.log('[TTS Store] Disabled provider:', action.payload.id)
 
           // 如果禁用的是当前供应商，清除当前供应商
           if (state.currentProvider === action.payload.id) {
@@ -74,11 +70,9 @@ const ttsSlice = createSlice({
             const enabledProvider = state.providers.find((p) => p.id !== action.payload.id && p.enabled)
             if (enabledProvider) {
               state.currentProvider = enabledProvider.id
-              console.log('[TTS Store] Switched to enabled provider:', enabledProvider.id)
             } else {
               // 如果没有其他启用的供应商，清除当前供应商
               state.currentProvider = null
-              console.log('[TTS Store] No enabled providers, cleared current provider')
             }
           }
         }

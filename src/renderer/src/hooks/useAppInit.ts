@@ -30,9 +30,7 @@ export function useAppInit() {
   const memoryConfig = useAppSelector(selectMemoryConfig)
 
   useEffect(() => {
-    console.time('init')
     document.getElementById('spinner')?.remove()
-    console.timeEnd('init')
 
     // Initialize MemoryService after app is ready
     MemoryService.getInstance()
