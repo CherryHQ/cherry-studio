@@ -194,7 +194,7 @@ export class TTSProviderFactory {
       },
       // 新增：为自建服务定义默认配置
       self_host: {
-        endpoint: '', // 默认 endpoint 为空，需要用户填写
+        url: '', // 默认 url 为空，需要用户填写
         voice: 'default',
         autoPlay: false
       }

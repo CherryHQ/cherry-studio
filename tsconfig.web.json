@@ -12,7 +12,6 @@
     "baseUrl": ".",
     "moduleResolution": "bundler",
     "paths": {
-      "@/*": ["src/renderer/src/*"],
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],
       "@types": ["src/renderer/src/types/index.ts"]
