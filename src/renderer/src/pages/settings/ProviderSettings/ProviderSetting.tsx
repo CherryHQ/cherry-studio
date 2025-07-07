@@ -82,8 +82,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   })
 
   const [headerText, setHeaderText] = useState<string>(JSON.stringify(provider.extra_headers || {}, null, 2))
-  const [tools, setTools] = useState<CodeTool[]>([])
-  const { registerTool, removeTool } = useCodeTool(setTools)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
@@ -324,18 +322,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }, [headerText, provider, updateProvider, t])
 
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.save,
-      icon: <SaveIcon className="icon" />,
-      tooltip: t('common.save'),
-      onClick: onUpdateHeaders
-    })
-    return () => {
-      removeTool(TOOL_SPECS.save.id)
-    }
-  }, [onUpdateHeaders, registerTool, removeTool, t])
-
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -459,12 +445,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               </SettingSubtitle>
               <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
                 <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
-                <CodeToolbar tools={tools} />
                 <CodeEditor
                   value={headerText}
                   language="json"
                   onChange={(value) => setHeaderText(value)}
-                  setTools={setTools}
+                  onBlur={onUpdateHeaders}
                   placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
                   options={{
                     lint: true,
