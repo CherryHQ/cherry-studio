@@ -10,7 +10,7 @@ import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
-import { FileType, FileTypes } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -31,7 +31,7 @@ const FilesPage: FC = () => {
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
-  const files = useLiveQuery<FileType[]>(() => {
+  const files = useLiveQuery<FileMetadata[]>(() => {
     if (fileType === 'all') {
       return db.files.orderBy('count').toArray().then(tempFilesSort)
     }

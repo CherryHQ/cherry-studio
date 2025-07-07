@@ -23,6 +23,9 @@ exports.default = async function (context) {
     const node_modules_path = path.join(context.appOutDir, 'resources', 'app.asar.unpacked', 'node_modules')
     const _arch = arch === Arch.arm64 ? ['linux-arm64-gnu', 'linux-arm64-musl'] : ['linux-x64-gnu', 'linux-x64-musl']
     keepPackageNodeFiles(node_modules_path, '@libsql', _arch)
+
+    // 删除 macOS 专用的 OCR 包
+    removeMacOnlyPackages(node_modules_path)
   }
 
   if (platform === 'windows') {
@@ -35,12 +38,30 @@ exports.default = async function (context) {
       keepPackageNodeFiles(node_modules_path, '@strongtz', ['win32-x64-msvc'])
       keepPackageNodeFiles(node_modules_path, '@libsql', ['win32-x64-msvc'])
     }
+
+    removeMacOnlyPackages(node_modules_path)
   }
 
   if (platform === 'windows') {
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
   }
+}
+
+/**
+ * 删除 macOS 专用的包
+ * @param {string} nodeModulesPath
+ */
+function removeMacOnlyPackages(nodeModulesPath) {
+  const macOnlyPackages = ['@cherrystudio/mac-system-ocr']
+
+  macOnlyPackages.forEach((packageName) => {
+    const packagePath = path.join(nodeModulesPath, packageName)
+    if (fs.existsSync(packagePath)) {
+      fs.rmSync(packagePath, { recursive: true, force: true })
+      console.log(`[After Pack] Removed macOS-only package: ${packageName}`)
+    }
+  })
 }
 
 /**

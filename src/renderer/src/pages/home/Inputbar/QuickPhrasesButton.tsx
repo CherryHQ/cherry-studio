@@ -45,7 +45,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
       const assistantPrompts = assistant.regularPhrases || []
       setQuickPhrasesList([...assistantPrompts, ...phrases])
     },
-    [assistant]
+    [assistant.regularPhrases]
   )
 
   useEffect(() => {

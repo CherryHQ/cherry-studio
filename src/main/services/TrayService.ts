@@ -84,10 +84,8 @@ export class TrayService {
         label: trayLocale.show_mini_window,
         click: () => windowService.showMiniWindow()
       },
-      isWin && {
+      (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
-        // type: 'checkbox',
-        // checked: selectionAssistantEnabled,
         click: () => {
           if (selectionService) {
             selectionService.toggleEnabled()

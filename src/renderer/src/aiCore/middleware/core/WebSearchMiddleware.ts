@@ -42,7 +42,12 @@ export const WebSearchMiddleware: CompletionsMiddleware =
                 const providerType = model.provider || 'openai'
                 // 使用当前可用的Web搜索结果进行链接转换
                 const text = chunk.text
-                const result = smartLinkConverter(text, providerType, isFirstChunk)
+                const result = smartLinkConverter(
+                  text,
+                  providerType,
+                  isFirstChunk,
+                  ctx._internal.webSearchState!.results
+                )
                 if (isFirstChunk) {
                   isFirstChunk = false
                 }

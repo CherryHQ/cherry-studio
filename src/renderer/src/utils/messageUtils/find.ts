@@ -1,6 +1,6 @@
 import store from '@renderer/store'
 import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -145,8 +145,8 @@ export const getCitationContent = (message: Message): string => {
  * @param message - The message object.
  * @returns The file content or an empty string if no file blocks are found.
  */
-export const getFileContent = (message: Message): FileType[] => {
-  const files: FileType[] = []
+export const getFileContent = (message: Message): FileMetadata[] => {
+  const files: FileMetadata[] = []
   const fileBlocks = findFileBlocks(message)
   for (const block of fileBlocks) {
     if (block.file) {

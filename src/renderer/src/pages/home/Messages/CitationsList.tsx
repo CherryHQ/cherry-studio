@@ -1,5 +1,6 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -8,17 +9,6 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-export interface Citation {
-  number: number
-  url: string
-  title?: string
-  hostname?: string
-  content?: string
-  showFavicon?: boolean
-  type?: string
-  metadata?: Record<string, any>
-}
 
 interface CitationsListProps {
   citations: Citation[]
@@ -87,7 +77,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           </div>
         }
         placement="right"
-        trigger="hover"
+        trigger="click"
         styles={{
           body: {
             padding: '0 0 8px 0'
@@ -182,9 +172,9 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         <WebSearchCardHeader>
           {citation.showFavicon && <FileSearch width={16} />}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-            {citation.title}
+            {/* example title: User/path/example.pdf */}
+            {citation.title?.split('/').pop()}
           </CitationLink>
-
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>

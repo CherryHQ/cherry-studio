@@ -164,7 +164,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
@@ -524,6 +524,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina AI'
     }
   ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    }
+  ],
   aihubmix: [
     {
       id: 'o3',
@@ -844,18 +858,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ppio',
       name: 'Qwen3 Reranker 8B',
       group: 'qwen'
-    },
-    {
-      id: 'thudm/glm-z1-32b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 32B',
-      group: 'thudm'
-    },
-    {
-      id: 'thudm/glm-z1-9b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 9B',
-      group: 'thudm'
     }
   ],
   alayanew: [],
@@ -2233,7 +2235,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2317,8 +2320,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',

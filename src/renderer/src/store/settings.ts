@@ -11,6 +11,7 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 
 import { WebDAVSyncState } from './backup'
@@ -47,6 +48,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  userId: string
   showPrompt: boolean
   showTokens: boolean
   showMessageDivider: boolean
@@ -161,6 +163,8 @@ export interface SettingsState {
   spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
+  // 硬件加速设置
+  disableHardwareAcceleration: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -182,7 +186,7 @@ export interface SettingsState {
   notification: {
     assistant: boolean
     backup: boolean
-    knowledgeEmbed: boolean
+    knowledge: boolean
   }
   defaultPaintingProvider: PaintingProvider
 }
@@ -199,6 +203,7 @@ export const initialState: SettingsState = {
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  userId: uuid(),
   showPrompt: true,
   showTokens: true,
   showMessageDivider: true,
@@ -307,6 +312,8 @@ export const initialState: SettingsState = {
   spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
+  // 硬件加速设置
+  disableHardwareAcceleration: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -327,7 +334,7 @@ export const initialState: SettingsState = {
   notification: {
     assistant: false,
     backup: false,
-    knowledgeEmbed: false
+    knowledge: false
   },
   defaultPaintingProvider: 'aihubmix'
 }
@@ -682,6 +689,9 @@ const settingsSlice = createSlice({
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
     },
+    setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
+      state.disableHardwareAcceleration = action.payload
+    },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
@@ -798,6 +808,7 @@ export const {
   setExportMenuOptions,
   setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
+  setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,

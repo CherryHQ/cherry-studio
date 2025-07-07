@@ -68,6 +68,9 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       const originalScrollTop = div.scrollTop
 
+      // Hide scrollbars during capture
+      div.classList.add('hide-scrollbar')
+
       // Modify styles to show full content
       div.style.height = 'auto'
       div.style.maxHeight = 'none'
@@ -134,6 +137,9 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
     } catch (error) {
       console.error('Error capturing scrollable div:', error)
       throw error
+    } finally {
+      // Remove scrollbar hiding class
+      divRef.current?.classList.remove('hide-scrollbar')
     }
   }
 
