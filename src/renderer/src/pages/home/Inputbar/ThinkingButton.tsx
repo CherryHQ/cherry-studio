@@ -36,7 +36,7 @@ interface Props {
 // 模型类型到支持选项的映射表
 const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   default: ['off', 'low', 'medium', 'high'],
-  grok: ['off', 'low', 'high'],
+  grok: ['low', 'high'],
   gemini: ['off', 'low', 'medium', 'high', 'auto'],
   gemini_pro: ['low', 'medium', 'high', 'auto'],
   qwen: ['off', 'low', 'medium', 'high'],

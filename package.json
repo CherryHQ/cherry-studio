@@ -58,6 +58,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
     "@cherrystudio/pdf-to-img-napi": "^0.0.1",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
@@ -68,7 +69,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.4",
+    "selection-hook": "^1.0.5",
     "turndown": "7.2.0"
   },
   "devDependencies": {
