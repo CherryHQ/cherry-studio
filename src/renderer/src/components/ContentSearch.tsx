@@ -368,16 +368,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             </InputWrapper>
             <Separator></Separator>
             <SearchResults>
-              {searchCompleted !== SearchCompletedState.NotSearched ? (
-                allRanges.length > 0 ? (
-                  <>
-                    <SearchResultCount>{currentIndex + 1}</SearchResultCount>
-                    <SearchResultSeparator>/</SearchResultSeparator>
-                    <SearchResultTotalCount>{allRanges.length}</SearchResultTotalCount>
-                  </>
-                ) : (
-                  <NoResults>{t('common.no_results')}</NoResults>
-                )
+              {searchCompleted !== SearchCompletedState.NotSearched && allRanges.length > 0 ? (
+                <>
+                  <SearchResultCount>{currentIndex + 1}</SearchResultCount>
+                  <SearchResultSeparator>/</SearchResultSeparator>
+                  <SearchResultTotalCount>{allRanges.length}</SearchResultTotalCount>
+                </>
               ) : (
                 <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
               )}
@@ -478,10 +474,6 @@ const SearchResults = styled.div`
 const SearchResultsPlaceholder = styled.span`
   color: var(--color-text-1);
   opacity: 0.5;
-`
-
-const NoResults = styled.span`
-  color: var(--color-text-1);
 `
 
 const SearchResultCount = styled.span`
