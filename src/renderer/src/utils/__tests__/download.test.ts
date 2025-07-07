@@ -14,6 +14,14 @@ const mockRevokeObjectURL = vi.fn()
 // Mock fetch
 const mockFetch = vi.fn()
 
+// Mock window.message
+const mockMessage = {
+  error: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn()
+}
+
 // 辅助函数
 const waitForAsync = () => new Promise((resolve) => setTimeout(resolve, 10))
 const createMockResponse = (options = {}) => ({
@@ -26,6 +34,9 @@ const createMockResponse = (options = {}) => ({
 describe('download', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    // 设置 window.message mock
+    Object.defineProperty(window, 'message', { value: mockMessage, writable: true })
 
     // 设置 DOM mock
     const mockElement = {
@@ -190,9 +201,22 @@ describe('download', () => {
 
   describe('Error handling', () => {
     it('should handle network errors gracefully', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'))
+      const networkError = new Error('Network error')
+      mockFetch.mockRejectedValue(networkError)
 
       expect(() => download('https://example.com/file.pdf')).not.toThrow()
+      await waitForAsync()
+
+      expect(mockMessage.error).toHaveBeenCalledWith('下载失败：Network error')
+    })
+
+    it('should handle fetch errors without message', async () => {
+      mockFetch.mockRejectedValue(new Error())
+
+      expect(() => download('https://example.com/file.pdf')).not.toThrow()
+      await waitForAsync()
+
+      expect(mockMessage.error).toHaveBeenCalledWith('下载失败：网络连接失败')
     })
 
     it('should handle HTTP errors gracefully', async () => {

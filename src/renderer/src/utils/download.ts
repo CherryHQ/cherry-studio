@@ -76,6 +76,12 @@ export const download = (url: string, filename?: string) => {
       URL.revokeObjectURL(blobUrl)
       link.remove()
     })
+    .catch((error) => {
+      console.error('Download failed:', error)
+      // 显示用户友好的错误提示
+      const errorMessage = error.message || '网络连接失败'
+      window.message?.error(`下载失败：${errorMessage}`)
+    })
 }
 
 // 辅助函数：根据MIME类型获取文件扩展名
