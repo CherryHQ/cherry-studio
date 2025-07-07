@@ -1,9 +1,27 @@
-import { Server } from 'socket.io'
+import { networkInterfaces } from 'os'
+import { Server, Socket } from 'socket.io'
+
+import { windowService } from './WindowService'
 
 class WebSocketService {
   private io: Server | null = null
   private isStarted = false
   private port = 3000
+  private connectedClients = new Set<string>()
+
+  private getLocalIpAddress(): string | undefined {
+    const interfaces = networkInterfaces()
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          console.info('获取局域网 IP：', iface.address)
+          return iface.address
+        }
+      }
+    }
+    console.warn('无法获取局域网 IP，使用默认 IP: 127.0.0.1')
+    return '127.0.0.1'
+  }
 
   public start = async (): Promise<{ success: boolean; port?: number; error?: string }> => {
     if (this.isStarted && this.io) {
@@ -11,30 +29,41 @@ class WebSocketService {
     }
 
     try {
-      // 尝试启动服务器
       this.io = new Server(this.port, {
         cors: {
           origin: '*'
         }
       })
 
-      // 设置连接处理
-      this.io.on('connection', (socket) => {
+      this.io.on('connection', (socket: Socket) => {
         console.log('Client connected:', socket.id)
+        this.connectedClients.add(socket.id)
 
-        // 监听移动端发送的消息
+        const mainWindow = windowService.getMainWindow()
+        mainWindow?.webContents.send('websocket-client-connected', {
+          connected: true,
+          clientId: socket.id
+        })
+
         socket.on('message', (data) => {
           console.log('Received message from mobile:', data)
-          // 可以回复确认消息
+          mainWindow?.webContents.send('websocket-message-received', data)
           socket.emit('message_received', { success: true })
         })
 
         socket.on('disconnect', () => {
           console.log('Client disconnected:', socket.id)
+          this.connectedClients.delete(socket.id)
+
+          if (this.connectedClients.size === 0) {
+            mainWindow?.webContents.send('websocket-client-connected', {
+              connected: false,
+              clientId: socket.id
+            })
+          }
         })
       })
 
-      // 处理服务器错误
       this.io.engine.on('connection_error', (err) => {
         console.error('WebSocket connection error:', err)
       })
@@ -66,6 +95,7 @@ class WebSocketService {
 
       this.io = null
       this.isStarted = false
+      this.connectedClients.clear()
       console.log('WebSocket server stopped')
 
       return { success: true }
@@ -75,10 +105,17 @@ class WebSocketService {
     }
   }
 
-  public getStatus = async (): Promise<{ isRunning: boolean; port?: number }> => {
+  public getStatus = async (): Promise<{
+    isRunning: boolean
+    port?: number
+    ip?: string
+    clientConnected: boolean
+  }> => {
     return {
       isRunning: this.isStarted,
-      port: this.isStarted ? this.port : undefined
+      port: this.isStarted ? this.port : undefined,
+      ip: this.isStarted ? this.getLocalIpAddress() : undefined,
+      clientConnected: this.connectedClients.size > 0
     }
   }
 }

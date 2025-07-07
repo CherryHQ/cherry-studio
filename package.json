@@ -68,6 +68,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
+    "qrcode.react": "^4.2.0",
     "selection-hook": "^1.0.4",
     "socket.io": "^4.8.1",
     "turndown": "7.2.0"
