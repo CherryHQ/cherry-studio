@@ -58,11 +58,10 @@ export const useWebSearchProvider = (id: string) => {
     throw new Error(`Web search provider with id ${id} not found`)
   }
 
-  const updateProvider = (provider: WebSearchProvider) => {
-    dispatch(updateWebSearchProvider(provider))
+  return {
+    provider,
+    updateProvider: (updates: Partial<WebSearchProvider>) => dispatch(updateWebSearchProvider({ id, ...updates }))
   }
-
-  return { provider, updateProvider }
 }
 
 export const useBlacklist = () => {

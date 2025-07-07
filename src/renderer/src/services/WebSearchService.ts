@@ -22,6 +22,7 @@ import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
 import { LRUCache } from 'lru-cache'
+import { sliceByTokens } from 'tokenx'
 
 import { getKnowledgeBaseParams } from './KnowledgeService'
 import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
@@ -383,9 +384,6 @@ class WebSearchService {
     }
 
     const perResultLimit = Math.max(1, Math.floor(config.cutoffLimit / rawResults.length))
-
-    // 动态导入 tokenx
-    const { sliceByTokens } = await import('tokenx')
 
     return rawResults.map((result) => {
       if (config.cutoffUnit === 'token') {

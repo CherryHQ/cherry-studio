@@ -57,28 +57,19 @@ const Chat: FC<Props> = (props) => {
 
   const contentSearchFilter: NodeFilter = {
     acceptNode(node) {
-      if (node.parentNode) {
-        let parentNode: HTMLElement | null = node.parentNode as HTMLElement
-        while (parentNode?.parentNode) {
-          if (parentNode.classList.contains('MessageFooter')) {
-            return NodeFilter.FILTER_REJECT
-          }
+      const container = node.parentElement?.closest('.message-content-container')
+      if (!container) return NodeFilter.FILTER_REJECT
 
-          if (filterIncludeUser) {
-            if (parentNode?.classList.contains('message-content-container')) {
-              return NodeFilter.FILTER_ACCEPT
-            }
-          } else {
-            if (parentNode?.classList.contains('message-content-container-assistant')) {
-              return NodeFilter.FILTER_ACCEPT
-            }
-          }
-          parentNode = parentNode.parentNode as HTMLElement
-        }
-        return NodeFilter.FILTER_REJECT
-      } else {
-        return NodeFilter.FILTER_REJECT
+      const message = container.closest('.message')
+      if (!message) return NodeFilter.FILTER_REJECT
+
+      if (filterIncludeUser) {
+        return NodeFilter.FILTER_ACCEPT
       }
+      if (message.classList.contains('message-assistant')) {
+        return NodeFilter.FILTER_ACCEPT
+      }
+      return NodeFilter.FILTER_REJECT
     }
   }
 
