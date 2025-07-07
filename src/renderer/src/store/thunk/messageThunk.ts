@@ -482,9 +482,12 @@ const fetchAndProcessAssistantResponseImpl = async (
             mainTextBlockId = null
           }
         } else {
-          console.warn(
-            `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${lastBlockType}) or lastBlockId  is null.`
-          )
+          // 如果 mainTextBlockId 不存在，但收到了 finalText，说明需要创建一个新的文本块
+          const newBlock = createMainTextBlock(assistantMsgId, finalText, {
+            status: MessageBlockStatus.SUCCESS
+          })
+          mainTextBlockId = newBlock.id
+          await handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
         }
       },
       onThinkingChunk: async (text, thinking_millsec) => {

@@ -171,6 +171,7 @@ class TTSPlaybackManager {
    * 通知所有监听器
    */
   private notifyListeners(): void {
+    console.log('[TTSPlaybackManager] Notifying listeners of state change:', this.playbackInfo)
     this.listeners.forEach((listener) => listener(this.playbackInfo))
   }
 }

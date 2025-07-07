@@ -55,29 +55,38 @@ export class OpenAITTSProvider extends BaseTTSProvider {
   }
 
   async speak(options: TTSSpeakOptions): Promise<void> {
+    console.log('[OpenAITTSProvider] speak called with options:', options)
     if (!this.validateApiKey()) {
       throw new Error('OpenAI API key is required')
     }
 
     // 停止当前播放
+    console.log('[OpenAITTSProvider] Stopping previous playback.')
     this.stop()
 
     try {
       const volume = options.volume ?? this.provider.settings.volume ?? 1.0
       const useStreaming = options.streaming ?? this.provider.settings.streaming ?? false
+      console.log(`[OpenAITTSProvider] useStreaming: ${useStreaming}`)
 
       if (useStreaming) {
         // 流式合成
+        console.log('[OpenAITTSProvider] Synthesizing with stream.')
         const audioStream = await this.synthesizeSpeechStream(options)
         const mimeType = this.getMimeType(this.provider.settings.format || 'mp3')
         const enablePause = this.provider.settings.pauseSupport ?? false
+        console.log(`[OpenAITTSProvider] Calling audioPlayer.playStream with mimeType: ${mimeType}, enablePause: ${enablePause}`)
         await this.audioPlayer.playStream(audioStream, mimeType, volume, { enablePause })
       } else {
         // 非流式合成
+        console.log('[OpenAITTSProvider] Synthesizing without stream.')
         const audioBlob = await this.synthesizeSpeech(options)
+        console.log('[OpenAITTSProvider] Calling audioPlayer.playBlob.')
         await this.audioPlayer.playBlob(audioBlob, volume)
       }
+      console.log('[OpenAITTSProvider] speak finished.')
     } catch (error) {
+      console.error('[OpenAITTSProvider] speak failed:', error)
       throw this.handleError(error)
     }
   }
