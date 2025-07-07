@@ -245,63 +245,63 @@ describe('file', () => {
   })
 
   // 在 describe('file') 块内部添加新的 describe 块
-  describe('encoding detection', () => {
+  describe('detectEncoding', () => {
     const mockFilePath = '/path/to/mock/file.txt'
 
-    describe('detectEncoding', () => {
-      it('正确检测UTF-8编码', () => {
-        // 准备UTF-8编码的Buffer
-        const content = '这是UTF-8测试内容'
-        const buffer = Buffer.from(content, 'utf-8')
+    beforeEach(() => {
+      vi.mocked(fs.openSync).mockReturnValue(123)
+      vi.mocked(fs.closeSync).mockImplementation(() => {})
+    })
 
-        // 模拟文件读取
-        vi.mocked(fs.openSync).mockReturnValue(123)
-        vi.mocked(fs.readSync).mockImplementation((_, buf) => {
-          const targetBuffer = new Uint8Array(buf.buffer)
-          const sourceBuffer = new Uint8Array(buffer)
-          targetBuffer.set(sourceBuffer)
-          return 1024
-        })
+    it('should correctly detect UTF-8 encoding', () => {
+      // 准备UTF-8编码的Buffer
+      const content = '这是UTF-8测试内容'
+      const buffer = Buffer.from(content, 'utf-8')
 
-        const encoding = detectEncoding(mockFilePath)
-        expect(encoding).toBe('UTF-8')
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return 1024
       })
 
-      it('正确检测GB2312编码', () => {
-        // 使用iconv创建GB2312编码内容
-        const content = '这是一段GB2312编码的测试内容'
-        const gb2312Buffer = iconv.encode(content, 'GB2312')
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding).toBe('UTF-8')
+    })
 
-        // 模拟文件读取
-        vi.mocked(fs.openSync).mockReturnValue(123)
-        vi.mocked(fs.readSync).mockImplementation((_, buf) => {
-          const targetBuffer = new Uint8Array(buf.buffer)
-          const sourceBuffer = new Uint8Array(gb2312Buffer)
-          targetBuffer.set(sourceBuffer)
-          return gb2312Buffer.length
-        })
+    it('should correctly detect GB2312 encoding', () => {
+      // 使用iconv创建GB2312编码内容
+      const content = '这是一段GB2312编码的测试内容'
+      const gb2312Buffer = iconv.encode(content, 'GB2312')
 
-        const encoding = detectEncoding(mockFilePath)
-        expect(encoding).toMatch(/GB2312|GB18030/i)
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(gb2312Buffer)
+        targetBuffer.set(sourceBuffer)
+        return gb2312Buffer.length
       })
 
-      it('正确检测ASCII编码', () => {
-        // 准备ASCII编码内容
-        const content = 'ASCII content'
-        const buffer = Buffer.from(content, 'ascii')
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding).toMatch(/GB2312|GB18030/i)
+    })
 
-        // 模拟文件读取
-        vi.mocked(fs.openSync).mockReturnValue(123)
-        vi.mocked(fs.readSync).mockImplementation((_, buf) => {
-          const targetBuffer = new Uint8Array(buf.buffer)
-          const sourceBuffer = new Uint8Array(buffer)
-          targetBuffer.set(sourceBuffer)
-          return buffer.length
-        })
+    it('should correctly detect ASCII encoding', () => {
+      // 准备ASCII编码内容
+      const content = 'ASCII content'
+      const buffer = Buffer.from(content, 'ascii')
 
-        const encoding = detectEncoding(mockFilePath)
-        expect(encoding.toLowerCase()).toBe('ascii')
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
       })
+
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding.toLowerCase()).toBe('ascii')
     })
   })
 })
