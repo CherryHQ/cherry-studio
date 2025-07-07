@@ -1733,13 +1733,6 @@ const migrateConfig = {
       if (!state.settings.s3) {
         state.settings.s3 = settingsInitialState.s3
       }
-      return state
-    } catch (error) {
-      return state
-    }
-  },
-  '120': (state: RootState) => {
-    try {
       const langMap: Record<string, LanguageCode> = {
         english: 'en-us',
         chinese: 'zh-cn',
