@@ -214,10 +214,10 @@ export function getAppConfigDir(name: string) {
 export function detectEncoding(filePath: string): string {
   // 读取文件前1KB来检测编码
   const buffer = Buffer.alloc(1024)
-  fs.readSync(fs.openSync(filePath, 'r'), buffer, 0, 1024, 0)
+  const fd = fs.openSync(filePath, 'r')
+  fs.readSync(fd, buffer, 0, 1024, 0)
   const { encoding } = detectEncoding_(buffer)
-  // UTF-8, ascii, GB2312, etc.
-
+  fs.closeSync(fd)
   return encoding
 }
 
