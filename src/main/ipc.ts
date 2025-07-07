@@ -12,6 +12,7 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
@@ -114,12 +115,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, openAtLogin: boolean) => {
-    // Set login item settings for windows and mac
-    // linux is not supported because it requires more file operations
-    if (isWin || isMac) {
-      app.setLoginItemSettings({ openAtLogin })
-    }
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, isLaunchOnBoot: boolean) => {
+    appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // launch to tray
