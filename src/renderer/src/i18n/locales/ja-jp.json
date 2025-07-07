@@ -385,6 +385,7 @@
       "cut": "切り取り",
       "default": "デフォルト",
       "delete": "削除",
+      "delete_confirm": "削除してもよろしいですか？",
       "description": "説明",
       "docs": "ドキュメント",
       "download": "ダウンロード",
@@ -1689,8 +1690,14 @@
         "api.url.tip": "/で終わる場合、v1を無視します。#で終わる場合、入力されたアドレスを強制的に使用します",
         "api_host": "APIホスト",
         "api_key": "APIキー",
-        "api_key.tip": "複数のキーはカンマで区切ります",
+        "api_key.tip": "複数のキーはカンマまたはスペースで区切ります",
         "api_version": "APIバージョン",
+        "api.key.new_key.placeholder": "1つ以上のキーを入力してください",
+        "api.key.error.duplicate": "APIキーはすでに存在します",
+        "api.key.error.empty": "APIキーは空にできません",
+        "api.key.check.latency": "遅延",
+        "api.key.list.open": "管理インターフェースを開く",
+        "api.key.list.title": "APIキー管理",
         "basic_auth": "HTTP 認証",
         "basic_auth.tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
         "basic_auth.user_name": "ユーザー名",
@@ -1787,6 +1794,13 @@
         "title": "プロキシ設定"
       },
       "proxy.title": "プロキシアドレス",
+      "hardware_acceleration": {
+        "title": "ハードウェアアクセラレーションを無効にする",
+        "confirm": {
+          "title": "再起動が必要",
+          "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",
@@ -1839,12 +1853,11 @@
           "check": "チェック",
           "check_failed": "検証に失敗しました",
           "check_success": "検証に成功しました",
-          "get_api_key": "APIキーを取得",
           "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
           "search_max_result": "検索結果の数",
           "search_provider": "検索サービスプロバイダー",
           "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-          "search_result_default": "デフォルト",
+          "search_max_result.tooltip": "検索結果の圧縮が無効な場合、結果の数が多すぎるとトークンが不足する可能性があります",
           "search_with_time": "日付を含む検索",
           "tavily": {
             "api_key": "Tavily API キー",
@@ -1879,7 +1892,6 @@
             "cutoff.unit.token": "トークン",
             "method.rag": "RAG",
             "rag.document_count": "文書数",
-            "rag.document_count.default": "デフォルト",
             "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
             "rag.embedding_dimensions.auto_get": "次元を自動取得",
             "rag.embedding_dimensions.placeholder": "次元を設定しない",

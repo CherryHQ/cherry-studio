@@ -385,6 +385,7 @@
       "cut": "剪下",
       "default": "預設",
       "delete": "刪除",
+      "delete_confirm": "確定要刪除嗎？",
       "description": "描述",
       "docs": "文件",
       "download": "下載",
@@ -1692,8 +1693,14 @@
         "api.url.tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址",
         "api_host": "API 主機地址",
         "api_key": "API 金鑰",
-        "api_key.tip": "多個金鑰使用逗號分隔",
+        "api_key.tip": "多個金鑰使用逗號或空格分隔",
         "api_version": "API 版本",
+        "api.key.new_key.placeholder": "輸入一個或多個密鑰",
+        "api.key.error.duplicate": "API 密鑰已存在",
+        "api.key.error.empty": "API 密鑰不能為空",
+        "api.key.check.latency": "耗時",
+        "api.key.list.open": "打開管理界面",
+        "api.key.list.title": "API 密鑰管理",
         "basic_auth": "HTTP 認證",
         "basic_auth.tip": "適用於透過伺服器部署的實例（請參閱文檔）。目前僅支援 Basic 方案（RFC7617）",
         "basic_auth.user_name": "用戶",
@@ -1790,6 +1797,13 @@
         "title": "代理伺服器設定"
       },
       "proxy.title": "代理伺服器地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重新啟動",
+          "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
@@ -1842,12 +1856,11 @@
           "check": "檢查",
           "check_failed": "驗證失敗",
           "check_success": "驗證成功",
-          "get_api_key": "點選這裡取得金鑰",
           "no_provider_selected": "請選擇搜尋服務商後再檢查",
           "search_max_result": "搜尋結果個數",
+          "search_max_result.tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens",
           "search_provider": "搜尋服務商",
           "search_provider_placeholder": "選擇一個搜尋服務商",
-          "search_result_default": "預設",
           "search_with_time": "搜尋包含日期",
           "tavily": {
             "api_key": "Tavily API 金鑰",
@@ -1882,7 +1895,6 @@
             "cutoff.unit.token": "Token",
             "method.rag": "RAG",
             "rag.document_count": "文檔數量",
-            "rag.document_count.default": "預設",
             "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
             "rag.embedding_dimensions.auto_get": "自動獲取維度",
             "rag.embedding_dimensions.placeholder": "不設置維度",

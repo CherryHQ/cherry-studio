@@ -385,6 +385,7 @@
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
+      "delete_confirm": "确定要删除吗？",
       "description": "描述",
       "docs": "文档",
       "download": "下载",
@@ -1707,8 +1708,14 @@
         "api.url.tip": "/ 结尾忽略 v1 版本，# 结尾强制使用输入地址",
         "api_host": "API 地址",
         "api_key": "API 密钥",
-        "api_key.tip": "多个密钥使用逗号分隔",
+        "api_key.tip": "多个密钥使用逗号或空格分隔",
         "api_version": "API 版本",
+        "api.key.new_key.placeholder": "输入一个或多个密钥",
+        "api.key.error.duplicate": "API 密钥已存在",
+        "api.key.error.empty": "API 密钥不能为空",
+        "api.key.check.latency": "耗时",
+        "api.key.list.open": "打开管理界面",
+        "api.key.list.title": "API 密钥管理",
         "basic_auth": "HTTP 认证",
         "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）",
         "basic_auth.user_name": "用户名",
@@ -1805,6 +1812,13 @@
         "title": "代理设置"
       },
       "proxy.title": "代理地址",
+      "hardware_acceleration": {
+        "title": "禁用硬件加速",
+        "confirm": {
+          "title": "需要重启应用",
+          "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？"
+        }
+      },
       "quickAssistant": {
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",
@@ -1931,9 +1945,9 @@
           "check_success": "验证成功",
           "overwrite": "覆盖服务商搜索",
           "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-          "get_api_key": "点击这里获取密钥",
           "no_provider_selected": "请选择搜索服务商后再检测",
           "search_max_result": "搜索结果个数",
+          "search_max_result.tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens",
           "search_provider": "搜索服务商",
           "search_provider_placeholder": "选择一个搜索服务商",
           "subscribe": "黑名单订阅",
@@ -1944,7 +1958,6 @@
           "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
           "subscribe_add_success": "订阅源添加成功!",
           "subscribe_delete": "删除订阅源",
-          "search_result_default": "默认",
           "search_with_time": "搜索包含日期",
           "tavily": {
             "api_key": "Tavily API 密钥",
@@ -1969,7 +1982,6 @@
             "cutoff.unit.token": "Token",
             "method.rag": "RAG",
             "rag.document_count": "文档数量",
-            "rag.document_count.default": "默认",
             "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
             "rag.embedding_dimensions.auto_get": "自动获取维度",
             "rag.embedding_dimensions.placeholder": "不设置维度",
