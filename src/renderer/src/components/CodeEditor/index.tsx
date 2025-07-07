@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLanguageExtensions } from './hook'
+import { useLanguageExtensions } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
