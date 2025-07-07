@@ -1746,6 +1746,12 @@ const migrateConfig = {
       const newLang = langMap[origin]
       if (newLang) state.settings.targetLanguage = newLang
       else state.settings.targetLanguage = 'en-us'
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'azure-openai') {
+          provider.type = 'azure-openai'
+        }
+      })
       return state
     } catch (error) {
       return state
