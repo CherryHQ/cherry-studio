@@ -31,12 +31,6 @@ import AddModelPopup from './AddModelPopup'
 import EditModelsPopup from './EditModelsPopup'
 import ModelEditContent from './ModelEditContent'
 
-const STATUS_COLORS = {
-  success: '#52c41a',
-  error: '#ff4d4f',
-  warning: '#faad14'
-}
-
 export interface ModelStatus {
   model: Model
   status?: ModelCheckStatus
@@ -74,7 +68,7 @@ function useModelStatusRendering() {
         return (
           <div>
             <strong>{statusTitle}</strong>
-            {status.error && <div style={{ marginTop: 5, color: STATUS_COLORS.error }}>{status.error}</div>}
+            {status.error && <div style={{ marginTop: 5, color: 'var(--color-status-error)' }}>{status.error}</div>}
           </div>
         )
       }
@@ -93,7 +87,10 @@ function useModelStatusRendering() {
                 return (
                   <li
                     key={idx}
-                    style={{ marginBottom: '5px', color: kr.isValid ? STATUS_COLORS.success : STATUS_COLORS.error }}>
+                    style={{
+                      marginBottom: '5px',
+                      color: kr.isValid ? 'var(--color-status-success)' : 'var(--color-status-error)'
+                    }}>
                     {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
                     {kr.error && !kr.isValid && ` (${kr.error})`}
                     {kr.latency && kr.isValid && ` (${formatLatency(kr.latency)})`}
@@ -383,11 +380,11 @@ const StatusIndicator = styled.div<{ $type: string }>`
   color: ${(props) => {
     switch (props.$type) {
       case 'success':
-        return STATUS_COLORS.success
+        return 'var(--color-status-success)'
       case 'error':
-        return STATUS_COLORS.error
+        return 'var(--color-status-error)'
       case 'partial':
-        return STATUS_COLORS.warning
+        return 'var(--color-status-warning)'
       default:
         return 'var(--color-text)'
     }

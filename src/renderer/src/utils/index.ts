@@ -239,6 +239,7 @@ export function safelyToString(value: any): string {
   }
 }
 
+export * from './api'
 export * from './file'
 export * from './image'
 export * from './json'
