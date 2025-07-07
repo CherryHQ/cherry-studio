@@ -49,7 +49,9 @@ import {
   LLMWebSearchCompleteChunk,
   LLMWebSearchInProgressChunk,
   MCPToolCreatedChunk,
+  TextCompleteChunk,
   TextDeltaChunk,
+  ThinkingCompleteChunk,
   ThinkingDeltaChunk
 } from '@renderer/types/chunk'
 import { type Message } from '@renderer/types/newMessage'
@@ -517,7 +519,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     return () => {
       let accumulatedJson = ''
       const toolCalls: Record<number, ToolUseBlock> = {}
-
+      const ChunkIdTypeMap: Record<number, ChunkType> = {}
       return {
         async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
           switch (rawChunk.type) {
@@ -612,6 +614,19 @@ export class AnthropicAPIClient extends BaseApiClient<
                   toolCalls[rawChunk.index] = contentBlock
                   break
                 }
+                case 'text': {
+                  if (!ChunkIdTypeMap[rawChunk.index]) {
+                    ChunkIdTypeMap[rawChunk.index] = ChunkType.TEXT_DELTA // 用textdelta代表文本块
+                  }
+                  break
+                }
+                case 'thinking':
+                case 'redacted_thinking': {
+                  if (!ChunkIdTypeMap[rawChunk.index]) {
+                    ChunkIdTypeMap[rawChunk.index] = ChunkType.THINKING_DELTA // 用thinkingdelta代表思考块
+                  }
+                  break
+                }
               }
               break
             }
@@ -646,6 +661,15 @@ export class AnthropicAPIClient extends BaseApiClient<
               break
             }
             case 'content_block_stop': {
+              if (ChunkIdTypeMap[rawChunk.index] === ChunkType.TEXT_DELTA) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_COMPLETE
+                } as TextCompleteChunk)
+              } else if (ChunkIdTypeMap[rawChunk.index] === ChunkType.THINKING_DELTA) {
+                controller.enqueue({
+                  type: ChunkType.THINKING_COMPLETE
+                } as ThinkingCompleteChunk)
+              }
               const toolCall = toolCalls[rawChunk.index]
               if (toolCall) {
                 try {

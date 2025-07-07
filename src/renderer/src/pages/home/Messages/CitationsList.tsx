@@ -1,5 +1,6 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -8,17 +9,6 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-export interface Citation {
-  number: number
-  url: string
-  title?: string
-  hostname?: string
-  content?: string
-  showFavicon?: boolean
-  type?: string
-  metadata?: Record<string, any>
-}
 
 interface CitationsListProps {
   citations: Citation[]

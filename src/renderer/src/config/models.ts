@@ -164,7 +164,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
@@ -2320,8 +2320,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
