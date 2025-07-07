@@ -229,5 +229,10 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+
+  // WebSocket
+  WebSocket_Start = 'webSocket:start',
+  WebSocket_Stop = 'webSocket:stop',
+  WebSocket_Status = 'webSocket:status'
 }

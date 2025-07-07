@@ -12,6 +12,7 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
 import ExportToPhonePopup from '@renderer/components/Popups/ExportToPhonePopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -614,7 +615,7 @@ const DataSettings: FC = () => {
                   <Button onClick={ExportToPhonePopup.show} icon={<SaveOutlined />}>
                     {t('settings.data.export_to_phone.button')}
                   </Button>
-                  <Button onClick={RestorePopup.show} icon={<WifiOutlined />}>
+                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined />}>
                     {t('settings.data.export_to_phone_use_lan.button')}
                   </Button>
                 </HStack>

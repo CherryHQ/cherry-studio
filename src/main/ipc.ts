@@ -33,6 +33,7 @@ import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutSe
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import WebSocketService from './services/WebSocketService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -553,6 +554,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (!webview) return
     webview.session.setSpellCheckerEnabled(isEnable)
   })
+
+  // WebSocket
+  ipcMain.handle(IpcChannel.WebSocket_Start, WebSocketService.start)
+  ipcMain.handle(IpcChannel.WebSocket_Stop, WebSocketService.stop)
+  ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
 
   // store sync
   storeSyncService.registerIpcHandler()
