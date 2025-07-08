@@ -1,7 +1,7 @@
+import { isMac } from '@main/constant'
 import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
-import { isMac } from '@main/constant'
 
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
