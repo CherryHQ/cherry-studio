@@ -2,7 +2,6 @@ import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/i
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -19,7 +18,7 @@ import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Checkbox, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { List, SquareArrowOutUpRight } from 'lucide-react'
+import { CircleHelp, List, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -445,7 +444,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         }}>
         <CheckboxLabelContainer>
           {t('settings.provider.is_not_support_array_content')}
-          <InfoTooltip content={t('settings.provider.is_not_support_array_content.tip')} />
+          <Tooltip title={t('settings.provider.is_not_support_array_content.tip')}>
+            <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+          </Tooltip>
         </CheckboxLabelContainer>
       </Checkbox>
       <SettingSubtitle style={{ marginBottom: 5 }}>
