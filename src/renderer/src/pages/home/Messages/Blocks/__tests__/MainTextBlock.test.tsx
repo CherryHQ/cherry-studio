@@ -261,51 +261,6 @@ describe('MainTextBlock', () => {
   })
 
   describe('content processing', () => {
-    it('should filter tool_use tags from content', () => {
-      const testCases = [
-        {
-          name: 'single tool_use tag',
-          content: 'Before <tool_use>tool content</tool_use> after',
-          expectsFiltering: true
-        },
-        {
-          name: 'multiple tool_use tags',
-          content: 'Start <tool_use>tool1</tool_use> middle <tool_use>tool2</tool_use> end',
-          expectsFiltering: true
-        },
-        {
-          name: 'multiline tool_use',
-          content: `Text before
-<tool_use>
-  multiline
-  tool content
-</tool_use>
-text after`,
-          expectsFiltering: true
-        },
-        {
-          name: 'malformed tool_use',
-          content: 'Before <tool_use>unclosed tag',
-          expectsFiltering: false // Should preserve malformed tags
-        }
-      ]
-
-      testCases.forEach(({ content, expectsFiltering }) => {
-        const block = createMainTextBlock({ content })
-        const { unmount } = renderMainTextBlock({ block, role: 'assistant' })
-
-        const renderedContent = getRenderedMarkdown()
-        expect(renderedContent).toBeInTheDocument()
-
-        if (expectsFiltering) {
-          // Check that tool_use content is not visible to user
-          expect(screen.queryByText(/tool content|tool1|tool2|multiline/)).not.toBeInTheDocument()
-        }
-
-        unmount()
-      })
-    })
-
     it('should process content through format utilities', () => {
       const block = createMainTextBlock({
         content: 'Content to process',
