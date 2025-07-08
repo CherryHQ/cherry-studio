@@ -110,6 +110,9 @@
     border-radius: 10px;
     border: 0.5px solid var(--color-border);
     padding: 0 0 8px 0;
+    .ant-modal-close {
+      margin-right: 2px;
+    }
     .ant-modal-header {
       padding: 16px 16px 0 16px;
       border-radius: 10px;

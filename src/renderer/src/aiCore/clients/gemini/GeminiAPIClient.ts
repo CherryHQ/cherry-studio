@@ -1,7 +1,7 @@
 import {
   Content,
+  createPartFromUri,
   File,
-  FileState,
   FunctionCall,
   GenerateContentConfig,
   GenerateImagesConfig,
@@ -10,7 +10,6 @@ import {
   HarmCategory,
   Modality,
   Model as GeminiModel,
-  Pager,
   Part,
   SafetySetting,
   SendMessageParameters,
@@ -22,17 +21,17 @@ import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  isGeminiReasoningModel,
   isGemmaModel,
+  isSupportedThinkingTokenGeminiModel,
   isVisionModel
 } from '@renderer/config/models'
-import { CacheService } from '@renderer/services/CacheService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
-  FileType,
+  FileMetadata,
   FileTypes,
+  FileUploadResponse,
   GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
@@ -60,7 +59,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { MB } from '@shared/config/constant'
+import { defaultTimeout, MB } from '@shared/config/constant'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -118,7 +117,7 @@ export class GeminiAPIClient extends BaseApiClient<
         aspectRatio: imageSize,
         abortSignal: signal,
         httpOptions: {
-          timeout: 5 * 60 * 1000
+          timeout: defaultTimeout
         }
       }
       const response = await sdk.models.generateImages({
@@ -198,7 +197,7 @@ export class GeminiAPIClient extends BaseApiClient<
    * @param file - The file
    * @returns The part
    */
-  private async handlePdfFile(file: FileType): Promise<Part> {
+  private async handlePdfFile(file: FileMetadata): Promise<Part> {
     const smallFileSize = 20 * MB
     const isSmallFile = file.size < smallFileSize
 
@@ -213,26 +212,17 @@ export class GeminiAPIClient extends BaseApiClient<
     }
 
     // Retrieve file from Gemini uploaded files
-    const fileMetadata: File | undefined = await this.retrieveFile(file)
+    const fileMetadata: FileUploadResponse = await window.api.fileService.retrieve(this.provider, file.id)
 
-    if (fileMetadata) {
-      return {
-        fileData: {
-          fileUri: fileMetadata.uri,
-          mimeType: fileMetadata.mimeType
-        } as Part['fileData']
-      }
+    if (fileMetadata.status === 'success') {
+      const remoteFile = fileMetadata.originalFile?.file as File
+      return createPartFromUri(remoteFile.uri!, remoteFile.mimeType!)
     }
 
     // If file is not found, upload it to Gemini
-    const result = await this.uploadFile(file)
-
-    return {
-      fileData: {
-        fileUri: result.uri,
-        mimeType: result.mimeType
-      } as Part['fileData']
-    }
+    const result = await window.api.fileService.upload(this.provider, file)
+    const remoteFile = result.originalFile?.file as File
+    return createPartFromUri(remoteFile.uri!, remoteFile.mimeType!)
   }
 
   /**
@@ -243,6 +233,7 @@ export class GeminiAPIClient extends BaseApiClient<
   private async convertMessageToSdkParam(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
+
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
     for (const imageBlock of imageBlocks) {
@@ -393,29 +384,29 @@ export class GeminiAPIClient extends BaseApiClient<
    * @returns The reasoning effort
    */
   private getBudgetToken(assistant: Assistant, model: Model) {
-    if (isGeminiReasoningModel(model)) {
+    if (isSupportedThinkingTokenGeminiModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
 
       // 如果thinking_budget是undefined，不思考
       if (reasoningEffort === undefined) {
-        return {
-          thinkingConfig: {
-            includeThoughts: false,
-            ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
-          } as ThinkingConfig
-        }
+        return GEMINI_FLASH_MODEL_REGEX.test(model.id)
+          ? {
+              thinkingConfig: {
+                thinkingBudget: 0
+              }
+            }
+          : {}
       }
 
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-
-      if (effortRatio > 1) {
+      if (reasoningEffort === 'auto') {
         return {
           thinkingConfig: {
-            includeThoughts: true
+            includeThoughts: true,
+            thinkingBudget: -1
           }
         }
       }
-
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
       const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
       // 计算 budgetTokens，确保不低于 min
       const budget = Math.floor((max - min) * effortRatio + min)
@@ -535,7 +526,8 @@ export class GeminiAPIClient extends BaseApiClient<
           tools: tools,
           ...(enableGenerateImage ? this.getGenerateImageParameter() : {}),
           ...this.getBudgetToken(assistant, model),
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const param: GeminiSdkParams = {
@@ -765,61 +757,11 @@ export class GeminiAPIClient extends BaseApiClient<
     return [...(sdkPayload.history || []), messageParam]
   }
 
-  private async uploadFile(file: FileType): Promise<File> {
-    return await this.sdkInstance!.files.upload({
-      file: file.path,
-      config: {
-        mimeType: 'application/pdf',
-        name: file.id,
-        displayName: file.origin_name
-      }
-    })
-  }
-
-  private async base64File(file: FileType) {
+  private async base64File(file: FileMetadata) {
     const { data } = await window.api.file.base64File(file.id + file.ext)
     return {
       data,
       mimeType: 'application/pdf'
     }
-  }
-
-  private async retrieveFile(file: FileType): Promise<File | undefined> {
-    const cachedResponse = CacheService.get<any>('gemini_file_list')
-
-    if (cachedResponse) {
-      return this.processResponse(cachedResponse, file)
-    }
-
-    const response = await this.sdkInstance!.files.list()
-    CacheService.set('gemini_file_list', response, 3000)
-
-    return this.processResponse(response, file)
-  }
-
-  private async processResponse(response: Pager<File>, file: FileType) {
-    for await (const f of response) {
-      if (f.state === FileState.ACTIVE) {
-        if (f.displayName === file.origin_name && Number(f.sizeBytes) === file.size) {
-          return f
-        }
-      }
-    }
-
-    return undefined
-  }
-
-  // @ts-ignore unused
-  private async listFiles(): Promise<File[]> {
-    const files: File[] = []
-    for await (const f of await this.sdkInstance!.files.list()) {
-      files.push(f)
-    }
-    return files
-  }
-
-  // @ts-ignore unused
-  private async deleteFile(fileId: string) {
-    await this.sdkInstance!.files.delete({ name: fileId })
   }
 }

@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
-import { Assistant, AttachedPage, FileType, Topic } from '@renderer/types'
+import { Assistant, AttachedPage, FileMetadata, Topic } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Radio, Space, Tag, Tooltip } from 'antd'
 import { filter, isEmpty, map } from 'lodash'
@@ -26,8 +26,8 @@ import styled from 'styled-components'
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
-  files: FileType[]
-  setFiles: (files: FileType[]) => void
+  files: FileMetadata[]
+  setFiles: (files: FileMetadata[]) => void
   topic: Topic
   setActiveTopic: (topic: Topic) => void
   updateTopic: (topic: Topic) => void
@@ -87,7 +87,7 @@ export const getFileIcon = (type?: string) => {
   return <FileUnknownFilled />
 }
 
-export const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)

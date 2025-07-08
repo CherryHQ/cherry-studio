@@ -8,12 +8,14 @@ import {
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
+  S3Config,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 
-import { WebDAVSyncState } from './backup'
+import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -29,25 +31,12 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
-export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type UserTheme = {
   colorPrimary: string
-}
-
-export interface S3Config {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-  root: string
-  autoSync: boolean
-  syncInterval: number
-  maxBackups: number
-  skipBackupFile: boolean
 }
 
 export interface SettingsState {
@@ -60,6 +49,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  userId: string
   showPrompt: boolean
   showTokens: boolean
   showMessageDivider: boolean
@@ -174,6 +164,8 @@ export interface SettingsState {
   spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
+  // 硬件加速设置
+  disableHardwareAcceleration: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -195,8 +187,14 @@ export interface SettingsState {
   notification: {
     assistant: boolean
     backup: boolean
-    knowledgeEmbed: boolean
+    knowledge: boolean
   }
+  // Local backup settings
+  localBackupDir: string
+  localBackupAutoSync: boolean
+  localBackupSyncInterval: number
+  localBackupMaxBackups: number
+  localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
 }
@@ -209,10 +207,11 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'english' as TranslateLanguageVarious,
+  targetLanguage: 'en-us',
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  userId: uuid(),
   showPrompt: true,
   showTokens: true,
   showMessageDivider: true,
@@ -321,6 +320,8 @@ export const initialState: SettingsState = {
   spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
+  // 硬件加速设置
+  disableHardwareAcceleration: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -341,8 +342,14 @@ export const initialState: SettingsState = {
   notification: {
     assistant: false,
     backup: false,
-    knowledgeEmbed: false
+    knowledge: false
   },
+  // Local backup settings
+  localBackupDir: '',
+  localBackupAutoSync: false,
+  localBackupSyncInterval: 0,
+  localBackupMaxBackups: 0,
+  localBackupSkipBackupFile: false,
   defaultPaintingProvider: 'aihubmix',
   s3: {
     endpoint: '',
@@ -708,6 +715,9 @@ const settingsSlice = createSlice({
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
     },
+    setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
+      state.disableHardwareAcceleration = action.payload
+    },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
@@ -717,11 +727,30 @@ const settingsSlice = createSlice({
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
     },
+    // Local backup settings
+    setLocalBackupDir: (state, action: PayloadAction<string>) => {
+      state.localBackupDir = action.payload
+    },
+    setLocalBackupAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.localBackupAutoSync = action.payload
+    },
+    setLocalBackupSyncInterval: (state, action: PayloadAction<number>) => {
+      state.localBackupSyncInterval = action.payload
+    },
+    setLocalBackupMaxBackups: (state, action: PayloadAction<number>) => {
+      state.localBackupMaxBackups = action.payload
+    },
+    setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.localBackupSkipBackupFile = action.payload
+    },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
     },
     setS3: (state, action: PayloadAction<S3Config>) => {
       state.s3 = action.payload
+    },
+    setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
+      state.s3 = { ...state.s3, ...action.payload }
     }
   }
 })
@@ -827,11 +856,19 @@ export const {
   setExportMenuOptions,
   setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
+  setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
+  // Local backup settings
+  setLocalBackupDir,
+  setLocalBackupAutoSync,
+  setLocalBackupSyncInterval,
+  setLocalBackupMaxBackups,
+  setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider,
-  setS3
+  setS3,
+  setS3Partial
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

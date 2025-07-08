@@ -7,7 +7,16 @@ import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
-import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
+import { updateTopicUpdatedAt } from '@renderer/store/assistants'
+import {
+  type Assistant,
+  type ExternalToolResult,
+  type FileMetadata,
+  type MCPToolResponse,
+  type Model,
+  type Topic,
+  WebSearchSource
+} from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -17,8 +26,7 @@ import type {
   PlaceholderMessageBlock,
   ToolMessageBlock
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType, Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import {
@@ -35,6 +43,7 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue } from '@renderer/utils/queue'
+import { waitForTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
@@ -44,10 +53,10 @@ import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
-// const handleChangeLoadingOfTopic = async (topicId: string) => {
-//   await waitForTopicQueue(topicId)
-//   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-// }
+const handleChangeLoadingOfTopic = async (topicId: string) => {
+  await waitForTopicQueue(topicId)
+  store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+}
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
@@ -69,6 +78,7 @@ export const saveMessageAndBlocksToDB = async (message: Message, blocks: Message
         }
       }
       await db.topics.update(message.topicId, { messages: updatedMessages })
+      store.dispatch(updateTopicUpdatedAt({ topicId: message.topicId }))
     } else {
       console.error(`[saveMessageAndBlocksToDB] Topic ${message.topicId} not found.`)
     }
@@ -108,6 +118,8 @@ const updateExistingMessageAndBlocksInDB = async (
               })
             }
           })
+
+        store.dispatch(updateTopicUpdatedAt({ topicId: updatedMessage.topicId }))
       }
     })
   } catch (error) {
@@ -199,11 +211,11 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
     const files = blocks
       .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
       .map((block) => block.file)
-      .filter((file): file is FileType => file !== undefined)
+      .filter((file): file is FileMetadata => file !== undefined)
     return isEmpty(files) ? [] : files
   }
 
-  const cleanupFiles = async (files: FileType[]) => {
+  const cleanupFiles = async (files: FileMetadata[]) => {
     await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
   }
 
@@ -349,7 +361,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     let thinkingBlockId: string | null = null
     let imageBlockId: string | null = null
     let toolBlockId: string | null = null
-    let hasWebSearch = false
+
     const toolCallIdToBlockIdMap = new Map<string, string>()
     const notificationService = NotificationService.getInstance()
 
@@ -429,8 +441,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           const initialChanges: Partial<MessageBlock> = {
             type: MessageBlockType.MAIN_TEXT,
             content: accumulatedContent,
-            status: MessageBlockStatus.STREAMING,
-            citationReferences: citationBlockId ? [{ citationBlockId }] : []
+            status: MessageBlockStatus.STREAMING
           }
           mainTextBlockId = initialPlaceholderBlockId
           // 清理占位块
@@ -440,8 +451,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
         } else {
           const newBlock = createMainTextBlock(assistantMsgId, accumulatedContent, {
-            status: MessageBlockStatus.STREAMING,
-            citationReferences: citationBlockId ? [{ citationBlockId }] : []
+            status: MessageBlockStatus.STREAMING
           })
           mainTextBlockId = newBlock.id // 立即设置ID，防止竞态条件
           await handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
@@ -449,26 +459,26 @@ const fetchAndProcessAssistantResponseImpl = async (
       },
       onTextComplete: async (finalText) => {
         if (mainTextBlockId) {
+          let citationBlockSource: WebSearchSource | undefined
+          if (citationBlockId) {
+            const citationBlock = getState().messageBlocks.entities[citationBlockId] as CitationMessageBlock
+            citationBlockSource = citationBlock.response?.source
+          }
           const changes = {
             content: finalText,
-            status: MessageBlockStatus.SUCCESS
+            status: MessageBlockStatus.SUCCESS,
+            citationReferences: citationBlockSource ? [{ citationBlockId, citationBlockSource }] : []
           }
           cancelThrottledBlockUpdate(mainTextBlockId)
           dispatch(updateOneBlock({ id: mainTextBlockId, changes }))
           saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
-          mainTextBlockId = null
+          if (!assistant.enableWebSearch) {
+            mainTextBlockId = null
+          }
         } else {
           console.warn(
             `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${lastBlockType}) or lastBlockId  is null.`
           )
-        }
-        if (citationBlockId && !hasWebSearch) {
-          const changes: Partial<CitationMessageBlock> = {
-            status: MessageBlockStatus.SUCCESS
-          }
-          dispatch(updateOneBlock({ id: citationBlockId, changes }))
-          saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
-          citationBlockId = null
         }
       },
       onThinkingChunk: async (text, thinking_millsec) => {
@@ -612,15 +622,44 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onLLMWebSearchComplete: async (llmWebSearchResult) => {
-        if (citationBlockId) {
-          hasWebSearch = true
+        const blockId = citationBlockId || initialPlaceholderBlockId
+        if (blockId) {
           const changes: Partial<CitationMessageBlock> = {
+            type: MessageBlockType.CITATION,
             response: llmWebSearchResult,
             status: MessageBlockStatus.SUCCESS
           }
-          dispatch(updateOneBlock({ id: citationBlockId, changes }))
-          saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
+          dispatch(updateOneBlock({ id: blockId, changes }))
+          saveUpdatedBlockToDB(blockId, assistantMsgId, topicId, getState)
 
+          if (mainTextBlockId) {
+            const state = getState()
+            const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
+            if (existingMainTextBlock && existingMainTextBlock.type === MessageBlockType.MAIN_TEXT) {
+              const currentRefs = existingMainTextBlock.citationReferences || []
+              const mainTextChanges = {
+                citationReferences: [...currentRefs, { blockId, citationBlockSource: llmWebSearchResult.source }]
+              }
+              dispatch(updateOneBlock({ id: mainTextBlockId, changes: mainTextChanges }))
+              saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
+            }
+            mainTextBlockId = null
+          }
+          if (initialPlaceholderBlockId) {
+            citationBlockId = initialPlaceholderBlockId
+            initialPlaceholderBlockId = null
+          }
+        } else {
+          const citationBlock = createCitationBlock(
+            assistantMsgId,
+            {
+              response: llmWebSearchResult
+            },
+            {
+              status: MessageBlockStatus.SUCCESS
+            }
+          )
+          citationBlockId = citationBlock.id
           if (mainTextBlockId) {
             const state = getState()
             const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
@@ -637,6 +676,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             }
             mainTextBlockId = null
           }
+          await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
       },
       onImageCreated: async () => {
@@ -798,7 +838,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           }
-          dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+          // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
         }
         if (response && response.metrics) {
           if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
@@ -863,6 +903,7 @@ export const sendMessage =
       if (userMessageBlocks.length > 0) {
         dispatch(upsertManyBlocks(userMessageBlocks))
       }
+      dispatch(updateTopicUpdatedAt({ topicId }))
 
       const mentionedModels = userMessage.mentions
       const queue = getTopicQueue(topicId)
@@ -883,10 +924,9 @@ export const sendMessage =
       }
     } catch (error) {
       console.error('Error in sendMessage thunk:', error)
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
-    // finally {
-    //   handleChangeLoadingOfTopic(topicId)
-    // }
   }
 
 /**
@@ -955,6 +995,7 @@ export const deleteSingleMessageThunk =
       if (topic) {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
+        dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
       console.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error)
@@ -998,6 +1039,7 @@ export const deleteMessageGroupThunk =
       if (topic) {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
+        dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
       console.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error)
@@ -1025,6 +1067,7 @@ export const clearTopicMessagesThunk =
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
 
       await db.topics.update(topicId, { messages: [] })
+      dispatch(updateTopicUpdatedAt({ topicId }))
       if (blockIdsToDelete.length > 0) {
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
@@ -1129,10 +1172,9 @@ export const resendMessageThunk =
       }
     } catch (error) {
       console.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
-    // finally {
-    //   handleChangeLoadingOfTopic(topicId)
-    // }
   }
 
 /**
@@ -1157,6 +1199,29 @@ export const regenerateAssistantResponseThunk =
 
       // 1. Use selector to get all messages for the topic
       const allMessagesForTopic = selectMessagesForTopic(state, topicId)
+
+      const askId = assistantMessageToRegenerate.askId
+
+      if (!askId) {
+        console.error(
+          `[appendAssistantResponseThunk] Existing assistant message ${assistantMessageToRegenerate.id} does not have an askId.`
+        )
+        return // Stop if askId is missing
+      }
+
+      if (!state.messages.entities[askId]) {
+        console.error(
+          `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Cannot create assistant response without corresponding user message.`
+        )
+
+        // Show error popup instead of creating error message block
+        window.message.error({
+          content: t('error.missing_user_message'),
+          key: 'missing-user-message-error'
+        })
+
+        return
+      }
 
       // 2. Find the original user query (Restored Logic)
       const originalUserQuery = allMessagesForTopic.find((m) => m.id === assistantMessageToRegenerate.askId)
@@ -1241,10 +1306,9 @@ export const regenerateAssistantResponseThunk =
         error
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
-    //  finally {
-    //   handleChangeLoadingOfTopic(topicId)
-    // }
   }
 
 // --- Thunk to initiate translation and create the initial block ---
@@ -1368,10 +1432,17 @@ export const appendAssistantResponseThunk =
 
       // (Optional but recommended) Verify the original user query exists
       if (!state.messages.entities[askId]) {
-        console.warn(
-          `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Proceeding, but state might be inconsistent.`
+        console.error(
+          `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Cannot create assistant response without corresponding user message.`
         )
-        // Decide whether to proceed or return based on requirements
+
+        // Show error popup instead of creating error message block
+        window.message.error({
+          content: t('error.missing_user_message'),
+          key: 'missing-user-message-error'
+        })
+
+        return
       }
 
       // 2. Create the new assistant message stub
@@ -1410,10 +1481,9 @@ export const appendAssistantResponseThunk =
       console.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error)
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
-    // finally {
-    //   handleChangeLoadingOfTopic(topicId)
-    // }
   }
 
 /**
@@ -1455,7 +1525,7 @@ export const cloneMessagesToNewTopicThunk =
       // 2. Prepare for cloning: Maps and Arrays
       const clonedMessages: Message[] = []
       const clonedBlocks: MessageBlock[] = []
-      const filesToUpdateCount: FileType[] = []
+      const filesToUpdateCount: FileMetadata[] = []
       const originalToNewMsgIdMap = new Map<string, string>() // Map original message ID -> new message ID
 
       // 3. Clone Messages and Blocks with New IDs
@@ -1624,6 +1694,8 @@ export const updateMessageAndBlocksThunk =
           await db.message_blocks.bulkPut(blockUpdatesList)
         }
       })
+
+      dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
       console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
     }
@@ -1665,6 +1737,8 @@ export const removeBlocksThunk =
           await db.message_blocks.bulkDelete(blockIdsToRemove)
         }
       })
+
+      dispatch(updateTopicUpdatedAt({ topicId }))
 
       return
     } catch (error) {

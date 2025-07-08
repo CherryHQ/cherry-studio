@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react-swc'
+import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { createRequire } from 'module'
 import path, { resolve } from 'path'
@@ -37,7 +38,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
         output: {
           // 彻底禁用代码分割 - 返回 null 强制单文件打包
           manualChunks: undefined,
@@ -77,6 +78,14 @@ export default defineConfig({
           ]
         ]
       }),
+      // 只在开发环境下启用 CodeInspectorPlugin
+      ...(process.env.NODE_ENV === 'development'
+        ? [
+            CodeInspectorPlugin({
+              bundler: 'vite'
+            })
+          ]
+        : []),
       ...visualizerPlugin('renderer')
     ],
     resolve: {

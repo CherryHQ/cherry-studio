@@ -1,12 +1,14 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { S3Config, setS3 } from '@renderer/store/settings'
+import { setS3Partial } from '@renderer/store/settings'
+import { S3Config } from '@renderer/types'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -44,12 +46,13 @@ const S3Settings: FC = () => {
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const { openMinapp } = useMinappPopup()
 
   const { s3Sync } = useAppSelector((state) => state.backup)
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
-    dispatch(setS3({ ...s3, syncInterval: value, autoSync: value !== 0 }))
+    dispatch(setS3Partial({ syncInterval: value, autoSync: value !== 0 }))
     if (value === 0) {
       stopAutoSync()
     } else {
@@ -57,14 +60,22 @@ const S3Settings: FC = () => {
     }
   }
 
+  const handleTitleClick = () => {
+    openMinapp({
+      id: 's3-help',
+      name: 'S3 Compatible Storage Help',
+      url: 'https://docs.cherry-ai.com/data-settings/s3-compatible'
+    })
+  }
+
   const onMaxBackupsChange = (value: number) => {
     setMaxBackups(value)
-    dispatch(setS3({ ...s3, maxBackups: value }))
+    dispatch(setS3Partial({ maxBackups: value }))
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
-    dispatch(setS3({ ...s3, skipBackupFile: value }))
+    dispatch(setS3Partial({ skipBackupFile: value }))
   }
 
   const renderSyncStatus = () => {
@@ -104,7 +115,12 @@ const S3Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.data.s3.title')}</SettingTitle>
+      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
+        {t('settings.data.s3.title')}
+        <Tooltip title={t('settings.data.s3.title.tooltip')} placement="right">
+          <InfoCircleOutlined style={{ color: 'var(--color-text-2)', cursor: 'pointer' }} onClick={handleTitleClick} />
+        </Tooltip>
+      </SettingTitle>
       <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
       <SettingDivider />
       <SettingRow>
@@ -115,7 +131,7 @@ const S3Settings: FC = () => {
           onChange={(e) => setEndpoint(e.target.value)}
           style={{ width: 250 }}
           type="url"
-          onBlur={() => dispatch(setS3({ ...s3, endpoint: endpoint || '' }))}
+          onBlur={() => dispatch(setS3Partial({ endpoint: endpoint || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -126,7 +142,7 @@ const S3Settings: FC = () => {
           value={region}
           onChange={(e) => setRegion(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, region: region || '' }))}
+          onBlur={() => dispatch(setS3Partial({ region: region || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -137,7 +153,7 @@ const S3Settings: FC = () => {
           value={bucket}
           onChange={(e) => setBucket(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, bucket: bucket || '' }))}
+          onBlur={() => dispatch(setS3Partial({ bucket: bucket || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -148,7 +164,7 @@ const S3Settings: FC = () => {
           value={accessKeyId}
           onChange={(e) => setAccessKeyId(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, accessKeyId: accessKeyId || '' }))}
+          onBlur={() => dispatch(setS3Partial({ accessKeyId: accessKeyId || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -159,7 +175,7 @@ const S3Settings: FC = () => {
           value={secretAccessKey}
           onChange={(e) => setSecretAccessKey(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, secretAccessKey: secretAccessKey || '' }))}
+          onBlur={() => dispatch(setS3Partial({ secretAccessKey: secretAccessKey || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -170,7 +186,7 @@ const S3Settings: FC = () => {
           value={root}
           onChange={(e) => setRoot(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3({ ...s3, root: root || '' }))}
+          onBlur={() => dispatch(setS3Partial({ root: root || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -181,7 +197,7 @@ const S3Settings: FC = () => {
             onClick={showBackupModal}
             icon={<SaveOutlined />}
             loading={backuping}
-            disabled={!accessKeyId || !secretAccessKey}>
+            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
@@ -263,8 +279,8 @@ const S3Settings: FC = () => {
             endpoint,
             region,
             bucket,
-            access_key_id: accessKeyId,
-            secret_access_key: secretAccessKey,
+            accessKeyId,
+            secretAccessKey,
             root
           }}
         />

@@ -5,7 +5,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
-import Input from 'antd/es/input/Input'
+import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -101,11 +101,12 @@ const YuqueSettings: FC = () => {
         </SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
-            <Input
-              type="password"
+            <Input.Password
               value={yuqueToken || ''}
               onChange={handleYuqueTokenChange}
+              onBlur={handleYuqueTokenChange}
               placeholder={t('settings.data.yuque.token_placeholder')}
+              style={{ width: '100%' }}
             />
             <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
           </Space.Compact>

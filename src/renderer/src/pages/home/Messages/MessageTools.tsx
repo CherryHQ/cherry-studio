@@ -8,17 +8,17 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  blocks: ToolMessageBlock
+  block: ToolMessageBlock
 }
 
-const MessageTools: FC<Props> = ({ blocks }) => {
+const MessageTools: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
 
-  const toolResponse = blocks.metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse
 
   const resultString = useMemo(() => {
     try {

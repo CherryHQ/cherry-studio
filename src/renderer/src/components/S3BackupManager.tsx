@@ -1,5 +1,6 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { restoreFromS3 } from '@renderer/services/BackupService'
+import type { S3Config } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Modal, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -12,26 +13,10 @@ interface BackupFile {
   size: number
 }
 
-interface S3Config {
-  endpoint: string
-  region: string
-  bucket: string
-  access_key_id: string
-  secret_access_key: string
-  root?: string
-}
-
 interface S3BackupManagerProps {
   visible: boolean
   onClose: () => void
-  s3Config: {
-    endpoint?: string
-    region?: string
-    bucket?: string
-    access_key_id?: string
-    secret_access_key?: string
-    root?: string
-  }
+  s3Config: Partial<S3Config>
   restoreMethod?: (fileName: string) => Promise<void>
 }
 
@@ -48,10 +33,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   })
   const { t } = useTranslation()
 
-  const { endpoint, region, bucket, access_key_id, secret_access_key, root } = s3Config
+  const { endpoint, region, bucket, accessKeyId, secretAccessKey } = s3Config
 
   const fetchBackupFiles = useCallback(async () => {
-    if (!endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
@@ -59,13 +44,17 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     setLoading(true)
     try {
       const files = await window.api.backup.listS3Files({
+        ...s3Config,
         endpoint,
         region,
         bucket,
-        access_key_id,
-        secret_access_key,
-        root
-      } as S3Config)
+        accessKeyId,
+        secretAccessKey,
+        skipBackupFile: false,
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 0
+      })
       setBackupFiles(files)
       setPagination((prev) => ({
         ...prev,
@@ -76,7 +65,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     } finally {
       setLoading(false)
     }
-  }, [endpoint, region, bucket, access_key_id, secret_access_key, root, t])
+  }, [endpoint, region, bucket, accessKeyId, secretAccessKey, t, s3Config])
 
   useEffect(() => {
     if (visible) {
@@ -99,7 +88,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       return
     }
 
-    if (!endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
@@ -117,13 +106,17 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
           // 依次删除选中的文件
           for (const key of selectedRowKeys) {
             await window.api.backup.deleteS3File(key.toString(), {
+              ...s3Config,
               endpoint,
               region,
               bucket,
-              access_key_id,
-              secret_access_key,
-              root
-            } as S3Config)
+              accessKeyId,
+              secretAccessKey,
+              skipBackupFile: false,
+              autoSync: false,
+              syncInterval: 0,
+              maxBackups: 0
+            })
           }
           window.message.success(
             t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length })
@@ -140,7 +133,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   }
 
   const handleDeleteSingle = async (fileName: string) => {
-    if (!endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
@@ -156,13 +149,17 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         setDeleting(true)
         try {
           await window.api.backup.deleteS3File(fileName, {
+            ...s3Config,
             endpoint,
             region,
             bucket,
-            access_key_id,
-            secret_access_key,
-            root
-          } as S3Config)
+            accessKeyId,
+            secretAccessKey,
+            skipBackupFile: false,
+            autoSync: false,
+            syncInterval: 0,
+            maxBackups: 0
+          })
           window.message.success(t('settings.data.s3.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
@@ -175,7 +172,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   }
 
   const handleRestore = async (fileName: string) => {
-    if (!endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
