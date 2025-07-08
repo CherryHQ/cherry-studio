@@ -1753,7 +1753,7 @@ const migrateConfig = {
           provider.type = 'azure-openai'
         }
       })
-      
+
       state.settings.localBackupMaxBackups = 0
       state.settings.localBackupSkipBackupFile = false
       state.settings.localBackupDir = ''
