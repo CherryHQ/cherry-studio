@@ -5,7 +5,6 @@ import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useOcrProviders } from '@renderer/hooks/useOcr'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
@@ -13,10 +12,10 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
-import { modelSelectFilter } from '@renderer/utils'
+import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { ChevronDown } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -64,39 +63,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const embeddingSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isEmbeddingModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m),
-            providerId: p.id,
-            modelId: m.id
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
+    return getModelSelectOptions(providers, isEmbeddingModel)
+  }, [providers])
 
   const rerankSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isRerankModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m)
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
+    return getModelSelectOptions(providers, isRerankModel)
+  }, [providers])
 
   const preprocessOrOcrSelectOptions = useMemo(() => {
     const preprocessOptions = {

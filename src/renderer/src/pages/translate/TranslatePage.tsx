@@ -2,7 +2,7 @@ import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutli
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -16,7 +16,7 @@ import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { modelSelectFilter, runAsyncFunction, uuid } from '@renderer/utils'
+import { getModelSelectOptions, modelSelectFilter, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -28,7 +28,7 @@ import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { find, isEmpty, sortBy } from 'lodash'
+import { find, isEmpty } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -310,20 +310,8 @@ const TranslatePage: FC = () => {
   _targetLanguage = targetLanguage
 
   const selectOptions = useMemo(
-    () =>
-      providers
-        .filter((p) => p.models.length > 0)
-        .map((p) => ({
-          label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-          title: p.name,
-          options: sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m))
-            .map((m) => ({
-              label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-              value: getModelUniqId(m)
-            }))
-        })),
-    [providers, t]
+    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m)),
+    [providers]
   )
 
   const handleModelChange = (model: Model) => {

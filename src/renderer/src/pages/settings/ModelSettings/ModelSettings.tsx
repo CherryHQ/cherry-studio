@@ -14,9 +14,9 @@ import { useAppDispatch } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
-import { modelSelectFilter } from '@renderer/utils'
+import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
 import { Button, Select, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,18 +40,7 @@ const ModelSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
-        .map((m) => ({
-          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-          value: getModelUniqId(m)
-        }))
-    }))
+  const selectOptions = getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),

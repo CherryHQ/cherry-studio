@@ -10,8 +10,8 @@ import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
+import { getModelSelectOptions } from '@renderer/utils'
 import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip } from 'antd'
-import { sortBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -44,33 +44,9 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     return null
   }
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const selectOptions = getModelSelectOptions(providers, isEmbeddingModel)
 
-  const rerankSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const rerankSelectOptions = getModelSelectOptions(providers, isRerankModel)
 
   const preprocessOptions = {
     label: t('settings.tool.preprocess.provider'),
