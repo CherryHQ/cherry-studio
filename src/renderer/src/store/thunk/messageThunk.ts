@@ -779,11 +779,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
 
         const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
-        smartBlockUpdate(
-          errorBlock.id,
-          { status: isErrorTypeAbort ? MessageBlockStatus.SUCCESS : MessageBlockStatus.ERROR },
-          MessageBlockType.ERROR
-        )
+        await handleBlockTransition(errorBlock, MessageBlockType.ERROR)
         const messageErrorUpdate = {
           status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
         }
