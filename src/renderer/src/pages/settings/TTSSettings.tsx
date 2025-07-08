@@ -2,6 +2,7 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getTTSProviderLogo, TTS_PROVIDER_CONFIG } from '@renderer/config/tts'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useSelfHostTTSTest } from '@renderer/hooks/useSelfHostTTSTest'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { TTSProvider } from '@renderer/types/tts'
 import { Avatar, Button, Flex, Input, Select, Slider, Switch, Tag } from 'antd'
@@ -31,10 +32,6 @@ const TTSSettings: FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<TTSProvider | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const [testText, setTestText] = useState<string>(
-    '你好，欢迎使用 Cherry Studio。今天过得好吗？'
-  )
-  const [isTesting, setIsTesting] = useState(false)
 
   // ==================================================================
   // 最终的、正确的修复方案：使用 useMemo 创建一个安全的派生状态
@@ -59,6 +56,9 @@ const TTSSettings: FC = () => {
     }
     return newProvider
   }, [selectedProvider])
+
+  // 为自建服务测试功能引入独立的 Hook
+  const { testText, setTestText, isTesting, startTest, stopTest } = useSelfHostTTSTest(providerForRender)
 
   // 过滤供应商（优化：使用 useMemo 避免不必要的重新计算）
   const filteredProviders = useMemo(() => {
@@ -126,7 +126,7 @@ const TTSSettings: FC = () => {
         voicesLoadedRef.current.add(providerId)
       }
     } catch (error) {
-      console.error(`Failed to load voices for ${selectedProvider.type}:`, error)
+      // console.error(`Failed to load voices for ${selectedProvider.type}:`, error)
     }
   }, [selectedProvider, tts])
 
@@ -179,7 +179,7 @@ const TTSSettings: FC = () => {
       setIsPlaying(false)
       setIsPaused(false)
     } catch (error) {
-      console.error('TTS test failed:', error)
+      // console.error('TTS test failed:', error)
       setIsPlaying(false)
       setIsPaused(false)
     }
@@ -939,32 +939,11 @@ const TTSSettings: FC = () => {
               />
               <Button
                 type="primary"
-                loading={isPlaying}
+                loading={isTesting}
                 disabled={!providerForRender.enabled}
-                icon={isPlaying ? <Square size={16} /> : <Play size={16} />}
-                onClick={() => {
-                  if (isPlaying) {
-                    tts.stop()
-                    setIsPlaying(false)
-                  } else {
-                    setIsPlaying(true)
-                    tts
-                      .speak(testText, {
-                        providerId: providerForRender.id,
-                        voice: providerForRender.settings.voice,
-                        rate: providerForRender.settings.rate,
-                        pitch: providerForRender.settings.pitch,
-                        volume: providerForRender.settings.volume
-                      })
-                      .catch((e) => {
-                        console.error('Self-host TTS test failed:', e)
-                      })
-                      .finally(() => {
-                        setIsPlaying(false)
-                      })
-                  }
-                }}>
-                {isPlaying ? t('settings.tts.test.stop') : t('settings.tts.test.play')}
+                icon={isTesting ? <Square size={16} /> : <Play size={16} />}
+                onClick={isTesting ? stopTest : startTest}>
+                {isTesting ? t('settings.tts.test.stop') : t('settings.tts.test.play')}
               </Button>
             </SettingRow>
           </>

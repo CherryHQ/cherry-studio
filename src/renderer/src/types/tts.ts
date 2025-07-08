@@ -74,10 +74,11 @@ export interface TTSState {
 }
 
 export interface TTSSpeakOptions {
-  text: string
   voice?: string
   rate?: number
   pitch?: number
   volume?: number
   streaming?: boolean // 是否使用流式合成
+  onError?: (error: Error) => void // 错误回调函数
+  providerOverride?: TTSProvider // 用于覆盖当前 provider 的配置，主要用于测试
 }

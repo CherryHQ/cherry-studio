@@ -161,13 +161,19 @@ export const useTTS = () => {
   // TTS 操作
   const ttsOperations = {
     speak: useCallback(
-      async (text: string, options?: Partial<TTSSpeakOptions>) => {
-        if (!isTTSAvailable) {
+      async (text: string, options: Partial<TTSSpeakOptions> = {}) => {
+        // 检查是否有 providerOverride，或者全局 TTS 是否可用
+        if (!options.providerOverride && !isTTSAvailable) {
           throw new Error('TTS is not available')
         }
-        // 从 store 中获取最新的 provider 配置
+
+        // 优先使用 options 中直接传递的 providerOverride
+        if (options.providerOverride) {
+          return ttsService.speak(text, options, options.providerOverride)
+        }
+
+        // 降级到使用全局当前的 provider
         const currentProviderConfig = ttsState.providers.find((p) => p.id === ttsState.currentProvider)
-        // 将最新的配置作为覆盖参数传递
         return ttsService.speak(text, options, currentProviderConfig)
       },
       [ttsService, isTTSAvailable, ttsState.providers, ttsState.currentProvider]

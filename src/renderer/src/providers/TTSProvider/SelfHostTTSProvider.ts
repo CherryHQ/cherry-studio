@@ -49,6 +49,13 @@ export class SelfHostTTSProvider extends BaseTTSProvider {
    */
   private audioProducerPromise: Promise<void> | null = null
 
+  /**
+   * @private
+   * @type {AbortController | null}
+   * @description 新增：用于中断 fetch 请求的控制器。
+   */
+  private abortController: AbortController | null = null
+
   // --- 接口实现方法 ---
 
   /**
@@ -81,24 +88,28 @@ export class SelfHostTTSProvider extends BaseTTSProvider {
    * 开始播放指定的文本。
    * @param {TTSSpeakOptions} options - 包含文本、音量、错误回调等播放选项。
    */
-  public async speak(options: TTSSpeakOptions): Promise<void> {
+  public speak(options: TTSSpeakOptions): Promise<void> {
     // **执行顺序: 1.1** - 确保在开始前，所有旧的播放任务都已完全停止。
-    await this.stop()
+    this.stop()
 
     const { text, volume, onError } = options
     if (!text.trim()) {
-      return // 如果没有文本，则不执行任何操作。
+      return Promise.resolve() // 如果没有文本，则不执行任何操作。
     }
 
     // **执行顺序: 1.2** - 设置核心状态，启动播放流程。
     this.isSpeaking = true
+    this.abortController = new AbortController() // 新建 AbortController
     this.sentenceQueue = this.splitIntoSentences(text)
 
     // **执行顺序: 1.3** - 如果有句子需要处理，则同时启动生产者和消费者循环。
     if (this.sentenceQueue.length > 0) {
       this.audioProducerPromise = this.producerLoop(onError)
       this.audioConsumerPromise = this.consumerLoop(volume, onError)
+      return this.audioConsumerPromise // 返回 consumer 的 Promise
     }
+
+    return Promise.resolve()
   }
 
   /**
@@ -110,15 +121,20 @@ export class SelfHostTTSProvider extends BaseTTSProvider {
   public async stop(): Promise<void> {
     if (this.isSpeaking) {
       this.isSpeaking = false
-      // **关键**: 等待两个循环都完全终止。
-      // `Promise.allSettled` 确保即使一个循环出错，我们也会等待另一个结束。
-      await Promise.allSettled([this.audioProducerPromise, this.audioConsumerPromise])
+
+      // 立即中断 fetch 请求
+      this.abortController?.abort()
+
+      // 立即停止音频播放
+      await super.stop()
     }
+
     // 清理队列和状态
     this.sentenceQueue = []
     this.audioQueue = []
-    // 调用父类的 stop 方法，实际停止音频播放器。
-    await super.stop()
+    this.abortController = null
+    this.audioProducerPromise = null
+    this.audioConsumerPromise = null
   }
 
   // --- 核心循环：生产者 & 消费者 ---
@@ -148,6 +164,12 @@ export class SelfHostTTSProvider extends BaseTTSProvider {
           this.audioQueue.push(audioBlob)
         }
       } catch (error) {
+        // 如果是因为 abort 导致的错误，则静默处理，这是预期的行为
+        if (error instanceof Error && error.name === 'AbortError') {
+          this.isSpeaking = false
+          break
+        }
+
         const err = error instanceof Error ? error : new Error('Failed to fetch audio from self-host service')
         console.error(`[SelfHostTTSProvider] Failed to fetch audio for: "${sentence}"`, err)
         // 新增：调用错误回调，将错误信息传递到 UI 层
@@ -239,7 +261,8 @@ export class SelfHostTTSProvider extends BaseTTSProvider {
     const response = await fetch(config.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: finalBody
+      body: finalBody,
+      signal: this.abortController?.signal // 传递 signal
     })
 
     if (!response.ok) {

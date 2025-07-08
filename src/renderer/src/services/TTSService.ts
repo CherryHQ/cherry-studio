@@ -94,24 +94,19 @@ export class TTSService {
    * 语音合成
    */
   async speak(text: string, options?: Partial<TTSSpeakOptions>, providerOverride?: TTSProvider): Promise<void> {
-    console.log('[TTSService] Speak called. Current provider is:', this.currentProvider?.getProvider().id)
     // 如果传入了覆盖配置，则使用它；否则，使用内部的 currentProvider
     const providerToUse = providerOverride ? TTSProviderFactory.create(providerOverride) : this.currentProvider
 
     if (!providerToUse) {
-      console.error('[TTSService] No TTS provider available.')
       throw new Error('No TTS provider available')
     }
 
     const providerConfig = providerToUse.getProvider()
-    console.log('[TTSService] Provider config being used for speak:', JSON.parse(JSON.stringify(providerConfig)))
     if (!providerConfig || !providerConfig.enabled) {
-      console.error('[TTSService] Current TTS provider is not configured or disabled.')
       throw new Error('Current TTS provider is not configured or disabled')
     }
 
     // 停止所有正在播放的 TTS
-    console.log('[TTSService] Calling stopAll() before speaking.')
     this.stopAll()
 
     // 等待一小段时间确保停止操作完成
@@ -127,22 +122,16 @@ export class TTSService {
 
     // 设置当前活跃供应商
     this.activeProvider = providerToUse
-    console.log(`[TTSService] Set activeProvider to: ${providerToUse.getProvider().id}`)
 
     try {
-      console.log('[TTSService] Calling provider.speak() with options:', speakOptions)
       await providerToUse.speak(speakOptions)
-      console.log('[TTSService] provider.speak() finished.')
       // 播放完成后清除活跃供应商
       if (this.activeProvider === providerToUse) {
-        console.log(`[TTSService] Clearing activeProvider: ${this.activeProvider.getProvider().id}`)
         this.activeProvider = null
       }
     } catch (error) {
-      console.error('[TTSService] provider.speak() threw an error:', error)
       // 播放失败后清除活跃供应商
       if (this.activeProvider === providerToUse) {
-        console.log(`[TTSService] Clearing activeProvider due to error: ${this.activeProvider.getProvider().id}`)
         this.activeProvider = null
       }
       throw error
@@ -153,24 +142,21 @@ export class TTSService {
    * 暂停播放
    */
   pause(): void {
-    console.log('[TTSService] pause() called.')
-    this.currentProvider?.pause()
+    this.activeProvider?.pause()
   }
 
   /**
    * 恢复播放
    */
   resume(): void {
-    console.log('[TTSService] resume() called.')
-    this.currentProvider?.resume()
+    this.activeProvider?.resume()
   }
 
   /**
    * 停止播放
    */
   stop(): void {
-    console.log('[TTSService] stop() called.')
-    this.currentProvider?.stop()
+    this.activeProvider?.stop()
   }
 
   /**
@@ -193,11 +179,10 @@ export class TTSService {
           provider.stop()
         } catch (error) {
           // 忽略单个供应商停止时的错误
-          console.warn('[TTSService] Error stopping provider:', error)
         }
       })
     } catch (error) {
-      console.warn('[TTSService] Error in stopAll:', error)
+      // 忽略 stopAll 中的错误
     }
   }
 
