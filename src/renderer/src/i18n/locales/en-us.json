@@ -1273,7 +1273,8 @@
           "syncStatus": "Backup Status",
           "title": "WebDAV",
           "user": "WebDAV User",
-          "maxBackups": "Maximum Backups"
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "local": {
           "autoSync": "Auto Backup",
@@ -1313,8 +1314,6 @@
           "minute_interval_other": "{{count}} minutes",
           "noSync": "Waiting for next backup",
           "restore.button": "Restore from Local",
-          "restore.confirm.content": "Restoring from local backup will replace current data. Do you want to continue?",
-          "restore.confirm.title": "Confirm Restore",
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "Local Backup",
