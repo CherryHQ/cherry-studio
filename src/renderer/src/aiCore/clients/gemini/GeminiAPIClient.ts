@@ -547,11 +547,11 @@ export class GeminiAPIClient extends BaseApiClient<
   }
 
   getResponseChunkTransformer(): ResponseChunkTransformer<GeminiSdkRawChunk> {
+    const toolCalls: FunctionCall[] = []
+    let isFirstTextChunk = true
+    let isFirstThinkingChunk = true
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        const toolCalls: FunctionCall[] = []
-        let isFirstTextChunk = true
-        let isFirstThinkingChunk = true
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {

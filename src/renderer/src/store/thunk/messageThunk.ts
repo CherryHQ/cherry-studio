@@ -226,31 +226,6 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
   }
 }
 
-// // 修改: 节流更新单个块的内容/状态到数据库 (仅用于 Text/Thinking Chunks)
-// export const throttledBlockDbUpdate = throttle(
-//   async (blockId: string, blockChanges: Partial<MessageBlock>) => {
-//     // Check if blockId is valid before attempting update
-//     if (!blockId) {
-//       console.warn('[DB Throttle Block Update] Attempted to update with null/undefined blockId. Skipping.')
-//       return
-//     }
-//     const state = store.getState()
-//     const block = state.messageBlocks.entities[blockId]
-//     // throttle是异步函数,可能会在complete事件触发后才执行
-//     if (
-//       blockChanges.status === MessageBlockStatus.STREAMING &&
-//       (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
-//     )
-//       return
-//     try {
-//     } catch (error) {
-//       console.error(`[DB Throttle Block Update] Failed for block ${blockId}:`, error)
-//     }
-//   },
-//   300, // 可以调整节流间隔
-//   { leading: false, trailing: true }
-// )
-
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
 const saveUpdatesToDB = async (
   messageId: string,
@@ -372,11 +347,6 @@ const fetchAndProcessAssistantResponseImpl = async (
      */
     const smartBlockUpdate = (blockId: string, changes: Partial<MessageBlock>, blockType: MessageBlockType) => {
       const isBlockTypeChanged = currentActiveBlockType !== null && currentActiveBlockType !== blockType
-      if (isBlockTypeChanged) {
-        console.log('取消节流，块类型切换：', 'currentActiveBlockType', currentActiveBlockType, 'blockType', blockType)
-      } else {
-        console.log('节流，块类型连续：', 'currentActiveBlockType', currentActiveBlockType, 'blockType', blockType)
-      }
 
       if (isBlockTypeChanged) {
         if (lastBlockId && lastBlockId !== blockId) {
@@ -461,16 +431,14 @@ const fetchAndProcessAssistantResponseImpl = async (
           const changes = {
             type: MessageBlockType.MAIN_TEXT,
             content: accumulatedContent,
-            status: MessageBlockStatus.STREAMING,
-            citationReferences: citationBlockId ? [{ citationBlockId, citationBlockSource }] : []
+            status: MessageBlockStatus.STREAMING
           }
           smartBlockUpdate(initialPlaceholderBlockId, changes, MessageBlockType.MAIN_TEXT)
           mainTextBlockId = initialPlaceholderBlockId
           initialPlaceholderBlockId = null
         } else if (!mainTextBlockId) {
           const newBlock = createMainTextBlock(assistantMsgId, accumulatedContent, {
-            status: MessageBlockStatus.STREAMING,
-            citationReferences: citationBlockId ? [{ citationBlockId, citationBlockSource }] : []
+            status: MessageBlockStatus.STREAMING
           })
           mainTextBlockId = newBlock.id
           await handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
