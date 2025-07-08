@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock @renderer/i18n to avoid initialization issues
+vi.mock('@renderer/i18n', () => ({
+  default: {
+    t: vi.fn((key: string) => {
+      const translations: Record<string, string> = {
+        'message.download.failed': '下载失败',
+        'message.download.failed.network': '下载失败，请检查网络'
+      }
+      return translations[key] || key
+    })
+  }
+}))
 
 import { download } from '../download'
 
@@ -32,197 +45,197 @@ const createMockResponse = (options = {}) => ({
 })
 
 describe('download', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  describe('download', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
 
-    // 设置 window.message mock
-    Object.defineProperty(window, 'message', { value: mockMessage, writable: true })
+      // 设置 window.message mock
+      Object.defineProperty(window, 'message', { value: mockMessage, writable: true })
 
-    // 设置 DOM mock
-    const mockElement = {
-      href: '',
-      download: '',
-      click: mockClick,
-      remove: vi.fn()
-    }
-    mockCreateElement.mockReturnValue(mockElement)
+      // 设置 DOM mock
+      const mockElement = {
+        href: '',
+        download: '',
+        click: mockClick,
+        remove: vi.fn()
+      }
+      mockCreateElement.mockReturnValue(mockElement)
 
-    Object.defineProperty(document, 'createElement', { value: mockCreateElement })
-    Object.defineProperty(document.body, 'appendChild', { value: mockAppendChild })
-    Object.defineProperty(URL, 'createObjectURL', { value: mockCreateObjectURL })
-    Object.defineProperty(URL, 'revokeObjectURL', { value: mockRevokeObjectURL })
+      Object.defineProperty(document, 'createElement', { value: mockCreateElement })
+      Object.defineProperty(document.body, 'appendChild', { value: mockAppendChild })
+      Object.defineProperty(URL, 'createObjectURL', { value: mockCreateObjectURL })
+      Object.defineProperty(URL, 'revokeObjectURL', { value: mockRevokeObjectURL })
 
-    global.fetch = mockFetch
-    mockCreateObjectURL.mockReturnValue('blob:mock-url')
-  })
-
-  describe('Direct download support', () => {
-    it('should handle local file URLs', () => {
-      download('file:///path/to/document.pdf', 'test.pdf')
-
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.href).toBe('file:///path/to/document.pdf')
-      expect(element.download).toBe('test.pdf')
-      expect(mockClick).toHaveBeenCalled()
+      global.fetch = mockFetch
+      mockCreateObjectURL.mockReturnValue('blob:mock-url')
     })
 
-    it('should handle blob URLs', () => {
-      download('blob:http://localhost:3000/12345')
-
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.href).toBe('blob:http://localhost:3000/12345')
-      expect(mockClick).toHaveBeenCalled()
+    afterEach(() => {
+      vi.restoreAllMocks()
     })
 
-    it('should handle data URLs', () => {
-      const dataUrl =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
+    describe('Direct download support', () => {
+      it('should handle local file URLs', () => {
+        download('file:///path/to/document.pdf', 'test.pdf')
 
-      download(dataUrl)
-
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.href).toBe(dataUrl)
-      expect(mockClick).toHaveBeenCalled()
-    })
-
-    it('should handle different MIME types in data URLs', async () => {
-      const now = Date.now()
-      vi.spyOn(Date, 'now').mockReturnValue(now)
-
-      // 只有 image/png 和 image/jpeg 会直接下载
-      const directDownloadTests = [
-        { url: 'data:image/jpeg;base64,xxx', expectedExt: '.jpg' },
-        { url: 'data:image/png;base64,xxx', expectedExt: '.png' }
-      ]
-
-      directDownloadTests.forEach(({ url, expectedExt }) => {
-        mockCreateElement.mockClear()
-        download(url)
         const element = mockCreateElement.mock.results[0].value
-        expect(element.download).toBe(`${now}_download${expectedExt}`)
+        expect(element.href).toBe('file:///path/to/document.pdf')
+        expect(element.download).toBe('test.pdf')
+        expect(mockClick).toHaveBeenCalled()
       })
 
-      // 其他类型会通过 fetch 处理
-      mockCreateElement.mockClear()
-      mockFetch.mockResolvedValueOnce(
-        createMockResponse({
-          headers: new Headers({ 'Content-Type': 'application/pdf' })
+      it('should handle blob URLs', () => {
+        download('blob:http://localhost:3000/12345')
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.href).toBe('blob:http://localhost:3000/12345')
+        expect(mockClick).toHaveBeenCalled()
+      })
+
+      it('should handle data URLs', () => {
+        const dataUrl =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
+
+        download(dataUrl)
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.href).toBe(dataUrl)
+        expect(mockClick).toHaveBeenCalled()
+      })
+
+      it('should handle different MIME types in data URLs', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        // 只有 image/png 和 image/jpeg 会直接下载
+        const directDownloadTests = [
+          { url: 'data:image/jpeg;base64,xxx', expectedExt: '.jpg' },
+          { url: 'data:image/png;base64,xxx', expectedExt: '.png' }
+        ]
+
+        directDownloadTests.forEach(({ url, expectedExt }) => {
+          mockCreateElement.mockClear()
+          download(url)
+          const element = mockCreateElement.mock.results[0].value
+          expect(element.download).toBe(`${now}_download${expectedExt}`)
         })
-      )
 
-      download('data:application/pdf;base64,xxx')
-      await waitForAsync()
+        // 其他类型会通过 fetch 处理
+        mockCreateElement.mockClear()
+        mockFetch.mockResolvedValueOnce(
+          createMockResponse({
+            headers: new Headers({ 'Content-Type': 'application/pdf' })
+          })
+        )
 
-      expect(mockFetch).toHaveBeenCalled()
+        download('data:application/pdf;base64,xxx')
+        await waitForAsync()
 
-      vi.spyOn(Date, 'now').mockRestore()
+        expect(mockFetch).toHaveBeenCalled()
+      })
+
+      it('should generate filename with timestamp for blob URLs', () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        download('blob:http://localhost:3000/12345')
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_diagram.svg`)
+      })
     })
 
-    it('should generate filename with timestamp for blob URLs', () => {
-      const now = Date.now()
-      vi.spyOn(Date, 'now').mockReturnValue(now)
+    describe('Filename handling', () => {
+      it('should extract filename from file path', () => {
+        download('file:///Users/test/Documents/report.pdf')
 
-      download('blob:http://localhost:3000/12345')
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe('report.pdf')
+      })
 
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.download).toBe(`${now}_diagram.svg`)
+      it('should handle URL encoded filenames', () => {
+        download('file:///path/to/%E6%96%87%E6%A1%A3.pdf') // 编码的"文档.pdf"
 
-      vi.spyOn(Date, 'now').mockRestore()
-    })
-  })
-
-  describe('Filename handling', () => {
-    it('should extract filename from file path', () => {
-      download('file:///Users/test/Documents/report.pdf')
-
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.download).toBe('report.pdf')
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe('文档.pdf')
+      })
     })
 
-    it('should handle URL encoded filenames', () => {
-      download('file:///path/to/%E6%96%87%E6%A1%A3.pdf') // 编码的"文档.pdf"
+    describe('Network download', () => {
+      it('should handle successful network request', async () => {
+        mockFetch.mockResolvedValue(createMockResponse())
 
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.download).toBe('文档.pdf')
-    })
-  })
+        download('https://example.com/file.pdf', 'custom.pdf')
+        await waitForAsync()
 
-  describe('Network download', () => {
-    it('should handle successful network request', async () => {
-      mockFetch.mockResolvedValue(createMockResponse())
+        expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
+        expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+        expect(mockClick).toHaveBeenCalled()
+      })
 
-      download('https://example.com/file.pdf', 'custom.pdf')
-      await waitForAsync()
+      it('should extract filename from URL and headers', async () => {
+        const headers = new Headers()
+        headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-      expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
-      expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
-      expect(mockClick).toHaveBeenCalled()
-    })
+        download('https://example.com/files/document.docx')
+        await waitForAsync()
 
-    it('should extract filename from URL and headers', async () => {
-      const headers = new Headers()
-      headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
-      mockFetch.mockResolvedValue(createMockResponse({ headers }))
+        // 验证下载被触发（具体文件名由实现决定）
+        expect(mockClick).toHaveBeenCalled()
+      })
 
-      download('https://example.com/files/document.docx')
-      await waitForAsync()
+      it('should add timestamp to network downloaded files', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
 
-      // 验证下载被触发（具体文件名由实现决定）
-      expect(mockClick).toHaveBeenCalled()
-    })
+        mockFetch.mockResolvedValue(createMockResponse())
 
-    it('should add timestamp to network downloaded files', async () => {
-      const now = Date.now()
-      vi.spyOn(Date, 'now').mockReturnValue(now)
+        download('https://example.com/file.pdf')
+        await waitForAsync()
 
-      mockFetch.mockResolvedValue(createMockResponse())
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_file.pdf`)
+      })
 
-      download('https://example.com/file.pdf')
-      await waitForAsync()
+      it('should handle Content-Type when filename has no extension', async () => {
+        const headers = new Headers()
+        headers.set('Content-Type', 'application/pdf')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.download).toBe(`${now}_file.pdf`)
+        download('https://example.com/download')
+        await waitForAsync()
 
-      vi.spyOn(Date, 'now').mockRestore()
-    })
-
-    it('should handle Content-Type when filename has no extension', async () => {
-      const headers = new Headers()
-      headers.set('Content-Type', 'application/pdf')
-      mockFetch.mockResolvedValue(createMockResponse({ headers }))
-
-      download('https://example.com/download')
-      await waitForAsync()
-
-      const element = mockCreateElement.mock.results[0].value
-      expect(element.download).toMatch(/\d+_download\.pdf$/)
-    })
-  })
-
-  describe('Error handling', () => {
-    it('should handle network errors gracefully', async () => {
-      const networkError = new Error('Network error')
-      mockFetch.mockRejectedValue(networkError)
-
-      expect(() => download('https://example.com/file.pdf')).not.toThrow()
-      await waitForAsync()
-
-      expect(mockMessage.error).toHaveBeenCalledWith('下载失败：Network error')
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toMatch(/\d+_download\.pdf$/)
+      })
     })
 
-    it('should handle fetch errors without message', async () => {
-      mockFetch.mockRejectedValue(new Error())
+    describe('Error handling', () => {
+      it('should handle network errors gracefully', async () => {
+        const networkError = new Error('Network error')
+        mockFetch.mockRejectedValue(networkError)
 
-      expect(() => download('https://example.com/file.pdf')).not.toThrow()
-      await waitForAsync()
+        expect(() => download('https://example.com/file.pdf')).not.toThrow()
+        await waitForAsync()
 
-      expect(mockMessage.error).toHaveBeenCalledWith('下载失败：网络连接失败')
-    })
+        expect(mockMessage.error).toHaveBeenCalledWith('下载失败：Network error')
+      })
 
-    it('should handle HTTP errors gracefully', async () => {
-      mockFetch.mockResolvedValue({ ok: false, status: 404 })
+      it('should handle fetch errors without message', async () => {
+        mockFetch.mockRejectedValue(new Error())
 
-      expect(() => download('https://example.com/file.pdf')).not.toThrow()
+        expect(() => download('https://example.com/file.pdf')).not.toThrow()
+        await waitForAsync()
+
+        expect(mockMessage.error).toHaveBeenCalledWith('下载失败，请检查网络')
+      })
+
+      it('should handle HTTP errors gracefully', async () => {
+        mockFetch.mockResolvedValue({ ok: false, status: 404 })
+
+        expect(() => download('https://example.com/file.pdf')).not.toThrow()
+      })
     })
   })
 })

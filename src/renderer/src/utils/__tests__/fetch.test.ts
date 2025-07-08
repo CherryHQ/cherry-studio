@@ -43,7 +43,7 @@ const createMockResponse = (overrides = {}) =>
     ...overrides
   }) as unknown as Response
 
-describe('fetch utils', () => {
+describe('fetch', () => {
   beforeEach(() => {
     // Mock fetch 和 AbortSignal
     global.fetch = vi.fn()
@@ -116,6 +116,43 @@ describe('fetch utils', () => {
       expect(result.title).toBe('Test Article')
       expect(result.url).toBe('https://example.com')
     })
+
+    it('should handle timeout signal in AbortSignal.any', async () => {
+      const mockTimeoutSignal = new AbortController().signal
+      vi.spyOn(global.AbortSignal, 'timeout').mockReturnValue(mockTimeoutSignal)
+
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
+
+      await fetchWebContent('https://example.com')
+
+      // 验证 AbortSignal.timeout 是否被调用，并传入 30000ms
+      expect(global.AbortSignal.timeout).toHaveBeenCalledWith(30000)
+
+      vi.spyOn(global.AbortSignal, 'timeout').mockRestore()
+    })
+
+    it('should combine user signal with timeout signal', async () => {
+      const userController = new AbortController()
+      const mockAnyCalls: any[] = []
+
+      vi.spyOn(global.AbortSignal, 'any').mockImplementation((signals) => {
+        mockAnyCalls.push(signals)
+        return new AbortController().signal
+      })
+
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
+
+      await fetchWebContent('https://example.com', 'markdown', false, {
+        signal: userController.signal
+      })
+
+      // 验证 AbortSignal.any 是否被调用，并传入两个信号
+      expect(mockAnyCalls).toHaveLength(1)
+      expect(mockAnyCalls[0]).toHaveLength(2)
+      expect(mockAnyCalls[0]).toContain(userController.signal)
+
+      vi.spyOn(global.AbortSignal, 'any').mockRestore()
+    })
   })
 
   describe('fetchWebContents', () => {
@@ -166,45 +203,6 @@ describe('fetch utils', () => {
       expect(result).toBe('https://example.com')
 
       consoleSpy.mockRestore()
-    })
-  })
-
-  describe('Timeout handling', () => {
-    it('should handle timeout signal in AbortSignal.any', async () => {
-      const mockTimeoutSignal = new AbortController().signal
-      vi.spyOn(global.AbortSignal, 'timeout').mockReturnValue(mockTimeoutSignal)
-
-      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
-
-      await fetchWebContent('https://example.com')
-
-      // 验证 AbortSignal.timeout 是否被调用，并传入 30000ms
-      expect(global.AbortSignal.timeout).toHaveBeenCalledWith(30000)
-
-      vi.spyOn(global.AbortSignal, 'timeout').mockRestore()
-    })
-
-    it('should combine user signal with timeout signal', async () => {
-      const userController = new AbortController()
-      const mockAnyCalls: any[] = []
-
-      vi.spyOn(global.AbortSignal, 'any').mockImplementation((signals) => {
-        mockAnyCalls.push(signals)
-        return new AbortController().signal
-      })
-
-      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
-
-      await fetchWebContent('https://example.com', 'markdown', false, {
-        signal: userController.signal
-      })
-
-      // 验证 AbortSignal.any 是否被调用，并传入两个信号
-      expect(mockAnyCalls).toHaveLength(1)
-      expect(mockAnyCalls[0]).toHaveLength(2)
-      expect(mockAnyCalls[0]).toContain(userController.signal)
-
-      vi.spyOn(global.AbortSignal, 'any').mockRestore()
     })
   })
 })
