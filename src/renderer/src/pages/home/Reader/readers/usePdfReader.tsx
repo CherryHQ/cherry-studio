@@ -32,6 +32,12 @@ interface Props {
   onTriggerSelectPage: (checked: boolean, page: number) => void
 }
 
+interface DocumentReaderProps {
+  inputRef?: React.RefObject<HTMLDivElement | null>
+  canDrag?: boolean
+  isDragging?: boolean
+}
+
 const usePdfReader = (props: Props) => {
   const { selectedPages, pageWidth, pdfFile, onTriggerSelectPage } = props
 
@@ -54,6 +60,48 @@ const usePdfReader = (props: Props) => {
   const [showSelect, setShowSelect] = useState(false)
   const [scale, setScale] = useState(1)
   const [noOutline, setNoOutline] = useState(false)
+
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [canDrag, setCanDrag] = useState(false)
+
+  useEffect(() => {
+    setCanDrag(scale > 1)
+  }, [scale])
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!canDrag || !docDivRef.current) return
+
+    setIsDragging(true)
+    setDragStart({ x: e.clientX, y: e.clientY })
+
+    document.body.style.cursor = 'grabbing'
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !docDivRef.current) return
+
+    const dx = e.clientX - dragStart.x
+    const dy = e.clientY - dragStart.y
+
+    docDivRef.current.scrollLeft -= dx
+    docDivRef.current.scrollTop -= dy
+
+    setDragStart({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false)
+      document.body.style.cursor = 'auto'
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = 'auto'
+    }
+  }, [])
 
   const handlePageRef = (page: number) => (el: HTMLDivElement) => {
     pageRefs.current[page] = el
@@ -170,7 +218,13 @@ const usePdfReader = (props: Props) => {
       onLoadSuccess={onLoadSuccess}
       loading={PdfStatueRender.LOADING}
       error={PdfStatueRender.ERROR}
-      noData={PdfStatueRender.NO_DATA}>
+      noData={PdfStatueRender.NO_DATA}
+      canDrag={canDrag}
+      isDragging={isDragging}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}>
       <OutlineWrapper className={showOutline ? 'visible' : ''}>
         <Outline
           className="outline"
@@ -247,11 +301,12 @@ const usePdfReader = (props: Props) => {
   )
 }
 
-const DocumentReader = styled(Document)`
+const DocumentReader = styled(Document)<DocumentReaderProps>`
   position: relative;
   overflow-y: auto;
   width: 100%;
   height: 100%;
+  cursor: ${(props) => (props.canDrag ? (props.isDragging ? 'grabbing' : 'grab') : 'auto')};
 
   .document-loading {
     position: absolute;
