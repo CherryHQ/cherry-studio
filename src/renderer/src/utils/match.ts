@@ -1,6 +1,5 @@
+import i18n from '@renderer/i18n'
 import { Model, Provider } from '@renderer/types'
-
-import { getFancyProviderName } from './naming'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords
@@ -10,7 +9,7 @@ import { getFancyProviderName } from './naming'
  *
  * @param target 被搜索的字符串
  * @param keywords 关键词字符串（空格分隔）或关键词数组
- * @returns 包含所有关键词或者没有有效关键词则返回true
+ * @returns 包含所有关键词或者没有有效关键词则返回 true
  */
 export function includeKeywords(target: string, keywords: string | string[]): boolean {
   const keywordArray = Array.isArray(keywords) ? keywords : (keywords || '').split(/\s+/)
@@ -31,32 +30,36 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
  * @see includeKeywords
  * @param keywords 关键词字符串（空格分隔）或关键词数组
  * @param value 被搜索的目标字符串
- * @returns 包含所有关键词则返回true
+ * @returns 包含所有关键词则返回 true
  */
 export function keywordsMatchString(keywords: string | string[], value: string): boolean {
   return includeKeywords(value, keywords)
 }
 
 /**
- * 检查Provider是否匹配关键词
+ * 检查 Provider 是否匹配关键词
  * @param keywords 关键词字符串（空格分隔）或关键词数组
- * @param provider 被搜索的Provider对象
- * @returns 匹配所有关键词则返回true
+ * @param provider 被搜索的 Provider 对象
+ * @returns 匹配所有关键词则返回 true
  */
 export function keywordsMatchProvider(keywords: string | string[], provider: Provider): boolean {
-  return includeKeywords(getFancyProviderName(provider), keywords)
+  return includeKeywords(getProviderSearchString(provider), keywords)
 }
 
 /**
- * 检查Model是否匹配关键词
+ * 检查 Model 是否匹配关键词
  * @param keywords 关键词字符串（空格分隔）或关键词数组
- * @param model 被搜索的Model对象
- * @param provider 可选的Provider对象，用于生成完整模型名称
- * @returns 匹配所有关键词则返回true
+ * @param model 被搜索的 Model 对象
+ * @param provider 可选的 Provider 对象，用于生成完整模型名称
+ * @returns 匹配所有关键词则返回 true
  */
 export function keywordsMatchModel(keywords: string | string[], model: Model, provider?: Provider): boolean {
-  const fullName = provider ? `${model.name} ${getFancyProviderName(provider)}` : model.name
+  const fullName = `${model.name} ${model.id} ${provider ? getProviderSearchString(provider) : ''}`
   return includeKeywords(fullName, keywords)
+}
+
+function getProviderSearchString(provider: Provider) {
+  return provider.isSystem ? `${i18n.t(`provider.${provider.id}`)} ${provider.id}` : provider.name
 }
 
 /**

@@ -6,7 +6,15 @@ import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
-import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
+import {
+  droppableReorder,
+  generateColorFromChar,
+  getFancyProviderName,
+  getFirstCharacter,
+  keywordsMatchModel,
+  keywordsMatchProvider,
+  uuid
+} from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, Search, UserPen } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -425,19 +433,9 @@ const ProvidersList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
-    const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
-
-    const isProviderMatch =
-      provider.id.toLowerCase().includes(searchText.toLowerCase()) ||
-      providerName.toLowerCase().includes(searchText.toLowerCase())
-
-    const isModelMatch = provider.models.some((model) => {
-      return (
-        model.id.toLowerCase().includes(searchText.toLowerCase()) ||
-        model.name.toLowerCase().includes(searchText.toLowerCase())
-      )
-    })
-
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+    const isProviderMatch = keywordsMatchProvider(keywords, provider)
+    const isModelMatch = provider.models.some((model) => keywordsMatchModel(keywords, model))
     return isProviderMatch || isModelMatch
   })
 
@@ -486,7 +484,7 @@ const ProvidersList: FC = () => {
                                 onClick={() => setSelectedProvider(provider)}>
                                 {getProviderAvatar(provider)}
                                 <ProviderItemName className="text-nowrap">
-                                  {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
+                                  {getFancyProviderName(provider)}
                                 </ProviderItemName>
                                 {provider.enabled && (
                                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>

@@ -1,6 +1,6 @@
 import store from '@renderer/store'
 import { Model, Provider } from '@renderer/types'
-import { t } from 'i18next'
+import { getFancyProviderName } from '@renderer/utils'
 import { pick } from 'lodash'
 
 import { checkApi } from './ApiService'
@@ -24,7 +24,7 @@ export function getModelName(model?: Model) {
   const modelName = model?.name || model?.id || ''
 
   if (provider) {
-    const providerName = provider?.isSystem ? t(`provider.${provider.id}`) : provider?.name
+    const providerName = getFancyProviderName(provider)
     return `${modelName} | ${providerName}`
   }
 

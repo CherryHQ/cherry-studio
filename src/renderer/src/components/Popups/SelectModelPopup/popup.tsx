@@ -7,7 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { classNames, keywordsMatchModel } from '@renderer/utils'
+import { classNames, getFancyProviderName, keywordsMatchModel } from '@renderer/utils'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -115,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const createModelItem = useCallback(
     (model: Model, provider: any, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
-      const groupName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
+      const groupName = getFancyProviderName(provider)
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
@@ -141,7 +141,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: modelId === currentModelId
       }
     },
-    [t, currentModelId]
+    [currentModelId]
   )
 
   // 构建扁平化列表数据
@@ -182,7 +182,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       items.push({
         key: `provider-${p.id}`,
         type: 'group',
-        name: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        name: getFancyProviderName(p),
         isSelected: false
       })
 
