@@ -34,7 +34,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const fetchBackupFiles = useCallback(async () => {
     if (!localBackupDir) {
-      message.error(t('message.error.invalid.localBackupDir'))
       return
     }
 
@@ -75,7 +74,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     }
 
     if (!localBackupDir) {
-      message.error(t('message.error.invalid.localBackupDir'))
       return
     }
 
@@ -109,7 +107,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const handleDeleteSingle = async (fileName: string) => {
     if (!localBackupDir) {
-      message.error(t('message.error.invalid.localBackupDir'))
       return
     }
 
@@ -137,7 +134,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const handleRestore = async (fileName: string) => {
     if (!localBackupDir) {
-      message.error(t('message.error.invalid.localBackupDir'))
       return
     }
 
