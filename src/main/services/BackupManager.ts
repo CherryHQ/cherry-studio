@@ -27,6 +27,11 @@ class BackupManager {
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
     this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
+    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
+    this.backupToLocalDir = this.backupToLocalDir.bind(this)
+    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
+    this.setLocalBackupDir = this.setLocalBackupDir.bind(this)
     this.backupToS3 = this.backupToS3.bind(this)
     this.restoreFromS3 = this.restoreFromS3.bind(this)
     this.listS3Files = this.listS3Files.bind(this)
@@ -477,6 +482,28 @@ class BackupManager {
     }
   }
 
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    data: string,
+    fileName: string,
+    localConfig: {
+      localBackupDir: string
+      skipBackupFile: boolean
+    }
+  ) {
+    try {
+      const backupDir = localConfig.localBackupDir
+      // Create backup directory if it doesn't exist
+      await fs.ensureDir(backupDir)
+
+      const backupedFilePath = await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile)
+      return backupedFilePath
+    } catch (error) {
+      Logger.error('[BackupManager] Local backup failed:', error)
+      throw error
+    }
+  }
+
   async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config) {
     const os = require('os')
     const deviceName = os.hostname ? os.hostname() : 'device'
@@ -500,6 +527,75 @@ class BackupManager {
     } catch (error) {
       Logger.error(`[BackupManager] S3 backup failed:`, error)
       await fs.remove(backupedFilePath)
+      throw error
+    }
+  }
+
+  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const backupDir = localBackupDir
+      const backupPath = path.join(backupDir, fileName)
+
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${backupPath}`)
+      }
+
+      return await this.restore(_, backupPath)
+    } catch (error) {
+      Logger.error('[BackupManager] Local restore failed:', error)
+      throw error
+    }
+  }
+
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
+    try {
+      const files = await fs.readdir(localBackupDir)
+      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+
+      for (const file of files) {
+        const filePath = path.join(localBackupDir, file)
+        const stat = await fs.stat(filePath)
+
+        if (stat.isFile() && file.endsWith('.zip')) {
+          result.push({
+            fileName: file,
+            modifiedTime: stat.mtime.toISOString(),
+            size: stat.size
+          })
+        }
+      }
+
+      // Sort by modified time, newest first
+      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error) {
+      Logger.error('[BackupManager] List local backup files failed:', error)
+      throw error
+    }
+  }
+
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const filePath = path.join(localBackupDir, fileName)
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Backup file not found: ${filePath}`)
+      }
+
+      await fs.remove(filePath)
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Delete local backup file failed:', error)
+      throw error
+    }
+  }
+
+  async setLocalBackupDir(_: Electron.IpcMainInvokeEvent, dirPath: string) {
+    try {
+      // Check if directory exists
+      await fs.ensureDir(dirPath)
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Set local backup directory failed:', error)
       throw error
     }
   }

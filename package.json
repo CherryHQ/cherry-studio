@@ -55,7 +55,7 @@
     "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "prepare": "husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.840.0",
