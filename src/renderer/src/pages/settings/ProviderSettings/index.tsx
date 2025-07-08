@@ -11,8 +11,8 @@ import {
   generateColorFromChar,
   getFancyProviderName,
   getFirstCharacter,
-  keywordsMatchModel,
-  keywordsMatchProvider,
+  matchKeywordsInModel,
+  matchKeywordsInProvider,
   uuid
 } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
@@ -435,8 +435,8 @@ const ProvidersList: FC = () => {
 
   const filteredProviders = providers.filter((provider) => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-    const isProviderMatch = keywordsMatchProvider(keywords, provider)
-    const isModelMatch = provider.models.some((model) => keywordsMatchModel(keywords, model))
+    const isProviderMatch = matchKeywordsInProvider(keywords, provider)
+    const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
     return isProviderMatch || isModelMatch
   })
 

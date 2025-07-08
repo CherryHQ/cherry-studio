@@ -1,7 +1,7 @@
 import type { Model, Provider } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import { includeKeywords, keywordsMatchModel, keywordsMatchProvider, keywordsMatchString } from '../match'
+import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
 // mock i18n for getFancyProviderName
 vi.mock('@renderer/i18n', () => ({
@@ -67,28 +67,28 @@ describe('match', () => {
     })
   })
 
-  describe('keywordsMatchString', () => {
+  describe('matchKeywordsInString', () => {
     it('should delegate to includeKeywords with string', () => {
-      expect(keywordsMatchString('foo', 'foo bar')).toBe(true)
-      expect(keywordsMatchString('bar', 'foo bar')).toBe(true)
-      expect(keywordsMatchString('baz', 'foo bar')).toBe(false)
+      expect(matchKeywordsInString('foo', 'foo bar')).toBe(true)
+      expect(matchKeywordsInString('bar', 'foo bar')).toBe(true)
+      expect(matchKeywordsInString('baz', 'foo bar')).toBe(false)
     })
   })
 
-  describe('keywordsMatchProvider', () => {
+  describe('matchKeywordsInProvider', () => {
     it('should match non-system provider by name only, not id', () => {
-      expect(keywordsMatchProvider('OpenAI', provider)).toBe(true)
-      expect(keywordsMatchProvider('12345', provider)).toBe(false) // Should NOT match by id
-      expect(keywordsMatchProvider('foo', provider)).toBe(false)
+      expect(matchKeywordsInProvider('OpenAI', provider)).toBe(true)
+      expect(matchKeywordsInProvider('12345', provider)).toBe(false) // Should NOT match by id
+      expect(matchKeywordsInProvider('foo', provider)).toBe(false)
     })
 
     it('should match i18n name for system provider', () => {
-      expect(keywordsMatchProvider('i18n:provider.sys', sysProvider)).toBe(true)
-      expect(keywordsMatchProvider('SystemProvider', sysProvider)).toBe(false)
+      expect(matchKeywordsInProvider('i18n:provider.sys', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('SystemProvider', sysProvider)).toBe(false)
     })
   })
 
-  describe('keywordsMatchModel', () => {
+  describe('matchKeywordsInModel', () => {
     const model: Model = {
       id: 'gpt-4.1',
       provider: 'openai',
@@ -97,20 +97,20 @@ describe('match', () => {
     }
 
     it('should match model name only if provider not given', () => {
-      expect(keywordsMatchModel('gpt-4.1', model)).toBe(true)
-      expect(keywordsMatchModel('openai', model)).toBe(false)
+      expect(matchKeywordsInModel('gpt-4.1', model)).toBe(true)
+      expect(matchKeywordsInModel('openai', model)).toBe(false)
     })
 
     it('should match model name and provider name if provider given', () => {
-      expect(keywordsMatchModel('gpt-4.1 openai', model, provider)).toBe(true)
-      expect(keywordsMatchModel('gpt-4.1', model, provider)).toBe(true)
-      expect(keywordsMatchModel('foo', model, provider)).toBe(false)
+      expect(matchKeywordsInModel('gpt-4.1 openai', model, provider)).toBe(true)
+      expect(matchKeywordsInModel('gpt-4.1', model, provider)).toBe(true)
+      expect(matchKeywordsInModel('foo', model, provider)).toBe(false)
     })
 
     it('should match model name and i18n provider name for system provider', () => {
-      expect(keywordsMatchModel('gpt-4.1 i18n:provider.sys', model, sysProvider)).toBe(true)
-      expect(keywordsMatchModel('i18n:provider.sys', model, sysProvider)).toBe(true)
-      expect(keywordsMatchModel('SystemProvider', model, sysProvider)).toBe(false)
+      expect(matchKeywordsInModel('gpt-4.1 i18n:provider.sys', model, sysProvider)).toBe(true)
+      expect(matchKeywordsInModel('i18n:provider.sys', model, sysProvider)).toBe(true)
+      expect(matchKeywordsInModel('SystemProvider', model, sysProvider)).toBe(false)
     })
 
     it('should match model by id when name is customized', () => {
@@ -122,19 +122,19 @@ describe('match', () => {
       }
 
       // search by parts of ID
-      expect(keywordsMatchModel('claude', customNameModel)).toBe(true)
-      expect(keywordsMatchModel('opus', customNameModel)).toBe(true)
-      expect(keywordsMatchModel('20240229', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('claude', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('opus', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('20240229', customNameModel)).toBe(true)
 
       // search by parts of custom name
-      expect(keywordsMatchModel('Custom', customNameModel)).toBe(true)
-      expect(keywordsMatchModel('Opus Name', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('Custom', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('Opus Name', customNameModel)).toBe(true)
 
       // search by both
-      expect(keywordsMatchModel('claude custom', customNameModel)).toBe(true)
+      expect(matchKeywordsInModel('claude custom', customNameModel)).toBe(true)
 
       // should not match
-      expect(keywordsMatchModel('sonnet', customNameModel)).toBe(false)
+      expect(matchKeywordsInModel('sonnet', customNameModel)).toBe(false)
     })
   })
 })

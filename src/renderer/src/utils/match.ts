@@ -37,28 +37,28 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
  * @param value 被搜索的目标字符串
  * @returns 包含所有关键词则返回 true
  */
-export function keywordsMatchString(keywords: string | string[], value: string): boolean {
+export function matchKeywordsInString(keywords: string | string[], value: string): boolean {
   return includeKeywords(value, keywords)
 }
 
 /**
- * 检查 Provider 是否匹配关键词
+ * 检查 Provider 是否匹配所有关键词
  * @param keywords 关键词字符串（空格分隔）或关键词数组
  * @param provider 被搜索的 Provider 对象
  * @returns 匹配所有关键词则返回 true
  */
-export function keywordsMatchProvider(keywords: string | string[], provider: Provider): boolean {
+export function matchKeywordsInProvider(keywords: string | string[], provider: Provider): boolean {
   return includeKeywords(getProviderSearchString(provider), keywords)
 }
 
 /**
- * 检查 Model 是否匹配关键词
+ * 检查 Model 是否匹配所有关键词
  * @param keywords 关键词字符串（空格分隔）或关键词数组
  * @param model 被搜索的 Model 对象
  * @param provider 可选的 Provider 对象，用于生成完整模型名称
  * @returns 匹配所有关键词则返回 true
  */
-export function keywordsMatchModel(keywords: string | string[], model: Model, provider?: Provider): boolean {
+export function matchKeywordsInModel(keywords: string | string[], model: Model, provider?: Provider): boolean {
   const fullName = `${model.name} ${model.id} ${provider ? getProviderSearchString(provider) : ''}`
   return includeKeywords(fullName, keywords)
 }
@@ -76,7 +76,7 @@ function getProviderSearchString(provider: Provider) {
  */
 export function filterModelsByKeywords(keywords: string, models: Model[], provider?: Provider): Model[] {
   const keywordsArray = keywords.toLowerCase().split(/\s+/).filter(Boolean)
-  return models.filter((model) => keywordsMatchModel(keywordsArray, model, provider))
+  return models.filter((model) => matchKeywordsInModel(keywordsArray, model, provider))
 }
 
 /**
@@ -88,7 +88,7 @@ export function filterModelsByKeywords(keywords: string, models: Model[], provid
  * @returns 是否匹配
  */
 export function modelSelectFilter(input: string, option: any) {
-  return keywordsMatchString(input, option?.label ?? option?.value ?? '')
+  return matchKeywordsInString(input, option?.label ?? option?.value ?? '')
 }
 
 /**
