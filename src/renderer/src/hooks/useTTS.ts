@@ -20,6 +20,10 @@ import {
 import { TTSProvider, TTSSpeakOptions } from '@renderer/types/tts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+// TTS Hook
+//
+// A hook to manage TTS state and operations.
+// @returns TTS state and actions
 export const useTTS = () => {
   const dispatch = useAppDispatch()
   const ttsState = useAppSelector((state) => state.tts)
@@ -75,81 +79,95 @@ export const useTTS = () => {
 
   // Actions
   const actions = {
+    // 更新供应商
     updateProvider: useCallback(
       (provider: TTSProvider) => {
         dispatch(updateTTSProvider(provider))
       },
       [dispatch]
     ),
+    // 批量更新供应商
     updateProviders: useCallback(
       (providers: TTSProvider[]) => {
         dispatch(updateTTSProviders(providers))
       },
       [dispatch]
     ),
+    // 设置当前供应商
     setCurrentProvider: useCallback(
       (providerId: string) => {
         dispatch(setCurrentTTSProvider(providerId))
       },
       [dispatch]
     ),
+    // 启用/禁用供应商
     setProviderEnabled: useCallback(
       (id: string, enabled: boolean) => {
         dispatch(setTTSProviderEnabled({ id, enabled }))
       },
       [dispatch]
     ),
+    // 更新供应商设置
     updateProviderSettings: useCallback(
       (id: string, settings: Partial<TTSProvider['settings']>) => {
         dispatch(updateTTSProviderSettings({ id, settings }))
       },
       [dispatch]
     ),
+    // 设置 API Key
     setProviderApiKey: useCallback(
       (id: string, apiKey: string) => {
         dispatch(setTTSProviderApiKey({ id, apiKey }))
       },
       [dispatch]
     ),
+    // 设置 API Host
     setProviderApiHost: useCallback(
       (id: string, apiHost: string) => {
         dispatch(setTTSProviderApiHost({ id, apiHost }))
       },
       [dispatch]
     ),
+    // 更新语音列表
     updateProviderVoices: useCallback(
       (id: string, voices: TTSProvider['voices']) => {
         dispatch(updateTTSProviderVoices({ id, voices }))
       },
       [dispatch]
     ),
+    // 设置全局启用状态
     setEnabled: useCallback(
       (enabled: boolean) => {
         dispatch(setTTSEnabled(enabled))
       },
       [dispatch]
     ),
+    // 设置自动播放
     setAutoPlay: useCallback(
       (autoPlay: boolean) => {
         dispatch(setTTSAutoPlay(autoPlay))
       },
       [dispatch]
     ),
+    // 更新全局设置
     updateGlobalSettings: useCallback(
       (settings: Partial<typeof ttsState.globalSettings>) => {
         dispatch(updateTTSGlobalSettings(settings))
       },
       [dispatch, ttsState]
     ),
+    // 重置设置
     resetSettings: useCallback(() => {
       dispatch(resetTTSSettings())
     }, [dispatch]),
+    // 添加供应商
     addProvider: useCallback(
       (provider: TTSProvider) => {
         dispatch(addTTSProvider(provider))
       },
       [dispatch]
     ),
+    // 删除供应商
     removeProvider: useCallback(
       (id: string) => {
         dispatch(removeTTSProvider(id))
@@ -160,8 +178,9 @@ export const useTTS = () => {
 
   // TTS 操作
   const ttsOperations = {
+    // 语音合成
     speak: useCallback(
-      async (text: string, options: Partial<TTSSpeakOptions> = {}) => {
+      async (options: TTSSpeakOptions) => {
         // 检查是否有 providerOverride，或者全局 TTS 是否可用
         if (!options.providerOverride && !isTTSAvailable) {
           throw new Error('TTS is not available')
@@ -169,45 +188,55 @@ export const useTTS = () => {
 
         // 优先使用 options 中直接传递的 providerOverride
         if (options.providerOverride) {
-          return ttsService.speak(text, options, options.providerOverride)
+          return ttsService.speak(options.text, options, options.providerOverride)
         }
 
         // 降级到使用全局当前的 provider
         const currentProviderConfig = ttsState.providers.find((p) => p.id === ttsState.currentProvider)
-        return ttsService.speak(text, options, currentProviderConfig)
+        return ttsService.speak(options.text, options, currentProviderConfig)
       },
       [ttsService, isTTSAvailable, ttsState.providers, ttsState.currentProvider]
     ),
+
+    // 暂停播放
     pause: useCallback(() => {
       ttsService.pause()
     }, [ttsService]),
+    // 恢复播放
     resume: useCallback(() => {
       ttsService.resume()
     }, [ttsService]),
+    // 停止播放
     stop: useCallback(() => {
       ttsService.stop()
     }, [ttsService]),
+    // 停止所有正在播放的 TTS
     stopAll: useCallback(() => {
       ttsService.stopAll()
     }, [ttsService]),
+    // 检查是否正在播放
     isPlaying: useCallback(() => {
       return ttsService.isPlaying()
     }, [ttsService]),
+    // 检查是否已暂停
     isPaused: useCallback(() => {
       return ttsService.isPaused()
     }, [ttsService]),
+    // 获取指定供应商的语音列表
     getVoices: useCallback(
       async (providerId?: string) => {
         return ttsService.getVoices(providerId)
       },
       [ttsService]
     ),
+    // 检查供应商配置
     checkProvider: useCallback(
       async (providerId: string) => {
         return ttsService.checkProvider(providerId)
       },
       [ttsService]
     ),
+    // 自动选择最佳供应商
     selectBestProvider: useCallback(async () => {
       return ttsService.selectBestProvider()
     }, [ttsService])

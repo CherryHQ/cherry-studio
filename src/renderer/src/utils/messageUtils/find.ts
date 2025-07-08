@@ -114,12 +114,12 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
  * @returns The concatenated content string or an empty string if no text blocks are found.
  */
 export const getMainTextContent = (message: Message): string => {
-  const textBlocks = findMainTextBlocks(message);
+  const textBlocks = findMainTextBlocks(message)
   if (!textBlocks || textBlocks.length === 0) {
-    return '';
+    return ''
   }
-  const content = textBlocks.map((block) => block.content).join('\n\n');
-  return content;
+  const content = textBlocks.map((block) => block.content).join('\n\n')
+  return content
 }
 
 /**
