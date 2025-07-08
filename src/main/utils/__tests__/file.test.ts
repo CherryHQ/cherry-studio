@@ -3,8 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { FileTypes } from '@types'
+import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { detectEncoding, readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir } from '../file'
 
 // Mock dependencies
@@ -239,6 +241,106 @@ describe('file', () => {
     it('should handle empty app name', () => {
       const appConfigDir = getAppConfigDir('')
       expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/')
+    })
+  })
+
+  // 在 describe('file') 块内部添加新的 describe 块
+  describe('detectEncoding', () => {
+    const mockFilePath = '/path/to/mock/file.txt'
+
+    beforeEach(() => {
+      vi.mocked(fs.openSync).mockReturnValue(123)
+      vi.mocked(fs.closeSync).mockImplementation(() => {})
+    })
+
+    it('should correctly detect UTF-8 encoding', () => {
+      // 准备UTF-8编码的Buffer
+      const content = '这是UTF-8测试内容'
+      const buffer = Buffer.from(content, 'utf-8')
+
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return 1024
+      })
+
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding).toBe('UTF-8')
+    })
+
+    it('should correctly detect GB2312 encoding', () => {
+      // 使用iconv创建GB2312编码内容
+      const content = '这是一段GB2312编码的测试内容'
+      const gb2312Buffer = iconv.encode(content, 'GB2312')
+
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(gb2312Buffer)
+        targetBuffer.set(sourceBuffer)
+        return gb2312Buffer.length
+      })
+
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding).toMatch(/GB2312|GB18030/i)
+    })
+
+    it('should correctly detect ASCII encoding', () => {
+      // 准备ASCII编码内容
+      const content = 'ASCII content'
+      const buffer = Buffer.from(content, 'ascii')
+
+      // 模拟文件读取
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
+      })
+
+      const encoding = detectEncoding(mockFilePath)
+      expect(encoding.toLowerCase()).toBe('ascii')
+    })
+  })
+
+  describe('readTextFileWithAutoEncoding', () => {
+    const mockFilePath = '/path/to/mock/file.txt'
+
+    beforeEach(() => {
+      vi.mocked(fs.openSync).mockReturnValue(123)
+      vi.mocked(fs.closeSync).mockImplementation(() => {})
+    })
+
+    it('should read file with auto encoding', () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
+      })
+      vi.mocked(fs.readFileSync).mockReturnValue(buffer)
+
+      const result = readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
+    })
+
+    it('should try to fix bad detected encoding', () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+      vi.mocked(fs.readSync).mockImplementation((_, buf) => {
+        const targetBuffer = new Uint8Array(buf.buffer)
+        const sourceBuffer = new Uint8Array(buffer)
+        targetBuffer.set(sourceBuffer)
+        return buffer.length
+      })
+      vi.mocked(fs.readFileSync).mockReturnValue(buffer)
+      vi.mocked(vi.fn(detectEncoding)).mockReturnValue('UTF-8')
+      const result = readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
     })
   })
 })
