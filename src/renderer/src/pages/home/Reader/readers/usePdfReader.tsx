@@ -4,9 +4,11 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 import { SelectOutlined, UnorderedListOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import { Checkbox, Empty, Flex, InputNumber, Space, Spin, Tooltip } from 'antd'
 import { debounce, find } from 'lodash'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Document, Outline, Page, pdfjs } from 'react-pdf'
+import LinkService from 'react-pdf/dist/esm/LinkService.js'
+import { ScrollPageIntoViewArgs } from 'react-pdf/dist/esm/shared/types.js'
 import styled from 'styled-components'
 
 import { OperateButton, OperateRow } from '..'
@@ -35,25 +37,63 @@ const usePdfReader = (props: Props) => {
 
   const { t } = useTranslation()
 
+  const documentRef = useRef<{
+    linkService: React.RefObject<LinkService>
+    pages: React.RefObject<HTMLDivElement[]>
+    viewer: React.RefObject<{
+      scrollPageIntoView: (args: ScrollPageIntoViewArgs) => void
+    }>
+  } | null>(null)
+  const docDivRef = useRef<HTMLDivElement | null>(null)
+  const pageRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
+
   const [pageTotal, setPageTotal] = useState(0)
   const [pageCurrent, setPageCurrent] = useState(1)
   const [pageContents, setPageContents] = useState<Map<number, string>>(new Map())
   const [showOutline, setShowOutline] = useState(false)
   const [showSelect, setShowSelect] = useState(false)
   const [scale, setScale] = useState(1)
-  const [pageRefs, setPageRefs] = useState<React.RefObject<HTMLDivElement>[]>([])
   const [noOutline, setNoOutline] = useState(false)
 
-  useEffect(() => {
-    setPageRefs(Array.from({ length: pageTotal }, () => React.createRef<any>()))
-  }, [pageTotal])
+  const handlePageRef = (page: number) => (el: HTMLDivElement) => {
+    pageRefs.current[page] = el
+  }
 
   const handleLocatePage = (num: number) => {
-    pageRefs[num - 1].current.scrollIntoView({
-      behavior: 'smooth',
-      block: 'end'
+    documentRef.current?.viewer.current.scrollPageIntoView({
+      pageNumber: num
     })
   }
+
+  useEffect(() => {
+    if (docDivRef.current) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              const pageNumber = parseInt(entry.target.getAttribute('data-page-number') || '1')
+              setPageCurrent(pageNumber)
+              break
+            }
+          }
+        },
+        {
+          root: docDivRef.current,
+          threshold: 0.5 // 50% 可见时触发
+        }
+      )
+
+      Object.values(pageRefs.current).forEach((el) => {
+        if (el) observer.observe(el)
+      })
+
+      return () => {
+        Object.values(pageRefs.current).forEach((el) => {
+          if (el) observer.unobserve(el)
+        })
+      }
+    }
+  }, [pageTotal])
 
   const onZoomIn = debounce(() => {
     setScale(scale + 0.2)
@@ -120,6 +160,8 @@ const usePdfReader = (props: Props) => {
 
   const Reader = (
     <DocumentReader
+      ref={documentRef}
+      inputRef={docDivRef}
       file={pdfFile}
       options={options}
       onLoadSuccess={onLoadSuccess}
@@ -154,36 +196,37 @@ const usePdfReader = (props: Props) => {
         const checked = !!find(selectedPages, (p) => p === page)
 
         return (
-          <PageWrapper key={index} id={`page_${page}`} ref={pageRefs[index]}>
-            <Page
-              width={pageWidth}
-              scale={scale}
-              pageNumber={page}
-              loading={null}
-              error={null}
-              noData={null}
-              onGetTextSuccess={({ items }) => {
-                const text = items.reduce((acc, item: any) => {
-                  if (item.str === '') {
-                    return acc + `\r\n`
-                  }
-                  return acc + item.str
-                }, ``)
-                // 使用 Map 来存储页面内容
-                setPageContents((prevMap) => {
-                  const newMap = new Map(prevMap)
-                  newMap.set(page, text)
-                  return newMap
-                })
-              }}>
-              {showSelect && (
-                <Checkbox
-                  checked={checked}
-                  className={`page-checker ${checked ? 'checked' : ''}`}
-                  onChange={() => onTriggerSelectPage(checked, page)}
-                />
-              )}
-            </Page>
+          <PageWrapper
+            key={index}
+            inputRef={handlePageRef(page)}
+            width={pageWidth}
+            scale={scale}
+            pageNumber={page}
+            loading={null}
+            error={null}
+            noData={null}
+            data-page-number={page}
+            onGetTextSuccess={({ items }) => {
+              const text = items.reduce((acc, item: any) => {
+                if (item.str === '') {
+                  return acc + `\r\n`
+                }
+                return acc + item.str
+              }, ``)
+              // 使用 Map 来存储页面内容
+              setPageContents((prevMap) => {
+                const newMap = new Map(prevMap)
+                newMap.set(page, text)
+                return newMap
+              })
+            }}>
+            {showSelect && (
+              <Checkbox
+                checked={checked}
+                className={`page-checker ${checked ? 'checked' : ''}`}
+                onChange={() => onTriggerSelectPage(checked, page)}
+              />
+            )}
           </PageWrapper>
         )
       })}
@@ -226,7 +269,7 @@ const DocumentReader = styled(Document)`
   }
 `
 
-const PageWrapper = styled.div`
+const PageWrapper = styled(Page)`
   position: relative;
   margin-bottom: 8px;
 `
