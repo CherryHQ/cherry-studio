@@ -468,11 +468,15 @@ export function startAutoSync(immediate = false) {
   const s3AutoSync = s3Settings?.autoSync
   const s3Endpoint = s3Settings?.endpoint
 
+  const localBackupAutoSync = settings.localBackupAutoSync
+  const localBackupDir = settings.localBackupDir
+
   // 检查WebDAV或S3自动同步配置
   const hasWebdavConfig = webdavAutoSync && webdavHost
   const hasS3Config = s3AutoSync && s3Endpoint
+  const hasLocalConfig = localBackupAutoSync && localBackupDir
 
-  if (!hasWebdavConfig && !hasS3Config) {
+  if (!hasWebdavConfig && !hasS3Config && !hasLocalConfig) {
     Logger.log('[AutoSync] Invalid sync settings, auto sync disabled')
     return
   }

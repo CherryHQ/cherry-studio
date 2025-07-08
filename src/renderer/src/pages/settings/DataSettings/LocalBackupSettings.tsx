@@ -1,4 +1,4 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
@@ -16,7 +16,7 @@ import {
 import { AppInfo } from '@renderer/types'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -36,7 +36,11 @@ const LocalBackupSettings: FC = () => {
   const [syncInterval, setSyncInterval] = useState<number>(localBackupSyncIntervalSetting)
   const [maxBackups, setMaxBackups] = useState<number>(localBackupMaxBackupsSetting)
 
-  const [appInfo] = useState<AppInfo>()
+  const [appInfo, setAppInfo] = useState<AppInfo>()
+
+  useEffect(() => {
+    window.api.getAppInfo().then(setAppInfo)
+  }, [])
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -55,6 +59,53 @@ const LocalBackupSettings: FC = () => {
       dispatch(setLocalBackupAutoSync(true))
       startLocalBackupAutoSync()
     }
+  }
+
+  const checkLocalBackupDirValid = async (dir: string) => {
+    if (dir === '') {
+      return false
+    }
+
+    // check new local backup dir is not in app data path
+    // if is in app data path, show error
+    if (dir.startsWith(appInfo!.appDataPath)) {
+      window.message.error(t('settings.data.local.directory.select_error_app_data_path'))
+      return false
+    }
+
+    // check new local backup dir is not in app install path
+    // if is in app install path, show error
+    if (dir.startsWith(appInfo!.installPath)) {
+      window.message.error(t('settings.data.local.directory.select_error_in_app_install_path'))
+      return false
+    }
+
+    // check new app data path has write permission
+    const hasWritePermission = await window.api.hasWritePermission(dir)
+    if (!hasWritePermission) {
+      window.message.error(t('settings.data.local.directory.select_error_write_permission'))
+      return false
+    }
+
+    return true
+  }
+
+  const handleLocalBackupDirChange = async (value: string) => {
+    if (await checkLocalBackupDirValid(value)) {
+      setLocalBackupDir(value)
+      dispatch(_setLocalBackupDir(value))
+      // Create directory if it doesn't exist and set it in the backend
+      await window.api.backup.setLocalBackupDir(value)
+
+      dispatch(setLocalBackupAutoSync(true))
+      startLocalBackupAutoSync(true)
+      return
+    }
+
+    setLocalBackupDir('')
+    dispatch(_setLocalBackupDir(''))
+    dispatch(setLocalBackupAutoSync(false))
+    stopLocalBackupAutoSync()
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -78,35 +129,17 @@ const LocalBackupSettings: FC = () => {
         return
       }
 
-      // check new local backup dir is not in app data path
-      // if is in app data path, show error
-      if (newLocalBackupDir.startsWith(appInfo?.appDataPath)) {
-        window.message.error(t('settings.data.local.directory.select_error_app_data_path'))
-        return
-      }
-
-      // check new local backup dir is not in app install path
-      // if is in app install path, show error
-      if (newLocalBackupDir.startsWith(appInfo?.installPath)) {
-        window.message.error(t('settings.data.local.directory.select_error_in_app_install_path'))
-        return
-      }
-
-      // check new app data path has write permission
-      const hasWritePermission = await window.api.hasWritePermission(newLocalBackupDir)
-      if (!hasWritePermission) {
-        window.message.error(t('settings.data.local.directory.select_error_write_permission'))
-        return
-      }
-
-      setLocalBackupDir(newLocalBackupDir)
-      dispatch(_setLocalBackupDir(newLocalBackupDir))
-
-      // Create directory if it doesn't exist and set it in the backend
-      await window.api.backup.setLocalBackupDir(newLocalBackupDir)
+      handleLocalBackupDirChange(newLocalBackupDir)
     } catch (error) {
       console.error('Failed to select directory:', error)
     }
+  }
+
+  const handleClearDirectory = () => {
+    setLocalBackupDir('')
+    dispatch(_setLocalBackupDir(''))
+    dispatch(setLocalBackupAutoSync(false))
+    stopLocalBackupAutoSync()
   }
 
   const renderSyncStatus = () => {
@@ -153,15 +186,15 @@ const LocalBackupSettings: FC = () => {
         <HStack gap="5px">
           <Input
             value={localBackupDir}
-            onChange={(e) => {
-              setLocalBackupDir(e.target.value)
-              dispatch(_setLocalBackupDir(e.target.value))
-            }}
+            readOnly
             style={{ width: 250 }}
             placeholder={t('settings.data.local.directory.placeholder')}
           />
           <Button icon={<FolderOpenOutlined />} onClick={handleBrowseDirectory}>
             {t('common.browse')}
+          </Button>
+          <Button icon={<DeleteOutlined />} onClick={handleClearDirectory} disabled={!localBackupDir} danger>
+            {t('common.clear')}
           </Button>
         </HStack>
       </SettingRow>

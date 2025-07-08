@@ -51,7 +51,6 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [backuping, setBackuping] = useState(false)
   const [customFileName, setCustomFileName] = useState('')
-  const { t } = useTranslation()
 
   const handleCancel = () => {
     setIsModalVisible(false)
@@ -69,7 +68,6 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
   const handleBackup = async () => {
     if (!localBackupDir) {
-      window.message.error({ content: t('message.error.invalid.localBackupDir'), key: 'localBackup' })
       setIsModalVisible(false)
       return
     }
