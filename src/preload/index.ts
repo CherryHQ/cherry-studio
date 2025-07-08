@@ -88,6 +88,18 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
+    backupToLocalDir: (
+      data: string,
+      fileName: string,
+      localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
+    ) => ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, data, fileName, localConfig),
+    restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
+    listLocalBackupFiles: (localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_ListLocalBackupFiles, localBackupDir),
+    deleteLocalBackupFile: (fileName: string, localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
+    setLocalBackupDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.Backup_SetLocalBackupDir, dirPath),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
 

@@ -1723,6 +1723,7 @@ const migrateConfig = {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
       state.settings.disableHardwareAcceleration = false
+
       return state
     } catch (error) {
       return state
@@ -1752,6 +1753,12 @@ const migrateConfig = {
           provider.type = 'azure-openai'
         }
       })
+      
+      state.settings.localBackupMaxBackups = 0
+      state.settings.localBackupSkipBackupFile = false
+      state.settings.localBackupDir = ''
+      state.settings.localBackupAutoSync = false
+      state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
       return state

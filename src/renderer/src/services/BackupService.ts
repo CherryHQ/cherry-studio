@@ -3,8 +3,7 @@ import db from '@renderer/databases'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { setWebDAVSyncState } from '@renderer/store/backup'
-import { setS3SyncState } from '@renderer/store/backup'
+import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -469,11 +468,15 @@ export function startAutoSync(immediate = false) {
   const s3AutoSync = s3Settings?.autoSync
   const s3Endpoint = s3Settings?.endpoint
 
+  const localBackupAutoSync = settings.localBackupAutoSync
+  const localBackupDir = settings.localBackupDir
+
   // 检查WebDAV或S3自动同步配置
   const hasWebdavConfig = webdavAutoSync && webdavHost
   const hasS3Config = s3AutoSync && s3Endpoint
+  const hasLocalConfig = localBackupAutoSync && localBackupDir
 
-  if (!hasWebdavConfig && !hasS3Config) {
+  if (!hasWebdavConfig && !hasS3Config && !hasLocalConfig) {
     Logger.log('[AutoSync] Invalid sync settings, auto sync disabled')
     return
   }
@@ -716,4 +719,280 @@ async function clearDatabase() {
       await db[storeName].clear()
     }
   })
+}
+
+/**
+ * Backup to local directory
+ */
+export async function backupToLocalDir({
+  showMessage = false,
+  customFileName = '',
+  autoBackupProcess = false
+}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+  const notificationService = NotificationService.getInstance()
+  if (isManualBackupRunning) {
+    Logger.log('[Backup] Manual backup already in progress')
+    return
+  }
+  // force set showMessage to false when auto backup process
+  if (autoBackupProcess) {
+    showMessage = false
+  }
+
+  isManualBackupRunning = true
+
+  store.dispatch(setLocalBackupSyncState({ syncing: true, lastSyncError: null }))
+
+  const { localBackupDir, localBackupMaxBackups, localBackupSkipBackupFile } = store.getState().settings
+  let deviceType = 'unknown'
+  let hostname = 'unknown'
+  try {
+    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    hostname = (await window.api.system.getHostname()) || 'unknown'
+  } catch (error) {
+    Logger.error('[Backup] Failed to get device type or hostname:', error)
+  }
+  const timestamp = dayjs().format('YYYYMMDDHHmmss')
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
+  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+  const backupData = await getBackupData()
+
+  try {
+    const result = await window.api.backup.backupToLocalDir(backupData, finalFileName, {
+      localBackupDir,
+      skipBackupFile: localBackupSkipBackupFile
+    })
+
+    if (result) {
+      store.dispatch(
+        setLocalBackupSyncState({
+          lastSyncError: null
+        })
+      )
+
+      if (showMessage) {
+        notificationService.send({
+          id: uuid(),
+          type: 'success',
+          title: i18n.t('common.success'),
+          message: i18n.t('message.backup.success'),
+          silent: false,
+          timestamp: Date.now(),
+          source: 'backup'
+        })
+      }
+
+      // Clean up old backups if maxBackups is set
+      if (localBackupMaxBackups > 0) {
+        try {
+          // Get all backup files
+          const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
+
+          // Filter backups for current device
+          const currentDeviceFiles = files.filter((file) => {
+            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
+          })
+
+          if (currentDeviceFiles.length > localBackupMaxBackups) {
+            // Sort by modified time (oldest first)
+            const filesToDelete = currentDeviceFiles
+              .sort((a, b) => new Date(a.modifiedTime).getTime() - new Date(b.modifiedTime).getTime())
+              .slice(0, currentDeviceFiles.length - localBackupMaxBackups)
+
+            // Delete older backups
+            for (const file of filesToDelete) {
+              Logger.log(`[LocalBackup] Deleting old backup: ${file.fileName}`)
+              await window.api.backup.deleteLocalBackupFile(file.fileName, localBackupDir)
+            }
+          }
+        } catch (error) {
+          Logger.error('[LocalBackup] Failed to clean up old backups:', error)
+        }
+      }
+    }
+
+    return result
+  } catch (error: any) {
+    Logger.error('[LocalBackup] Backup failed:', error)
+
+    store.dispatch(
+      setLocalBackupSyncState({
+        lastSyncError: error.message || 'Unknown error'
+      })
+    )
+
+    if (showMessage) {
+      window.modal.error({
+        title: i18n.t('message.backup.failed'),
+        content: error.message || 'Unknown error'
+      })
+    }
+
+    throw error
+  } finally {
+    if (!autoBackupProcess) {
+      store.dispatch(
+        setLocalBackupSyncState({
+          lastSyncTime: Date.now(),
+          syncing: false
+        })
+      )
+    }
+    isManualBackupRunning = false
+  }
+}
+
+export async function restoreFromLocalBackup(fileName: string) {
+  try {
+    const { localBackupDir } = store.getState().settings
+    await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+    return true
+  } catch (error) {
+    Logger.error('[LocalBackup] Restore failed:', error)
+    throw error
+  }
+}
+
+// Local backup auto sync
+let localBackupAutoSyncStarted = false
+let localBackupSyncTimeout: NodeJS.Timeout | null = null
+let isLocalBackupAutoRunning = false
+
+export function startLocalBackupAutoSync(immediate = false) {
+  if (localBackupAutoSyncStarted) {
+    return
+  }
+
+  const { localBackupAutoSync, localBackupDir } = store.getState().settings
+
+  if (!localBackupAutoSync || !localBackupDir) {
+    Logger.log('[LocalBackupAutoSync] Invalid sync settings, auto sync disabled')
+    return
+  }
+
+  localBackupAutoSyncStarted = true
+
+  stopLocalBackupAutoSync()
+
+  scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime')
+
+  /**
+   * @param type 'immediate' | 'fromLastSyncTime' | 'fromNow'
+   *  'immediate', first backup right now
+   *  'fromLastSyncTime', schedule next backup from last sync time
+   *  'fromNow', schedule next backup from now
+   */
+  function scheduleNextBackup(type: 'immediate' | 'fromLastSyncTime' | 'fromNow' = 'fromLastSyncTime') {
+    if (localBackupSyncTimeout) {
+      clearTimeout(localBackupSyncTimeout)
+      localBackupSyncTimeout = null
+    }
+
+    const { localBackupSyncInterval } = store.getState().settings
+    const { localBackupSync } = store.getState().backup
+
+    if (localBackupSyncInterval <= 0) {
+      Logger.log('[LocalBackupAutoSync] Invalid sync interval, auto sync disabled')
+      stopLocalBackupAutoSync()
+      return
+    }
+
+    // User specified auto backup interval (milliseconds)
+    const requiredInterval = localBackupSyncInterval * 60 * 1000
+
+    let timeUntilNextSync = 1000 // immediate by default
+    switch (type) {
+      case 'fromLastSyncTime': // If last sync time exists, use it as reference
+        timeUntilNextSync = Math.max(1000, (localBackupSync?.lastSyncTime || 0) + requiredInterval - Date.now())
+        break
+      case 'fromNow':
+        timeUntilNextSync = requiredInterval
+        break
+    }
+
+    localBackupSyncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
+
+    Logger.log(
+      `[LocalBackupAutoSync] Next sync scheduled in ${Math.floor(timeUntilNextSync / 1000 / 60)} minutes ${Math.floor(
+        (timeUntilNextSync / 1000) % 60
+      )} seconds`
+    )
+  }
+
+  async function performAutoBackup() {
+    if (isLocalBackupAutoRunning || isManualBackupRunning) {
+      Logger.log('[LocalBackupAutoSync] Backup already in progress, rescheduling')
+      scheduleNextBackup()
+      return
+    }
+
+    isLocalBackupAutoRunning = true
+    const maxRetries = 4
+    let retryCount = 0
+
+    while (retryCount < maxRetries) {
+      try {
+        Logger.log(`[LocalBackupAutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
+
+        await backupToLocalDir({ autoBackupProcess: true })
+
+        store.dispatch(
+          setLocalBackupSyncState({
+            lastSyncError: null,
+            lastSyncTime: Date.now(),
+            syncing: false
+          })
+        )
+
+        isLocalBackupAutoRunning = false
+        scheduleNextBackup()
+
+        break
+      } catch (error: any) {
+        retryCount++
+        if (retryCount === maxRetries) {
+          Logger.error('[LocalBackupAutoSync] Auto backup failed after all retries:', error)
+
+          store.dispatch(
+            setLocalBackupSyncState({
+              lastSyncError: 'Auto backup failed',
+              lastSyncTime: Date.now(),
+              syncing: false
+            })
+          )
+
+          // Only show error modal once and wait for user acknowledgment
+          await window.modal.error({
+            title: i18n.t('message.backup.failed'),
+            content: `[Local Backup Auto Backup] ${new Date().toLocaleString()} ` + error.message
+          })
+
+          scheduleNextBackup('fromNow')
+          isLocalBackupAutoRunning = false
+        } else {
+          // Exponential Backoff with Base 2: 7s, 17s, 37s
+          const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
+          Logger.log(`[LocalBackupAutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
+
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+
+          // Check if auto backup was stopped by user
+          if (!isLocalBackupAutoRunning) {
+            Logger.log('[LocalBackupAutoSync] retry cancelled by user, exit')
+            break
+          }
+        }
+      }
+    }
+  }
+}
+
+export function stopLocalBackupAutoSync() {
+  if (localBackupSyncTimeout) {
+    Logger.log('[LocalBackupAutoSync] Stopping auto sync')
+    clearTimeout(localBackupSyncTimeout)
+    localBackupSyncTimeout = null
+  }
+  isLocalBackupAutoRunning = false
+  localBackupAutoSyncStarted = false
 }
