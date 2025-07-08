@@ -13,6 +13,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
+import { modelSelectFilter } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
@@ -300,6 +301,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   if (!model) return
                   setNewBase({ ...newBase, model })
                 }}
+                showSearch
+                filterOption={modelSelectFilter}
               />
             </SettingsItem>
 
@@ -320,6 +323,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     : undefined
                   setNewBase({ ...newBase, rerankModel })
                 }}
+                showSearch
+                filterOption={modelSelectFilter}
                 allowClear
               />
             </SettingsItem>
