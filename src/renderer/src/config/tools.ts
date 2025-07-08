@@ -41,7 +41,7 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
 }
 
 export function getUrlContextTools(model: Model): ChatCompletionTool[] {
-  if (model?.id.toLowerCase().includes('gemini')) {
+  if (model.id.includes('gemini')) {
     return [
       {
         type: 'function',
