@@ -12,11 +12,6 @@ import { BaseTTSProvider } from './BaseTTSProvider'
 import { ElevenLabsProvider } from './ElevenLabsProvider'
 import { GoogleCloudTTSProvider } from './GoogleCloudTTSProvider'
 import { OpenAITTSProvider } from './OpenAITTSProvider'
-// =================================================================================
-// 导入依赖
-// =================================================================================
-// ... (其他导入保持不变)
-// 新增：导入我们刚刚创建的 SelfHostTTSProvider
 import { SelfHostTTSProvider } from './SelfHostTTSProvider'
 import { SiliconFlowProvider } from './SiliconFlowProvider'
 import { TencentCloudTTSProvider } from './TencentCloudTTSProvider'

@@ -14,7 +14,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
    */
   async getAvailableModels(): Promise<Array<{ id: string; name: string; description: string }>> {
     if (!this.provider.apiKey) {
-      console.warn('[OpenAI TTS] No API key provided, returning default models')
+      // console.warn('[OpenAI TTS] No API key provided, returning default models')
       return OPENAI_TTS_MODELS
     }
 

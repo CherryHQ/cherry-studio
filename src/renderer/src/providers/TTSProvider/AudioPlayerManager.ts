@@ -24,7 +24,6 @@ export class AudioPlayerManager {
    * 设置播放状态
    */
   private setState(newState: AudioPlayerState): void {
-    
     this.state = newState
   }
 
@@ -170,7 +169,6 @@ export class AudioPlayerManager {
    * 停止播放
    */
   stop(): void {
-    
     if (this.audioElement) {
       try {
         // 移除所有事件监听器，防止回调触发
@@ -183,18 +181,16 @@ export class AudioPlayerManager {
         this.audioElement.oncanplay = null
 
         // 停止播放
-        
+
         this.audioElement.pause()
         this.audioElement.currentTime = 0
 
         // 清理音频源
         if (this.audioElement.src && this.audioElement.src.startsWith('blob:')) {
-          
           URL.revokeObjectURL(this.audioElement.src)
         }
 
         this.audioElement = null
-        
       } catch (error) {
         // 忽略停止过程中的错误，确保清理完成
         Logger.warn('[AudioPlayerManager] Error during stop:', error)
@@ -259,10 +255,8 @@ export class AudioPlayerManager {
     volume?: number,
     options: { enablePause?: boolean } = {}
   ): Promise<void> {
-    
     // 如果启用暂停功能，强制使用缓存模式以支持完整的暂停/恢复功能
     if (options.enablePause) {
-      
       return this.playStreamAsBlob(audioStream, mimeType, volume)
     }
 
@@ -272,7 +266,6 @@ export class AudioPlayerManager {
       return this.playStreamAsBlob(audioStream, mimeType, volume)
     }
 
-    
     return this.playStreamWithMediaSource(audioStream, mimeType, volume)
   }
 
@@ -284,19 +277,17 @@ export class AudioPlayerManager {
     mimeType: string,
     volume?: number
   ): Promise<void> {
-    
     return new Promise((resolve, reject) => {
       try {
         const mediaSource = new MediaSource()
         const audioUrl = URL.createObjectURL(mediaSource)
-        
 
         this.audioElement = new Audio(audioUrl)
         this.setupAudioElement(audioUrl, volume, resolve, reject)
         this.setupMediaSourceEvents(mediaSource, audioStream, mimeType, reject)
 
         // 开始播放
-        
+
         this.audioElement.play().catch((err) => {
           Logger.error('[AudioPlayerManager] audioElement.play() rejected.', err)
           reject(err)
@@ -359,9 +350,7 @@ export class AudioPlayerManager {
     mimeType: string,
     reject: (error: Error) => void
   ): void {
-    
     mediaSource.addEventListener('sourceopen', async () => {
-      
       try {
         await this.handleMediaSourceOpen(mediaSource, audioStream, mimeType)
       } catch (error) {
@@ -369,8 +358,6 @@ export class AudioPlayerManager {
         reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
-    
-    
   }
 
   /**
@@ -381,19 +368,16 @@ export class AudioPlayerManager {
     mimeType: string,
     volume?: number
   ): Promise<void> {
-    
     try {
       // 读取所有流数据
       const reader = audioStream.getReader()
       const chunks: Uint8Array[] = []
 
-      
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         chunks.push(value)
       }
-      
 
       // 合并所有数据块
       const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
@@ -406,7 +390,7 @@ export class AudioPlayerManager {
 
       // 创建 Blob 并播放
       const audioBlob = new Blob([audioData], { type: mimeType })
-      
+
       return this.playBlob(audioBlob, volume)
     } catch (error) {
       Logger.error('[AudioPlayerManager] Error in playStreamAsBlob.', error)
@@ -422,15 +406,13 @@ export class AudioPlayerManager {
     audioStream: ReadableStream<Uint8Array>,
     mimeType: string
   ): Promise<void> {
-    
     // 检查 MediaSource 是否支持该 MIME 类型
     if (!MediaSource.isTypeSupported(mimeType)) {
       throw new Error(`MediaSource does not support MIME type: ${mimeType}`)
     }
 
     const sourceBuffer = mediaSource.addSourceBuffer(mimeType)
-    
-    
+
     sourceBuffer.addEventListener('error', (e) => Logger.error('[AudioPlayerManager] SourceBuffer event: error.', e))
 
     const reader = audioStream.getReader()
@@ -447,16 +429,12 @@ export class AudioPlayerManager {
     mediaSource: MediaSource
   ): Promise<void> {
     try {
-      
       const { done, value } = await reader.read()
 
       if (done) {
-        
         await this.finalizeMediaSource(sourceBuffer, mediaSource)
         return
       }
-
-      
 
       // 检查 MediaSource 和 SourceBuffer 状态
       if (mediaSource.readyState !== 'open') {
@@ -478,16 +456,13 @@ export class AudioPlayerManager {
    * 完成 MediaSource 流
    */
   private async finalizeMediaSource(sourceBuffer: SourceBuffer, mediaSource: MediaSource): Promise<void> {
-    
     // 确保 SourceBuffer 完成所有更新后再结束流
     if (sourceBuffer.updating) {
-      
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
     if (mediaSource.readyState === 'open') {
       try {
-        
         mediaSource.endOfStream()
       } catch (error) {
         Logger.warn('[AudioPlayerManager] Failed to end stream:', error)
@@ -502,7 +477,6 @@ export class AudioPlayerManager {
   private async appendBufferToSourceBuffer(sourceBuffer: SourceBuffer, value: Uint8Array): Promise<void> {
     // 等待 SourceBuffer 准备好
     if (sourceBuffer.updating) {
-      
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
@@ -514,7 +488,6 @@ export class AudioPlayerManager {
 
     // 添加数据到 SourceBuffer
     try {
-      
       sourceBuffer.appendBuffer(value)
     } catch (error) {
       Logger.error('[AudioPlayerManager] Failed to append buffer:', error)
@@ -523,7 +496,6 @@ export class AudioPlayerManager {
 
     // 等待 appendBuffer 操作完成
     await this.waitForSourceBufferUpdate(sourceBuffer)
-    
   }
 
   /**
