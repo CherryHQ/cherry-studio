@@ -180,20 +180,34 @@ export const useTTS = () => {
   const ttsOperations = {
     // 语音合成
     speak: useCallback(
-      async (options: TTSSpeakOptions) => {
-        // 检查是否有 providerOverride，或者全局 TTS 是否可用
-        if (!options.providerOverride && !isTTSAvailable) {
+      async (textOrOptions: string | TTSSpeakOptions, options?: Partial<TTSSpeakOptions>) => {
+        let text: string | undefined
+        let speakOptions: Partial<TTSSpeakOptions> | undefined
+
+        if (typeof textOrOptions === 'string') {
+          text = textOrOptions
+          speakOptions = options
+        } else {
+          text = textOrOptions.text
+          speakOptions = textOrOptions
+        }
+
+        if (text === undefined) {
+          throw new Error('Text to speak is not provided')
+        }
+
+        const providerOverride = (speakOptions as TTSSpeakOptions)?.providerOverride
+
+        if (!providerOverride && !isTTSAvailable) {
           throw new Error('TTS is not available')
         }
 
-        // 优先使用 options 中直接传递的 providerOverride
-        if (options.providerOverride) {
-          return ttsService.speak(options.text, options, options.providerOverride)
+        if (providerOverride) {
+          return ttsService.speak(text, speakOptions, providerOverride)
         }
 
-        // 降级到使用全局当前的 provider
         const currentProviderConfig = ttsState.providers.find((p) => p.id === ttsState.currentProvider)
-        return ttsService.speak(options.text, options, currentProviderConfig)
+        return ttsService.speak(text, speakOptions, currentProviderConfig)
       },
       [ttsService, isTTSAvailable, ttsState.providers, ttsState.currentProvider]
     ),

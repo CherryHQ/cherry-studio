@@ -45,7 +45,7 @@ export function useSelfHostTTSTest(providerToTest: TTSProvider | null) {
         providerOverride: providerToTest
       }
 
-      await tts.speak(testText, options)
+      await tts.speak({ ...options, text: testText })
     } catch (e) {
       setError(e as Error)
     } finally {

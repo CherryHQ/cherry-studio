@@ -478,7 +478,7 @@ const MessageMenubar: FC<Props> = (props) => {
             const ttsText = markdownToTTSText(mainTextContent)
 
             try {
-              await tts.speak(ttsText)
+              await tts.speak({ text: ttsText })
               // 播放完成，设置为空闲状态（只有在没有被手动停止的情况下）
               const currentInfo = manager.getPlaybackInfo()
               if (currentInfo.currentMessageId === message.id && currentInfo.state !== 'idle') {
