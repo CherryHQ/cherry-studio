@@ -518,6 +518,7 @@ export class AnthropicAPIClient extends BaseApiClient<
   getResponseChunkTransformer(): ResponseChunkTransformer<AnthropicSdkRawChunk> {
     return () => {
       let accumulatedJson = ''
+      let accumulatedText = ''
       const toolCalls: Record<number, ToolUseBlock> = {}
       const ChunkIdTypeMap: Record<number, ChunkType> = {}
       return {
@@ -639,6 +640,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                       type: ChunkType.TEXT_DELTA,
                       text: messageDelta.text
                     } as TextDeltaChunk)
+                    accumulatedText += messageDelta.text
                   }
                   break
                 }
@@ -663,8 +665,10 @@ export class AnthropicAPIClient extends BaseApiClient<
             case 'content_block_stop': {
               if (ChunkIdTypeMap[rawChunk.index] === ChunkType.TEXT_DELTA) {
                 controller.enqueue({
+                  text: accumulatedText,
                   type: ChunkType.TEXT_COMPLETE
                 } as TextCompleteChunk)
+                accumulatedText = ''
               } else if (ChunkIdTypeMap[rawChunk.index] === ChunkType.THINKING_DELTA) {
                 controller.enqueue({
                   type: ChunkType.THINKING_COMPLETE
