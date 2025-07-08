@@ -69,14 +69,12 @@ const Chat: FC<Props> = (props) => {
       resizeObserver.observe(wrapperRef.current)
 
       return () => {
-        if (wrapperRef.current) {
-          resizeObserver.unobserve(wrapperRef.current)
-        }
+        resizeObserver.disconnect()
       }
     }
 
     return () => {}
-  }, [wrapperRef.current])
+  }, [])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()

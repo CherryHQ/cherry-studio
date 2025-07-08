@@ -83,16 +83,19 @@ const usePdfReader = (props: Props) => {
         }
       )
 
-      Object.values(pageRefs.current).forEach((el) => {
+      const currentPageRefs = Object.values(pageRefs.current)
+      currentPageRefs.forEach((el) => {
         if (el) observer.observe(el)
       })
 
       return () => {
-        Object.values(pageRefs.current).forEach((el) => {
+        currentPageRefs.forEach((el) => {
           if (el) observer.unobserve(el)
         })
       }
     }
+
+    return undefined
   }, [pageTotal])
 
   const onZoomIn = debounce(() => {
@@ -239,6 +242,7 @@ const usePdfReader = (props: Props) => {
       ReaderOperateRow,
       pageContents
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedPages, pageWidth, pdfFile, pageContents]
   )
 }

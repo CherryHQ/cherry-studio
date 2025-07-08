@@ -44,16 +44,19 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
     }
   }
 
-  const onSelectFile = (file: FileType) => {
-    window.modal.confirm({
-      centered: true,
-      content: t('assistants.settings.reader.pickFromFiles.confirm'),
-      onOk: () => {
-        updateAssistant({ ...assistant, attachedDocument: file })
-        setShowAssistants(false)
-      }
-    })
-  }
+  const onSelectFile = useCallback(
+    (file: FileType) => {
+      window.modal.confirm({
+        centered: true,
+        content: t('assistants.settings.reader.pickFromFiles.confirm'),
+        onOk: () => {
+          updateAssistant({ ...assistant, attachedDocument: file })
+          setShowAssistants(false)
+        }
+      })
+    },
+    [assistant, updateAssistant, setShowAssistants, t]
+  )
 
   const { origin_name, id } = assistant.attachedDocument || {}
   const renderFileList = useCallback(() => {
@@ -74,7 +77,7 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
         />
       </OverContainer>
     )
-  }, [files, id])
+  }, [files, id, onSelectFile])
 
   return (
     <Container>

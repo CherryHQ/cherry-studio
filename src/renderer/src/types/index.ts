@@ -25,7 +25,7 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
-  attachedDocument?: FileType & { disabled?: boolean }
+  attachedDocument?: FileMetadata & { disabled?: boolean }
   reader?: ReaderSettings
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
