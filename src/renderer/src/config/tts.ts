@@ -5,6 +5,7 @@ import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
+import SelfHostProviderLogo from '@renderer/assets/images/providers/self-host-logo.png'
 import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 import { TTSProvider } from '@renderer/types/tts'
 
@@ -17,7 +18,7 @@ const TTS_PROVIDER_LOGO_MAP = {
   siliconflow: SiliconFlowProviderLogo,
   tencentcloud: TencentCloudProviderLogo,
   googlecloud: GoogleProviderLogo,
-  self_host: undefined // 自建服务暂无 logo
+  self_host: SelfHostProviderLogo
 } as const
 
 export function getTTSProviderLogo(providerId: string) {
