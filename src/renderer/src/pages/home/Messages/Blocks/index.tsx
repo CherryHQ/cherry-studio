@@ -149,14 +149,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
         }
 
         return (
-          /*
-          当Anthropic返回多个文本块时：
-          - 多个 UNKNOWN 块共享同一个 key：每个文本块都先创建 UNKNOWN 类型的 PlaceholderBlock，但都使用 'placeholder' 作为 key
-          - 类型转换时 key 发生变化：UNKNOWN → MAIN_TEXT 时，key 从 'placeholder' 变为 block.id，导致 React 卸载旧组件重新挂载新组件
-          - React 渲染冲突：多个块使用相同 key 时，React 无法正确追踪组件状态
-          没效果
-          */
-          <AnimatedBlockWrapper key={block.id} enableAnimation={message.status.includes('ing')}>
+          <AnimatedBlockWrapper
+            key={block.type === MessageBlockType.UNKNOWN ? 'placeholder' : block.id}
+            enableAnimation={message.status.includes('ing')}>
             {blockComponent}
           </AnimatedBlockWrapper>
         )
