@@ -58,8 +58,8 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@cherrystudio/pdf-to-img-napi": "^0.0.1",
     "@aws-sdk/client-bedrock-runtime": "^3.842.0",
+    "@cherrystudio/pdf-to-img-napi": "^0.0.1",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@strongtz/win32-arm64-msvc": "^0.4.7",

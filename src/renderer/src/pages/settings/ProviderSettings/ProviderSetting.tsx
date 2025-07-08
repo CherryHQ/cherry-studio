@@ -475,7 +475,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           </Space.Compact>
         </>
       )}
-      {provider.id !== 'vertexai' && (
+      {provider.id !== 'vertexai' && provider.id !== 'bedrock' && (
         <>
           <SettingSubtitle
             style={{

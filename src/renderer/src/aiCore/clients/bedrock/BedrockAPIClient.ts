@@ -35,7 +35,6 @@ import {
   SdkModel
 } from '@renderer/types/sdk'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { Buffer } from 'buffer'
@@ -59,6 +58,16 @@ export class BedrockAPIClient extends BaseApiClient<
   BedrockSdkToolCall,
   BedrockSdkTool
 > {
+  // @ts-ignore sdk未提供
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
+    return []
+  }
+
+  // @ts-ignore sdk未提供
+  override async getEmbeddingDimensions(): Promise<number> {
+    throw new Error("Anthropic SDK doesn't support getEmbeddingDimensions method.")
+  }
   private client?: BedrockRuntimeClient
 
   constructor(provider: Provider) {
@@ -145,6 +154,7 @@ export class BedrockAPIClient extends BaseApiClient<
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   override async createCompletions(payload: BedrockSdkParams, options?: BedrockOptions): Promise<BedrockSdkRawOutput> {
     const client = await this.getSdkInstance()
     if (payload.stream) {
@@ -171,23 +181,6 @@ export class BedrockAPIClient extends BaseApiClient<
       return response as BedrockSdkRawOutput
     }
   }
-
-  override async generateImage(params: GenerateImageParams): Promise<string[]> {
-    throw new Error('Image generation not supported by Bedrock client')
-  }
-
-  override async getEmbeddingDimensions(model?: Model): Promise<number> {
-    throw new Error("Bedrock SDK doesn't support getEmbeddingDimensions method.")
-  }
-
-  override async generateImage(): Promise<string[]> {
-    throw new Error('Image generation not supported by Bedrock client')
-  }
-
-  override async getEmbeddingDimensions(): Promise<number> {
-    throw new Error("Bedrock SDK doesn't support getEmbeddingDimensions method.")
-  }
-
   override async listModels(): Promise<SdkModel[]> {
     return []
   }
@@ -298,24 +291,27 @@ export class BedrockAPIClient extends BaseApiClient<
     toolResults: BedrockSdkMessageParam[],
     toolCalls?: BedrockSdkToolCall[]
   ): BedrockSdkMessageParam[] {
-    console.log('🔧 [BedrockAPIClient] buildSdkMessages CALLED!')
-    console.log('🔧 currentReqMessages --->', currentReqMessages)
-    console.log('🔧 output --->', output)
-    console.log('🔧 toolResults --->', toolResults)
-    console.log('🔧 toolCalls --->', toolCalls)
+    console.log('buildSdkMessages - toolCalls', toolCalls)
+    console.log('buildSdkMessages - output', output)
+    console.log('buildSdkMessages - toolResults', toolResults)
+    console.log('buildSdkMessages - currentReqMessages', currentReqMessages)
 
+    // 简化逻辑，参照AnthropicAPIClient实现
+    const hasTextOutput = typeof output === 'string' && output.trim().length > 0
+    const hasToolCalls = toolCalls && toolCalls.length > 0
+
+    // 创建助手消息
     const assistantMessage: BedrockSdkMessageParam = {
       role: 'assistant',
       content: []
     }
 
-    const hasTextOutput = typeof output === 'string' && output.trim().length > 0
-    const hasToolCalls = toolCalls && toolCalls.length > 0
-
+    // 添加文本输出（如果有）
     if (hasTextOutput) {
       assistantMessage.content!.push({ text: output as string })
     }
 
+    // 添加工具调用（如果有）
     if (hasToolCalls) {
       for (const tool of toolCalls!) {
         assistantMessage.content!.push({
@@ -328,15 +324,21 @@ export class BedrockAPIClient extends BaseApiClient<
       }
     }
 
-    // Only add the assistant message if it has content
-    if (hasTextOutput || hasToolCalls) {
-      return [...currentReqMessages, assistantMessage, ...toolResults]
+    // 构建最终消息列表
+    const result = [...currentReqMessages]
+
+    // 如果助手消息有内容，添加到结果中
+    if (assistantMessage.content!.length > 0) {
+      result.push(assistantMessage)
     }
 
-    console.log('currentReqMessages', currentReqMessages)
-    console.log('toolResults', toolResults)
-    // Otherwise, just return the current messages plus any tool results (though this case is rare)
-    return [...currentReqMessages, ...toolResults]
+    // 始终添加工具结果（如果有）
+    if (toolResults && toolResults.length > 0) {
+      result.push(...toolResults)
+    }
+
+    console.log('buildSdkMessages - result', result)
+    return result
   }
 
   override estimateMessageTokens(message: BedrockSdkMessageParam): number {
@@ -370,12 +372,9 @@ export class BedrockAPIClient extends BaseApiClient<
       }> => {
         const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
 
-        // Setup tools
-        const { tools } = this.setupToolsConfig({
-          mcpTools: mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
+        // Setup tools configuration
+        this.setupToolsConfig({ mcpTools, model, enableToolUse: true })
+        const tools = this.useSystemPromptForTools ? [] : mcpTools ? this.convertMcpToolsToSdkTools(mcpTools) : []
 
         // Build system message
         let systemContent = assistant.prompt || ''
@@ -411,13 +410,16 @@ export class BedrockAPIClient extends BaseApiClient<
 
         // Get reasoning configuration
         const reasoningConfig = this.getBudgetTokenConfig(assistant, model)
-
+        console.log('mcpTools', mcpTools)
+        console.log('tools', tools)
+        console.log('useSystemPromptForTools', this.useSystemPromptForTools)
+        console.log('systemContent', systemContent)
         const sdkParams: BedrockSdkParams = {
           modelId: this.getModelId(model),
           messages: reqMessages,
           system: systemContent ? [{ text: systemContent }] : undefined,
           inferenceConfig,
-          toolConfig: tools.length > 0 ? { tools } : undefined,
+          toolConfig: tools.length > 0 ? { tools: tools } : undefined,
           additionalModelRequestFields: reasoningConfig,
           stream: streamOutput
         }
@@ -444,13 +446,11 @@ export class BedrockAPIClient extends BaseApiClient<
 
       return {
         transform: (chunk: BedrockSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) => {
-          console.log('Raw_chunk', chunk)
           if (!chunk) {
             console.warn('Received empty chunk from Bedrock API')
             return
           }
 
-          // Type guard to explicitly handle non-streaming (ConverseResponse)
           if ('output' in chunk) {
             const response = chunk
             if (response.usage) {
@@ -481,15 +481,23 @@ export class BedrockAPIClient extends BaseApiClient<
                   return { ...tc, input: {} }
                 }
               })
+              console.log('completedToolCalls', completedToolCalls)
               controller.enqueue({ type: ChunkType.MCP_TOOL_CREATED, tool_calls: completedToolCalls })
+
+              // 当stopReason为tool_use时，不发送LLM_RESPONSE_COMPLETE
+              // 让工具调用完成后继续处理
+            } else {
+              // 只有在不是工具调用时，才发送完成信号
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: { usage: usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }
+              })
             }
-            controller.enqueue({
-              type: ChunkType.LLM_RESPONSE_COMPLETE,
-              response: { usage: usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }
-            })
           } else {
             // Handle streaming chunks by checking for the presence of specific keys
             const streamChunk = chunk as any
+
+            console.log('streamChunk', streamChunk)
 
             if (streamChunk.contentBlockStart?.start?.toolUse) {
               const { toolUseId, name } = streamChunk.contentBlockStart.start.toolUse
@@ -531,12 +539,18 @@ export class BedrockAPIClient extends BaseApiClient<
                     return { ...tc, input: {} }
                   }
                 })
+                console.log('completedToolCalls in stream', completedToolCalls)
                 controller.enqueue({ type: ChunkType.MCP_TOOL_CREATED, tool_calls: completedToolCalls })
+
+                // 当stopReason为tool_use时，不发送LLM_RESPONSE_COMPLETE
+                // 让工具调用完成后继续处理
+              } else {
+                // 只有在不是工具调用时，才发送完成信号
+                controller.enqueue({
+                  type: ChunkType.LLM_RESPONSE_COMPLETE,
+                  response: { usage: usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }
+                })
               }
-              controller.enqueue({
-                type: ChunkType.LLM_RESPONSE_COMPLETE,
-                response: { usage: usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }
-              })
             }
           }
         }
