@@ -74,7 +74,7 @@ export interface TTSState {
 }
 
 export interface TTSSpeakOptions {
-  text?: string
+  text: string
   voice?: string
   rate?: number
   pitch?: number

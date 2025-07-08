@@ -271,7 +271,7 @@ export const TTS_PROVIDER_CONFIG = {
     name: '自建服务',
     description: '连接到您自己的或指定的 TTS 服务器',
     requiresApiKey: false,
-    supportedFeatures: [],
+    supportedFeatures: ['voice'],
     websites: {}
   }
 }

@@ -245,7 +245,7 @@ const TTSSettings: FC = () => {
       )
     }
 
-    const config = TTS_PROVIDER_CONFIG[selectedProvider.type]
+    const config = TTS_PROVIDER_CONFIG[providerForRender.type]
 
     const officialWebsite = config.websites?.official
 
@@ -253,14 +253,14 @@ const TTSSettings: FC = () => {
       <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
         <SettingTitle>
           <Flex align="center" gap={5}>
-            <span>{tts.getTTSProviderName(selectedProvider)}</span>
+            <span>{tts.getTTSProviderName(providerForRender)}</span>
             {officialWebsite && (
               <a target="_blank" href={officialWebsite} style={{ display: 'flex' }}>
                 <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
               </a>
             )}
           </Flex>
-          <Switch checked={selectedProvider.enabled} onChange={handleProviderEnabledChange} />
+          <Switch checked={providerForRender.enabled} onChange={handleProviderEnabledChange} />
         </SettingTitle>
         <SettingHelpText>{config.description}</SettingHelpText>
 
@@ -269,14 +269,14 @@ const TTSSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tts.auto_play')}</SettingRowTitle>
           <Switch
-            checked={selectedProvider.settings.autoPlay}
+            checked={providerForRender.settings.autoPlay}
             onChange={(autoPlay) => {
               const updatedProvider = {
-                ...selectedProvider,
-                settings: { ...selectedProvider.settings, autoPlay }
+                ...providerForRender,
+                settings: { ...providerForRender.settings, autoPlay }
               } as TTSProvider
               updateProvider(updatedProvider)
-              tts.updateProviderSettings(selectedProvider.id, { autoPlay })
+              tts.updateProviderSettings(providerForRender.id, { autoPlay })
             }}
           />
         </SettingRow>
@@ -289,33 +289,33 @@ const TTSSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.tts.streaming')}</SettingRowTitle>
               <Switch
-                checked={selectedProvider.settings.streaming ?? false}
+                checked={providerForRender.settings.streaming ?? false}
                 onChange={(streaming) => {
                   const updatedProvider = {
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, streaming }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, streaming }
                   } as TTSProvider
                   updateProvider(updatedProvider)
-                  tts.updateProviderSettings(selectedProvider.id, { streaming })
+                  tts.updateProviderSettings(providerForRender.id, { streaming })
                 }}
               />
             </SettingRow>
             <SettingHelpText>{t('settings.tts.streaming.description')}</SettingHelpText>
 
             {/* 暂停功能设置（仅在启用流式时显示） */}
-            {selectedProvider.settings.streaming && (
+            {providerForRender.settings.streaming && (
               <>
                 <SettingRow>
                   <SettingRowTitle>{t('settings.tts.pause_support.title')}</SettingRowTitle>
                   <Switch
-                    checked={selectedProvider.settings.pauseSupport ?? false}
+                    checked={providerForRender.settings.pauseSupport ?? false}
                     onChange={(pauseSupport) => {
                       const updatedProvider = {
-                        ...selectedProvider,
-                        settings: { ...selectedProvider.settings, pauseSupport }
+                        ...providerForRender,
+                        settings: { ...providerForRender.settings, pauseSupport }
                       } as TTSProvider
                       updateProvider(updatedProvider)
-                      tts.updateProviderSettings(selectedProvider.id, { pauseSupport })
+                      tts.updateProviderSettings(providerForRender.id, { pauseSupport })
                     }}
                   />
                 </SettingRow>
@@ -331,21 +331,21 @@ const TTSSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>
-                {selectedProvider.type === 'tencentcloud' ? 'SecretId' : t('settings.provider.api_key')}
+                {providerForRender.type === 'tencentcloud' ? 'SecretId' : t('settings.provider.api_key')}
               </SettingRowTitle>
               <Input.Password
                 style={{ width: 300 }}
-                value={selectedProvider.apiKey || ''}
+                value={providerForRender.apiKey || ''}
                 placeholder={
-                  selectedProvider.type === 'tencentcloud' ? '请输入腾讯云 SecretId' : t('settings.provider.api_key')
+                  providerForRender.type === 'tencentcloud' ? '请输入腾讯云 SecretId' : t('settings.provider.api_key')
                 }
                 onChange={(e) => {
                   const updatedProvider = {
-                    ...selectedProvider,
+                    ...providerForRender,
                     apiKey: e.target.value
                   } as TTSProvider
                   updateProvider(updatedProvider)
-                  tts.setProviderApiKey(selectedProvider.id, e.target.value)
+                  tts.setProviderApiKey(providerForRender.id, e.target.value)
                 }}
               />
             </SettingRow>
@@ -357,7 +357,7 @@ const TTSSettings: FC = () => {
                   </SettingHelpLink>
                 </HStack>
                 <SettingHelpText>
-                  {selectedProvider.type === 'tencentcloud'
+                  {providerForRender.type === 'tencentcloud'
                     ? '腾讯云访问密钥 ID，用于身份验证。可在腾讯云控制台的访问管理页面获取。'
                     : t('settings.provider.api_key.tip')}
                 </SettingHelpText>
@@ -367,22 +367,22 @@ const TTSSettings: FC = () => {
         )}
 
         {/* 语音选择 */}
-        {config.supportedFeatures.includes('voice') && selectedProvider.voices.length > 0 && (
+        {config.supportedFeatures.includes('voice') && providerForRender.voices.length > 0 && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.tts.voice')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.voice}
+                value={providerForRender.settings.voice}
                 onChange={(voice) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, voice }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, voice }
                   } as TTSProvider)
                 }
                 placeholder={t('settings.tts.voice.placeholder')}
-                options={selectedProvider.voices.map((voice) => ({
+                options={providerForRender.voices.map((voice) => ({
                   label: `${voice.name} (${voice.lang})${voice.default ? ' - ' + t('settings.tts.voice.default') : ''}`,
                   value: voice.id
                 }))}
@@ -399,23 +399,23 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.rate')}</SettingRowTitle>
               <SliderContainer>
                 <Slider
-                  min={selectedProvider.type === 'openai' ? 0.25 : 0.1}
-                  max={selectedProvider.type === 'openai' ? 4.0 : 2.0}
+                  min={providerForRender.type === 'openai' ? 0.25 : 0.1}
+                  max={providerForRender.type === 'openai' ? 4.0 : 2.0}
                   step={0.1}
-                  value={selectedProvider.settings.rate}
+                  value={providerForRender.settings.rate}
                   onChange={(rate) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, rate }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, rate }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{selectedProvider.settings.rate.toFixed(1)}</SliderValue>
+                <SliderValue>{providerForRender.settings.rate.toFixed(1)}</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>
-              {selectedProvider.type === 'openai'
+              {providerForRender.type === 'openai'
                 ? t('settings.tts.rate.description') + ' (0.25 - 4.0)'
                 : t('settings.tts.rate.description')}
             </SettingHelpText>
@@ -433,16 +433,16 @@ const TTSSettings: FC = () => {
                   min={0.0}
                   max={2.0}
                   step={0.1}
-                  value={selectedProvider.settings.pitch}
+                  value={providerForRender.settings.pitch}
                   onChange={(pitch) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, pitch }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, pitch }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{selectedProvider.settings.pitch.toFixed(1)}</SliderValue>
+                <SliderValue>{providerForRender.settings.pitch.toFixed(1)}</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>{t('settings.tts.pitch.description')}</SettingHelpText>
@@ -460,16 +460,16 @@ const TTSSettings: FC = () => {
                   min={0.0}
                   max={1.0}
                   step={0.1}
-                  value={selectedProvider.settings.volume}
+                  value={providerForRender.settings.volume}
                   onChange={(volume) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, volume }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, volume }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{Math.round(selectedProvider.settings.volume * 100)}%</SliderValue>
+                <SliderValue>{Math.round(providerForRender.settings.volume * 100)}%</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>{t('settings.tts.volume.description')}</SettingHelpText>
@@ -477,7 +477,7 @@ const TTSSettings: FC = () => {
         )}
 
         {/* OpenAI TTS 特有参数 */}
-        {selectedProvider.type === 'openai' && (
+        {providerForRender.type === 'openai' && (
           <>
             {/* 模型选择 */}
             <SettingDivider />
@@ -485,11 +485,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.model')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.model || 'tts-1'}
+                value={providerForRender.settings.model || 'tts-1'}
                 onChange={(model) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, model }
                   } as TTSProvider)
                 }
                 options={[
@@ -506,11 +506,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.format')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.format || 'mp3'}
+                value={providerForRender.settings.format || 'mp3'}
                 onChange={(format) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, format }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, format }
                   } as TTSProvider)
                 }
                 options={[
@@ -528,7 +528,7 @@ const TTSSettings: FC = () => {
         )}
 
         {/* Azure Speech 特有参数 */}
-        {selectedProvider.type === 'azure' && (
+        {providerForRender.type === 'azure' && (
           <>
             {/* 区域设置 */}
             <SettingDivider />
@@ -536,15 +536,15 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.region')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.region || 'eastus'}
+                value={providerForRender.settings.region || 'eastus'}
                 onChange={(region) => {
                   const updatedProvider = {
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, region }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, region }
                   } as TTSProvider
                   updateProvider(updatedProvider)
                   // 当区域改变时，自动更新 API Host
-                  tts.setProviderApiHost(selectedProvider.id, `https://${region}.tts.speech.microsoft.com`)
+                  tts.setProviderApiHost(providerForRender.id, `https://${region}.tts.speech.microsoft.com`)
                 }}
                 options={[
                   { label: 'Australia East', value: 'australiaeast' },
@@ -589,17 +589,17 @@ const TTSSettings: FC = () => {
               <Input
                 style={{ width: 300 }}
                 value={
-                  selectedProvider.apiHost ||
-                  `https://${selectedProvider.settings.region || 'eastus'}.tts.speech.microsoft.com`
+                  providerForRender.apiHost ||
+                  `https://${providerForRender.settings.region || 'eastus'}.tts.speech.microsoft.com`
                 }
                 placeholder="https://eastus.tts.speech.microsoft.com"
                 onChange={(e) => {
                   const updatedProvider = {
-                    ...selectedProvider,
+                    ...providerForRender,
                     apiHost: e.target.value
                   } as TTSProvider
                   updateProvider(updatedProvider)
-                  tts.setProviderApiHost(selectedProvider.id, e.target.value)
+                  tts.setProviderApiHost(providerForRender.id, e.target.value)
                 }}
               />
             </SettingRow>
@@ -615,11 +615,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.speaking_style')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.speaking_style || 'general'}
+                value={providerForRender.settings.speaking_style || 'general'}
                 onChange={(speaking_style) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, speaking_style }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, speaking_style }
                   } as TTSProvider)
                 }
                 options={[
@@ -650,11 +650,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.role')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.role || 'default'}
+                value={providerForRender.settings.role || 'default'}
                 onChange={(role) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, role }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, role }
                   } as TTSProvider)
                 }
                 options={[
@@ -675,7 +675,7 @@ const TTSSettings: FC = () => {
         )}
 
         {/* ElevenLabs 特有参数 */}
-        {selectedProvider.type === 'elevenlabs' && (
+        {providerForRender.type === 'elevenlabs' && (
           <>
             {/* 模型选择 */}
             <SettingDivider />
@@ -683,11 +683,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.model')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.model || 'eleven_multilingual_v2'}
+                value={providerForRender.settings.model || 'eleven_multilingual_v2'}
                 onChange={(model) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, model }
                   } as TTSProvider)
                 }
                 options={[
@@ -710,16 +710,16 @@ const TTSSettings: FC = () => {
                   min={0.0}
                   max={1.0}
                   step={0.1}
-                  value={selectedProvider.settings.stability ?? 0.5}
+                  value={providerForRender.settings.stability ?? 0.5}
                   onChange={(stability) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, stability }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, stability }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{(selectedProvider.settings.stability ?? 0.5).toFixed(1)}</SliderValue>
+                <SliderValue>{(providerForRender.settings.stability ?? 0.5).toFixed(1)}</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>{t('settings.tts.stability.description')}</SettingHelpText>
@@ -733,16 +733,16 @@ const TTSSettings: FC = () => {
                   min={0.0}
                   max={1.0}
                   step={0.1}
-                  value={selectedProvider.settings.similarity_boost ?? 0.5}
+                  value={providerForRender.settings.similarity_boost ?? 0.5}
                   onChange={(similarity_boost) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, similarity_boost }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, similarity_boost }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{(selectedProvider.settings.similarity_boost ?? 0.5).toFixed(1)}</SliderValue>
+                <SliderValue>{(providerForRender.settings.similarity_boost ?? 0.5).toFixed(1)}</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>{t('settings.tts.similarity_boost.description')}</SettingHelpText>
@@ -756,16 +756,16 @@ const TTSSettings: FC = () => {
                   min={0.0}
                   max={1.0}
                   step={0.1}
-                  value={selectedProvider.settings.style ?? 0.0}
+                  value={providerForRender.settings.style ?? 0.0}
                   onChange={(style) =>
                     updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, style }
+                      ...providerForRender,
+                      settings: { ...providerForRender.settings, style }
                     } as TTSProvider)
                   }
                   style={{ width: 200 }}
                 />
-                <SliderValue>{(selectedProvider.settings.style ?? 0.0).toFixed(1)}</SliderValue>
+                <SliderValue>{(providerForRender.settings.style ?? 0.0).toFixed(1)}</SliderValue>
               </SliderContainer>
             </SettingRow>
             <SettingHelpText>{t('settings.tts.style.description')}</SettingHelpText>
@@ -775,11 +775,11 @@ const TTSSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.tts.use_speaker_boost')}</SettingRowTitle>
               <Switch
-                checked={selectedProvider.settings.use_speaker_boost ?? true}
+                checked={providerForRender.settings.use_speaker_boost ?? true}
                 onChange={(use_speaker_boost) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, use_speaker_boost }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, use_speaker_boost }
                   } as TTSProvider)
                 }
               />
@@ -789,7 +789,7 @@ const TTSSettings: FC = () => {
         )}
 
         {/* SiliconFlow 特有参数 */}
-        {selectedProvider.type === 'siliconflow' && (
+        {providerForRender.type === 'siliconflow' && (
           <>
             {/* 模型选择 */}
             <SettingDivider />
@@ -797,11 +797,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.model')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.model || 'FunAudioLLM/CosyVoice2-0.5B'}
+                value={providerForRender.settings.model || 'FunAudioLLM/CosyVoice2-0.5B'}
                 onChange={(model) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, model }
                   } as TTSProvider)
                 }
                 options={[{ label: 'CosyVoice2-0.5B', value: 'FunAudioLLM/CosyVoice2-0.5B' }]}
@@ -815,11 +815,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.format')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.format || 'mp3'}
+                value={providerForRender.settings.format || 'mp3'}
                 onChange={(format) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, format }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, format }
                   } as TTSProvider)
                 }
                 options={[
@@ -838,11 +838,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.sample_rate')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.sample_rate || 44100}
+                value={providerForRender.settings.sample_rate || 44100}
                 onChange={(sample_rate) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, sample_rate }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, sample_rate }
                   } as TTSProvider)
                 }
                 options={[
@@ -958,11 +958,11 @@ const TTSSettings: FC = () => {
               <Input
                 style={{ width: 300 }}
                 type="password"
-                value={selectedProvider.settings.secretKey || ''}
+                value={providerForRender.settings.secretKey || ''}
                 onChange={(e) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, secretKey: e.target.value }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, secretKey: e.target.value }
                   } as TTSProvider)
                 }
                 placeholder="请输入腾讯云 SecretKey"
@@ -977,11 +977,11 @@ const TTSSettings: FC = () => {
               <Input
                 style={{ width: 300 }}
                 type="number"
-                value={(selectedProvider.settings as any).appId || ''}
+                value={(providerForRender.settings as any).appId || ''}
                 onChange={(e) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, appId: parseInt(e.target.value) || undefined }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, appId: parseInt(e.target.value) || undefined }
                   } as TTSProvider)
                 }
                 placeholder="请输入腾讯云 AppId"
@@ -995,11 +995,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.region')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.region || 'ap-beijing'}
+                value={providerForRender.settings.region || 'ap-beijing'}
                 onChange={(region) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, region }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, region }
                   } as TTSProvider)
                 }
                 options={[
@@ -1032,11 +1032,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.sampleRate')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.sampleRate || 16000}
+                value={providerForRender.settings.sampleRate || 16000}
                 onChange={(sampleRate) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, sampleRate }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, sampleRate }
                   } as TTSProvider)
                 }
                 options={[
@@ -1054,11 +1054,11 @@ const TTSSettings: FC = () => {
               <SettingRowTitle>{t('settings.tts.codec')}</SettingRowTitle>
               <Select
                 style={{ width: 300 }}
-                value={selectedProvider.settings.codec || 'wav'}
+                value={providerForRender.settings.codec || 'wav'}
                 onChange={(codec) =>
                   updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, codec }
+                    ...providerForRender,
+                    settings: { ...providerForRender.settings, codec }
                   } as TTSProvider)
                 }
                 options={[
@@ -1072,7 +1072,7 @@ const TTSSettings: FC = () => {
         )}
 
         {/* 测试语音（仅 Web Speech API） */}
-        {selectedProvider.type === 'web-speech' && (
+        {providerForRender.type === 'web-speech' && (
           <>
             <SettingDivider />
             <SettingRow>
@@ -1101,7 +1101,7 @@ const TTSSettings: FC = () => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {(config.websites as any)?.docs && (
               <SettingHelpLink target="_blank" href={(config.websites as any).docs}>
-                {tts.getTTSProviderName(selectedProvider) + ' '}
+                {tts.getTTSProviderName(providerForRender) + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
