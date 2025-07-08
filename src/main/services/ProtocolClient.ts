@@ -27,6 +27,9 @@ export function handleProtocolUrl(url: string) {
   // Process the URL that was used to open the app
   // The url will be in the format: cherrystudio://data?param1=value1&param2=value2
 
+  // show main window
+  windowService.showMainWindow()
+
   // Parse the URL and extract parameters
   const urlObj = new URL(url)
   const params = new URLSearchParams(urlObj.search)
