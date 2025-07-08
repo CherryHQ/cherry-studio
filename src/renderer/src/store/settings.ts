@@ -8,13 +8,14 @@ import {
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
+  S3Config,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 
-import { WebDAVSyncState } from './backup'
+import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -30,7 +31,7 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
-export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -195,6 +196,7 @@ export interface SettingsState {
   localBackupMaxBackups: number
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
+  s3: S3Config
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -205,7 +207,7 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'english' as TranslateLanguageVarious,
+  targetLanguage: 'en-us',
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
@@ -348,7 +350,19 @@ export const initialState: SettingsState = {
   localBackupSyncInterval: 0,
   localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
-  defaultPaintingProvider: 'aihubmix'
+  defaultPaintingProvider: 'aihubmix',
+  s3: {
+    endpoint: '',
+    region: '',
+    bucket: '',
+    accessKeyId: '',
+    secretAccessKey: '',
+    root: '',
+    autoSync: false,
+    syncInterval: 0,
+    maxBackups: 0,
+    skipBackupFile: false
+  }
 }
 
 const settingsSlice = createSlice({
@@ -731,6 +745,12 @@ const settingsSlice = createSlice({
     },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
+    },
+    setS3: (state, action: PayloadAction<S3Config>) => {
+      state.s3 = action.payload
+    },
+    setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
+      state.s3 = { ...state.s3, ...action.payload }
     }
   }
 })
@@ -846,7 +866,9 @@ export const {
   setLocalBackupSyncInterval,
   setLocalBackupMaxBackups,
   setLocalBackupSkipBackupFile,
-  setDefaultPaintingProvider
+  setDefaultPaintingProvider,
+  setS3,
+  setS3Partial
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
