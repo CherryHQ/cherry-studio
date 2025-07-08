@@ -19,7 +19,7 @@ export class AppService {
     return AppService.instance
   }
 
-  public setAppLaunchOnBoot(isLaunchOnBoot: boolean) {
+  public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
@@ -31,8 +31,10 @@ export class AppService {
 
         if (isLaunchOnBoot) {
           // Ensure autostart directory exists
-          if (!fs.existsSync(autostartDir)) {
-            fs.mkdirSync(autostartDir, { recursive: true })
+          try {
+            await fs.promises.access(autostartDir)
+          } catch {
+            await fs.promises.mkdir(autostartDir, { recursive: true })
           }
 
           // Get executable path
@@ -56,13 +58,16 @@ export class AppService {
   Hidden=false`
 
           // Write desktop file
-          fs.writeFileSync(desktopFile, desktopContent)
+          await fs.promises.writeFile(desktopFile, desktopContent)
           log.info('Created autostart desktop file for Linux')
         } else {
           // Remove desktop file
-          if (fs.existsSync(desktopFile)) {
-            fs.unlinkSync(desktopFile)
+          try {
+            await fs.promises.access(desktopFile)
+            await fs.promises.unlink(desktopFile)
             log.info('Removed autostart desktop file for Linux')
+          } catch {
+            // File doesn't exist, no need to remove
           }
         }
       } catch (error) {
