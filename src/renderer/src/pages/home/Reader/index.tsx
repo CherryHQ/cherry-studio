@@ -47,15 +47,27 @@ const Reader: React.FC<Props> = (props) => {
   useEffect(() => {
     const loadFile = async () => {
       if (assistant.attachedDocument) {
-        const { data, mime } = await window.api.file.binaryImage(
-          assistant.attachedDocument.id + assistant.attachedDocument.ext
-        )
-        setFile(new File([data], assistant.attachedDocument.name, { type: mime }))
+        try {
+          const { data, mime } = await window.api.file.binaryFile(
+            assistant.attachedDocument.id + assistant.attachedDocument.ext
+          )
+          setFile(new File([data], assistant.attachedDocument.name, { type: mime }))
+        } catch (error) {
+          console.error('Failed to load PDF file:', error)
+          setFile(null)
+        }
+      } else {
+        setFile(null)
       }
     }
 
     loadFile()
-  }, [assistant.attachedDocument?.id])
+  }, [
+    assistant.attachedDocument?.id,
+    assistant.attachedDocument?.ext,
+    assistant.attachedDocument?.name,
+    assistant.attachedDocument
+  ])
 
   const updateTopicAttachedPages = (newData: AttachedPage[]) => {
     const data = {
