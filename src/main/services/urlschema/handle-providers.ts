@@ -1,6 +1,7 @@
 import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
+import { isMac } from '@main/constant'
 
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
@@ -33,8 +34,13 @@ export async function handleProvidersProtocolUrl(url: URL) {
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
         mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+
+        if (isMac) {
+          windowService.showMainWindow()
+        }
       } else {
         setTimeout(() => {
+          Logger.info('handleProvidersProtocolUrl timeout', { data, version })
           handleProvidersProtocolUrl(url)
         }, 1000)
       }
