@@ -2041,11 +2041,21 @@
           }
         }
       },
-      "topic.pin_to_top": "固定話題置頂",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
+      "topic.pin_to_top": "固定話題置頂",
+      "trace": {
+        "title": "數據追踪",
+        "enabled": "啟用數據追踪",
+        "provider": "數據追踪服務商",
+        "langfuse": {
+          "base_url": "地址",
+          "secret_key": "密鑰",
+          "public_key": "公鑰"
+        }
+      },
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",

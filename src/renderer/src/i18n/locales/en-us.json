@@ -1979,6 +1979,16 @@
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
       "topic.pin_to_top": "Pin Topics to Top",
+      "trace": {
+        "title": "Data Trace",
+        "enabled": "Enable Data Trace",
+        "provider": "Data Trace Provider",
+        "langfuse": {
+          "base_url": "Base URL",
+          "secret_key": "Secret Key",
+          "public_key": "Public Key"
+        }
+      },
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",

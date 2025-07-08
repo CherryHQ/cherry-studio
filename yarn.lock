@@ -7169,6 +7169,7 @@ __metadata:
     jest-styled-components: "npm:^7.2.0"
     jschardet: "npm:^3.1.4"
     jsdom: "npm:26.1.0"
+    langfuse: "npm:^3.37.4"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
@@ -13369,6 +13370,24 @@ __metadata:
     typeorm:
       optional: true
   checksum: 10c0/f735b40a71744b2318fc1ad8563269586239f3baf29798c6eb7faa86f980e7d2c84b2fe2d88ed9378dbccd5e535b74ba66907ad21982b1cbb1d784b2ca6c082f
+  languageName: node
+  linkType: hard
+
+"langfuse-core@npm:^3.37.4":
+  version: 3.37.4
+  resolution: "langfuse-core@npm:3.37.4"
+  dependencies:
+    mustache: "npm:^4.2.0"
+  checksum: 10c0/443f6c320499a958f32b0c5c94d6fd3995dc1a7772503c08cee940405c7a2d8d1347af0b9b4abe3b9b8df7fb899f27365c85c4919f99d888994afa838c3d8649
+  languageName: node
+  linkType: hard
+
+"langfuse@npm:^3.37.4":
+  version: 3.37.4
+  resolution: "langfuse@npm:3.37.4"
+  dependencies:
+    langfuse-core: "npm:^3.37.4"
+  checksum: 10c0/d63342d08a99ca813873a45e54e7203b018d5fb86bfb54ec7ebb7544c2d87e8cb98e4f143ad83dab447d13839807d0602a0a11c8982631686a45df05da12dc3e
   languageName: node
   linkType: hard
 

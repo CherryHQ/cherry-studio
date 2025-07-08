@@ -3,6 +3,7 @@ import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/stor
 import { FileMetadata } from '@renderer/types'
 import type {
   CitationMessageBlock,
+  ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
@@ -109,6 +110,26 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
 }
 
 /**
+ * Finds all ErrorMessageBlocks associated with a given message.
+ * @param message - The message object.
+ * @returns An array of ErrorMessageBlocks (empty if none found).
+ */
+export const findErrorBlocks = (message: Message): ErrorMessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  const errorBlocks: ErrorMessageBlock[] = []
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === MessageBlockType.ERROR) {
+      errorBlocks.push(block as ErrorMessageBlock)
+    }
+  }
+  return errorBlocks
+}
+
+/**
  * Gets the concatenated content string from all MainTextMessageBlocks of a message, in order.
  * @param message - The message object.
  * @returns The concatenated content string or an empty string if no text blocks are found.
@@ -160,6 +181,19 @@ export const getFileContent = (message: Message): FileMetadata[] => {
     }
   }
   return files
+}
+
+/**
+ * Gets the concatenated error content from all ErrorMessageBlocks of a message, in order.
+ * @param message - The message object.
+ * @returns The concatenated error content or an empty string if no error blocks are found.
+ */
+export const getErrorContent = (message: Message): string => {
+  const errorBlocks = findErrorBlocks(message)
+  return errorBlocks
+    .map((block) => block.error?.message)
+    .filter((msg): msg is string => typeof msg === 'string')
+    .join('\n\n')
 }
 
 /**

@@ -1978,6 +1978,16 @@
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
       "topic.pin_to_top": "固定话题置顶",
+      "trace": {
+        "title": "数据追踪",
+        "enabled": "启用数据追踪",
+        "provider": "数据追踪服务商",
+        "langfuse": {
+          "base_url": "地址",
+          "secret_key": "密钥",
+          "public_key": "公钥"
+        }
+      },
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",
