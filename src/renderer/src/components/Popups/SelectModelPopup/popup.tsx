@@ -7,7 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { classNames } from '@renderer/utils/style'
+import { classNames, keywordsMatchModel } from '@renderer/utils'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -103,19 +103,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
       if (searchText.trim()) {
         const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-        models = models.filter((m) => {
-          const fullName = provider.isSystem
-            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
-            : `${m.name} ${provider.name}`
-
-          const lowerFullName = fullName.toLowerCase()
-          return keywords.every((keyword) => lowerFullName.includes(keyword))
-        })
+        models = models.filter((model: Model) => keywordsMatchModel(keywords, model, provider))
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t]
+    [searchText]
   )
 
   // 创建模型列表项

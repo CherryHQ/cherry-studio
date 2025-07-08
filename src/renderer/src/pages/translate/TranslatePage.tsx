@@ -16,7 +16,7 @@ import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import { modelSelectFilter, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -145,6 +145,7 @@ const TranslateSettings: FC<{
               }}
               options={selectOptions}
               showSearch
+              filterOption={modelSelectFilter}
             />
           </HStack>
           {!translateModel && (

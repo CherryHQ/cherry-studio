@@ -8,6 +8,7 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
+import { getFancyProviderName, modelSelectFilter } from '@renderer/utils'
 import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
@@ -59,7 +60,7 @@ const RagSettings = () => {
       .filter((p) => p.models.length > 0)
       .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
       .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        label: getFancyProviderName(p),
         title: p.name,
         options: sortBy(p.models, 'name')
           .filter((model) => isRerankModel(model))
@@ -69,7 +70,7 @@ const RagSettings = () => {
           }))
       }))
       .filter((group) => group.options.length > 0)
-  }, [providers, t])
+  }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
@@ -131,6 +132,7 @@ const RagSettings = () => {
           onChange={handleEmbeddingModelChange}
           allowClear={false}
           showSearch
+          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />
@@ -172,6 +174,7 @@ const RagSettings = () => {
           onChange={handleRerankModelChange}
           allowClear
           showSearch
+          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />

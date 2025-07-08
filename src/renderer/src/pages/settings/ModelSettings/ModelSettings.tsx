@@ -14,6 +14,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
+import { modelSelectFilter } from '@renderer/utils'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
 import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
@@ -103,6 +104,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
@@ -124,6 +126,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTopicNamingModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
@@ -145,6 +148,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />

@@ -58,3 +58,15 @@ export function keywordsMatchModel(keywords: string | string[], model: Model, pr
   const fullName = provider ? `${model.name} ${getFancyProviderName(provider)}` : model.name
   return includeKeywords(fullName, keywords)
 }
+
+/**
+ * 用于 antd Select 组件的 filterOption，统一搜索行为：
+ * - 优先使用 label 进行匹配
+ * - 其次使用 value 进行匹配
+ * @param input 用户输入的搜索字符串
+ * @param option Select 选项对象，包含 label 或 value
+ * @returns 是否匹配
+ */
+export function modelSelectFilter(input: string, option: any) {
+  return keywordsMatchString(input, option?.label ?? option?.value ?? '')
+}
