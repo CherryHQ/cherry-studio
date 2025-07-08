@@ -2,7 +2,7 @@ import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutli
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -310,7 +310,7 @@ const TranslatePage: FC = () => {
   _targetLanguage = targetLanguage
 
   const selectOptions = useMemo(
-    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m)),
+    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
     [providers]
   )
 

@@ -2,7 +2,7 @@ import { RedoOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -40,7 +40,10 @@ const ModelSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
 
-  const selectOptions = getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m))
+  const selectOptions = useMemo(
+    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
+    [providers]
+  )
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
