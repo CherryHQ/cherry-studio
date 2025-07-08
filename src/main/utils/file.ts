@@ -6,6 +6,9 @@ import { isLinux, isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
+import Logger from 'electron-log'
+import iconv from 'iconv-lite'
+import { detect as detectEncoding_, detectAll as detectEncodingAll } from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -201,4 +204,58 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
+}
+
+/**
+ * 使用 jschardet 库检测文件编码格式
+ * @param filePath - 文件路径
+ * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
+ */
+export function detectEncoding(filePath: string): string {
+  // 读取文件前1KB来检测编码
+  const buffer = Buffer.alloc(1024)
+  const fd = fs.openSync(filePath, 'r')
+  fs.readSync(fd, buffer, 0, 1024, 0)
+  fs.closeSync(fd)
+  const { encoding } = detectEncoding_(buffer)
+  return encoding
+}
+
+/**
+ * 读取文件内容并自动检测编码格式进行解码
+ * @param filePath - 文件路径
+ * @returns 解码后的文件内容
+ */
+export function readTextFileWithAutoEncoding(filePath: string) {
+  const encoding = detectEncoding(filePath)
+  const data = fs.readFileSync(filePath)
+  const content = iconv.decode(data, encoding)
+
+  if (content.includes('\uFFFD') && encoding !== 'UTF-8') {
+    Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
+    const buffer = Buffer.alloc(1024)
+    const fd = fs.openSync(filePath, 'r')
+    fs.readSync(fd, buffer, 0, 1024, 0)
+    fs.closeSync(fd)
+    const encodings = detectEncodingAll(buffer)
+    if (encodings.length > 0) {
+      for (const item of encodings) {
+        if (item.encoding === encoding) {
+          continue
+        }
+        Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
+        const content = iconv.decode(buffer, item.encoding)
+        if (!content.includes('\uFFFD')) {
+          Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
+          return content
+        } else {
+          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
+        }
+      }
+    }
+    Logger.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
+    return iconv.decode(buffer, 'UTF-8')
+  }
+
+  return content
 }

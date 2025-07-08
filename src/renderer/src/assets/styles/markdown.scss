@@ -326,6 +326,8 @@ mjx-container {
 /* Shiki 相关样式 */
 .shiki {
   font-family: var(--code-font-family);
+  // 保持行高为初始值，在 shiki 代码块中处理
+  line-height: initial;
 }
 
 /* CodeMirror 相关样式 */

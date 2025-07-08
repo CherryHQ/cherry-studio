@@ -1,7 +1,7 @@
 import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension, keymap } from '@uiw/react-codemirror'
+import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 import {
   ChevronsDownUp,
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLanguageExtensions } from './hook'
+import { useBlurHandler, useLanguageExtensions, useSaveKeymap } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
@@ -25,6 +25,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
+  onBlur?: (newContent: string) => void
   setTools?: (value: React.SetStateAction<CodeTool[]>) => void
   height?: string
   minHeight?: string
@@ -54,6 +55,7 @@ const CodeEditor = ({
   language,
   onSave,
   onChange,
+  onBlur,
   setTools,
   height,
   minHeight,
@@ -166,28 +168,18 @@ const CodeEditor = ({
     setIsUnwrapped(!wrappable)
   }, [wrappable])
 
-  // 保存功能的快捷键
-  const saveKeymap = useMemo(() => {
-    return keymap.of([
-      {
-        key: 'Mod-s',
-        run: () => {
-          handleSave()
-          return true
-        },
-        preventDefault: true
-      }
-    ])
-  }, [handleSave])
+  const saveKeymapExtension = useSaveKeymap({ onSave, enabled: enableKeymap })
+  const blurExtension = useBlurHandler({ onBlur })
 
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
       ...langExtensions,
       ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
-      ...(enableKeymap ? [saveKeymap] : [])
-    ]
-  }, [extensions, langExtensions, isUnwrapped, enableKeymap, saveKeymap])
+      saveKeymapExtension,
+      blurExtension
+    ].flat()
+  }, [extensions, langExtensions, isUnwrapped, saveKeymapExtension, blurExtension])
 
   return (
     <CodeMirror
