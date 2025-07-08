@@ -874,18 +874,17 @@ const TTSSettings: FC = () => {
                 placeholder="https://example.com/api/tts"
                 onChange={(e) => {
                   const url = e.target.value
-                  const currentProviderInStore = tts.providers.find((p) => p.id === providerForRender.id)
-
-                  if (!currentProviderInStore) return
+                  if (!selectedProvider) return
 
                   const updatedProvider = {
-                    ...currentProviderInStore,
+                    ...selectedProvider,
                     self_host: {
-                      ...(currentProviderInStore.self_host || { url: '', body: '' }),
+                      ...(selectedProvider.self_host || { url: '', body: '' }),
                       url
                     }
-                  } as TTSProvider
-                  updateProvider(updatedProvider)
+                  }
+                  setSelectedProvider(updatedProvider as TTSProvider)
+                  tts.updateProvider(updatedProvider as TTSProvider)
                 }}
               />
             </SettingRow>
@@ -904,18 +903,17 @@ const TTSSettings: FC = () => {
                 placeholder={'{"model": "tts-1", "input": "{{input}}"}'}
                 onChange={(e) => {
                   const body = e.target.value
-                  const currentProviderInStore = tts.providers.find((p) => p.id === providerForRender.id)
-
-                  if (!currentProviderInStore) return
+                  if (!selectedProvider) return
 
                   const updatedProvider = {
-                    ...currentProviderInStore,
+                    ...selectedProvider,
                     self_host: {
-                      ...currentProviderInStore.self_host, // 保留 self_host 中的其他字段，如 url
-                      body // 只更新 body 字段
+                      ...(selectedProvider.self_host || { url: '', body: '' }),
+                      body
                     }
-                  } as TTSProvider
-                  updateProvider(updatedProvider)
+                  }
+                  setSelectedProvider(updatedProvider as TTSProvider)
+                  tts.updateProvider(updatedProvider as TTSProvider)
                 }}
               />
             </SettingRow>
