@@ -423,6 +423,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
     let hasBeenCollectedToolCalls = false
     let hasReasoningSummary = false
+    let isFirstThinkingChunk = true
+    let isFirstTextChunk = true
     return () => ({
       async transform(chunk: OpenAIResponseSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 处理chunk
@@ -434,6 +436,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             switch (output.type) {
               case 'message':
                 if (output.content[0].type === 'output_text') {
+                  if (isFirstTextChunk) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_START
+                    })
+                    isFirstTextChunk = false
+                  }
                   controller.enqueue({
                     type: ChunkType.TEXT_DELTA,
                     text: output.content[0].text
@@ -450,6 +458,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 }
                 break
               case 'reasoning':
+                if (isFirstThinkingChunk) {
+                  controller.enqueue({
+                    type: ChunkType.THINKING_START
+                  })
+                  isFirstThinkingChunk = false
+                }
                 controller.enqueue({
                   type: ChunkType.THINKING_DELTA,
                   text: output.summary.map((s) => s.text).join('\n')
@@ -509,6 +523,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               hasReasoningSummary = true
               break
             case 'response.reasoning_summary_text.delta':
+              if (isFirstThinkingChunk) {
+                controller.enqueue({
+                  type: ChunkType.THINKING_START
+                })
+                isFirstThinkingChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: chunk.delta
@@ -534,6 +554,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               })
               break
             case 'response.output_text.delta': {
+              if (isFirstTextChunk) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_START
+                })
+                isFirstTextChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: chunk.delta

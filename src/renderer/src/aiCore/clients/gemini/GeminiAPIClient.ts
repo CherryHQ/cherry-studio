@@ -41,7 +41,7 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { ChunkType, LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   GeminiOptions,
@@ -550,17 +550,31 @@ export class GeminiAPIClient extends BaseApiClient<
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         const toolCalls: FunctionCall[] = []
+        let isFirstTextChunk = true
+        let isFirstThinkingChunk = true
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {
               candidate.content.parts?.forEach((part) => {
                 const text = part.text || ''
                 if (part.thought) {
+                  if (isFirstThinkingChunk) {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_START
+                    } as ThinkingStartChunk)
+                    isFirstThinkingChunk = false
+                  }
                   controller.enqueue({
                     type: ChunkType.THINKING_DELTA,
                     text: text
                   })
                 } else if (part.text) {
+                  if (isFirstTextChunk) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_START
+                    } as TextStartChunk)
+                    isFirstTextChunk = false
+                  }
                   controller.enqueue({
                     type: ChunkType.TEXT_DELTA,
                     text: text
