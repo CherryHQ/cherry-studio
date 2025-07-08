@@ -357,9 +357,10 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   Logger.log('originPair: %o', originPair)
-  newPair = [langMap[originPair[0]], langMap[originPair[1]]]
-  if (!newPair[0] || !newPair[1]) {
+  if (!originPair || !originPair[0] || !originPair[1]) {
     newPair = defaultPair
+  } else {
+    newPair = [langMap[originPair[0]], langMap[originPair[1]]]
   }
 
   Logger.log('DB migration to version 8: %o', { newSource, newTarget, newPair })
