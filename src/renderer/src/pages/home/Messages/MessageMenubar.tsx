@@ -2,7 +2,7 @@ import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } fro
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
-import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { translateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -13,7 +13,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, Model, Topic } from '@renderer/types'
+import type { Assistant, Language, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -153,12 +153,12 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
-    async (language: string) => {
+    async (language: Language) => {
       if (isTranslating) return
 
       setIsTranslating(true)
       const messageId = message.id
-      const translationUpdater = await getTranslationUpdater(messageId, language)
+      const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
       if (!translationUpdater) return
       try {
         await translateText(mainTextContent, language, translationUpdater)
@@ -457,10 +457,10 @@ const MessageMenubar: FC<Props> = (props) => {
               backgroundClip: 'border-box'
             },
             items: [
-              ...TranslateLanguageOptions.map((item) => ({
-                label: item.emoji + ' ' + item.label,
-                key: item.value,
-                onClick: () => handleTranslate(item.value)
+              ...translateLanguageOptions.map((item) => ({
+                label: item.emoji + ' ' + item.label(),
+                key: item.langCode,
+                onClick: () => handleTranslate(item)
               })),
               ...(hasTranslationBlocks
                 ? [
