@@ -1,5 +1,6 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
+import { S3Config } from '@types'
 import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
@@ -10,6 +11,7 @@ import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
@@ -25,6 +27,16 @@ class BackupManager {
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
     this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
+    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
+    this.backupToLocalDir = this.backupToLocalDir.bind(this)
+    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
+    this.setLocalBackupDir = this.setLocalBackupDir.bind(this)
+    this.backupToS3 = this.backupToS3.bind(this)
+    this.restoreFromS3 = this.restoreFromS3.bind(this)
+    this.listS3Files = this.listS3Files.bind(this)
+    this.deleteS3File = this.deleteS3File.bind(this)
+    this.checkS3Connection = this.checkS3Connection.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -85,7 +97,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      Logger.log('[BackupManager] backup progress', processData)
+      // 只在关键阶段记录日志：开始、结束和主要阶段转换点
+      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        Logger.log('[BackupManager] backup progress', processData)
+      }
     }
 
     try {
@@ -147,18 +163,23 @@ class BackupManager {
       let totalBytes = 0
       let processedBytes = 0
 
-      // 首先计算总文件数和总大小
+      // 首先计算总文件数和总大小，但不记录详细日志
       const calculateTotals = async (dirPath: string) => {
-        const items = await fs.readdir(dirPath, { withFileTypes: true })
-        for (const item of items) {
-          const fullPath = path.join(dirPath, item.name)
-          if (item.isDirectory()) {
-            await calculateTotals(fullPath)
-          } else {
-            totalEntries++
-            const stats = await fs.stat(fullPath)
-            totalBytes += stats.size
+        try {
+          const items = await fs.readdir(dirPath, { withFileTypes: true })
+          for (const item of items) {
+            const fullPath = path.join(dirPath, item.name)
+            if (item.isDirectory()) {
+              await calculateTotals(fullPath)
+            } else {
+              totalEntries++
+              const stats = await fs.stat(fullPath)
+              totalBytes += stats.size
+            }
           }
+        } catch (error) {
+          // 仅在出错时记录日志
+          Logger.error('[BackupManager] Error calculating totals:', error)
         }
       }
 
@@ -230,7 +251,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      Logger.log('[BackupManager] restore progress', processData)
+      // 只在关键阶段记录日志
+      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        Logger.log('[BackupManager] restore progress', processData)
+      }
     }
 
     try {
@@ -382,21 +407,54 @@ class BackupManager {
     destination: string,
     onProgress: (size: number) => void
   ): Promise<void> {
-    const items = await fs.readdir(source, { withFileTypes: true })
+    // 先统计总文件数
+    let totalFiles = 0
+    let processedFiles = 0
+    let lastProgressReported = 0
 
-    for (const item of items) {
-      const sourcePath = path.join(source, item.name)
-      const destPath = path.join(destination, item.name)
+    // 计算总文件数
+    const countFiles = async (dir: string): Promise<number> => {
+      let count = 0
+      const items = await fs.readdir(dir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isDirectory()) {
+          count += await countFiles(path.join(dir, item.name))
+        } else {
+          count++
+        }
+      }
+      return count
+    }
 
-      if (item.isDirectory()) {
-        await fs.ensureDir(destPath)
-        await this.copyDirWithProgress(sourcePath, destPath, onProgress)
-      } else {
-        const stats = await fs.stat(sourcePath)
-        await fs.copy(sourcePath, destPath)
-        onProgress(stats.size)
+    totalFiles = await countFiles(source)
+
+    // 复制文件并更新进度
+    const copyDir = async (src: string, dest: string): Promise<void> => {
+      const items = await fs.readdir(src, { withFileTypes: true })
+
+      for (const item of items) {
+        const sourcePath = path.join(src, item.name)
+        const destPath = path.join(dest, item.name)
+
+        if (item.isDirectory()) {
+          await fs.ensureDir(destPath)
+          await copyDir(sourcePath, destPath)
+        } else {
+          const stats = await fs.stat(sourcePath)
+          await fs.copy(sourcePath, destPath)
+          processedFiles++
+
+          // 只在进度变化超过5%时报告进度
+          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
+          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
+            lastProgressReported = currentProgress
+            onProgress(stats.size)
+          }
+        }
       }
     }
+
+    await copyDir(source, destination)
   }
 
   async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
@@ -422,6 +480,191 @@ class BackupManager {
       Logger.error('Failed to delete WebDAV file:', error)
       throw new Error(error.message || 'Failed to delete backup file')
     }
+  }
+
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    data: string,
+    fileName: string,
+    localConfig: {
+      localBackupDir: string
+      skipBackupFile: boolean
+    }
+  ) {
+    try {
+      const backupDir = localConfig.localBackupDir
+      // Create backup directory if it doesn't exist
+      await fs.ensureDir(backupDir)
+
+      const backupedFilePath = await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile)
+      return backupedFilePath
+    } catch (error) {
+      Logger.error('[BackupManager] Local backup failed:', error)
+      throw error
+    }
+  }
+
+  async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config) {
+    const os = require('os')
+    const deviceName = os.hostname ? os.hostname() : 'device'
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 14)
+    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+
+    Logger.log(`[BackupManager] Starting S3 backup to ${filename}`)
+
+    const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
+    const s3Client = new S3Storage(s3Config)
+    try {
+      const fileBuffer = await fs.promises.readFile(backupedFilePath)
+      const result = await s3Client.putFileContents(filename, fileBuffer)
+      await fs.remove(backupedFilePath)
+
+      Logger.log(`[BackupManager] S3 backup completed successfully: ${filename}`)
+      return result
+    } catch (error) {
+      Logger.error(`[BackupManager] S3 backup failed:`, error)
+      await fs.remove(backupedFilePath)
+      throw error
+    }
+  }
+
+  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const backupDir = localBackupDir
+      const backupPath = path.join(backupDir, fileName)
+
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${backupPath}`)
+      }
+
+      return await this.restore(_, backupPath)
+    } catch (error) {
+      Logger.error('[BackupManager] Local restore failed:', error)
+      throw error
+    }
+  }
+
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
+    try {
+      const files = await fs.readdir(localBackupDir)
+      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+
+      for (const file of files) {
+        const filePath = path.join(localBackupDir, file)
+        const stat = await fs.stat(filePath)
+
+        if (stat.isFile() && file.endsWith('.zip')) {
+          result.push({
+            fileName: file,
+            modifiedTime: stat.mtime.toISOString(),
+            size: stat.size
+          })
+        }
+      }
+
+      // Sort by modified time, newest first
+      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error) {
+      Logger.error('[BackupManager] List local backup files failed:', error)
+      throw error
+    }
+  }
+
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const filePath = path.join(localBackupDir, fileName)
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Backup file not found: ${filePath}`)
+      }
+
+      await fs.remove(filePath)
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Delete local backup file failed:', error)
+      throw error
+    }
+  }
+
+  async setLocalBackupDir(_: Electron.IpcMainInvokeEvent, dirPath: string) {
+    try {
+      // Check if directory exists
+      await fs.ensureDir(dirPath)
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Set local backup directory failed:', error)
+      throw error
+    }
+  }
+
+  async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+
+    Logger.log(`[BackupManager] Starting restore from S3: ${filename}`)
+
+    const s3Client = new S3Storage(s3Config)
+    try {
+      const retrievedFile = await s3Client.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      Logger.log(`[BackupManager] S3 restore file downloaded successfully: ${filename}`)
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      Logger.error('[BackupManager] Failed to restore from S3:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
+    }
+  }
+
+  listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
+    try {
+      const s3Client = new S3Storage(s3Config)
+
+      const objects = await s3Client.listFiles()
+      const files = objects
+        .filter((obj) => obj.key.endsWith('.zip'))
+        .map((obj) => {
+          const segments = obj.key.split('/')
+          const fileName = segments[segments.length - 1]
+          return {
+            fileName,
+            modifiedTime: obj.lastModified || '',
+            size: obj.size
+          }
+        })
+
+      return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      Logger.error('Failed to list S3 files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
+  }
+
+  async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
+    try {
+      const s3Client = new S3Storage(s3Config)
+      return await s3Client.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete S3 file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
+  }
+
+  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const s3Client = new S3Storage(s3Config)
+    return await s3Client.checkConnection()
   }
 }
 

@@ -165,6 +165,16 @@ export enum IpcChannel {
   Backup_CheckConnection = 'backup:checkConnection',
   Backup_CreateDirectory = 'backup:createDirectory',
   Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
+  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
+  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
+  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
+  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
+  Backup_SetLocalBackupDir = 'backup:setLocalBackupDir',
+  Backup_BackupToS3 = 'backup:backupToS3',
+  Backup_RestoreFromS3 = 'backup:restoreFromS3',
+  Backup_ListS3Files = 'backup:listS3Files',
+  Backup_DeleteS3File = 'backup:deleteS3File',
+  Backup_CheckS3Connection = 'backup:checkS3Connection',
 
   // zip
   Zip_Compress = 'zip:compress',
