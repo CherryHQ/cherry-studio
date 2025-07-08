@@ -1,7 +1,8 @@
-import { DeleteOutlined, DiffOutlined, SnippetsOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DiffOutlined, SnippetsOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import { useShowAssistants } from '@renderer/hooks/useStore'
+import { RefreshIcon } from '@renderer/pages/knowledge/KnowledgeContent'
 import FileManager from '@renderer/services/FileManager'
 import { Assistant, AssistantSettings, FileType } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -22,7 +23,10 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
   const { t } = useTranslation()
   const { setShowAssistants } = useShowAssistants()
   const files = useLiveQuery<FileType[]>(() => {
-    return db.files.orderBy('count').toArray()
+    return db.files
+      .orderBy('count')
+      .toArray()
+      .then((files) => files.filter((file) => file.type === 'document'))
   }, [])
 
   const onUploadFile = async () => {
@@ -44,19 +48,19 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
     }
   }
 
-  const onSelectFile = (file: FileType) => {
-    window.modal.confirm({
-      centered: true,
-      content: t('assistants.settings.reader.pickFromFiles.confirm'),
-      onOk: () => {
-        updateAssistant({ ...assistant, attachedDocument: file })
-        setShowAssistants(false)
-      }
-    })
-  }
-
   const { origin_name, id } = assistant.attachedDocument || {}
   const renderFileList = useCallback(() => {
+    const onSelectFile = (file: FileType) => {
+      window.modal.confirm({
+        centered: true,
+        content: t('assistants.settings.reader.pickFromFiles.confirm'),
+        onOk: () => {
+          updateAssistant({ ...assistant, attachedDocument: file })
+          setShowAssistants(false)
+        }
+      })
+    }
+
     return (
       <OverContainer>
         <List
@@ -74,7 +78,7 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
         />
       </OverContainer>
     )
-  }, [files, id])
+  }, [assistant, files, id, setShowAssistants, t, updateAssistant])
 
   return (
     <Container>
@@ -90,7 +94,7 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
                   marginRight: 16
                 }}>{`${origin_name} / ${formatFileSize(assistant.attachedDocument.size)}`}</span>
               <Tooltip title={t('assistants.settings.reader.reupload')}>
-                <Button type="text" icon={<UploadOutlined />} onClick={onUploadFile} />
+                <Button type="text" icon={<RefreshIcon />} onClick={onUploadFile} />
               </Tooltip>
               <Popover
                 arrow={false}
