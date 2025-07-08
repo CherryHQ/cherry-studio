@@ -7,7 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { classNames, getFancyProviderName, keywordsMatchModel } from '@renderer/utils'
+import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -102,8 +102,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
-        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-        models = models.filter((model: Model) => keywordsMatchModel(keywords, model, provider))
+        models = filterModelsByKeywords(searchText, models, provider)
       }
 
       return sortBy(models, ['group', 'name'])

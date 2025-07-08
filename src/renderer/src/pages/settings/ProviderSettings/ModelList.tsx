@@ -18,7 +18,7 @@ import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
-import { keywordsMatchModel } from '@renderer/utils'
+import { filterModelsByKeywords } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
@@ -184,8 +184,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
   const [editingModel, setEditingModel] = useState<Model | null>(null)
 
   const modelGroups = useMemo(() => {
-    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-    const filteredModels = searchText ? models.filter((model) => keywordsMatchModel(keywords, model)) : models
+    const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
     return groupBy(filteredModels, 'group')
   }, [searchText, models])
 

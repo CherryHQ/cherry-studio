@@ -63,6 +63,18 @@ function getProviderSearchString(provider: Provider) {
 }
 
 /**
+ * 根据关键词过滤模型
+ * @param keywords 关键词字符串
+ * @param models 模型数组
+ * @param provider 可选的 Provider 对象，用于生成完整模型名称
+ * @returns 过滤后的模型数组
+ */
+export function filterModelsByKeywords(keywords: string, models: Model[], provider?: Provider): Model[] {
+  const keywordsArray = keywords.toLowerCase().split(/\s+/).filter(Boolean)
+  return models.filter((model) => keywordsMatchModel(keywordsArray, model, provider))
+}
+
+/**
  * 用于 antd Select 组件的 filterOption，统一搜索行为：
  * - 优先使用 label 进行匹配
  * - 其次使用 value 进行匹配
