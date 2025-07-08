@@ -1723,11 +1723,6 @@ const migrateConfig = {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
       state.settings.disableHardwareAcceleration = false
-      state.settings.localBackupMaxBackups = 0
-      state.settings.localBackupSkipBackupFile = false
-      state.settings.localBackupDir = ''
-      state.settings.localBackupAutoSync = false
-      state.settings.localBackupSyncInterval = 0
 
       return state
     } catch (error) {
@@ -1752,6 +1747,12 @@ const migrateConfig = {
       const newLang = langMap[origin]
       if (newLang) state.settings.targetLanguage = newLang
       else state.settings.targetLanguage = 'en-us'
+
+      state.settings.localBackupMaxBackups = 0
+      state.settings.localBackupSkipBackupFile = false
+      state.settings.localBackupDir = ''
+      state.settings.localBackupAutoSync = false
+      state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
       return state
