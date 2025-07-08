@@ -13,12 +13,7 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
-import {
-  DEFAULT_PAINTING,
-  getModelGroup,
-  MODELS,
-  SUPPORTED_MODELS
-} from '@renderer/pages/paintings/config/NewApiConfig'
+import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -96,7 +91,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         label: m.name,
         value: m.id,
         custom: !SUPPORTED_MODELS.includes(m.id),
-        group: getModelGroup(m.id)
+        group: m.group
       }))
     return [...customModels]
   }, [newApiProvider.models])

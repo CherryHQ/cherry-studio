@@ -30,18 +30,3 @@ export const DEFAULT_PAINTING: GeneratePainting = {
   moderation: 'auto',
   size: 'auto'
 }
-
-export const getModelGroup = (model: string): string => {
-  const modelConfig = MODELS.find((m) => m.name === model)
-  if (modelConfig) {
-    return modelConfig.group
-  }
-  if (model.includes('flux')) {
-    return 'Black Forest Lab'
-  } else if (model.includes('imagen')) {
-    return 'Gemini'
-  } else if (model.includes('dall-e')) {
-    return 'OpenAI'
-  }
-  return 'Custom'
-}

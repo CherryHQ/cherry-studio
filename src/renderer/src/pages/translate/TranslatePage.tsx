@@ -2,7 +2,7 @@ import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutli
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -312,16 +312,24 @@ const TranslatePage: FC = () => {
     () =>
       providers
         .filter((p) => p.models.length > 0)
-        .map((p) => ({
-          label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-          title: p.name,
-          options: sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m))
+        .flatMap((p) => {
+          const filteredModels = sortBy(p.models, 'name')
+            .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
             .map((m) => ({
               label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
               value: getModelUniqId(m)
             }))
-        })),
+          if (filteredModels.length > 0) {
+            return [
+              {
+                label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+                title: p.name,
+                options: filteredModels
+              }
+            ]
+          }
+          return []
+        }),
     [providers, t]
   )
 
