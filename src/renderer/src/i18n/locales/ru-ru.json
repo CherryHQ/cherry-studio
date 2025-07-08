@@ -471,6 +471,14 @@
       "messages": "Сообщения",
       "user": "Пользователь"
     },
+    "endpoint_type": {
+      "openai": "OpenAI",
+      "openai-response": "OpenAI-Response",
+      "anthropic": "Anthropic",
+      "gemini": "Gemini",
+      "image-generation": "Изображение",
+      "jina-rerank": "Jina Rerank"
+    },
     "files": {
       "actions": "Действия",
       "all": "Все файлы",
@@ -705,11 +713,15 @@
       "success.yuque.export": "Успешный экспорт в Yuque",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "tools": {
+        "aborted": "Вызов инструмента прерван",
+        "abort_failed": "Вызов инструмента прерван",
         "completed": "Завершено",
         "invoking": "Вызов",
         "error": "Произошла ошибка",
         "raw": "Исходный",
-        "preview": "Предпросмотр"
+        "preview": "Предпросмотр",
+        "pending": "Ожидание",
+        "cancelled": "Отменено"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -864,6 +876,8 @@
       "title": "Ollama"
     },
     "paintings": {
+      "no_image_generation_model": "Нет доступных моделей изображения, пожалуйста, добавьте модель и установите тип конечной точки на {{endpoint_type}}",
+      "go_to_settings": "Перейти в настройки",
       "button.delete.image": "Удалить изображение",
       "button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
       "button.new.image": "Новое изображение",
@@ -935,6 +949,9 @@
         "allow_all": "Разрешено все",
         "allow_adult": "Разрешено взрослые",
         "allow_none": "Не разрешено"
+      },
+      "image_size_options": {
+        "auto": "Авто"
       },
       "quality": "Качество",
       "moderation": "Сенсорность",

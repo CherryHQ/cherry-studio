@@ -1,6 +1,7 @@
 import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import CodeEditor from '@renderer/components/CodeEditor'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -78,6 +79,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     status: 'not_checked',
     checking: false
   })
+
+  const [headerText, setHeaderText] = useState<string>(JSON.stringify(provider.extra_headers || {}, null, 2))
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
@@ -308,6 +311,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
 
+  const onUpdateHeaders = useCallback(() => {
+    try {
+      const headers = headerText.trim() ? JSON.parse(headerText) : {}
+      updateProvider({ ...provider, extra_headers: headers })
+      window.message.success({ content: t('message.save.success.title') })
+    } catch (error) {
+      window.message.error({ content: t('settings.provider.copilot.invalid_json') })
+    }
+  }, [headerText, provider, updateProvider, t])
+
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -422,6 +435,32 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </SettingHelpText>
                 </SettingHelpTextRow>
               )}
+            </>
+          )}
+          {provider.id !== 'copilot' && (
+            <>
+              <SettingSubtitle style={{ marginTop: 5 }}>
+                {t('settings.provider.copilot.custom_headers')}
+              </SettingSubtitle>
+              <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
+                <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
+                <CodeEditor
+                  value={headerText}
+                  language="json"
+                  onChange={(value) => setHeaderText(value)}
+                  onBlur={onUpdateHeaders}
+                  placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
+                  options={{
+                    lint: true,
+                    collapsible: false,
+                    wrappable: true,
+                    lineNumbers: true,
+                    foldGutter: true,
+                    highlightActiveLine: true,
+                    keymap: true
+                  }}
+                />
+              </Space.Compact>
             </>
           )}
         </>

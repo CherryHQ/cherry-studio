@@ -228,8 +228,8 @@ const api = {
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
     listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
+    callTool: ({ server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args, callId }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
@@ -237,7 +237,9 @@ const api = {
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
-    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
+    abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
+    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress)
   },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>

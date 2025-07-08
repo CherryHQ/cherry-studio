@@ -44,7 +44,11 @@ const initialJsonExample = `// 示例 JSON (stdio):
 //   "mcpServers": {
 //     "streamable-http-example": {
 //       "type": "streamableHttp",
-//       "url": "http://localhost:3001"
+//       "url": "http://localhost:3001",
+//       "headers": {
+//         "Content-Type": "application/json",
+//         "Authorization": "Bearer your-token"
+//       }
 //     }
 //   }
 // }
@@ -102,7 +106,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         provider: serverToAdd!.provider,
         providerUrl: serverToAdd!.providerUrl,
         tags: serverToAdd!.tags,
-        configSample: serverToAdd!.configSample
+        configSample: serverToAdd!.configSample,
+        headers: serverToAdd!.headers || {}
       }
 
       onSuccess(newServer)
