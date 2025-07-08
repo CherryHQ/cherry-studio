@@ -483,17 +483,10 @@ export class GeminiAPIClient extends BaseApiClient<
           })
         }
 
-        // Force enable urlContext
-        // tools.push({ urlContext: {} })
-        // URL context test passed. Now start solving the enable url context issue.
-
         if (enableUrlContext) {
-          console.log(`URL Context Enabled, adding tools`)
           tools.push({
             urlContext: {}
           })
-        } else {
-          console.log(`URL Context Disabled/ Failed to enable. Please check.`)
         }
 
         if (isGemmaModel(model) && assistant.prompt) {

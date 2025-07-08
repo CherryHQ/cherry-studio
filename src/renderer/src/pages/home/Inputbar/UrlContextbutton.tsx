@@ -24,7 +24,6 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
   const handleToggle = useCallback(() => {
     setTimeout(() => {
       updateAssistant({ ...assistant, enableUrlContext: urlContentNewState })
-      console.log(`URL Context toggle: ${assistant.enableUrlContext}`)
     }, 100)
   }, [assistant, urlContentNewState, updateAssistant])
 
@@ -34,7 +33,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
         <Link
           size={18}
           style={{
-            color: urlContentNewState ? 'var(--color-link)' : 'var(--color-icon)'
+            color: assistant.enableUrlContext ? 'var(--color-link)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>
