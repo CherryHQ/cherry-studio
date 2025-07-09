@@ -347,6 +347,18 @@ const fetchAndProcessAssistantResponseImpl = async (
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
   try {
+    const state = getState()
+    const latestAssistant = state.assistants.assistants.find((a) => a.id === assistant.id)
+    const assistantToUse = latestAssistant || assistant
+
+    // 调试日志：检查助手对象是否包含预设消息
+    console.log('[messageThunk] 助手对象信息:', {
+      id: assistantToUse.id,
+      name: assistantToUse.name,
+      hasMessages: !!assistantToUse.messages,
+      messagesCount: assistantToUse.messages?.length || 0
+    })
+
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
     let accumulatedContent = ''
@@ -419,6 +431,8 @@ const fetchAndProcessAssistantResponseImpl = async (
       const contextSlice = allMessagesForTopic.slice(0, userMessageIndex + 1)
       messagesForContext = contextSlice.filter((m) => m && !m.status?.includes('ing'))
     }
+
+    // =================================================================
 
     callbacks = {
       onLLMResponseCreated: async () => {
@@ -867,7 +881,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
 
           // 更新topic的name
-          autoRenameTopic(assistant, topicId)
+          autoRenameTopic(assistantToUse, topicId)
 
           if (
             response &&
@@ -875,7 +889,10 @@ const fetchAndProcessAssistantResponseImpl = async (
               response?.usage?.prompt_tokens === 0 ||
               response?.usage?.completion_tokens === 0)
           ) {
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            const usage = await estimateMessagesUsage({
+              assistant: assistantToUse,
+              messages: finalContextWithAssistant
+            })
             response.usage = usage
           }
           // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
@@ -911,7 +928,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     const startTime = Date.now()
     await fetchChatCompletion({
       messages: messagesForContext,
-      assistant: assistant,
+      assistant: assistantToUse,
       onChunkReceived: streamProcessorCallbacks
     })
   } catch (error: any) {
