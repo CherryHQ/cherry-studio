@@ -3,28 +3,23 @@ import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVG
 import { HStack } from '@renderer/components/Layout'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
 import EditModelsPopup from '@renderer/components/ModelList/EditModelsPopup'
-import HealthCheckPopup from '@renderer/components/ModelList/HealthCheckPopup'
 import ModelEditContent from '@renderer/components/ModelList/ModelEditContent'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
-import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { checkModelsHealth } from '@renderer/services/HealthCheckService'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
-import { HealthStatus, ModelWithStatus } from '@renderer/types/healthCheck'
-import { splitApiKeyString } from '@renderer/utils/api'
-import { summarizeHealthResults } from '@renderer/utils/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../../pages/settings'
 import ModelListGroup from './ModelListGroup'
+import { useHealthCheck } from './useHealthCheck'
 
 interface ModelListProps {
   providerId: string
@@ -45,9 +40,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
-  const [isHealthChecking, setIsHealthChecking] = useState(false)
   const [searchText, _setSearchText] = useState('')
+
+  const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
 
   const setSearchText = useCallback((text: string) => {
     startTransition(() => {
@@ -109,83 +104,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
   )
 
-  /**
-   * 执行所有模型的健康检查，结果实时更新到 UI
-   */
-  const onHealthCheck = async () => {
-    const modelsToCheck = models.filter((model) => !isRerankModel(model))
-
-    if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
-      })
-      return
-    }
-
-    const keys = splitApiKeyString(provider.apiKey)
-
-    // 若无 key，插入空字符串以支持本地模型健康检查
-    if (keys.length === 0) {
-      keys.push('')
-    }
-
-    // 弹出健康检查参数配置弹窗
-    const result = await HealthCheckPopup.show({
-      title: t('settings.models.check.title'),
-      provider,
-      apiKeys: keys
-    })
-
-    if (result.cancelled) {
-      return
-    }
-
-    // 初始化健康检查状态
-    const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
-      model,
-      checking: true,
-      status: HealthStatus.NOT_CHECKED,
-      keyResults: []
-    }))
-    setModelStatuses(initialStatuses)
-    setIsHealthChecking(true)
-
-    // 执行健康检查，逐步更新每个模型的状态
-    const checkResults = await checkModelsHealth(
-      {
-        provider,
-        models: modelsToCheck,
-        apiKeys: result.apiKeys,
-        isConcurrent: result.isConcurrent
-      },
-      (checkResult, index) => {
-        setModelStatuses((current) => {
-          const updated = [...current]
-          if (updated[index]) {
-            updated[index] = {
-              ...updated[index],
-              ...checkResult,
-              checking: false
-            }
-          }
-          return updated
-        })
-      }
-    )
-
-    window.message.info({
-      key: 'health-check-summary',
-      style: { marginTop: '3vh' },
-      duration: 5,
-      content: summarizeHealthResults(checkResults, provider.name)
-    })
-
-    setIsHealthChecking(false)
-  }
-
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 5 }}>
@@ -199,7 +117,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
-                  onClick={onHealthCheck}
+                  onClick={runHealthCheck}
                   icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
                 />
               </Tooltip>
