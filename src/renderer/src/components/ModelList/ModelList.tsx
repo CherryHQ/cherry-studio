@@ -232,7 +232,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             onRemoveGroup={() => modelGroups[group].forEach((model) => removeModel(model))}
           />
         ))}
-        {(docsWebsite || modelsWebsite) && (
+        {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
@@ -249,6 +249,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             )}
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
+        ) : (
+          <div style={{ height: 5 }} />
         )}
       </Flex>
       {models.map((model) => (

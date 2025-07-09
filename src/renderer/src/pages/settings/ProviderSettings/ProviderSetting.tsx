@@ -1,7 +1,6 @@
 import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { HStack } from '@renderer/components/Layout'
 import { ModelList } from '@renderer/components/ModelList'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -13,13 +12,13 @@ import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useP
 import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { ApiKeyConnectivity } from '@renderer/types/healthCheck'
+import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, FloatButton, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -32,6 +31,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
@@ -69,11 +69,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
-    status: 'not_checked',
+    status: HealthStatus.NOT_CHECKED,
     checking: false
   })
-
-  const [headerText, setHeaderText] = useState<string>(JSON.stringify(provider.extra_headers || {}, null, 2))
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
@@ -87,7 +85,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   // 重置连通性检查状态
   useEffect(() => {
     setLocalApiKey(provider.apiKey)
-    setApiKeyConnectivity({ status: 'not_checked' })
+    setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED })
   }, [provider.apiKey])
 
   // 同步 localApiKey 到 provider.apiKey（防抖）
@@ -164,7 +162,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     try {
-      setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: 'not_checked' }))
+      setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
       await checkApi({ ...provider, apiHost }, model)
 
       window.message.success({
@@ -174,9 +172,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         content: i18n.t('message.api.connection.success')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: 'success' }))
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
       setTimeout(() => {
-        setApiKeyConnectivity((prev) => ({ ...prev, status: 'not_checked' }))
+        setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
       }, 3000)
     } catch (error: any) {
       window.message.error({
@@ -186,7 +184,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         content: i18n.t('message.api.connection.failed')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: 'error', error: formatErrorMessage(error) }))
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
     } finally {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
@@ -209,7 +207,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   // API key 连通性检查状态指示器，目前仅在失败时显示
   const renderStatusIndicator = () => {
-    if (apiKeyConnectivity.checking || apiKeyConnectivity.status !== 'error') {
+    if (apiKeyConnectivity.checking || apiKeyConnectivity.status !== HealthStatus.FAILED) {
       return null
     }
 
@@ -226,16 +224,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
-
-  const onUpdateHeaders = useCallback(() => {
-    try {
-      const headers = headerText.trim() ? JSON.parse(headerText) : {}
-      updateProvider({ ...provider, extra_headers: headers })
-      window.message.success({ content: t('message.save.success.title') })
-    } catch (error) {
-      window.message.error({ content: t('settings.provider.copilot.invalid_json') })
-    }
-  }, [headerText, provider, updateProvider, t])
 
   return (
     <SettingContainer theme={theme} ref={containerRef} style={{ background: 'var(--color-background)' }}>
@@ -283,7 +271,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             {t('settings.provider.api_key')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<Settings2 size={14} />} />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -326,7 +314,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           )}
           {!isDmxapi && (
             <>
-              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+              <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                {t('settings.provider.api_host')}
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => CustomHeaderPopup.show({ provider })}
+                  icon={<Settings2 size={14} />}
+                />
+              </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
                 <Input
                   value={apiHost}
@@ -351,32 +347,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </SettingHelpText>
                 </SettingHelpTextRow>
               )}
-            </>
-          )}
-          {provider.id !== 'copilot' && (
-            <>
-              <SettingSubtitle style={{ marginTop: 5 }}>
-                {t('settings.provider.copilot.custom_headers')}
-              </SettingSubtitle>
-              <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
-                <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
-                <CodeEditor
-                  value={headerText}
-                  language="json"
-                  onChange={(value) => setHeaderText(value)}
-                  onBlur={onUpdateHeaders}
-                  placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
-                  options={{
-                    lint: true,
-                    collapsible: false,
-                    wrappable: true,
-                    lineNumbers: true,
-                    foldGutter: true,
-                    highlightActiveLine: true,
-                    keymap: true
-                  }}
-                />
-              </Space.Compact>
             </>
           )}
         </>

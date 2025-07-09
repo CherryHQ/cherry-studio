@@ -11,6 +11,7 @@ import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from
 import { Trash } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
@@ -88,7 +89,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
     : keys
 
   return (
-    <>
+    <ListContainer>
       {/* Keys 列表 */}
       <Card
         size="small"
@@ -123,7 +124,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
         )}
       </Card>
 
-      <Flex align="center" justify="space-between" style={{ marginTop: '0.5rem' }}>
+      <Flex dir="row" align="center" justify="space-between" style={{ marginTop: 15 }}>
         {/* 帮助文本 */}
         <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
 
@@ -167,7 +168,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
           </Button>
         </Space>
       </Flex>
-    </>
+    </ListContainer>
   )
 }
 
@@ -223,3 +224,8 @@ export const DocPreprocessApiKeyList: FC<SpecificApiKeyListProps> = ({
     />
   )
 }
+
+const ListContainer = styled.div`
+  padding-top: 15px;
+  padding-bottom: 15px;
+`

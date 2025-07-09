@@ -1,7 +1,6 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import FloatingSidebar from '@renderer/components/Popups/FloatingSidebar'
-import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -16,7 +15,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { FC, useCallback, useState } from 'react'
 import styled from 'styled-components'
 
@@ -35,7 +34,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const isFullscreen = useFullscreen()
-  const { topicPosition, sidebarIcons, narrowMode } = useSettings()
+  const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
   const [sidebarHideCooldown, setSidebarHideCooldown] = useState(false)
@@ -145,15 +144,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          {sidebarIcons.visible.includes('minapp') && (
-            <MinAppsPopover>
-              <Tooltip title={t('minapp.title')} mouseEnterDelay={0.8}>
-                <NarrowIcon>
-                  <LayoutGrid size={18} />
-                </NarrowIcon>
-              </Tooltip>
-            </MinAppsPopover>
-          )}
           {topicPosition === 'right' && !showTopics && !sidebarHideCooldown && (
             <FloatingSidebar
               activeAssistant={assistant}
