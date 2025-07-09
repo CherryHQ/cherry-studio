@@ -258,8 +258,6 @@ async function executeToolCalls(
     })
   })
 
-  console.log('confirmedToolCalls', confirmedToolCalls)
-
   return { toolResults, confirmedToolCalls }
 }
 
