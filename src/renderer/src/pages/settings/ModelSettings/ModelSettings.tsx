@@ -1,7 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -34,16 +34,25 @@ const ModelSettings: FC = () => {
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
+    .flatMap((p) => {
+      const filteredModels = sortBy(p.models, 'name')
+        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
         .map((m) => ({
           label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
           value: getModelUniqId(m)
         }))
-    }))
+
+      if (filteredModels.length > 0) {
+        return [
+          {
+            label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+            title: p.name,
+            options: filteredModels
+          }
+        ]
+      }
+      return []
+    })
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),

@@ -16,6 +16,7 @@ export interface StreamProcessorCallbacks {
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
   // A tool call response chunk (from MCP)
+  onToolCallPending?: (toolResponse: MCPToolResponse) => void
   onToolCallInProgress?: (toolResponse: MCPToolResponse) => void
   onToolCallComplete?: (toolResponse: MCPToolResponse) => void
   // External tool call in progress
@@ -67,6 +68,10 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.THINKING_COMPLETE: {
           if (callbacks.onThinkingComplete) callbacks.onThinkingComplete(data.text, data.thinking_millsec)
+          break
+        }
+        case ChunkType.MCP_TOOL_PENDING: {
+          if (callbacks.onToolCallPending) data.responses.forEach((toolResp) => callbacks.onToolCallPending!(toolResp))
           break
         }
         case ChunkType.MCP_TOOL_IN_PROGRESS: {
