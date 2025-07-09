@@ -16,10 +16,10 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Checkbox, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { CircleHelp, List, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +41,6 @@ import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
 import ProviderOAuth from './ProviderOAuth'
-import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
@@ -56,6 +55,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [modelSearchText, setModelSearchText] = useState('')
+  const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(provider?.isNotSupportArrayContent || false)
   const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -331,14 +331,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!provider.isSystem && (
-            <Button
-              type="text"
-              size="small"
-              onClick={() => ProviderSettingsPopup.show({ provider })}
-              icon={<Settings2 size={14} />}
-            />
-          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -482,6 +474,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
+      <SettingSubtitle>{t('settings.provider.misc')}</SettingSubtitle>
+      <Checkbox
+        checked={isNotSupportArrayContent}
+        onChange={(e) => {
+          setIsNotSupportArrayContent(e.target.checked)
+          updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
+        }}>
+        <CheckboxLabelContainer>
+          {t('settings.provider.is_not_support_array_content')}
+          <Tooltip title={t('settings.provider.is_not_support_array_content.tip')}>
+            <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+          </Tooltip>
+        </CheckboxLabelContainer>
+      </Checkbox>
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <HStack alignItems="center" gap={8} mb={5}>
@@ -524,6 +530,12 @@ const ErrorOverlay = styled.div`
   max-width: 300px;
   word-wrap: break-word;
   user-select: text;
+`
+
+const CheckboxLabelContainer = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
 `
 
 export default ProviderSetting
