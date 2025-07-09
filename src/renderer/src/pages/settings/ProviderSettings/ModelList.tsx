@@ -307,7 +307,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
             </CustomCollapse>
           </CustomCollapseWrapper>
         ))}
-        {(docsWebsite || modelsWebsite) && (
+        {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
@@ -324,6 +324,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
             )}
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
+        ) : (
+          <div style={{ height: 5 }} />
         )}
       </Flex>
       <Flex gap={10} style={{ marginTop: '10px' }}>
