@@ -6,15 +6,20 @@ import {
   MinusOutlined,
   PlusOutlined
 } from '@ant-design/icons'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
+import EditModelsPopup from '@renderer/components/ModelList/EditModelsPopup'
+import HealthCheckPopup from '@renderer/components/ModelList/HealthCheckPopup'
+import ModelEditContent from '@renderer/components/ModelList/ModelEditContent'
+import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import { getModelLogo, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
 import { checkModelsHealth, getModelCheckSummary, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -27,12 +32,7 @@ import React, { memo, useCallback, useDeferredValue, useMemo, useState } from 'r
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
-import AddModelPopup from './AddModelPopup'
-import EditModelsPopup from './EditModelsPopup'
-import HealthCheckPopup from './HealthCheckPopup'
-import ModelEditContent from './ModelEditContent'
-import ModelListSearchBar from './ModelListSearchBar'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../../pages/settings'
 
 export interface ModelStatus {
   model: Model
@@ -332,7 +332,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+            {!isEmpty(models) && <CollapsibleSearchBar onSearch={setSearchText} />}
           </HStack>
           {!isEmpty(models) && (
             <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>

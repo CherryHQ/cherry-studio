@@ -3,6 +3,9 @@ import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
+import { TopView } from '@renderer/components/TopView'
 import {
   getModelLogo,
   groupQwenModels,
@@ -16,8 +19,6 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
-import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
@@ -29,8 +30,6 @@ import { Search } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { TopView } from '../../../components/TopView'
 
 interface ShowParams {
   provider: Provider

@@ -4,15 +4,15 @@ import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface ModelListSearchBarProps {
+interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
 }
 
 /**
- * A collapsible search bar for the model list
+ * A collapsible search bar for list headers
  * Renders as an icon initially, expands to full search input when clicked
  */
-const ModelListSearchBar: React.FC<ModelListSearchBarProps> = ({ onSearch }) => {
+const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch }) => {
   const { t } = useTranslation()
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -88,4 +88,4 @@ const ModelListSearchBar: React.FC<ModelListSearchBarProps> = ({ onSearch }) => 
   )
 }
 
-export default memo(ModelListSearchBar)
+export default memo(CollapsibleSearchBar)
