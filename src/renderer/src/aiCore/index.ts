@@ -79,7 +79,7 @@ export default class AiProvider {
         builder.remove(ThinkChunkMiddlewareName)
       }
       // 注意：用client判断会导致typescript类型收窄
-      if (!(this.apiClient instanceof OpenAIAPIClient)) {
+      if (!(this.apiClient instanceof OpenAIAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
       if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {

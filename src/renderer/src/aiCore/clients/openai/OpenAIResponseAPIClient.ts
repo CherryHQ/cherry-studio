@@ -39,7 +39,7 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
-import OpenAI from 'openai'
+import OpenAI, { AzureOpenAI } from 'openai'
 import { ResponseInput } from 'openai/resources/responses/responses'
 
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -66,6 +66,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
    */
   public getClient(model: Model) {
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
+      if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
+        this.provider = { ...this.provider, apiVersion: 'preview' }
+      }
       return this
     } else {
       return this.client
@@ -77,15 +80,25 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return this.sdkInstance
     }
 
-    return new OpenAI({
-      dangerouslyAllowBrowser: true,
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      defaultHeaders: {
-        ...this.defaultHeaders(),
-        ...this.provider.extra_headers
-      }
-    })
+    if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
+      this.provider = { ...this.provider, apiHost: `${this.provider.apiHost}/openai/v1` }
+      return new AzureOpenAI({
+        dangerouslyAllowBrowser: true,
+        apiKey: this.apiKey,
+        apiVersion: this.provider.apiVersion,
+        baseURL: this.provider.apiHost
+      })
+    } else {
+      return new OpenAI({
+        dangerouslyAllowBrowser: true,
+        apiKey: this.apiKey,
+        baseURL: this.getBaseURL(),
+        defaultHeaders: {
+          ...this.defaultHeaders(),
+          ...this.provider.extra_headers
+        }
+      })
+    }
   }
 
   override async createCompletions(
