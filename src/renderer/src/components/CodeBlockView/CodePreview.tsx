@@ -164,19 +164,11 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
           }}>
           <div
             style={{
-              /*
-               * FIXME: @tanstack/react-virtual 使用绝对定位，但是会导致
-               * 有气泡样式 `self-end` 并且气泡中只有代码块时整个代码块收缩
-               * 到最小宽度（目前应该是工具栏的宽度）。改为相对定位可以保证宽
-               * 度足够，目前没有发现其他副作用。
-               * 如果发现破坏虚拟列表功能，或者将来有更好的解决方案，再调整。
-               */
-              position: 'relative',
+              position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
-              willChange: 'transform'
+              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
             }}>
             {virtualizer.getVirtualItems().map((virtualItem) => (
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
