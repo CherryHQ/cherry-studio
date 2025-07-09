@@ -2,7 +2,6 @@ import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/i
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -12,17 +11,14 @@ import { useCenteredBackTop } from '@renderer/hooks/useCenteredBackTop'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
-import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
+import { formatApiHost, formatApiKeys, getFancyProviderName } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, FloatButton, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { motion } from 'motion/react'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -37,10 +33,8 @@ import {
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
-import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
-import ModelList, { ModelStatus } from './ModelList'
-import ModelListSearchBar from './ModelListSearchBar'
+import ModelList from './ModelList'
 import ProviderOAuth from './ProviderOAuth'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -57,8 +51,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [modelSearchText, setModelSearchText] = useState('')
-  const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const buttonStyle = useCenteredBackTop(containerRef)
@@ -71,9 +63,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url
-
-  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
-  const [isHealthChecking, setIsHealthChecking] = useState(false)
 
   const fancyProviderName = getFancyProviderName(provider)
 
@@ -145,83 +134,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       providerKind: 'llm',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
-  }
-
-  const onHealthCheck = async () => {
-    const modelsToCheck = models.filter((model) => !isRerankModel(model))
-
-    if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
-      })
-      return
-    }
-
-    const keys = splitApiKeyString(provider.apiKey)
-
-    // Add an empty key to enable health checks for local models.
-    // Error messages will be shown for each model if a valid key is needed.
-    if (keys.length === 0) {
-      keys.push('')
-    }
-
-    // Show configuration dialog to get health check parameters
-    const result = await HealthCheckPopup.show({
-      title: t('settings.models.check.title'),
-      provider: { ...provider, apiHost },
-      apiKeys: keys
-    })
-
-    if (result.cancelled) {
-      return
-    }
-
-    // Prepare the list of models to be checked
-    const initialStatuses = modelsToCheck.map((model) => ({
-      model,
-      checking: true,
-      status: undefined
-    }))
-    setModelStatuses(initialStatuses)
-    setIsHealthChecking(true)
-
-    const checkResults = await checkModelsHealth(
-      {
-        provider: { ...provider, apiHost },
-        models: modelsToCheck,
-        apiKeys: result.apiKeys,
-        isConcurrent: result.isConcurrent
-      },
-      (checkResult, index) => {
-        setModelStatuses((current) => {
-          const updated = [...current]
-          if (updated[index]) {
-            updated[index] = {
-              ...updated[index],
-              checking: false,
-              status: checkResult.status,
-              error: checkResult.error,
-              keyResults: checkResult.keyResults,
-              latency: checkResult.latency
-            }
-          }
-          return updated
-        })
-      }
-    )
-
-    window.message.info({
-      key: 'health-check-summary',
-      style: { marginTop: '3vh' },
-      duration: 5,
-      content: getModelCheckSummary(checkResults, provider.name)
-    })
-
-    // Reset health check status
-    setIsHealthChecking(false)
   }
 
   const onCheckApi = async () => {
@@ -485,32 +397,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
-      <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={8} mb={5}>
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
-          </HStack>
-          {!isEmpty(models) && (
-            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
-              <Button
-                type="text"
-                size="small"
-                onClick={onHealthCheck}
-                icon={
-                  <motion.span
-                    variants={lightbulbVariants}
-                    animate={isHealthChecking ? 'active' : 'idle'}
-                    initial="idle">
-                    <StreamlineGoodHealthAndWellBeing />
-                  </motion.span>
-                }
-              />
-            </Tooltip>
-          )}
-        </Space>
-      </SettingSubtitle>
-      <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
+      <ModelList providerId={provider.id} />
       <FloatButton.BackTop target={() => containerRef.current || window} duration={1000} style={buttonStyle} />
     </SettingContainer>
   )

@@ -7,29 +7,32 @@ import {
   PlusOutlined
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
-import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { checkModelsHealth, getModelCheckSummary, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
-import { maskApiKey } from '@renderer/utils/api'
+import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
 import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
-import { groupBy, sortBy, toPairs } from 'lodash'
+import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Bolt, ListCheck } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 import AddModelPopup from './AddModelPopup'
 import EditModelsPopup from './EditModelsPopup'
+import HealthCheckPopup from './HealthCheckPopup'
 import ModelEditContent from './ModelEditContent'
+import ModelListSearchBar from './ModelListSearchBar'
 
 export interface ModelStatus {
   model: Model
@@ -161,19 +164,22 @@ function useModelStatusRendering() {
 
 interface ModelListProps {
   providerId: string
-  modelStatuses?: ModelStatus[]
-  searchText?: string
 }
 
 /**
  * Model list component
  */
-const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], searchText = '' }) => {
+const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, models, removeModel } = useProvider(providerId)
   const { assistants } = useAssistants()
   const dispatch = useAppDispatch()
   const { defaultModel, setDefaultModel } = useDefaultModel()
+  const [_searchText, setSearchText] = useState('')
+  const searchText = useDeferredValue(_searchText)
+
+  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
+  const [isHealthChecking, setIsHealthChecking] = useState(false)
 
   const { renderStatusIndicator, renderLatencyText } = useModelStatusRendering()
   const providerConfig = PROVIDER_CONFIG[provider.id]
@@ -243,8 +249,103 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     [models, updateProvider, provider, assistants, defaultModel?.id, defaultModel?.provider, dispatch, setDefaultModel]
   )
 
+  const onHealthCheck = async () => {
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
+      window.message.error({
+        key: 'no-models',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.provider.no_models_for_check')
+      })
+      return
+    }
+
+    const keys = splitApiKeyString(provider.apiKey)
+
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
+    if (keys.length === 0) {
+      keys.push('')
+    }
+
+    // Show configuration dialog to get health check parameters
+    const result = await HealthCheckPopup.show({
+      title: t('settings.models.check.title'),
+      provider,
+      apiKeys: keys
+    })
+
+    if (result.cancelled) {
+      return
+    }
+
+    // Prepare the list of models to be checked
+    const initialStatuses = modelsToCheck.map((model) => ({
+      model,
+      checking: true,
+      status: undefined
+    }))
+    setModelStatuses(initialStatuses)
+    setIsHealthChecking(true)
+
+    const checkResults = await checkModelsHealth(
+      {
+        provider,
+        models: modelsToCheck,
+        apiKeys: result.apiKeys,
+        isConcurrent: result.isConcurrent
+      },
+      (checkResult, index) => {
+        setModelStatuses((current) => {
+          const updated = [...current]
+          if (updated[index]) {
+            updated[index] = {
+              ...updated[index],
+              checking: false,
+              status: checkResult.status,
+              error: checkResult.error,
+              keyResults: checkResult.keyResults,
+              latency: checkResult.latency
+            }
+          }
+          return updated
+        })
+      }
+    )
+
+    window.message.info({
+      key: 'health-check-summary',
+      style: { marginTop: '3vh' },
+      duration: 5,
+      content: getModelCheckSummary(checkResults, provider.name)
+    })
+
+    // Reset health check status
+    setIsHealthChecking(false)
+  }
+
   return (
     <>
+      <SettingSubtitle style={{ marginBottom: 5 }}>
+        <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
+          <HStack alignItems="center" gap={8}>
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+          </HStack>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+              <Button
+                type="text"
+                size="small"
+                onClick={onHealthCheck}
+                icon={<StreamlineGoodHealthAndWellBeing isActive={isHealthChecking} />}
+              />
+            </Tooltip>
+          )}
+        </HStack>
+      </SettingSubtitle>
       <Flex gap={12} vertical>
         {Object.keys(sortedModelGroups).map((group, i) => (
           <CustomCollapseWrapper key={group}>
