@@ -187,8 +187,8 @@ const LocalBackupSettings: FC = () => {
           <Input
             value={localBackupDir}
             readOnly
-            style={{ width: 250 }}
             placeholder={t('settings.data.local.directory.placeholder')}
+            style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
           <Button icon={<FolderOpenOutlined />} onClick={handleBrowseDirectory}>
             {t('common.browse')}
@@ -213,7 +213,11 @@ const LocalBackupSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.autoSync')}</SettingRowTitle>
-        <Select value={syncInterval} onChange={onSyncIntervalChange} disabled={!localBackupDir} style={{ width: 120 }}>
+        <Select
+          value={syncInterval}
+          onChange={(value) => onSyncIntervalChange(value as number)}
+          disabled={!localBackupDir}
+          style={{ minWidth: 120 }}>
           <Select.Option value={0}>{t('settings.data.local.autoSync.off')}</Select.Option>
           <Select.Option value={1}>{t('settings.data.local.minute_interval', { count: 1 })}</Select.Option>
           <Select.Option value={5}>{t('settings.data.local.minute_interval', { count: 5 })}</Select.Option>
@@ -229,7 +233,11 @@ const LocalBackupSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.maxBackups')}</SettingRowTitle>
-        <Select value={maxBackups} onChange={onMaxBackupsChange} disabled={!localBackupDir} style={{ width: 120 }}>
+        <Select
+          value={maxBackups}
+          onChange={(value) => onMaxBackupsChange(value as number)}
+          disabled={!localBackupDir}
+          style={{ minWidth: 120 }}>
           <Select.Option value={0}>{t('settings.data.local.maxBackups.unlimited')}</Select.Option>
           <Select.Option value={1}>1</Select.Option>
           <Select.Option value={3}>3</Select.Option>
