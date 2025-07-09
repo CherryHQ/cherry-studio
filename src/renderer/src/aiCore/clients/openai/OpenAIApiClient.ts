@@ -359,7 +359,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
       // This case is for Anthropic/Claude like tool usage, OpenAI uses tool_call_id
       // For OpenAI, we primarily expect toolCallId. This might need adjustment if mixing provider concepts.
-      return mcpToolCallResponseToOpenAICompatibleMessage(mcpToolResponse, resp, isVisionModel(model))
+      return mcpToolCallResponseToOpenAICompatibleMessage(
+        mcpToolResponse,
+        resp,
+        isVisionModel(model),
+        this.provider.isNotSupportArrayContent ?? false
+      )
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
       return {
         role: 'tool',
