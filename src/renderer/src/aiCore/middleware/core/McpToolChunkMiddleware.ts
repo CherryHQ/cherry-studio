@@ -216,7 +216,6 @@ async function executeToolCalls(
   onChunk: CompletionsParams['onChunk'],
   model: Model
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
-  console.log('toolCalls', toolCalls)
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
       const mcpTool = ctx.apiClientInstance.convertSdkToolCallToMcp(toolCall, mcpTools)
