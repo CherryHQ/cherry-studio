@@ -1,4 +1,5 @@
 import { HealthStatus } from '@renderer/types/healthCheck'
+import { Flex } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -58,63 +59,41 @@ export const useHealthStatus = ({ results, showLatency = false }: UseHealthStatu
   }
 
   // Generate Tooltip
-  let tooltip: React.ReactNode
-  if (results.length === 1) {
-    const result = results[0]
-    const statusTitle = getStatusText(result.status)
-    const statusColor =
-      result.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : 'var(--color-status-error)'
-    tooltip = (
-      <div
-        style={{
-          maxHeight: '200px',
-          overflowY: 'auto',
-          maxWidth: '300px',
-          wordWrap: 'break-word'
-        }}>
-        <strong style={{ color: statusColor }}>{statusTitle}</strong>
-        {result.label && <div style={{ marginTop: 5 }}>{result.label}</div>}
-        {result.latency && result.status === HealthStatus.SUCCESS && (
-          <div style={{ marginTop: 5 }}>
-            {t('settings.provider.api.key.check.latency')}: {formatLatency(result.latency)}
-          </div>
-        )}
-        {result.error && <div style={{ marginTop: 5 }}>{result.error}</div>}
-      </div>
-    )
-  } else {
-    tooltip = (
-      <div>
-        <div style={{ marginTop: 5 }}>
-          <ul
-            style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              margin: 0,
-              padding: 0,
-              listStyleType: 'none'
-            }}>
-            {results.map((kr, idx) => {
-              const statusText = getStatusText(kr.status)
-              return (
-                <li
-                  key={idx}
-                  style={{
-                    marginBottom: '5px',
-                    color:
-                      kr.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : 'var(--color-status-error)'
-                  }}>
-                  {kr.label}: {statusText}
-                  {kr.error && kr.status === HealthStatus.FAILED && ` (${kr.error})`}
-                  {kr.latency && kr.status === HealthStatus.SUCCESS && ` (${formatLatency(kr.latency)})`}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      </div>
-    )
-  }
+  const tooltip = (
+    <ul
+      style={{
+        maxHeight: '300px',
+        overflowY: 'auto',
+        margin: 0,
+        padding: 0,
+        listStyleType: 'none',
+        maxWidth: '300px',
+        wordWrap: 'break-word'
+      }}>
+      {results.map((result, idx) => {
+        const statusText = getStatusText(result.status)
+        const statusColor =
+          result.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : 'var(--color-status-error)'
+
+        return (
+          <li key={idx} style={{ marginBottom: idx === results.length - 1 ? 0 : '10px' }}>
+            <Flex align="center" justify="space-between">
+              <strong style={{ color: statusColor }}>{statusText}</strong>
+              {result.label}
+            </Flex>
+            {result.latency && result.status === HealthStatus.SUCCESS && (
+              <div style={{ marginTop: 2 }}>
+                {t('settings.provider.api.key.check.latency')}: {formatLatency(result.latency)}
+              </div>
+            )}
+            {result.error && result.status === HealthStatus.FAILED && (
+              <div style={{ marginTop: 2 }}>{result.error}</div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
 
   // Calculate latency
   let latencyText: string | null = null

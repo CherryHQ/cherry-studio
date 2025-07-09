@@ -135,7 +135,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
           </Tooltip>
 
           <Flex gap={10} align="center">
-            <HealthStatusIndicator results={healthResults} loading={keyStatus.checking} />
+            <HealthStatusIndicator results={healthResults} loading={false} />
 
             <Flex gap={0} align="center">
               {showHealthCheck && (
