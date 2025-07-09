@@ -1104,6 +1104,9 @@ export class SelectionService {
       hasShadow: false,
       thickFrame: false,
       show: false,
+
+      // type: 'panel',
+
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -1218,20 +1221,26 @@ export class SelectionService {
     return actionWindow
   }
 
-  public processAction(actionItem: ActionItem): void {
+  /**
+   * Process action item
+   * @param actionItem Action item to process
+   * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
+   */
+  public processAction(actionItem: ActionItem, isFullScreen: boolean = false): void {
     const actionWindow = this.popActionWindow()
 
     actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
 
-    this.showActionWindow(actionWindow)
+    this.showActionWindow(actionWindow, isFullScreen)
   }
 
   /**
    * Show action window with proper positioning relative to toolbar
    * Ensures window stays within screen boundaries
    * @param actionWindow Window to position and show
+   * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
-  private showActionWindow(actionWindow: BrowserWindow): void {
+  private showActionWindow(actionWindow: BrowserWindow, isFullScreen: boolean = false): void {
     let actionWindowWidth = this.ACTION_WINDOW_WIDTH
     let actionWindowHeight = this.ACTION_WINDOW_HEIGHT
 
@@ -1241,11 +1250,14 @@ export class SelectionService {
       actionWindowHeight = this.lastActionWindowSize.height
     }
 
-    //center way
-    if (!this.isFollowToolbar || !this.toolbarWindow) {
-      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-      const workArea = display.workArea
+    /********************************************
+     * Setting the position of the action window
+     ********************************************/
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const workArea = display.workArea
 
+    // Center of the screen
+    if (!this.isFollowToolbar || !this.toolbarWindow) {
       const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
       const centerY = workArea.y + (workArea.height - actionWindowHeight) / 2
 
@@ -1255,54 +1267,80 @@ export class SelectionService {
         x: Math.round(centerX),
         y: Math.round(centerY)
       })
+    } else {
+      // Follow toolbar position
+      const toolbarBounds = this.toolbarWindow!.getBounds()
+      const GAP = 6 // 6px gap from screen edges
 
+      //make sure action window is inside screen
+      if (actionWindowWidth > workArea.width - 2 * GAP) {
+        actionWindowWidth = workArea.width - 2 * GAP
+      }
+
+      if (actionWindowHeight > workArea.height - 2 * GAP) {
+        actionWindowHeight = workArea.height - 2 * GAP
+      }
+
+      // Calculate initial position to center action window horizontally below toolbar
+      let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - actionWindowWidth) / 2)
+      let posY = Math.round(toolbarBounds.y)
+
+      // Ensure action window stays within screen boundaries with a small gap
+      if (posX + actionWindowWidth > workArea.x + workArea.width) {
+        posX = workArea.x + workArea.width - actionWindowWidth - GAP
+      } else if (posX < workArea.x) {
+        posX = workArea.x + GAP
+      }
+      if (posY + actionWindowHeight > workArea.y + workArea.height) {
+        // If window would go below screen, try to position it above toolbar
+        posY = workArea.y + workArea.height - actionWindowHeight - GAP
+      } else if (posY < workArea.y) {
+        posY = workArea.y + GAP
+      }
+
+      actionWindow.setPosition(posX, posY, false)
+      //KEY to make window not resize
+      actionWindow.setBounds({
+        width: actionWindowWidth,
+        height: actionWindowHeight,
+        x: posX,
+        y: posY
+      })
+    }
+
+    if (!isMac) {
       actionWindow.show()
-
       return
     }
 
-    //follow toolbar
-    const toolbarBounds = this.toolbarWindow!.getBounds()
-    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const workArea = display.workArea
-    const GAP = 6 // 6px gap from screen edges
+    /************************************************
+     * [macOS] the following code is only for macOS
+     *************************************************/
 
-    //make sure action window is inside screen
-    if (actionWindowWidth > workArea.width - 2 * GAP) {
-      actionWindowWidth = workArea.width - 2 * GAP
+    // act normally when the app is not in fullscreen mode
+    if (!isFullScreen) {
+      actionWindow.show()
+      return
     }
 
-    if (actionWindowHeight > workArea.height - 2 * GAP) {
-      actionWindowHeight = workArea.height - 2 * GAP
-    }
+    // [macOS] HACKY way for fullscreen override settings
 
-    // Calculate initial position to center action window horizontally below toolbar
-    let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - actionWindowWidth) / 2)
-    let posY = Math.round(toolbarBounds.y)
+    // FIXME sometimes the dock will be shown when the action window is shown
+    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
 
-    // Ensure action window stays within screen boundaries with a small gap
-    if (posX + actionWindowWidth > workArea.x + workArea.width) {
-      posX = workArea.x + workArea.width - actionWindowWidth - GAP
-    } else if (posX < workArea.x) {
-      posX = workArea.x + GAP
-    }
-    if (posY + actionWindowHeight > workArea.y + workArea.height) {
-      // If window would go below screen, try to position it above toolbar
-      posY = workArea.y + workArea.height - actionWindowHeight - GAP
-    } else if (posY < workArea.y) {
-      posY = workArea.y + GAP
-    }
+    actionWindow.setAlwaysOnTop(true, 'floating')
 
-    actionWindow.setPosition(posX, posY, false)
-    //KEY to make window not resize
-    actionWindow.setBounds({
-      width: actionWindowWidth,
-      height: actionWindowHeight,
-      x: posX,
-      y: posY
+    // [macOS] DO NOT set `skipTransformProcessType: true`
+    actionWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true
     })
 
     actionWindow.show()
+
+    setTimeout(() => {
+      actionWindow.setVisibleOnAllWorkspaces(false)
+      actionWindow.setAlwaysOnTop(false)
+    }, 50)
   }
 
   public closeActionWindow(actionWindow: BrowserWindow): void {
@@ -1408,8 +1446,9 @@ export class SelectionService {
       configManager.setSelectionAssistantFilterList(filterList)
     })
 
-    ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem) => {
-      selectionService?.processAction(actionItem)
+    // [macOS] only macOS has the available isFullscreen mode
+    ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem, isFullScreen: boolean = false) => {
+      selectionService?.processAction(actionItem, isFullScreen)
     })
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {

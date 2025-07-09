@@ -107,6 +107,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
 
   // listen to selectionService events
   useEffect(() => {
@@ -115,6 +117,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
+        isFullScreen.current = selectionData.isFullscreen ?? false
         setTimeout(() => {
           //make sure the animation is active
           setAnimateKey((prev) => prev + 1)
@@ -234,7 +237,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }
 
   const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()
   }
 
