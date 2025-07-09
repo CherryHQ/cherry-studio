@@ -249,6 +249,11 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
   width: 100%;
+  /* FIXME: 最小宽度用于解决两个问题。
+   * 一是 CodePreview 在气泡样式下的用户消息中无法撑开气泡，
+   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
+   */
+  min-width: 45ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
