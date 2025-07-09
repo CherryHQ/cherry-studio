@@ -80,8 +80,8 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
         type: 'chat_history',
         enabled: true
       }
-      // 将占位符添加到列表中
-      existingMessages = [historyPlaceholder, ...existingMessages]
+      // 将占位符添加到列表末尾，这样聊天记录默认会被插入到底部
+      existingMessages = [...existingMessages, historyPlaceholder]
     }
 
     // 确保所有消息都有唯一ID
