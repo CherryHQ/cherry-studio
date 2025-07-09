@@ -1,3 +1,4 @@
+import { useTTS } from '@renderer/hooks/useTTS'
 import { Dropdown } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +10,7 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
   const [selectedText, setSelectedText] = useState<string | undefined>(undefined)
+  const tts = useTTS()
 
   const contextMenuItems = useMemo(() => {
     if (!selectedText) return []
@@ -38,9 +40,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
             window.api?.quoteToMainWindow(selectedText)
           }
         }
+      },
+      {
+        key: 'speak',
+        label: t('common.speak', '朗读'), // 添加一个默认值以防万一
+        onClick: () => {
+          if (selectedText) {
+            tts.speak(selectedText)
+          }
+        }
       }
     ]
-  }, [selectedText, t])
+  }, [selectedText, t, tts])
 
   const onOpenChange = (open: boolean) => {
     if (open) {
