@@ -21,6 +21,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import { useTTS } from '@renderer/hooks/useTTS'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -39,13 +40,14 @@ import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/u
 import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
+import TTSPlaybackManager from '@renderer/utils/TTSPlaybackManager'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
-import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
+import { CirclePause, FileSearch, FileText, Pause, Play, Square, Upload } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -109,6 +111,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+
+  const tts = useTTS()
+  const [playbackState, setPlaybackState] = useState(TTSPlaybackManager.getInstance().getPlaybackInfo().state)
+
+  useEffect(() => {
+    const manager = TTSPlaybackManager.getInstance()
+    const handlePlaybackChange = (info: { state: 'idle' | 'playing' | 'paused' }) => {
+      setPlaybackState(info.state)
+    }
+    manager.addListener(handlePlaybackChange)
+    return () => manager.removeListener(handlePlaybackChange)
+  }, [])
 
   const isVisionSupported = useMemo(
     () =>
@@ -605,6 +619,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setTimeout(() => resizeTextArea(), 0)
   }
 
+  const handleTTSPause = useCallback(() => {
+    const manager = TTSPlaybackManager.getInstance()
+    const { action } = manager.togglePause()
+    if (action === 'pause') tts.pause()
+    if (action === 'resume') tts.resume()
+  }, [tts])
+
+  const handleTTSStop = useCallback(() => {
+    tts.stop()
+    TTSPlaybackManager.getInstance().setPlaybackState('idle')
+  }, [tts])
+
   const handleDragStart = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -925,6 +951,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
+              {playbackState !== 'idle' && (
+                <>
+                  <Tooltip title={t('settings.tts.stop')} placement="top">
+                    <ToolbarButton type="text" onClick={handleTTSStop} style={{ marginTop: 1 }}>
+                      <Square size={16} style={{ color: 'red' }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                  <Tooltip
+                    title={playbackState === 'paused' ? t('settings.tts.resume') : t('settings.tts.pause')}
+                    placement="top">
+                    <ToolbarButton type="text" onClick={handleTTSPause} style={{ marginTop: 1 }}>
+                      {playbackState === 'paused' ? <Play size={16} /> : <Pause size={16} />}
+                    </ToolbarButton>
+                  </Tooltip>
+                </>
+              )}
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>

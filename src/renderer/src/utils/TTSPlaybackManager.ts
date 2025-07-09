@@ -90,19 +90,21 @@ class TTSPlaybackManager {
   /**
    * 暂停/恢复播放
    */
-  togglePause(messageId: string): { action: 'pause' | 'resume'; newState: PlaybackState } {
-    const isCurrentMessage = this.playbackInfo.currentMessageId === messageId
-
-    if (!isCurrentMessage) {
-      throw new Error('Cannot pause/resume a different message')
+  togglePause(messageId?: string): { action: 'pause' | 'resume'; newState: PlaybackState } {
+    // 如果传入 messageId，则严格校验是否为当前消息
+    if (messageId) {
+      const isCurrentMessage = this.playbackInfo.currentMessageId === messageId
+      if (!isCurrentMessage) {
+        throw new Error('Cannot pause/resume a different message')
+      }
     }
 
     switch (this.playbackInfo.state) {
       case 'playing':
         // 播放中 → 暂停
         this.playbackInfo = {
-          state: 'paused',
-          currentMessageId: messageId
+          ...this.playbackInfo,
+          state: 'paused'
         }
         this.notifyListeners()
         return { action: 'pause', newState: 'paused' }
@@ -110,8 +112,8 @@ class TTSPlaybackManager {
       case 'paused':
         // 暂停中 → 恢复播放
         this.playbackInfo = {
-          state: 'playing',
-          currentMessageId: messageId
+          ...this.playbackInfo,
+          state: 'playing'
         }
         this.notifyListeners()
         return { action: 'resume', newState: 'playing' }
