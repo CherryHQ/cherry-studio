@@ -20,7 +20,7 @@ import { summarizeHealthResults } from '@renderer/utils/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
-import React, { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
+import React, { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../../pages/settings'
@@ -34,22 +34,26 @@ interface ModelListProps {
  * 模型列表组件，用于 CRUD 操作和健康检查
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { provider, updateProvider, models, removeModel } = useProvider(providerId)
   const { assistants } = useAssistants()
-  const dispatch = useAppDispatch()
   const { defaultModel, setDefaultModel } = useDefaultModel()
-  const [_searchText, setSearchText] = useState('')
-  const searchText = useDeferredValue(_searchText)
-
-  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
-  const [isHealthChecking, setIsHealthChecking] = useState(false)
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
+  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
+  const [isHealthChecking, setIsHealthChecking] = useState(false)
+  const [searchText, _setSearchText] = useState('')
+
+  const setSearchText = useCallback((text: string) => {
+    startTransition(() => {
+      _setSearchText(text)
+    })
+  }, [])
 
   const modelGroups = useMemo(() => {
     const filteredModels = searchText
@@ -83,14 +87,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   const onUpdateModel = useCallback(
     (updatedModel: Model) => {
-      const updatedModels = models.map((m) => {
-        if (m.id === updatedModel.id) {
-          return updatedModel
-        }
-        return m
-      })
+      const updatedModels = models.map((m) => (m.id === updatedModel.id ? updatedModel : m))
 
-      updateProvider({ ...provider, models: updatedModels })
+      updateProvider({ models: updatedModels })
 
       assistants.forEach((assistant) => {
         if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
@@ -107,7 +106,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         setDefaultModel(updatedModel)
       }
     },
-    [models, updateProvider, provider, assistants, defaultModel?.id, defaultModel?.provider, dispatch, setDefaultModel]
+    [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
   )
 
   /**
