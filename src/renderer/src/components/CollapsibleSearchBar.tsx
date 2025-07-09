@@ -6,13 +6,15 @@ import { useTranslation } from 'react-i18next'
 
 interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
+  icon?: React.ReactNode
+  maxWidth?: string | number
 }
 
 /**
  * A collapsible search bar for list headers
  * Renders as an icon initially, expands to full search input when clicked
  */
-const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch }) => {
+const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, icon, maxWidth }) => {
   const { t } = useTranslation()
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -44,7 +46,7 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch })
         initial="collapsed"
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { maxWidth: 360, opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
+          expanded: { maxWidth: maxWidth || '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
           collapsed: { maxWidth: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
         style={{ overflow: 'hidden', flex: 1 }}>
@@ -53,7 +55,7 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch })
           type="text"
           placeholder={t('models.search')}
           size="small"
-          suffix={<Search size={14} />}
+          suffix={icon || <Search size={14} color="var(--color-icon)" />}
           value={searchText}
           autoFocus
           allowClear
@@ -80,8 +82,8 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch })
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip title={t('models.search')} mouseEnterDelay={0.5}>
-          <Search size={14} color="var(--color-icon)" />
+        <Tooltip title={t('models.search')} mouseLeaveDelay={0}>
+          {icon || <Search size={14} color="var(--color-icon)" />}
         </Tooltip>
       </motion.div>
     </div>
