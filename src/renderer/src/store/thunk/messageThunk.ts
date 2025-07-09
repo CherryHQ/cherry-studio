@@ -316,7 +316,8 @@ export const streamCallback = (
   topicId: string,
   assistant: Assistant,
   assistantMsgId: string
-) => {
+): StreamProcessorCallbacks => {
+  // 专注于管理UI焦点和块切换
   let lastBlockId: string | null = null
   let lastBlockType: MessageBlockType | null = null
   // 专注于块内部的生命周期处理
@@ -815,7 +816,6 @@ export const streamCallback = (
         ) {
           response.usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
         }
-        // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
       }
       if (response && response.metrics) {
         if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
@@ -855,6 +855,18 @@ const fetchAndProcessAssistantResponseImpl = async (
   const assistantMsgId = assistantMessage.id
   const callbacks: StreamProcessorCallbacks = streamCallback(dispatch, getState, topicId, assistant, assistantMsgId)
   try {
+    const state = getState()
+    const latestAssistant = state.assistants.assistants.find((a) => a.id === assistant.id)
+    const assistantToUse = latestAssistant || assistant
+
+    // 调试日志：检查助手对象是否包含预设消息
+    console.log('[messageThunk] 助手对象信息:', {
+      id: assistantToUse.id,
+      name: assistantToUse.name,
+      hasMessages: !!assistantToUse.messages,
+      messagesCount: assistantToUse.messages?.length || 0
+    })
+
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
@@ -882,7 +894,7 @@ const fetchAndProcessAssistantResponseImpl = async (
 
     await fetchChatCompletion({
       messages: messagesForContext,
-      assistant: assistant,
+      assistant: assistantToUse,
       onChunkReceived: streamProcessorCallbacks
     })
   } catch (error: any) {
