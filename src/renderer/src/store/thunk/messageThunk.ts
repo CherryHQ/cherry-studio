@@ -1154,7 +1154,6 @@ export const resendMessageThunk =
         })
         resetDataList.push(assistantMessage)
 
-
         resetDataList.forEach((message) => {
           dispatch(newMessagesActions.addMessage({ topicId, message }))
         })
