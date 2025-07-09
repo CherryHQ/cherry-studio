@@ -1,22 +1,4 @@
-import { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
-
-/**
- * API Key 连通性检查的状态
- */
-export type ApiKeyConnectivity = {
-  status: 'success' | 'error' | 'not_checked'
-  checking?: boolean
-  error?: string
-  model?: Model
-  latency?: number
-}
-
-/**
- * API key 及其连通性检查的状态
- */
-export type ApiKeyWithStatus = {
-  key: string
-} & ApiKeyConnectivity
+import { PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 
 /**
  * API key 格式有效性

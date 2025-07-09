@@ -10,11 +10,13 @@ import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { checkModelsHealth, getModelCheckSummary, ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { checkModelsHealth } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
+import { HealthStatus, ModelWithStatus } from '@renderer/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
+import { summarizeHealthResults } from '@renderer/utils/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
@@ -24,21 +26,12 @@ import { useTranslation } from 'react-i18next'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../../pages/settings'
 import ModelListGroup from './ModelListGroup'
 
-export interface ModelStatus {
-  model: Model
-  status?: ModelCheckStatus
-  checking?: boolean
-  error?: string
-  keyResults?: any[]
-  latency?: number
-}
-
 interface ModelListProps {
   providerId: string
 }
 
 /**
- * Model list component
+ * 模型列表组件，用于 CRUD 操作和健康检查
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
@@ -49,7 +42,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
 
-  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
+  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
@@ -99,7 +92,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
       updateProvider({ ...provider, models: updatedModels })
 
-      // Update assistants using this model
       assistants.forEach((assistant) => {
         if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
           dispatch(
@@ -111,7 +103,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         }
       })
 
-      // Update default model if needed
       if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
         setDefaultModel(updatedModel)
       }
@@ -119,6 +110,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     [models, updateProvider, provider, assistants, defaultModel?.id, defaultModel?.provider, dispatch, setDefaultModel]
   )
 
+  /**
+   * 执行所有模型的健康检查，结果实时更新到 UI
+   */
   const onHealthCheck = async () => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
@@ -134,13 +128,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
     const keys = splitApiKeyString(provider.apiKey)
 
-    // Add an empty key to enable health checks for local models.
-    // Error messages will be shown for each model if a valid key is needed.
+    // 若无 key，插入空字符串以支持本地模型健康检查
     if (keys.length === 0) {
       keys.push('')
     }
 
-    // Show configuration dialog to get health check parameters
+    // 弹出健康检查参数配置弹窗
     const result = await HealthCheckPopup.show({
       title: t('settings.models.check.title'),
       provider,
@@ -151,15 +144,17 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       return
     }
 
-    // Prepare the list of models to be checked
-    const initialStatuses = modelsToCheck.map((model) => ({
+    // 初始化健康检查状态
+    const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
       model,
       checking: true,
-      status: undefined
+      status: HealthStatus.NOT_CHECKED,
+      keyResults: []
     }))
     setModelStatuses(initialStatuses)
     setIsHealthChecking(true)
 
+    // 执行健康检查，逐步更新每个模型的状态
     const checkResults = await checkModelsHealth(
       {
         provider,
@@ -173,11 +168,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           if (updated[index]) {
             updated[index] = {
               ...updated[index],
-              checking: false,
-              status: checkResult.status,
-              error: checkResult.error,
-              keyResults: checkResult.keyResults,
-              latency: checkResult.latency
+              ...checkResult,
+              checking: false
             }
           }
           return updated
@@ -189,10 +181,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       key: 'health-check-summary',
       style: { marginTop: '3vh' },
       duration: 5,
-      content: getModelCheckSummary(checkResults, provider.name)
+      content: summarizeHealthResults(checkResults, provider.name)
     })
 
-    // Reset health check status
     setIsHealthChecking(false)
   }
 

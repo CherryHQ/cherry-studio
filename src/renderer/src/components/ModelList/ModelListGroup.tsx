@@ -1,18 +1,18 @@
 import { MinusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { Model } from '@renderer/types'
+import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ModelStatus } from './ModelList'
 import ModelListItem from './ModelListItem'
 
 interface ModelListGroupProps {
   groupName: string
   models: Model[]
-  modelStatuses: ModelStatus[]
+  modelStatuses: ModelWithStatus[]
   defaultOpen: boolean
   disabled?: boolean
   onEditModel: (model: Model) => void

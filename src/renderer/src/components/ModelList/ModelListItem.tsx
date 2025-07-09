@@ -9,15 +9,13 @@ import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
+import { ApiKeyWithStatus, HealthStatus, ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip, Typography } from 'antd'
 import { Bolt } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { ModelCheckStatus } from '../../services/HealthCheckService'
-import { ModelStatus } from './ModelList'
 
 /**
  * Format check time to a human-readable string
@@ -36,17 +34,23 @@ function useModelStatusRendering() {
    * Generate tooltip content for model check results
    */
   const renderKeyCheckResultTooltip = useCallback(
-    (status: ModelStatus) => {
-      const statusTitle =
-        status.status === ModelCheckStatus.SUCCESS
-          ? t('settings.models.check.passed')
-          : t('settings.models.check.failed')
+    (status: ModelWithStatus) => {
+      const getStatusText = (s: HealthStatus) => {
+        switch (s) {
+          case HealthStatus.SUCCESS:
+            return t('settings.models.check.passed')
+          case HealthStatus.FAILED:
+            return t('settings.models.check.failed')
+          default:
+            return ''
+        }
+      }
 
       if (!status.keyResults || status.keyResults.length === 0) {
         // Simple tooltip for single key result
         return (
           <div>
-            <strong>{statusTitle}</strong>
+            <strong>{getStatusText(status.status)}</strong>
             {status.error && <div style={{ marginTop: 5, color: 'var(--color-status-error)' }}>{status.error}</div>}
           </div>
         )
@@ -55,24 +59,25 @@ function useModelStatusRendering() {
       // Detailed tooltip for multiple key results
       return (
         <div>
-          {statusTitle}
           {status.error && <div style={{ marginTop: 5, marginBottom: 5 }}>{status.error}</div>}
           <div style={{ marginTop: 5 }}>
             <ul style={{ maxHeight: '300px', overflowY: 'auto', margin: 0, padding: 0, listStyleType: 'none' }}>
-              {status.keyResults.map((kr, idx) => {
+              {status.keyResults.map((kr: ApiKeyWithStatus, idx) => {
                 // Mask API key for security
                 const maskedKey = maskApiKey(kr.key)
+                const statusText = getStatusText(kr.status)
 
                 return (
                   <li
                     key={idx}
                     style={{
                       marginBottom: '5px',
-                      color: kr.isValid ? 'var(--color-status-success)' : 'var(--color-status-error)'
+                      color:
+                        kr.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : 'var(--color-status-error)'
                     }}>
-                    {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
-                    {kr.error && !kr.isValid && ` (${kr.error})`}
-                    {kr.latency && kr.isValid && ` (${formatLatency(kr.latency)})`}
+                    {maskedKey}: {statusText}
+                    {kr.error && kr.status === HealthStatus.FAILED && ` (${kr.error})`}
+                    {kr.latency && kr.status === HealthStatus.SUCCESS && ` (${formatLatency(kr.latency)})`}
                   </li>
                 )
               })}
@@ -87,7 +92,7 @@ function useModelStatusRendering() {
   /**
    * Render status indicator based on model check status
    */
-  function renderStatusIndicator(modelStatus: ModelStatus | undefined): React.ReactNode {
+  function renderStatusIndicator(modelStatus: ModelWithStatus | undefined): React.ReactNode {
     if (!modelStatus) return null
 
     if (modelStatus.checking) {
@@ -98,24 +103,27 @@ function useModelStatusRendering() {
       )
     }
 
-    if (!modelStatus.status) return null
+    if (modelStatus.status === HealthStatus.NOT_CHECKED) return null
 
     let icon: React.ReactNode = null
     let statusType = ''
 
     switch (modelStatus.status) {
-      case ModelCheckStatus.SUCCESS:
+      case HealthStatus.SUCCESS:
         icon = <CheckCircleFilled />
         statusType = 'success'
         break
-      case ModelCheckStatus.FAILED:
-        icon = <CloseCircleFilled />
-        statusType = 'error'
+      case HealthStatus.FAILED: {
+        const hasSuccessKey = modelStatus.keyResults.some((r) => r.status === HealthStatus.SUCCESS)
+        if (hasSuccessKey) {
+          icon = <ExclamationCircleFilled />
+          statusType = 'partial'
+        } else {
+          icon = <CloseCircleFilled />
+          statusType = 'error'
+        }
         break
-      case ModelCheckStatus.PARTIAL:
-        icon = <ExclamationCircleFilled />
-        statusType = 'partial'
-        break
+      }
       default:
         return null
     }
@@ -127,9 +135,9 @@ function useModelStatusRendering() {
     )
   }
 
-  function renderLatencyText(modelStatus: ModelStatus | undefined): React.ReactNode {
+  function renderLatencyText(modelStatus: ModelWithStatus | undefined): React.ReactNode {
     if (!modelStatus?.latency) return null
-    if (modelStatus.status === ModelCheckStatus.SUCCESS || modelStatus.status === ModelCheckStatus.PARTIAL) {
+    if (modelStatus.status === HealthStatus.SUCCESS || modelStatus.status === HealthStatus.FAILED) {
       return <ModelLatencyText type="secondary">{formatLatency(modelStatus.latency)}</ModelLatencyText>
     }
     return null
@@ -141,7 +149,7 @@ function useModelStatusRendering() {
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
-  modelStatus: ModelStatus | undefined
+  modelStatus: ModelWithStatus | undefined
   disabled?: boolean
   onEdit: (model: Model) => void
   onRemove: (model: Model) => void

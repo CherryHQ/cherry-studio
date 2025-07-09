@@ -1,5 +1,6 @@
 import { CheckCircleFilled, CloseCircleFilled, MinusOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
 import { Check, PenLine, X } from 'lucide-react'
@@ -7,7 +8,7 @@ import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ApiKeyValidity, ApiKeyWithStatus } from './types'
+import { ApiKeyValidity } from './types'
 
 export interface ApiKeyItemProps {
   keyStatus: ApiKeyWithStatus
