@@ -1,6 +1,6 @@
 import { EditOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
@@ -117,7 +117,7 @@ const McpServersList: FC = () => {
           </Button>
         </ButtonGroup>
       </ListHeader>
-      <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
+      <DraggableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
         {(server: MCPServer) => (
           <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
             <ServerHeader>
@@ -171,7 +171,7 @@ const McpServersList: FC = () => {
             </ServerFooter>
           </ServerCard>
         )}
-      </DragableList>
+      </DraggableList>
       {mcpServers.length === 0 && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}

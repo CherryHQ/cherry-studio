@@ -291,5 +291,6 @@ const SplitViewWrapper = styled.div`
 
   &:not(:has(+ [class*='Container'])) {
     border-radius: 0 0 8px 8px;
+    overflow: hidden;
   }
 `

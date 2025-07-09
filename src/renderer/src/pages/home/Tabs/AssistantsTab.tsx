@@ -1,5 +1,5 @@
 import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
@@ -92,7 +92,7 @@ const Assistants: FC<AssistantsTabProps> = ({
               )}
               {!collapsedTags[group.tag] && (
                 <div>
-                  <DragableList
+                  <DraggableList
                     list={group.assistants}
                     onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
                     onDragStart={() => setDragging(true)}
@@ -111,7 +111,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                         handleSortByChange={handleSortByChange}
                       />
                     )}
-                  </DragableList>
+                  </DraggableList>
                 </div>
               )}
             </TagsContainer>
@@ -129,7 +129,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
+      <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
         onDragStart={() => setDragging(true)}
@@ -148,7 +148,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             handleSortByChange={handleSortByChange}
           />
         )}
-      </DragableList>
+      </DraggableList>
       {!dragging && (
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>

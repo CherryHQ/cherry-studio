@@ -3,7 +3,7 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
-  ref?: React.RefObject<HTMLDivElement | null>
+  ref?: React.Ref<HTMLDivElement | null>
   onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
