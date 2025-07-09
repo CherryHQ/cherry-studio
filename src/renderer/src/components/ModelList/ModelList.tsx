@@ -1,22 +1,12 @@
-import {
-  CheckCircleFilled,
-  CloseCircleFilled,
-  ExclamationCircleFilled,
-  LoadingOutlined,
-  MinusOutlined,
-  PlusOutlined
-} from '@ant-design/icons'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import CustomCollapse from '@renderer/components/CustomCollapse'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
 import EditModelsPopup from '@renderer/components/ModelList/EditModelsPopup'
 import HealthCheckPopup from '@renderer/components/ModelList/HealthCheckPopup'
 import ModelEditContent from '@renderer/components/ModelList/ModelEditContent'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
-import { getModelLogo, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -24,15 +14,15 @@ import { checkModelsHealth, getModelCheckSummary, ModelCheckStatus } from '@rend
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
-import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
-import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
+import { splitApiKeyString } from '@renderer/utils/api'
+import { Button, Flex, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
-import { Bolt, ListCheck } from 'lucide-react'
+import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../../pages/settings'
+import ModelListGroup from './ModelListGroup'
 
 export interface ModelStatus {
   model: Model
@@ -41,125 +31,6 @@ export interface ModelStatus {
   error?: string
   keyResults?: any[]
   latency?: number
-}
-
-/**
- * Format check time to a human-readable string
- */
-function formatLatency(time: number): string {
-  return `${(time / 1000).toFixed(2)}s`
-}
-
-/**
- * Hook for rendering model status UI elements
- */
-function useModelStatusRendering() {
-  const { t } = useTranslation()
-
-  /**
-   * Generate tooltip content for model check results
-   */
-  const renderKeyCheckResultTooltip = useCallback(
-    (status: ModelStatus) => {
-      const statusTitle =
-        status.status === ModelCheckStatus.SUCCESS
-          ? t('settings.models.check.passed')
-          : t('settings.models.check.failed')
-
-      if (!status.keyResults || status.keyResults.length === 0) {
-        // Simple tooltip for single key result
-        return (
-          <div>
-            <strong>{statusTitle}</strong>
-            {status.error && <div style={{ marginTop: 5, color: 'var(--color-status-error)' }}>{status.error}</div>}
-          </div>
-        )
-      }
-
-      // Detailed tooltip for multiple key results
-      return (
-        <div>
-          {statusTitle}
-          {status.error && <div style={{ marginTop: 5, marginBottom: 5 }}>{status.error}</div>}
-          <div style={{ marginTop: 5 }}>
-            <ul style={{ maxHeight: '300px', overflowY: 'auto', margin: 0, padding: 0, listStyleType: 'none' }}>
-              {status.keyResults.map((kr, idx) => {
-                // Mask API key for security
-                const maskedKey = maskApiKey(kr.key)
-
-                return (
-                  <li
-                    key={idx}
-                    style={{
-                      marginBottom: '5px',
-                      color: kr.isValid ? 'var(--color-status-success)' : 'var(--color-status-error)'
-                    }}>
-                    {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
-                    {kr.error && !kr.isValid && ` (${kr.error})`}
-                    {kr.latency && kr.isValid && ` (${formatLatency(kr.latency)})`}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        </div>
-      )
-    },
-    [t]
-  )
-
-  /**
-   * Render status indicator based on model check status
-   */
-  function renderStatusIndicator(modelStatus: ModelStatus | undefined): React.ReactNode {
-    if (!modelStatus) return null
-
-    if (modelStatus.checking) {
-      return (
-        <StatusIndicator $type="checking">
-          <LoadingOutlined spin />
-        </StatusIndicator>
-      )
-    }
-
-    if (!modelStatus.status) return null
-
-    let icon: React.ReactNode = null
-    let statusType = ''
-
-    switch (modelStatus.status) {
-      case ModelCheckStatus.SUCCESS:
-        icon = <CheckCircleFilled />
-        statusType = 'success'
-        break
-      case ModelCheckStatus.FAILED:
-        icon = <CloseCircleFilled />
-        statusType = 'error'
-        break
-      case ModelCheckStatus.PARTIAL:
-        icon = <ExclamationCircleFilled />
-        statusType = 'partial'
-        break
-      default:
-        return null
-    }
-
-    return (
-      <Tooltip title={renderKeyCheckResultTooltip(modelStatus)} mouseEnterDelay={0.5}>
-        <StatusIndicator $type={statusType}>{icon}</StatusIndicator>
-      </Tooltip>
-    )
-  }
-
-  function renderLatencyText(modelStatus: ModelStatus | undefined): React.ReactNode {
-    if (!modelStatus?.latency) return null
-    if (modelStatus.status === ModelCheckStatus.SUCCESS || modelStatus.status === ModelCheckStatus.PARTIAL) {
-      return <ModelLatencyText type="secondary">{formatLatency(modelStatus.latency)}</ModelLatencyText>
-    }
-    return null
-  }
-
-  return { renderStatusIndicator, renderLatencyText }
 }
 
 interface ModelListProps {
@@ -181,7 +52,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
-  const { renderStatusIndicator, renderLatencyText } = useModelStatusRendering()
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
@@ -335,79 +205,42 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             {!isEmpty(models) && <CollapsibleSearchBar onSearch={setSearchText} />}
           </HStack>
           {!isEmpty(models) && (
-            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
-              <Button
-                type="text"
-                size="small"
-                onClick={onHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing isActive={isHealthChecking} />}
-              />
-            </Tooltip>
+            <HStack>
+              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  onClick={onHealthCheck}
+                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                />
+              </Tooltip>
+              <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  onClick={onManageModel}
+                  icon={<ListCheck size={16} />}
+                  disabled={isHealthChecking}
+                />
+              </Tooltip>
+              <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
+                <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+              </Tooltip>
+            </HStack>
           )}
         </HStack>
       </SettingSubtitle>
       <Flex gap={12} vertical>
         {Object.keys(sortedModelGroups).map((group, i) => (
-          <CustomCollapseWrapper key={group}>
-            <CustomCollapse
-              defaultActiveKey={i <= 5 ? ['1'] : []}
-              label={
-                <Flex align="center" gap={10}>
-                  <span style={{ fontWeight: 600 }}>{group}</span>
-                </Flex>
-              }
-              extra={
-                <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseEnterDelay={0.5}>
-                  <Button
-                    type="text"
-                    className="toolbar-item"
-                    icon={<MinusOutlined />}
-                    onClick={() => modelGroups[group].forEach((model) => removeModel(model))}
-                  />
-                </Tooltip>
-              }>
-              <Flex gap={10} vertical style={{ marginTop: 10 }}>
-                {sortedModelGroups[group].map((model) => {
-                  const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
-                  const isChecking = modelStatus?.checking === true
-
-                  return (
-                    <ListItem key={model.id}>
-                      <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-                        <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
-                          {model?.name?.[0]?.toUpperCase()}
-                        </Avatar>
-                        <ModelIdWithTags
-                          model={model}
-                          style={{
-                            flex: 1,
-                            width: 0,
-                            overflow: 'hidden'
-                          }}
-                        />
-                      </HStack>
-                      <Flex gap={4} align="center">
-                        {renderLatencyText(modelStatus)}
-                        {renderStatusIndicator(modelStatus)}
-                        <Button
-                          type="text"
-                          onClick={() => !isChecking && onEditModel(model)}
-                          disabled={isChecking}
-                          icon={<Bolt size={16} />}
-                        />
-                        <Button
-                          type="text"
-                          onClick={() => !isChecking && removeModel(model)}
-                          disabled={isChecking}
-                          icon={<MinusOutlined />}
-                        />
-                      </Flex>
-                    </ListItem>
-                  )
-                })}
-              </Flex>
-            </CustomCollapse>
-          </CustomCollapseWrapper>
+          <ModelListGroup
+            key={group}
+            groupName={group}
+            models={sortedModelGroups[group]}
+            modelStatuses={modelStatuses}
+            defaultOpen={i <= 5}
+            disabled={isHealthChecking}
+            onEditModel={onEditModel}
+            onRemoveModel={removeModel}
+            onRemoveGroup={() => modelGroups[group].forEach((model) => removeModel(model))}
+          />
         ))}
         {(docsWebsite || modelsWebsite) && (
           <SettingHelpTextRow>
@@ -428,14 +261,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </SettingHelpTextRow>
         )}
       </Flex>
-      <Flex gap={10} style={{ marginTop: '10px' }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={18} />}>
-          {t('button.manage')}
-        </Button>
-        <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>
-          {t('button.add')}
-        </Button>
-      </Flex>
       {models.map((model) => (
         <ModelEditContent
           provider={provider}
@@ -449,53 +274,5 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     </>
   )
 }
-
-const CustomCollapseWrapper = styled.div`
-  .toolbar-item {
-    margin-top: 2px;
-    transform: translateZ(0);
-    will-change: opacity;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  &:hover .toolbar-item {
-    opacity: 1;
-  }
-`
-
-const ListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-`
-
-const StatusIndicator = styled.div<{ $type: string }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: ${(props) => {
-    switch (props.$type) {
-      case 'success':
-        return 'var(--color-status-success)'
-      case 'error':
-        return 'var(--color-status-error)'
-      case 'partial':
-        return 'var(--color-status-warning)'
-      default:
-        return 'var(--color-text)'
-    }
-  }};
-`
-
-const ModelLatencyText = styled(Typography.Text)`
-  margin-left: 10px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-`
 
 export default memo(ModelList)
