@@ -13,6 +13,7 @@
         "content": "{{date}}:\tДата\n{{time}}:\tВремя\n{{datetime}}:\tДата и время\n{{system}}:\tОперационная система\n{{arch}}:\tАрхитектура процессора\n{{language}}:\tЯзык\n{{model_name}}:\tНазвание модели\n{{username}}:\tИмя пользователя"
       },
       "add.title": "Создать агента",
+      "add.unsaved_changes_warning": "У вас есть несохраненные изменения. Вы уверены, что хотите закрыть?",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.model.select.title": "Выбрать модель",
       "edit.title": "Редактировать агента",

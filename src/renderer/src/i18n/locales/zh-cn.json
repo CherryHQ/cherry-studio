@@ -13,6 +13,7 @@
         "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU 架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称\n{{username}}:\t用户名"
       },
       "add.title": "创建智能体",
+      "add.unsaved_changes_warning": "你有未保存的内容，确定要关闭吗？",
       "import": {
         "title": "从外部导入",
         "type": {

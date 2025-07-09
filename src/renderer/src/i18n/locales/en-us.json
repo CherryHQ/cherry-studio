@@ -13,6 +13,7 @@
         "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername"
       },
       "add.title": "Create Agent",
+      "add.unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?",
       "import": {
         "title": "Import from External",
         "type": {

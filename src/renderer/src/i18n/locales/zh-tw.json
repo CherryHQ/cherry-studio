@@ -13,6 +13,7 @@
         "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱"
       },
       "add.title": "建立智慧代理人",
+      "add.unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？",
       "import": {
         "title": "從外部導入",
         "type": {
