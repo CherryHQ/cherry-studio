@@ -8,7 +8,9 @@ const initialState: PaintingsState = {
   edit: [],
   upscale: [],
   DMXAPIPaintings: [],
-  tokenFluxPaintings: []
+  tokenFluxPaintings: [],
+  openai_image_generate: [],
+  openai_image_edit: []
 }
 
 const paintingsSlice = createSlice({

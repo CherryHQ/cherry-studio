@@ -12,6 +12,7 @@ import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webC
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
@@ -114,12 +115,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // launch on boot
-  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, openAtLogin: boolean) => {
-    // Set login item settings for windows and mac
-    // linux is not supported because it requires more file operations
-    if (isWin || isMac) {
-      app.setLoginItemSettings({ openAtLogin })
-    }
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, isLaunchOnBoot: boolean) => {
+    appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
   // launch to tray
@@ -368,6 +365,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
   ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
+  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir)
+  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup)
+  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles)
+  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile)
+  ipcMain.handle(IpcChannel.Backup_SetLocalBackupDir, backupManager.setLocalBackupDir)
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3)
+  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3)
+  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files)
+  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File)
+  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -494,6 +501,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
+  ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
+    mainWindow.webContents.send('mcp-progress', progress)
+  })
 
   // Register Python execution handler
   ipcMain.handle(
@@ -561,4 +572,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   SelectionService.registerIpcHandler()
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
+
+  ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
+    configManager.setDisableHardwareAcceleration(isDisable)
+  })
 }

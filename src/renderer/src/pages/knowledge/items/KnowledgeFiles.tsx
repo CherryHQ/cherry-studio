@@ -3,7 +3,6 @@ import Ellipsis from '@renderer/components/Ellipsis'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
-import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileMetadata, FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
@@ -173,7 +172,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                     key={item.id}
                     fileInfo={{
                       name: (
-                        <ClickableSpan onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
+                        <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
                           <Ellipsis>
                             <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>

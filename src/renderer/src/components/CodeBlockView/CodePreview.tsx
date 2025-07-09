@@ -9,6 +9,7 @@ import { debounce } from 'lodash'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
 interface CodePreviewProps {
@@ -107,7 +108,8 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
-  const estimateSize = useCallback(() => (fontSize - 1) * 1.6, [fontSize]) // 同步全局样式
+  // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
+  const estimateSize = useCallback(() => Math.round((fontSize - 1) * 1.6), [fontSize])
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -144,11 +146,13 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
         ref={scrollerRef}
         className="shiki-scroller"
         $wrap={shouldWrap}
+        $lineHeight={estimateSize()}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
             fontSize: `${fontSize - 1}px`,
-            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined
+            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined,
+            overflowY: shouldCollapse ? 'auto' : 'hidden'
           } as React.CSSProperties
         }>
         <div
@@ -193,9 +197,49 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
 CodePreview.displayName = 'CodePreview'
 
+/**
+ * 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
+ */
+function completeLineTokens(themedTokens: ThemedToken[], rawLine: string): ThemedToken[] {
+  // 如果出现空行，补一个空格保证行高
+  if (rawLine.length === 0) {
+    return [
+      {
+        content: ' ',
+        offset: 0,
+        color: 'inherit',
+        bgColor: 'inherit',
+        htmlStyle: {
+          opacity: '0.35'
+        }
+      }
+    ]
+  }
+
+  const themedContent = themedTokens.map((token) => token.content).join('')
+  const extraContent = rawLine.slice(themedContent.length)
+
+  // 已有内容已经全部高亮，直接返回
+  if (!extraContent) return themedTokens
+
+  // 补全剩余内容
+  return [
+    ...themedTokens,
+    {
+      content: extraContent,
+      offset: themedContent.length,
+      color: 'inherit',
+      bgColor: 'inherit',
+      htmlStyle: {
+        opacity: '0.35'
+      }
+    }
+  ]
+}
+
 interface VirtualizedRowData {
   rawLine: string
-  tokenLine?: any[]
+  tokenLine?: ThemedToken[]
   showLineNumbers: boolean
 }
 
@@ -208,17 +252,11 @@ const VirtualizedRow = memo(
       <div className="line">
         {showLineNumbers && <span className="line-number">{index + 1}</span>}
         <span className="line-content">
-          {tokenLine ? (
-            // 渲染高亮后的内容
-            tokenLine.map((token, tokenIndex) => (
-              <span key={tokenIndex} style={getReactStyleFromToken(token)}>
-                {token.content}
-              </span>
-            ))
-          ) : (
-            // 渲染原始内容
-            <span className="line-content-raw">{rawLine || ' '}</span>
-          )}
+          {completeLineTokens(tokenLine ?? [], rawLine).map((token, tokenIndex) => (
+            <span key={tokenIndex} style={getReactStyleFromToken(token)}>
+              {token.content}
+            </span>
+          ))}
         </span>
       </div>
     )
@@ -229,18 +267,19 @@ VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ScrollContainer = styled.div<{
   $wrap?: boolean
+  $lineHeight?: number
 }>`
   display: block;
-  overflow: auto;
+  overflow-x: auto;
   position: relative;
   border-radius: inherit;
-  height: auto;
   padding: 0.5em 1em;
 
   .line {
     display: flex;
     align-items: flex-start;
     width: 100%;
+    line-height: ${(props) => props.$lineHeight}px;
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
@@ -250,22 +289,16 @@ const ScrollContainer = styled.div<{
       user-select: none;
       flex-shrink: 0;
       overflow: hidden;
-      line-height: inherit;
       font-family: inherit;
       font-variant-numeric: tabular-nums;
     }
 
     .line-content {
       flex: 1;
-      line-height: inherit;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
       }
-    }
-
-    .line-content-raw {
-      opacity: 0.35;
     }
   }
 `
