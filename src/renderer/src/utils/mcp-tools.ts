@@ -576,7 +576,14 @@ export async function parseAndCallTools<R>(
   const pendingPromises: Promise<void>[] = []
 
   curToolResponses.forEach((toolResponse) => {
-    const confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal)
+    const server = getMcpServerByTool(toolResponse.tool)
+    const isAutoApproveEnabled = !server?.disabledAutoApproveTools?.includes(toolResponse.tool.name)
+    let confirmationPromise: Promise<boolean>
+    if (isAutoApproveEnabled) {
+      confirmationPromise = Promise.resolve(true)
+    } else {
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal)
+    }
 
     const processingPromise = confirmationPromise
       .then(async (confirmed) => {

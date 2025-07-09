@@ -1,5 +1,13 @@
-import { CheckOutlined, CloseOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import {
+  CheckOutlined,
+  CloseOutlined,
+  LoadingOutlined,
+  PlayCircleOutlined,
+  ThunderboltOutlined,
+  WarningOutlined
+} from '@ant-design/icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
@@ -20,6 +28,7 @@ const MessageTools: FC<Props> = ({ block }) => {
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
+  const { mcpServers, updateMCPServer } = useMCPServers()
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -90,6 +99,37 @@ const MessageTools: FC<Props> = ({ block }) => {
     }
   }
 
+  const handleAutoApprove = async () => {
+    if (!tool || !tool.name) {
+      return
+    }
+
+    const server = mcpServers.find((s) => s.id === tool.serverId)
+    if (!server) {
+      return
+    }
+
+    let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+
+    // Remove tool from disabledAutoApproveTools to enable auto-approve
+    disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
+
+    const updatedServer = {
+      ...server,
+      disabledAutoApproveTools
+    }
+
+    updateMCPServer(updatedServer)
+
+    // Also confirm the current tool
+    confirmToolAction(id)
+
+    message.success({
+      content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
+      key: 'auto-approve'
+    })
+  }
+
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
@@ -111,8 +151,8 @@ const MessageTools: FC<Props> = ({ block }) => {
                   case 'pending':
                     return (
                       <>
-                        {t('message.tools.pending')}
-                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
+                        {t('message.tools.pending', 'Awaiting Approval')}
+                        <LoadingOutlined spin style={{ marginLeft: 6, color: 'var(--color-warning)' }} />
                       </>
                     )
                   case 'invoking':
@@ -155,25 +195,37 @@ const MessageTools: FC<Props> = ({ block }) => {
             {isPending && (
               <>
                 <Tooltip title={t('common.cancel')} mouseEnterDelay={0.3}>
-                  <ActionButton
+                  <CancelActionButton
                     onClick={(e) => {
                       e.stopPropagation()
                       handleCancelTool()
                     }}
                     aria-label={t('common.cancel')}>
-                    <CloseOutlined style={{ fontSize: '14px' }} />
-                  </ActionButton>
+                    <CloseOutlined style={{ fontSize: '16px' }} />
+                    <span>{t('common.cancel')}</span>
+                  </CancelActionButton>
                 </Tooltip>
-                <Tooltip title={t('common.confirm')} mouseEnterDelay={0.3}>
-                  <ActionButton
-                    className="confirm-button"
+                <Tooltip title={t('settings.mcp.tools.autoApprove')} mouseEnterDelay={0.3}>
+                  <AutoApproveButton
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAutoApprove()
+                    }}
+                    aria-label={t('settings.mcp.tools.autoApprove')}>
+                    <ThunderboltOutlined style={{ fontSize: '14px' }} />
+                    <span>{t('settings.mcp.tools.autoApprove')}</span>
+                  </AutoApproveButton>
+                </Tooltip>
+                <Tooltip title={t('settings.mcp.tools.run', 'Run')} mouseEnterDelay={0.3}>
+                  <RunActionButton
                     onClick={(e) => {
                       e.stopPropagation()
                       handleConfirmTool()
                     }}
-                    aria-label={t('common.confirm')}>
-                    <CheckOutlined style={{ fontSize: '14px' }} />
-                  </ActionButton>
+                    aria-label={t('settings.mcp.tools.run', 'Run')}>
+                    <PlayCircleOutlined style={{ fontSize: '16px' }} />
+                    <span>{t('settings.mcp.tools.run', 'Run')}</span>
+                  </RunActionButton>
                 </Tooltip>
               </>
             )}
@@ -342,7 +394,7 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
   color: ${(props) => {
     switch (props.status) {
       case 'pending':
-        return 'var(--color-text-2)'
+        return 'var(--color-warning, #faad14)'
       case 'invoking':
         return 'var(--color-primary)'
       case 'cancelled':
@@ -354,17 +406,19 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
     }
   }};
   font-size: 11px;
+  font-weight: ${(props) => (props.status === 'pending' ? '600' : '400')};
   display: flex;
   align-items: center;
-  opacity: 0.85;
+  opacity: ${(props) => (props.status === 'pending' ? '1' : '0.85')};
   border-left: 1px solid var(--color-border);
   padding-left: 12px;
 `
 
 const ActionButtonsContainer = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
+  align-items: center;
 `
 
 const ActionButton = styled.button`
@@ -406,6 +460,146 @@ const ActionButton = styled.button`
 
   .iconfont {
     font-size: 14px;
+  }
+`
+
+const RunActionButton = styled.button`
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light, var(--color-primary)));
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  animation: pulse 2s infinite;
+  min-width: 65px;
+  height: 32px;
+
+  &:hover {
+    background: linear-gradient(135deg, var(--color-primary-hover, var(--color-primary)), var(--color-primary));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    animation: none;
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 0 0 0 var(--color-primary);
+    }
+    50% {
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 0 0 4px rgba(var(--color-primary-rgb, 24, 144, 255), 0.3);
+    }
+    100% {
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 0 0 0 rgba(var(--color-primary-rgb, 24, 144, 255), 0);
+    }
+  }
+`
+
+const CancelActionButton = styled.button`
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-2);
+  cursor: pointer;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 65px;
+  height: 32px;
+
+  &:hover {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  &:active {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-error);
+    outline-offset: 2px;
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: 500;
+  }
+`
+
+const AutoApproveButton = styled.button`
+  background: var(--color-bg-3);
+  border: 1px solid var(--color-border);
+  color: var(--color-warning);
+  cursor: pointer;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 90px;
+  height: 32px;
+
+  &:hover {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-warning);
+    outline-offset: 2px;
+  }
+
+  span {
+    font-size: 11px;
+    font-weight: 500;
   }
 `
 

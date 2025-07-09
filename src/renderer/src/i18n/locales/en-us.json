@@ -728,7 +728,8 @@
         "invoking": "Invoking",
         "pending": "Pending",
         "preview": "Preview",
-        "raw": "Raw"
+        "raw": "Raw",
+        "autoApproveEnabled": "Auto-approve enabled for this tool"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -1852,7 +1853,10 @@
           "availableTools": "Available Tools",
           "inputSchema": "Input Schema",
           "loadError": "Get tools Error",
-          "noToolsAvailable": "No tools available"
+          "noToolsAvailable": "No tools available",
+          "enable": "Enable Tool",
+          "autoApprove": "Auto Approve & Run",
+          "run": "Run"
         },
         "type": "Type",
         "types": {

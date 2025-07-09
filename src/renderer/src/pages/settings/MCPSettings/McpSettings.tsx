@@ -443,6 +443,33 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
+  // Handle toggling auto-approve for a tool
+  const handleToggleAutoApprove = useCallback(
+    async (tool: MCPTool, autoApprove: boolean) => {
+      let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+
+      if (autoApprove) {
+        disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
+      } else {
+        // Add tool to disabledTools if it's being disabled
+        if (!disabledAutoApproveTools.includes(tool.name)) {
+          disabledAutoApproveTools.push(tool.name)
+        }
+      }
+
+      // Update the server with new disabledTools
+      const updatedServer = {
+        ...server,
+        disabledAutoApproveTools
+      }
+
+      // Save the updated server configuration
+      // await window.api.mcp.updateServer(updatedServer)
+      updateMCPServer(updatedServer)
+    },
+    [server, updateMCPServer]
+  )
+
   const tabs = [
     {
       key: 'settings',
@@ -649,7 +676,14 @@ const McpSettings: React.FC = () => {
       {
         key: 'tools',
         label: t('settings.mcp.tabs.tools'),
-        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+        children: (
+          <MCPToolsSection
+            tools={tools}
+            server={server}
+            onToggleTool={handleToggleTool}
+            onToggleAutoApprove={handleToggleAutoApprove}
+          />
+        )
       },
       {
         key: 'prompts',

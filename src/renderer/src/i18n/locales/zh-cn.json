@@ -728,7 +728,8 @@
         "invoking": "调用中",
         "pending": "等待中",
         "preview": "预览",
-        "raw": "原始"
+        "raw": "原始",
+        "autoApproveEnabled": "此工具已启用自动批准"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -1852,7 +1853,10 @@
           "availableTools": "可用工具",
           "inputSchema": "输入模式",
           "loadError": "获取工具失败",
-          "noToolsAvailable": "无可用工具"
+          "noToolsAvailable": "无可用工具",
+          "enable": "启用工具",
+          "autoApprove": "自动批准并运行",
+          "run": "运行"
         },
         "type": "类型",
         "types": {

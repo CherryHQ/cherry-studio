@@ -1852,7 +1852,10 @@
           "availableTools": "可用工具",
           "inputSchema": "輸入模式",
           "loadError": "獲取工具失敗",
-          "noToolsAvailable": "無可用工具"
+          "noToolsAvailable": "無可用工具",
+          "enable": "啟用工具",
+          "autoApprove": "自動批准並運行",
+          "run": "運行"
         },
         "type": "類型",
         "types": {

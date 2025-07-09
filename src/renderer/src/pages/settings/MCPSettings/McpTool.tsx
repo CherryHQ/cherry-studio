@@ -1,3 +1,4 @@
+import { PauseCircleOutlined, PlayCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { MCPServer, MCPTool } from '@renderer/types'
 import { Badge, Collapse, Descriptions, Empty, Flex, Switch, Tag, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -7,9 +8,10 @@ interface MCPToolsSectionProps {
   tools: MCPTool[]
   server: MCPServer
   onToggleTool: (tool: MCPTool, enabled: boolean) => void
+  onToggleAutoApprove: (tool: MCPTool, autoApprove: boolean) => void
 }
 
-const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) => {
+const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
 
   // Check if a tool is enabled (not in the disabledTools array)
@@ -17,9 +19,19 @@ const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) 
     return !server.disabledTools?.includes(tool.name)
   }
 
+  // Check if auto-approve is enabled for a tool
+  const isAutoApproveEnabled = (tool: MCPTool) => {
+    return !server.disabledAutoApproveTools?.includes(tool.name)
+  }
+
   // Handle tool toggle
   const handleToggle = (tool: MCPTool, checked: boolean) => {
     onToggleTool(tool, checked)
+  }
+
+  // Handle auto-approve toggle
+  const handleAutoApproveToggle = (tool: MCPTool, checked: boolean) => {
+    onToggleAutoApprove(tool, checked)
   }
 
   // Render tool properties from the input schema
@@ -116,13 +128,58 @@ const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) 
                       </Typography.Text>
                     )}
                   </Flex>
-                  <Switch
-                    checked={isToolEnabled(tool)}
-                    onChange={(checked, event) => {
-                      event?.stopPropagation()
-                      handleToggle(tool, checked)
-                    }}
-                  />
+                  <SwitchContainer>
+                    <SwitchGroup>
+                      <SwitchLabel>
+                        {isToolEnabled(tool) ? (
+                          <PlayCircleOutlined style={{ fontSize: '14px', color: '#52c41a' }} />
+                        ) : (
+                          <PauseCircleOutlined style={{ fontSize: '14px', color: '#d9d9d9' }} />
+                        )}
+                        <Typography.Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
+                          {t('settings.mcp.tools.enable', 'Enable Tool')}
+                        </Typography.Text>
+                      </SwitchLabel>
+                      <Switch
+                        checked={isToolEnabled(tool)}
+                        onChange={(checked, event) => {
+                          event?.stopPropagation()
+                          handleToggle(tool, checked)
+                        }}
+                      />
+                    </SwitchGroup>
+                    <SwitchGroup>
+                      <Tooltip
+                        title={
+                          !isToolEnabled(tool)
+                            ? 'Enable the tool first to use auto-approve'
+                            : isAutoApproveEnabled(tool)
+                              ? 'Tool will run automatically without confirmation'
+                              : 'Tool will require manual approval before running'
+                        }
+                        placement="topRight">
+                        <SwitchLabel>
+                          <ThunderboltOutlined
+                            style={{
+                              fontSize: '14px',
+                              color: isAutoApproveEnabled(tool) && isToolEnabled(tool) ? '#faad14' : '#d9d9d9'
+                            }}
+                          />
+                          <Typography.Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
+                            {t('settings.mcp.tools.autoApprove', 'Auto Approve')}
+                          </Typography.Text>
+                        </SwitchLabel>
+                      </Tooltip>
+                      <Switch
+                        checked={isAutoApproveEnabled(tool)}
+                        disabled={!isToolEnabled(tool)}
+                        onChange={(checked, event) => {
+                          event?.stopPropagation()
+                          handleAutoApproveToggle(tool, checked)
+                        }}
+                      />
+                    </SwitchGroup>
+                  </SwitchContainer>
                 </Flex>
               }>
               <SelectableContent>{renderToolProperties(tool)}</SelectableContent>
@@ -151,6 +208,28 @@ const SectionTitle = styled.h3`
 const SelectableContent = styled.div`
   user-select: text;
   padding: 0 12px;
+`
+
+const SwitchContainer = styled.div`
+  display: flex;
+  gap: 24px;
+  align-items: center;
+`
+
+const SwitchGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+`
+
+const SwitchLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+  justify-content: center;
+  text-align: center;
 `
 
 export default MCPToolsSection

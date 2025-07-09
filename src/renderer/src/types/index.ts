@@ -624,6 +624,7 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
