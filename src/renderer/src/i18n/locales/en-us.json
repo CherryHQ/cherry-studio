@@ -111,7 +111,13 @@
         "settings": {
           "title": "Tag Settings"
         }
-      }
+      },
+      "settings.reader": "Reader Settings",
+      "settings.reader.reference": "Select Reference Materials",
+      "settings.reader.upload": "Click to Upload",
+      "settings.reader.reupload": "Re-upload",
+      "settings.reader.pickFromFiles": "Select from Files",
+      "settings.reader.pickFromFiles.confirm": "Are you sure you want to select this document?"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -1284,7 +1290,8 @@
           "syncStatus": "Backup Status",
           "title": "WebDAV",
           "user": "WebDAV User",
-          "maxBackups": "Maximum Backups"
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "local": {
           "autoSync": "Auto Backup",
@@ -1324,8 +1331,6 @@
           "minute_interval_other": "{{count}} minutes",
           "noSync": "Waiting for next backup",
           "restore.button": "Restore from Local",
-          "restore.confirm.content": "Restoring from local backup will replace current data. Do you want to continue?",
-          "restore.confirm.title": "Confirm Restore",
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "Local Backup",
@@ -2377,6 +2382,20 @@
           }
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "No readable table of contents",
+      "reference": "Reference Materials",
+      "close": "Close Reader",
+      "attaching": "Associating...",
+      "pageIndex": "Page {{index}}",
+      "switchPosition": "Switch Position",
+      "selectReference": "Select Reference Materials",
+      "showSelect": "Page Selection",
+      "showOutline": "Table of Contents",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "move": "Drag"
     }
   }
 }

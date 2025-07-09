@@ -84,6 +84,12 @@
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
+      "settings.reader": "阅读器设置",
+      "settings.reader.reference": "选择参考资料",
+      "settings.reader.upload": "点击上传",
+      "settings.reader.reupload": "重新上传",
+      "settings.reader.pickFromFiles": "从文件中选择",
+      "settings.reader.pickFromFiles.confirm": "确认选择该文档吗？",
       "settings.more": "助手设置",
       "settings.regular_phrases": {
         "title": "常用短语",
@@ -2376,6 +2382,20 @@
           }
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "无可读目录",
+      "reference": "参考资料",
+      "close": "关闭阅读器",
+      "switchPosition": "切换位置",
+      "selectReference": "选择参考资料",
+      "showSelect": "页面选择",
+      "showOutline": "目录",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "move": "拖动",
+      "attaching": "正在关联",
+      "pageIndex": "第{{index}}页"
     }
   }
 }

@@ -3,7 +3,7 @@ Object.defineProperty(exports, '__esModule', { value: true })
 var fs = require('fs')
 var path = require('path')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
-var baseLocale = 'en-us'
+var baseLocale = 'zh-CN'
 var baseFileName = ''.concat(baseLocale, '.json')
 var baseFilePath = path.join(translationsDir, baseFileName)
 /**

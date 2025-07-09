@@ -24,6 +24,9 @@ export function getDefaultAssistant(): Assistant {
       topP: 1,
       toolUseMode: 'prompt',
       customParameters: []
+    },
+    reader: {
+      position: 'left'
     }
   }
 }
