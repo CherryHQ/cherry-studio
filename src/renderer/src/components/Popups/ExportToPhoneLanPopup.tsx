@@ -31,7 +31,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
         if (ip && port) {
           const connectionInfo = {
-            type: 'cherry-studio-connection',
+            type: 'cherry-studio-app',
             host: ip,
             port: port,
             timestamp: Date.now()
