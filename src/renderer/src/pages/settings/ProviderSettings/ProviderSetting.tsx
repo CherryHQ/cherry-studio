@@ -8,6 +8,7 @@ import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCenteredBackTop } from '@renderer/hooks/useCenteredBackTop'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
@@ -16,12 +17,12 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, FloatButton, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -53,12 +54,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
+  const containerRef = useRef<HTMLDivElement>(null)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [modelSearchText, setModelSearchText] = useState('')
   const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const buttonStyle = useCenteredBackTop(containerRef)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -322,7 +325,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [headerText, provider, updateProvider, t])
 
   return (
-    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
+    <SettingContainer theme={theme} ref={containerRef} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={5}>
           <ProviderName>{fancyProviderName}</ProviderName>
@@ -508,6 +511,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         </Space>
       </SettingSubtitle>
       <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
+      <FloatButton.BackTop target={() => containerRef.current || window} duration={1000} style={buttonStyle} />
     </SettingContainer>
   )
 }
