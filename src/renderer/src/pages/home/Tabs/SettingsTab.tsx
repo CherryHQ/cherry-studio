@@ -160,7 +160,6 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const assistantContextCount = assistant?.settings?.contextCount || 20
   const maxContextCount = 100
 
   const model = assistant.model || getDefaultModel()
