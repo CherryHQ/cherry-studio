@@ -701,7 +701,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           lastBlockType = MessageBlockType.IMAGE
           const initialChanges: Partial<MessageBlock> = {
             type: MessageBlockType.IMAGE,
-            status: MessageBlockStatus.STREAMING
+            status: MessageBlockStatus.PENDING
           }
           lastBlockType = MessageBlockType.IMAGE
           imageBlockId = initialPlaceholderBlockId
@@ -709,7 +709,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           smartBlockUpdate(imageBlockId, initialChanges, MessageBlockType.IMAGE)
         } else if (!imageBlockId) {
           const imageBlock = createImageBlock(assistantMsgId, {
-            status: MessageBlockStatus.STREAMING
+            status: MessageBlockStatus.PENDING
           })
           imageBlockId = imageBlock.id
           await handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
@@ -723,7 +723,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             metadata: { generateImageResponse: imageData },
             status: MessageBlockStatus.STREAMING
           }
-          smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
+          smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
         }
       },
       onImageGenerated: (imageData) => {
