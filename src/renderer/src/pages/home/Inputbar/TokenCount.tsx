@@ -1,5 +1,6 @@
 import { ArrowUpOutlined, MenuOutlined } from '@ant-design/icons'
 import { HStack, VStack } from '@renderer/components/Layout'
+import MaxContextCount from '@renderer/components/MaxContextCount'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Divider, Popover } from 'antd'
 import { FC } from 'react'
@@ -21,17 +22,17 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
     return null
   }
 
-  const formatMaxCount = (max: number) => {
-    return max.toString()
-  }
-
   const PopoverContent = () => {
     return (
       <VStack w="185px" background="100%">
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max}
+            <HStack style={{ alignItems: 'center' }}>
+              {contextCount.current}
+              <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+              <MaxContextCount maxContext={contextCount.max} />
+            </HStack>
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
@@ -46,10 +47,20 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   return (
     <Container>
       <Popover content={PopoverContent} arrow={false}>
-        <MenuOutlined /> {contextCount.current} / {formatMaxCount(contextCount.max)}
-        <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
-        <ArrowUpOutlined />
-        {inputTokenCount} / {estimateTokenCount}
+        <HStack>
+          <HStack style={{ alignItems: 'center' }}>
+            <MenuOutlined /> {contextCount.current}
+            <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+            <MaxContextCount maxContext={contextCount.max} />
+          </HStack>
+          <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
+          <HStack style={{ alignItems: 'center' }}>
+            <ArrowUpOutlined />
+            {inputTokenCount}
+            <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+            {estimateTokenCount}
+          </HStack>
+        </HStack>
       </Popover>
     </Container>
   )
