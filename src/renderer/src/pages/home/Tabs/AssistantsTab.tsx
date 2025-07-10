@@ -6,7 +6,7 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Divider, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -87,7 +87,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                       {group.tag}
                     </GroupTitleName>
                   </Tooltip>
-                  <Divider style={{ margin: '12px 0' }}></Divider>
+                  <GroupTitleDivider />
                 </GroupTitle>
               )}
               {!collapsedTags[group.tag] && (
@@ -167,6 +167,7 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
+  margin-top: 3px;
 `
 
 const TagsContainer = styled.div`
@@ -197,13 +198,16 @@ const AssistantAddItem = styled.div`
 `
 
 const GroupTitle = styled.div`
-  padding: 8px 0;
-  position: relative;
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: -8px;
   cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: 24px;
+  margin: 5px 0;
 `
 
 const GroupTitleName = styled.div`
@@ -211,13 +215,18 @@ const GroupTitleName = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  background-color: var(--color-background);
   box-sizing: border-box;
   padding: 0 4px;
   color: var(--color-text);
-  position: absolute;
-  transform: translateY(2px);
   font-size: 13px;
+  line-height: 24px;
+  margin-right: 5px;
+  display: flex;
+`
+
+const GroupTitleDivider = styled.div`
+  flex: 1;
+  border-top: 1px solid var(--color-border);
 `
 
 const AssistantName = styled.div`

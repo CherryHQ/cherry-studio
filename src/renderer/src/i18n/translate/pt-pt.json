@@ -291,6 +291,12 @@
       "topics.unpinned": "Desfixar",
       "translate": "Traduzir"
     },
+    "html_artifacts": {
+      "code": "Código",
+      "generating": "Gerando",
+      "preview": "Visualizar",
+      "split": "Dividir"
+    },
     "code_block": {
       "collapse": "Recolher",
       "disable_wrap": "Desativar quebra de linha",

@@ -1,5 +1,5 @@
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -41,7 +41,7 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
+  const maxContextCount = rawContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : rawContextCount
 
   const _messages = takeRight(messages, maxContextCount)
 

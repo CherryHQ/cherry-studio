@@ -79,6 +79,7 @@ function createToolUseExtractionTransform(
               toolCounter += toolUseResponses.length
 
               if (toolUseResponses.length > 0) {
+                controller.enqueue({ type: ChunkType.TEXT_COMPLETE, text: '' })
                 // 生成 MCP_TOOL_CREATED chunk
                 const mcpToolCreatedChunk: MCPToolCreatedChunk = {
                   type: ChunkType.MCP_TOOL_CREATED,

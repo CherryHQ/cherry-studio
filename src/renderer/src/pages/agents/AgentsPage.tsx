@@ -266,7 +266,7 @@ const AgentsGroupList = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 0;
+  padding: 12px 0;
   border-right: 0.5px solid var(--color-border);
   border-top-left-radius: inherit;
   border-bottom-left-radius: inherit;

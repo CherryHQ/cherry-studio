@@ -290,6 +290,12 @@
       "topics.unpinned": "Quitar fijación",
       "translate": "Traducir"
     },
+    "html_artifacts": {
+      "code": "Código",
+      "generating": "Generando",
+      "preview": "Vista previa",
+      "split": "Dividir"
+    },
     "code_block": {
       "collapse": "Replegar",
       "disable_wrap": "Deshabilitar salto de línea",
