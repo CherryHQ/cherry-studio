@@ -47,7 +47,7 @@ const MessageItem: FC<Props> = ({
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
-  const { messageFont, fontSize } = useSettings()
+  const { messageFont, fontSize, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -127,6 +127,8 @@ const MessageItem: FC<Props> = ({
     )
   }
 
+  const showHeader = messageStyle === 'plain' || isAssistantMessage
+
   return (
     <MessageContainer
       key={message.id}
@@ -136,14 +138,15 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}>
-      <MessageHeader
-        message={message}
-        assistant={assistant}
-        model={model}
-        key={getModelUniqId(model)}
-        index={index}
-        topic={topic}
-      />
+      {showHeader && (
+        <MessageHeader
+          message={message}
+          assistant={assistant}
+          model={model}
+          key={getModelUniqId(model)}
+          topic={topic}
+        />
+      )}
       {isEditing && (
         <MessageEditor
           message={message}
@@ -167,7 +170,7 @@ const MessageItem: FC<Props> = ({
             </MessageErrorBoundary>
           </MessageContentContainer>
           {showMenubar && (
-            <MessageFooter className="MessageFooter">
+            <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage}>
               <MessageMenubar
                 message={message}
                 assistant={assistant}
@@ -224,12 +227,12 @@ const MessageContentContainer = styled(Scrollbar)`
   overflow-y: auto;
 `
 
-const MessageFooter = styled.div`
+const MessageFooter = styled.div<{ $isLastMessage: boolean }>`
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+  flex-direction: ${({ $isLastMessage }) => ($isLastMessage ? 'row-reverse' : 'row')};
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  gap: 10px;
   margin-left: 46px;
   margin-top: 2px;
 `

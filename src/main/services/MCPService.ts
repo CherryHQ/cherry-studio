@@ -28,6 +28,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
+import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
 import { CallBackServer } from './mcp/oauth/callback'
@@ -71,6 +72,7 @@ function withCache<T extends unknown[], R>(
 class McpService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  private activeToolCalls: Map<string, AbortController> = new Map()
 
   constructor() {
     this.initClient = this.initClient.bind(this)
@@ -84,6 +86,7 @@ class McpService {
     this.removeServer = this.removeServer.bind(this)
     this.restartServer = this.restartServer.bind(this)
     this.stopServer = this.stopServer.bind(this)
+    this.abortTool = this.abortTool.bind(this)
     this.cleanup = this.cleanup.bind(this)
   }
 
@@ -455,10 +458,14 @@ class McpService {
    */
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
-    { server, name, args }: { server: MCPServer; name: string; args: any }
+    { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string }
   ): Promise<MCPCallToolResponse> {
+    const toolCallId = callId || uuidv4()
+    const abortController = new AbortController()
+    this.activeToolCalls.set(toolCallId, abortController)
+
     try {
-      Logger.info('[MCP] Calling:', server.name, name, args)
+      Logger.info('[MCP] Calling:', server.name, name, args, 'callId:', toolCallId)
       if (typeof args === 'string') {
         try {
           args = JSON.parse(args)
@@ -468,12 +475,19 @@ class McpService {
       }
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args }, undefined, {
-        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+        onprogress: (process) => {
+          console.log('[MCP] Progress:', process.progress / (process.total || 1))
+          window.api.mcp.setProgress(process.progress / (process.total || 1))
+        },
+        timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+        signal: this.activeToolCalls.get(toolCallId)?.signal
       })
       return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
       throw error
+    } finally {
+      this.activeToolCalls.delete(toolCallId)
     }
   }
 
@@ -663,6 +677,20 @@ class McpService {
     delete env.grpc_proxy
     delete env.http_proxy
     delete env.https_proxy
+  }
+
+  // 实现 abortTool 方法
+  public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {
+    const activeToolCall = this.activeToolCalls.get(callId)
+    if (activeToolCall) {
+      activeToolCall.abort()
+      this.activeToolCalls.delete(callId)
+      Logger.info(`[MCP] Aborted tool call: ${callId}`)
+      return true
+    } else {
+      Logger.warn(`[MCP] No active tool call found for callId: ${callId}`)
+      return false
+    }
   }
 }
 

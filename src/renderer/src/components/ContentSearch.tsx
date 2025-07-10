@@ -208,8 +208,6 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 inputEl.focus()
                 inputEl.select()
                 search()
-                CSS.highlights.clear()
-                setSearchCompleted(SearchCompletedState.NotSearched)
               })
             } else {
               requestAnimationFrame(() => {

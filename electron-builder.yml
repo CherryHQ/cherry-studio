@@ -117,9 +117,9 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    划词助手：支持 macOS 系统
-    文档处理：增加 MinerU、Doc2x，Mistral 等服务商支持
-    知识库：新的知识库界面，增加扫描版 PDF 支持
-    OCR：macOS 增加系统 OCR 支持
-    服务商：支持一键添加服务商，新增 PH8 大模型开放平台, 支持 PPIO OAuth 登录
-    修复：Linux下数据目录移动问题
+    服务商：新增 NewAPI 服务商支持
+    绘图：新增 NewAPI 绘图服务商支持
+    备份：支持 s3 兼容存储备份
+    服务商：支持多个密钥管理，支持配置自定义请求头
+    设置：支持禁用硬件加速
+    其他：性能优化和错误改进
