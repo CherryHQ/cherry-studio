@@ -1,5 +1,6 @@
 import CodeEditor from '@renderer/components/CodeEditor'
 import { isMac } from '@renderer/config/constant'
+import { classNames } from '@renderer/utils'
 import { Button, Modal } from 'antd'
 import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -68,7 +69,7 @@ const ModalHeaderComponent: React.FC<ModalHeaderProps> = ({
   }, [viewMode, onViewModeChange, t])
 
   return (
-    <ModalHeader>
+    <ModalHeader onDoubleClick={onToggleFullscreen} className={classNames({ drag: isFullscreen })}>
       <HeaderLeft $isFullscreen={isFullscreen}>
         <TitleText>{title}</TitleText>
       </HeaderLeft>
@@ -80,8 +81,9 @@ const ModalHeaderComponent: React.FC<ModalHeaderProps> = ({
           onClick={onToggleFullscreen}
           type="text"
           icon={isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          className="nodrag"
         />
-        <Button onClick={onCancel} type="text" icon={<X size={16} />} />
+        <Button onClick={onCancel} type="text" icon={<X size={16} />} className="nodrag" />
       </HeaderRight>
     </ModalHeader>
   )
@@ -103,7 +105,7 @@ const CodeSectionComponent: React.FC<CodeSectionProps> = ({ html, visible, onCod
         <CodeEditor
           value={html}
           language="html"
-          editable={false}
+          editable={true}
           onSave={onCodeChange}
           style={{ height: '100%' }}
           options={{
@@ -125,26 +127,37 @@ interface PreviewSectionProps {
 const PreviewSectionComponent: React.FC<PreviewSectionProps> = ({ html, visible }) => {
   const htmlContent = html || ''
   const [debouncedHtml, setDebouncedHtml] = useState(htmlContent)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const latestHtmlRef = useRef(htmlContent)
+  const currentRenderedHtmlRef = useRef(htmlContent)
   const { t } = useTranslation()
 
-  // 防抖更新 HTML 内容，避免过于频繁的刷新
+  // 更新最新的HTML内容引用
   useEffect(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
+    latestHtmlRef.current = htmlContent
+  }, [htmlContent])
 
-    timeoutRef.current = setTimeout(() => {
-      setDebouncedHtml(htmlContent)
-    }, 300) // 300ms 防抖延迟
+  // 固定频率渲染 HTML 内容，每2秒钟检查并更新一次
+  useEffect(() => {
+    // 立即设置初始内容
+    setDebouncedHtml(htmlContent)
+    currentRenderedHtmlRef.current = htmlContent
+
+    // 设置定时器，每2秒检查一次内容是否有变化
+    intervalRef.current = setInterval(() => {
+      if (latestHtmlRef.current !== currentRenderedHtmlRef.current) {
+        setDebouncedHtml(latestHtmlRef.current)
+        currentRenderedHtmlRef.current = latestHtmlRef.current
+      }
+    }, 2000) // 2秒固定频率
 
     // 清理函数
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
       }
     }
-  }, [htmlContent])
+  }, []) // 只在组件挂载时执行一次
 
   if (!visible) return null
   const isHtmlEmpty = !debouncedHtml.trim()
@@ -239,6 +252,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       onCancel={handleCancel}
       afterClose={handleClose}
       centered
+      destroyOnClose
       {...modalProps}
       footer={null}
       closable={false}>
@@ -297,7 +311,7 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
   }
 
   .ant-modal-header {
-    padding: 10px 24px !important;
+    padding: 10px 12px !important;
     border-bottom: 1px solid var(--color-border);
     background: var(--color-background);
     border-radius: 0 !important;
@@ -321,7 +335,7 @@ const ModalHeader = styled.div`
 const HeaderLeft = styled.div<{ $isFullscreen?: boolean }>`
   flex: 1;
   min-width: 0;
-  padding-left: ${(props) => (props.$isFullscreen && isMac ? '70px' : 0)};
+  padding-left: ${(props) => (props.$isFullscreen && isMac ? '65px' : '12px')};
 `
 
 const HeaderCenter = styled.div`

@@ -126,6 +126,7 @@ const Container = styled.div`
   align-items: center;
   gap: 10px;
   position: relative;
+  margin-bottom: 8px;
 `
 
 const UserWrap = styled.div`

@@ -593,6 +593,13 @@ export class GeminiAPIClient extends BaseApiClient<
                   }
                 } as LLMWebSearchCompleteChunk)
               }
+              if (toolCalls.length > 0) {
+                controller.enqueue({
+                  type: ChunkType.MCP_TOOL_CREATED,
+                  tool_calls: [...toolCalls]
+                })
+                toolCalls.length = 0
+              }
               controller.enqueue({
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {

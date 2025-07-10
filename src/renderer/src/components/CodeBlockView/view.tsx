@@ -21,7 +21,6 @@ interface Props {
   children: string
   language: string
   onSave?: (newContent: string) => void
-  isStreaming?: boolean
 }
 
 /**
@@ -229,11 +228,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     )
   }, [specialView, sourceView, viewMode])
 
-  const renderArtifacts = useMemo(() => {
-    // HTML artifacts 已经在早期返回中处理
-    return null
-  }, [])
-
   // HTML 代码块特殊处理 - 在所有 hooks 调用之后
   if (language === 'html') {
     return <HtmlArtifactsCard html={children} />
@@ -244,7 +238,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
-      {renderArtifacts}
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
     </CodeBlockWrapper>
   )
