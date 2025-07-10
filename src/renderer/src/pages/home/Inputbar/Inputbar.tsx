@@ -240,7 +240,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setText('')
       setFiles([])
       setTimeout(() => setText(''), 500)
-      setTimeout(() => resizeTextArea(), 0)
+      setTimeout(() => resizeTextArea(true), 0)
       setExpend(false)
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -864,7 +864,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             onInput={onInput}
             disabled={searching}
             onPaste={(e) => onPaste(e.nativeEvent)}
-            onClick={() => searching && dispatch(setSearching(false))}
+            onClick={() => {
+              searching && dispatch(setSearching(false))
+              quickPanel.close()
+            }}
           />
           <DragHandle onMouseDown={handleDragStart}>
             <HolderOutlined />

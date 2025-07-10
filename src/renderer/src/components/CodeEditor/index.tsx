@@ -42,6 +42,7 @@ interface Props {
   extensions?: Extension[]
   /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
   style?: React.CSSProperties
+  editable?: boolean
 }
 
 /**
@@ -62,7 +63,8 @@ const CodeEditor = ({
   maxHeight,
   options,
   extensions,
-  style
+  style,
+  editable = true
 }: Props) => {
   const {
     fontSize,
@@ -190,7 +192,7 @@ const CodeEditor = ({
       height={height}
       minHeight={minHeight}
       maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
-      editable={true}
+      editable={editable}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}

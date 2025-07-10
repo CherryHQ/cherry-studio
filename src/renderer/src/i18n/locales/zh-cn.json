@@ -338,6 +338,12 @@
       "topics.unpinned": "取消固定",
       "translate": "翻译"
     },
+    "html_artifacts": {
+      "code": "代码",
+      "generating": "生成中",
+      "preview": "预览",
+      "split": "分屏"
+    },
     "code_block": {
       "collapse": "收起",
       "copy": "复制",
@@ -1870,7 +1876,20 @@
         "updateError": "更新服务器失败",
         "updateSuccess": "服务器更新成功",
         "url": "URL",
-        "user": "用户"
+        "user": "用户",
+        "requiresConfig": "需要配置",
+        "builtinServers": "内置服务器",
+        "more": {
+          "modelscope": "魔搭社区 MCP 服务器",
+          "higress": "Higress MCP 服务器",
+          "mcpso": "MCP 服务器发现平台",
+          "smithery": "Smithery MCP 工具",
+          "glama": "Glama MCP 服务器目录",
+          "pulsemcp": "Pulse MCP 服务器",
+          "composio": "Composio MCP 开发工具",
+          "official": "官方 MCP 服务器集合",
+          "awesome": "精选的 MCP 服务器列表"
+        }
       },
       "messages.divider": "消息分割线",
       "messages.divider.tooltip": "不适用于气泡样式消息",
@@ -1896,7 +1915,6 @@
       "messages.navigation.none": "不显示",
       "messages.prompt": "显示提示词",
       "messages.title": "消息设置",
-      "messages.tokens": "显示 Token 用量",
       "messages.use_serif_font": "使用衬线字体",
       "mineru.api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。",
       "miniapps": {

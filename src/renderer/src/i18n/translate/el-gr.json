@@ -289,6 +289,12 @@
       "topics.unpinned": "Αποστέλλω",
       "translate": "Μετάφραση"
     },
+    "html_artifacts": {
+      "code": "Κώδικας",
+      "generating": "Δημιουργία",
+      "preview": "Προεπισκόπηση",
+      "split": "Διαχωρισμός"
+    },
     "code_block": {
       "collapse": "συμπεριληφθείς",
       "disable_wrap": "ακύρωση αλλαγής γραμμής",
