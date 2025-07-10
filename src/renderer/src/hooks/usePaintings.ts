@@ -11,6 +11,8 @@ export function usePaintings() {
   const upscale = useAppSelector((state) => state.paintings.upscale)
   const DMXAPIPaintings = useAppSelector((state) => state.paintings.DMXAPIPaintings)
   const tokenFluxPaintings = useAppSelector((state) => state.paintings.tokenFluxPaintings)
+  const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
+  const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
   const dispatch = useAppDispatch()
 
   return {
@@ -23,6 +25,10 @@ export function usePaintings() {
       edit,
       upscale,
       tokenFluxPaintings
+    },
+    newApiPaintings: {
+      openai_image_generate,
+      openai_image_edit
     },
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))

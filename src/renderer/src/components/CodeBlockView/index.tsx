@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CodePreview from './CodePreview'
-import HtmlArtifacts from './HtmlArtifacts'
+import HtmlArtifactsCard from './HtmlArtifactsCard'
 import MermaidPreview from './MermaidPreview'
 import PlantUmlPreview from './PlantUmlPreview'
 import StatusBar from './StatusBar'
@@ -45,6 +45,7 @@ interface Props {
 const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
   const { t } = useTranslation()
   const { codeEditor, codeExecution } = useSettings()
+
   const [viewMode, setViewMode] = useState<ViewMode>('special')
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState('')
@@ -228,19 +229,16 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     )
   }, [specialView, sourceView, viewMode])
 
-  const renderArtifacts = useMemo(() => {
-    if (language === 'html') {
-      return <HtmlArtifacts html={children} />
-    }
-    return null
-  }, [children, language])
+  // HTML 代码块特殊处理 - 在所有 hooks 调用之后
+  if (language === 'html') {
+    return <HtmlArtifactsCard html={children} />
+  }
 
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
-      {renderArtifacts}
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
     </CodeBlockWrapper>
   )
@@ -292,6 +290,7 @@ const SplitViewWrapper = styled.div`
 
   &:not(:has(+ [class*='Container'])) {
     border-radius: 0 0 8px 8px;
+    overflow: hidden;
   }
 `
 

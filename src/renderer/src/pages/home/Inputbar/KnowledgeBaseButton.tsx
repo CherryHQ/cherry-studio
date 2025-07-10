@@ -65,7 +65,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
       title: t('chat.input.knowledge_base'),
       list: baseItems,
       symbol: '#',
-      multiple: true,
+      multiple: false,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
       }
