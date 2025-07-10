@@ -1763,6 +1763,15 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '121': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
