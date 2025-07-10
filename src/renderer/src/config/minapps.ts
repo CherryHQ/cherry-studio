@@ -62,7 +62,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
     let content: string
     try {
-      content = await window.api.file.read('custom-minapps.json', true)
+      content = await window.api.file.read('custom-minapps.json')
     } catch (error) {
       // 如果文件不存在，创建一个空的 JSON 数组
       content = '[]'

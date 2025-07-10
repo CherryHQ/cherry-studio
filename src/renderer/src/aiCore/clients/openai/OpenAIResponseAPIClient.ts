@@ -173,7 +173,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'input_text',
           text: file.origin_name + '\n' + fileContent

@@ -115,7 +115,8 @@ const api = {
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
-    read: (fileId: string, internal?: boolean) => ipcRenderer.invoke(IpcChannel.File_Read, fileId, internal),
+    read: (fileId: string, detectEncoding?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     /**
