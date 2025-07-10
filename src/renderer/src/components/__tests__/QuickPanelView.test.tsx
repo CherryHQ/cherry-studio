@@ -122,7 +122,7 @@ describe('QuickPanelView', () => {
       }
     }
 
-    it('should focus on the first item after panel open', () => {
+    it('should not focus on any item after panel open by default', () => {
       const list = createList(100)
 
       render(
@@ -134,11 +134,16 @@ describe('QuickPanelView', () => {
         )
       )
 
-      // 检查第一个 item 是否有 focused
+      // 检查是否没有任何 focused item
+      const panel = screen.getByTestId('quick-panel')
+      const focused = panel.querySelectorAll('.focused')
+      expect(focused.length).toBe(0)
+
+      // 检查第一个 item 存在但没有 focused 类
       const item1 = screen.getByText('Item 1')
-      const focused = item1.closest('.focused')
-      expect(focused).not.toBeNull()
       expect(item1).toBeInTheDocument()
+      const focusedItem1 = item1.closest('.focused')
+      expect(focusedItem1).toBeNull()
     })
 
     it('should focus on the right item using ArrowUp, ArrowDown', async () => {
@@ -154,10 +159,11 @@ describe('QuickPanelView', () => {
       )
 
       const keySequence = [
-        { key: 'ArrowUp', expected: 'Item 100' },
+        { key: 'ArrowDown', expected: 'Item 1' }, // 从未选中状态按 ArrowDown 会选中第一个
+        { key: 'ArrowUp', expected: 'Item 100' }, // 从第一个按 ArrowUp 会循环到最后一个
         { key: 'ArrowUp', expected: 'Item 99' },
         { key: 'ArrowDown', expected: 'Item 100' },
-        { key: 'ArrowDown', expected: 'Item 1' }
+        { key: 'ArrowDown', expected: 'Item 1' } // 从最后一个按 ArrowDown 会循环到第一个
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
@@ -176,11 +182,11 @@ describe('QuickPanelView', () => {
       )
 
       const keySequence = [
-        { key: 'PageUp', expected: 'Item 1' }, // 停留在顶部
-        { key: 'ArrowUp', expected: 'Item 100' },
-        { key: 'PageDown', expected: 'Item 100' }, // 停留在底部
-        { key: 'PageUp', expected: `Item ${100 - PAGE_SIZE}` },
-        { key: 'PageDown', expected: 'Item 100' }
+        { key: 'PageDown', expected: `Item ${PAGE_SIZE}` }, // 从未选中状态按 PageDown 会选中第 pageSize 个项目
+        { key: 'PageUp', expected: 'Item 1' }, // PageUp 会选中第一个
+        { key: 'ArrowUp', expected: 'Item 100' }, // 从第一个按 ArrowUp 会到最后一个
+        { key: 'PageDown', expected: 'Item 100' }, // 从最后一个按 PageDown 仍然是最后一个
+        { key: 'PageUp', expected: `Item ${100 - PAGE_SIZE}` } // PageUp 会向上翻页，从索引99到92，对应Item 93
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
@@ -199,10 +205,11 @@ describe('QuickPanelView', () => {
       )
 
       const keySequence = [
-        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
-        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' },
-        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 100' },
-        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' }
+        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' }, // 从未选中状态按 Ctrl+ArrowDown 会选中第一个
+        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` }, // Ctrl+ArrowDown 会跳转 pageSize 个位置
+        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' }, // Ctrl+ArrowUp 会跳转回去
+        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 100' }, // 从第一个位置再按 Ctrl+ArrowUp 会循环到最后
+        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' } // 从最后位置按 Ctrl+ArrowDown 会循环到第一个
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)

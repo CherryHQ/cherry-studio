@@ -167,6 +167,7 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
+  margin-top: 3px;
 `
 
 const TagsContainer = styled.div`

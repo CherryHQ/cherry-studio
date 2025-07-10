@@ -18,13 +18,10 @@ import { FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import MessageTokens from './MessageTokens'
-
 interface Props {
   message: Message
   assistant: Assistant
   model?: Model
-  index: number | undefined
   topic: Topic
 }
 
@@ -33,7 +30,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   return modelId ? getModelLogo(modelId) : undefined
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, index, topic }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
@@ -61,11 +58,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, index, topic
 
   const isAssistantMessage = message.role === 'assistant'
   const showMinappIcon = sidebarIcons.visible.includes('minapp')
-  const { showTokens } = useSettings()
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
-  const isLastMessage = index === 0
 
   const showMiniApp = useCallback(() => {
     showMinappIcon && model?.provider && openMinappById(model.provider)
@@ -110,8 +105,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, index, topic
         </UserName>
         <InfoWrap className="message-header-info-wrap">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
-          {showTokens && <DividerContainer style={{ color: 'var(--color-text-3)' }}> | </DividerContainer>}
-          <MessageTokens message={message} isLastMessage={isLastMessage} />
         </InfoWrap>
       </UserWrap>
       {isMultiSelectMode && (
@@ -147,12 +140,6 @@ const InfoWrap = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 4px;
-`
-
-const DividerContainer = styled.div`
-  font-size: 10px;
-  color: var(--color-text-3);
-  margin: 0 2px;
 `
 
 const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`

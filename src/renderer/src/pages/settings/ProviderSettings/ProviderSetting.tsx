@@ -1,7 +1,6 @@
 import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyConnectivity, ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -19,7 +18,7 @@ import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { List, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +32,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
@@ -79,8 +79,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     status: 'not_checked',
     checking: false
   })
-
-  const [headerText, setHeaderText] = useState<string>(JSON.stringify(provider.extra_headers || {}, null, 2))
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
@@ -311,16 +309,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
 
-  const onUpdateHeaders = useCallback(() => {
-    try {
-      const headers = headerText.trim() ? JSON.parse(headerText) : {}
-      updateProvider({ ...provider, extra_headers: headers })
-      window.message.success({ content: t('message.save.success.title') })
-    } catch (error) {
-      window.message.error({ content: t('settings.provider.copilot.invalid_json') })
-    }
-  }, [headerText, provider, updateProvider, t])
-
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -367,7 +355,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             {t('settings.provider.api_key')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+                <Button type="text" size="small" onClick={openApiKeyList} icon={<Settings2 size={14} />} />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -410,7 +398,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           )}
           {!isDmxapi && (
             <>
-              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+              <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                {t('settings.provider.api_host')}
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={() => CustomHeaderPopup.show({ provider })}
+                  icon={<Settings2 size={14} />}
+                />
+              </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
                 <Input
                   value={apiHost}
@@ -435,32 +431,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </SettingHelpText>
                 </SettingHelpTextRow>
               )}
-            </>
-          )}
-          {provider.id !== 'copilot' && (
-            <>
-              <SettingSubtitle style={{ marginTop: 5 }}>
-                {t('settings.provider.copilot.custom_headers')}
-              </SettingSubtitle>
-              <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
-                <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
-                <CodeEditor
-                  value={headerText}
-                  language="json"
-                  onChange={(value) => setHeaderText(value)}
-                  onBlur={onUpdateHeaders}
-                  placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
-                  options={{
-                    lint: true,
-                    collapsible: false,
-                    wrappable: true,
-                    lineNumbers: true,
-                    foldGutter: true,
-                    highlightActiveLine: true,
-                    keymap: true
-                  }}
-                />
-              </Space.Compact>
             </>
           )}
         </>
