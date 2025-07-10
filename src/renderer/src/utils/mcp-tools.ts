@@ -27,7 +27,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '../aiCore/middleware/schemas'
-import { requestToolConfirmation } from './userConfirmation'
+import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from './userConfirmation'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -587,7 +587,15 @@ export async function parseAndCallTools<R>(
     if (isAutoApproveEnabled) {
       confirmationPromise = Promise.resolve(true)
     } else {
-      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal)
+      setToolIdToNameMapping(toolResponse.id, toolResponse.tool.name)
+
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal).then((confirmed) => {
+        if (confirmed && server) {
+          // 自动确认其他同名的待确认工具
+          confirmSameNameTools(toolResponse.tool.name)
+        }
+        return confirmed
+      })
     }
 
     const processingPromise = confirmationPromise
@@ -712,15 +720,8 @@ export async function parseAndCallTools<R>(
     pendingPromises.push(processingPromise)
   })
 
-  Logger.info(
-    `🔧 [MCP] Waiting for tool confirmations:`,
-    curToolResponses.map((t) => t.id)
-  )
-
   // 等待所有工具处理完成（但每个工具的状态已经实时更新）
   await Promise.all(pendingPromises)
-
-  Logger.info(`🔧 [MCP] All tools processed. Confirmed tools: ${confirmedTools.length}`)
 
   return { toolResults, confirmedToolResponses: confirmedTools }
 }
