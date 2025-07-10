@@ -30,7 +30,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
           <Text>
             <HStack style={{ alignItems: 'center' }}>
               {contextCount.current}
-              <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+              <SlashSeparatorSpan>/</SlashSeparatorSpan>
               <MaxContextCount maxContext={contextCount.max} />
             </HStack>
           </Text>
@@ -50,14 +50,14 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
         <HStack>
           <HStack style={{ alignItems: 'center' }}>
             <MenuOutlined /> {contextCount.current}
-            <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
             <MaxContextCount maxContext={contextCount.max} />
           </HStack>
           <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
           <HStack style={{ alignItems: 'center' }}>
             <ArrowUpOutlined />
             {inputTokenCount}
-            <span style={{ marginLeft: 2, marginRight: 2 }}>/</span>
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
             {estimateTokenCount}
           </HStack>
         </HStack>
@@ -89,6 +89,11 @@ const Container = styled.div`
 const Text = styled.div`
   font-size: 12px;
   color: var(--color-text-1);
+`
+
+const SlashSeparatorSpan = styled.span`
+  margin-left: 2px;
+  margin-right: 2px;
 `
 
 export default TokenCount
