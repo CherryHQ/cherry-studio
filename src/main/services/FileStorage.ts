@@ -417,6 +417,19 @@ class FileStorage {
     shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
   }
 
+  /**
+   * 通过相对路径打开文件，跨设备时使用
+   * @param file
+   */
+  public openFileWithRelativePath = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<void> => {
+    const filePath = path.join(this.storageDir, file.name)
+    if (fs.existsSync(filePath)) {
+      shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+    } else {
+      logger.warn('[IPC - Warning] File does not exist:', filePath)
+    }
+  }
+
   public save = async (
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
