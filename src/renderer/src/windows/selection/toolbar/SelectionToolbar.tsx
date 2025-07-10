@@ -3,6 +3,7 @@ import '@renderer/assets/styles/selection-toolbar.scss'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTTS } from '@renderer/hooks/useTTS'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
@@ -97,6 +98,7 @@ const ActionIcons: FC<{
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const { language, customCss } = useSettings()
   const { isCompact, actionItems } = useSelectionAssistant()
+  const tts = useTTS()
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
@@ -191,12 +193,15 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         case 'quote':
           handleQuote(newAction)
           break
+        case 'tts':
+          handleTTS(newAction)
+          break
         default:
           handleDefaultAction(newAction)
           break
       }
     },
-    [demo]
+    [demo, tts]
   )
 
   // copy selected text to clipboard
@@ -230,6 +235,25 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     if (action.selectedText) {
       window.api?.quoteToMainWindow(action.selectedText)
       window.api?.selection.hideToolbar()
+    }
+  }
+
+  const handleTTS = async (action: ActionItem) => {
+    if (!action.selectedText?.trim()) return
+
+    try {
+      if (tts.isTTSAvailable) {
+        // 停止当前播放的TTS
+        tts.stopAll()
+        // 播放选中的文本
+        await tts.speak(action.selectedText)
+        // 隐藏工具栏
+        window.api?.selection.hideToolbar()
+      } else {
+        console.warn('TTS is not available')
+      }
+    } catch (error) {
+      console.error('TTS playback failed:', error)
     }
   }
 
