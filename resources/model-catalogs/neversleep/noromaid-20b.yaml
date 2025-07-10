@@ -1,0 +1,44 @@
+id: neversleep/noromaid-20b
+canonical_slug: neversleep/noromaid-20b
+hugging_face_id: NeverSleep/Noromaid-20b-v0.1.1
+name: Noromaid 20B
+type: chat
+created: 1700956800
+description: |-
+  A collab between IkariDev and Undi. This merge is suitable for RP, ERP, and general knowledge.
+
+  #merge #uncensored
+context_length: 8192
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: alpaca
+pricing:
+  prompt: '0.00000125'
+  completion: '0.000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+  - top_a
+model_provider: neversleep

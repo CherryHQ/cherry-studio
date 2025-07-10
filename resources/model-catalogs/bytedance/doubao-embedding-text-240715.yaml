@@ -1,0 +1,25 @@
+id: bytedance/doubao-embedding-text-240715
+canonical_slug: bytedance/doubao-embedding-text-240715
+type: embedding
+hugging_face_id: null
+name: 'ByteDance: Doubao Embedding'
+description: |-
+  由字节跳动研发的语义向量化模型，主要面向向量检索的使用场景，支持中、英双语，最长 4K 上下文长度。向量维度 2048 维，支持 512、1024 降维使用。
+context_length: 4000
+dimensions:
+  - 512
+  - 1024
+  - 2048
+  - 2560
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Doubao
+pricing:
+  prompt: '0.5'
+  unit: 1000000
+  currency: CNY
+model_provider: bytedance

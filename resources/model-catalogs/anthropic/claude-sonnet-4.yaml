@@ -1,0 +1,42 @@
+id: anthropic/claude-sonnet-4
+canonical_slug: anthropic/claude-4-sonnet-20250522
+hugging_face_id: ''
+name: 'Anthropic: Claude Sonnet 4'
+type: chat
+created: 1747930371
+description: |-
+  Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%), Sonnet 4 balances capability and computational efficiency, making it suitable for a broad range of applications from routine coding tasks to complex software development projects. Key enhancements include improved autonomous codebase navigation, reduced error rates in agent-driven workflows, and increased reliability in following intricate instructions. Sonnet 4 is optimized for practical everyday use, providing advanced reasoning capabilities while maintaining efficiency and responsiveness in diverse internal and external scenarios.
+
+  Read more at the [blog post here](https://www.anthropic.com/news/claude-4)
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - image
+    - text
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.000003'
+  completion: '0.000015'
+  input_cache_read: '0.0000003'
+  input_cache_write: '0.00000375'
+  request: '0'
+  image: '0.0048'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - stop
+  - reasoning
+  - include_reasoning
+  - tools
+  - tool_choice
+  - top_p
+  - top_k
+model_provider: anthropic

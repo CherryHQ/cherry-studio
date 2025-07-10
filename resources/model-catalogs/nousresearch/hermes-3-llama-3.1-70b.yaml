@@ -1,0 +1,50 @@
+id: nousresearch/hermes-3-llama-3.1-70b
+canonical_slug: nousresearch/hermes-3-llama-3.1-70b
+hugging_face_id: NousResearch/Hermes-3-Llama-3.1-70B
+name: 'Nous: Hermes 3 70B Instruct'
+type: chat
+created: 1723939200
+description: |-
+  Hermes 3 is a generalist language model with many improvements over [Hermes 2](/models/nousresearch/nous-hermes-2-mistral-7b-dpo), including advanced agentic capabilities, much better roleplaying, reasoning, multi-turn conversation, long context coherence, and improvements across the board.
+
+  Hermes 3 70B is a competitive, if not superior finetune of the [Llama-3.1 70B foundation model](/models/meta-llama/llama-3.1-70b-instruct), focused on aligning LLMs to the user, with powerful steering capabilities and control given to the end user.
+
+  The Hermes 3 series builds and expands on the Hermes 2 set of capabilities, including more powerful and reliable function calling and structured output capabilities, generalist assistant capabilities, and improved code generation skills.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: chatml
+pricing:
+  prompt: '0.00000012'
+  completion: '0.0000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - min_p
+  - repetition_penalty
+  - top_k
+  - tools
+  - tool_choice
+model_provider: nousresearch

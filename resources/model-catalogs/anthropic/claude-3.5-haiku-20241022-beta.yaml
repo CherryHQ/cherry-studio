@@ -1,0 +1,42 @@
+id: anthropic/claude-3.5-haiku-20241022:beta
+canonical_slug: anthropic/claude-3-5-haiku-20241022
+hugging_face_id: ''
+name: 'Anthropic: Claude 3.5 Haiku (2024-10-22) (self-moderated)'
+type: chat
+created: 1730678400
+description: |-
+  Claude 3.5 Haiku features enhancements across all skill sets including coding, tool use, and reasoning. As the fastest model in the Anthropic lineup, it offers rapid response times suitable for applications that require high interactivity and low latency, such as user-facing chatbots and on-the-fly code completions. It also excels in specialized tasks like data extraction and real-time content moderation, making it a versatile tool for a broad range of industries.
+
+  It does not support image inputs.
+
+  See the launch announcement and benchmark results [here](https://www.anthropic.com/news/3-5-models-and-computer-use)
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.0000008'
+  completion: '0.000004'
+  input_cache_read: '0.00000008'
+  input_cache_write: '0.000001'
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: anthropic

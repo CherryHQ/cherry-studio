@@ -1,0 +1,36 @@
+id: inflection/inflection-3-pi
+canonical_slug: inflection/inflection-3-pi
+hugging_face_id: ''
+name: 'Inflection: Inflection 3 Pi'
+type: chat
+created: 1728604800
+description: |-
+  Inflection 3 Pi powers Inflection's [Pi](https://pi.ai) chatbot, including backstory, emotional intelligence, productivity, and safety. It has access to recent news, and excels in scenarios like customer support and roleplay.
+
+  Pi has been trained to mirror your tone and style, if you use more emojis, so will Pi! Try experimenting with various prompts and conversation styles.
+context_length: 8000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000025'
+  completion: '0.00001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+model_provider: inflection

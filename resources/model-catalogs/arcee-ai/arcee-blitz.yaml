@@ -1,0 +1,40 @@
+id: arcee-ai/arcee-blitz
+canonical_slug: arcee-ai/arcee-blitz
+hugging_face_id: arcee-ai/arcee-blitz
+name: 'Arcee AI: Arcee Blitz'
+type: chat
+created: 1746470100
+description: 'Arcee Blitz is a 24 B‑parameter dense model distilled from DeepSeek and built on Mistral architecture for "everyday" chat. The distillation‑plus‑refinement pipeline trims compute while keeping DeepSeek‑style reasoning, so Blitz punches above its weight on MMLU, GSM‑8K and BBH compared with other mid‑size open models. With a default 128 k context window and competitive throughput, it serves as a cost‑efficient workhorse for summarization, brainstorming and light code help. Internally, Arcee uses Blitz as the default writer in Conductor pipelines when the heavier Virtuoso line is not required. Users therefore get near‑70 B quality at ~⅓ the latency and price. '
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00000045'
+  completion: '0.00000075'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+model_provider: arcee-ai

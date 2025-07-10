@@ -1,0 +1,43 @@
+id: qwen/qwen2.5-vl-32b-instruct
+canonical_slug: qwen/qwen2.5-vl-32b-instruct
+hugging_face_id: Qwen/Qwen2.5-VL-32B-Instruct
+name: 'Qwen: Qwen2.5 VL 32B Instruct'
+type: chat
+created: 1742839838
+description: Qwen2.5-VL-32B is a multimodal vision-language model fine-tuned through reinforcement learning for enhanced mathematical reasoning, structured outputs, and visual problem-solving capabilities. It excels at visual analysis tasks, including object recognition, textual interpretation within images, and precise event localization in extended videos. Qwen2.5-VL-32B demonstrates state-of-the-art performance across multimodal benchmarks such as MMMU, MathVista, and VideoMME, while maintaining strong reasoning and clarity in text-based tasks like MMLU, mathematical problem-solving, and code generation.
+context_length: 128000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.0000009'
+  completion: '0.0000009'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - response_format
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: qwen

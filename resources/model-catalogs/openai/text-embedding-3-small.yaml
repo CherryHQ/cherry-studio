@@ -1,0 +1,21 @@
+id: openai/text-embedding-3-small
+canonical_slug: openai/text-embedding-3-small
+type: embedding
+hugging_face_id: null
+name: 'OpenAI: Text Embedding 3 Small'
+description: |-
+  text-embedding-3-small is our improved, more performant version of our ada embedding model. Embeddings are a numerical representation of text that can be used to measure the relatedness between two pieces of text. Embeddings are useful for search, clustering, recommendations, anomaly detection, and classification tasks.
+context_length: 16000
+max_dimension: 1536
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+pricing:
+  prompt: '0.02'
+  unit: 1000000
+  currency: USD
+model_provider: OpenAI

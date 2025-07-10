@@ -1,0 +1,53 @@
+id: qwen/qwen-2.5-7b-instruct
+canonical_slug: qwen/qwen-2.5-7b-instruct
+hugging_face_id: Qwen/Qwen2.5-7B-Instruct
+name: Qwen2.5 7B Instruct
+type: chat
+created: 1729036800
+description: |-
+  Qwen2.5 7B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2:
+
+  - Significantly more knowledge and has greatly improved capabilities in coding and mathematics, thanks to our specialized expert models in these domains.
+
+  - Significant improvements in instruction following, generating long texts (over 8K tokens), understanding structured data (e.g, tables), and generating structured outputs especially JSON. More resilient to the diversity of system prompts, enhancing role-play implementation and condition-setting for chatbots.
+
+  - Long-context Support up to 128K tokens and can generate up to 8K tokens.
+
+  - Multilingual support for over 29 languages, including Chinese, English, French, Spanish, Portuguese, German, Italian, Russian, Japanese, Korean, Vietnamese, Thai, Arabic, and more.
+
+  Usage of this model is subject to [Tongyi Qianwen LICENSE AGREEMENT](https://huggingface.co/Qwen/Qwen1.5-110B-Chat/blob/main/LICENSE).
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: chatml
+pricing:
+  prompt: '0.00000004'
+  completion: '0.0000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - structured_outputs
+  - seed
+model_provider: qwen

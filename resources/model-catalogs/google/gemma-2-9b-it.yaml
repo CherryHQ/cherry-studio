@@ -1,0 +1,45 @@
+id: google/gemma-2-9b-it
+canonical_slug: google/gemma-2-9b-it
+hugging_face_id: google/gemma-2-9b-it
+name: 'Google: Gemma 2 9B'
+type: chat
+created: 1719532800
+description: |-
+  Gemma 2 9B by Google is an advanced, open-source language model that sets a new standard for efficiency and performance in its size class.
+
+  Designed for a wide variety of tasks, it empowers developers and researchers to build innovative applications, while maintaining accessibility, safety, and cost-effectiveness.
+
+  See the [launch announcement](https://blog.google/technology/developers/google-gemma-2/) for more details. Usage of Gemma is subject to Google's [Gemma Terms of Use](https://ai.google.dev/gemma/terms).
+context_length: 8192
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: gemma
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - top_logprobs
+  - logprobs
+  - logit_bias
+  - seed
+model_provider: google

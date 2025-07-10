@@ -1,0 +1,34 @@
+id: anthropic/claude-2.0
+canonical_slug: anthropic/claude-2.0
+hugging_face_id: ''
+name: 'Anthropic: Claude v2.0'
+type: chat
+created: 1690502400
+description: Anthropic's flagship model. Superior performance on tasks that require complex reasoning. Supports hundreds of pages of text.
+context_length: 100000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.000008'
+  completion: '0.000024'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: anthropic

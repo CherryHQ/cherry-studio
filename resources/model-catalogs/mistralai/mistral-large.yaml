@@ -1,0 +1,43 @@
+id: mistralai/mistral-large
+canonical_slug: mistralai/mistral-large
+hugging_face_id: ''
+name: Mistral Large
+type: chat
+created: 1708905600
+description: |-
+  This is Mistral AI's flagship model, Mistral Large 2 (version `mistral-large-2407`). It's a proprietary weights-available model and excels at reasoning, code, JSON, chat, and more. Read the launch announcement [here](https://mistral.ai/news/mistral-large-2407/).
+
+  It supports dozens of languages including French, German, Spanish, Italian, Portuguese, Arabic, Hindi, Russian, Chinese, Japanese, and Korean, along with 80+ coding languages including Python, Java, C, C++, JavaScript, and Bash. Its long context window allows precise information recall from large documents.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.000002'
+  completion: '0.000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - response_format
+  - stop
+  - seed
+  - frequency_penalty
+  - presence_penalty
+  - structured_outputs
+model_provider: mistralai

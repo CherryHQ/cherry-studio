@@ -1,0 +1,43 @@
+id: nousresearch/hermes-2-pro-llama-3-8b
+canonical_slug: nousresearch/hermes-2-pro-llama-3-8b
+hugging_face_id: NousResearch/Hermes-2-Pro-Llama-3-8B
+name: 'NousResearch: Hermes 2 Pro - Llama-3 8B'
+type: chat
+created: 1716768000
+description: Hermes 2 Pro is an upgraded, retrained version of Nous Hermes 2, consisting of an updated and cleaned version of the OpenHermes 2.5 Dataset, as well as a newly introduced Function Calling and JSON Mode dataset developed in-house.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: chatml
+pricing:
+  prompt: '0.000000025'
+  completion: '0.00000004'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - min_p
+  - repetition_penalty
+  - top_k
+model_provider: nousresearch

@@ -1,0 +1,37 @@
+id: microsoft/phi-3-mini-128k-instruct
+canonical_slug: microsoft/phi-3-mini-128k-instruct
+hugging_face_id: microsoft/Phi-3-mini-128k-instruct
+name: 'Microsoft: Phi-3 Mini 128K Instruct'
+type: chat
+created: 1716681600
+description: |-
+  Phi-3 Mini is a powerful 3.8B parameter model designed for advanced language understanding, reasoning, and instruction following. Optimized through supervised fine-tuning and preference adjustments, it excels in tasks involving common sense, mathematics, logical reasoning, and code processing.
+
+  At time of release, Phi-3 Medium demonstrated state-of-the-art performance among lightweight models. This model is static, trained on an offline dataset with an October 2023 cutoff date.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: phi3
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+model_provider: microsoft

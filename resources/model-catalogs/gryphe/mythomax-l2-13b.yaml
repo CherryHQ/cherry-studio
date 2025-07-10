@@ -1,0 +1,42 @@
+id: gryphe/mythomax-l2-13b
+canonical_slug: gryphe/mythomax-l2-13b
+hugging_face_id: Gryphe/MythoMax-L2-13b
+name: MythoMax 13B
+type: chat
+created: 1688256000
+description: 'One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay. #merge'
+context_length: 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: alpaca
+pricing:
+  prompt: '0.000000065'
+  completion: '0.000000065'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - presence_penalty
+  - frequency_penalty
+  - repetition_penalty
+  - top_k
+  - stop
+  - seed
+  - min_p
+  - logit_bias
+  - response_format
+  - top_a
+model_provider: gryphe

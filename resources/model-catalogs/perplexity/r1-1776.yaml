@@ -1,0 +1,47 @@
+id: perplexity/r1-1776
+canonical_slug: perplexity/r1-1776
+hugging_face_id: perplexity-ai/r1-1776
+name: 'Perplexity: R1 1776'
+type: chat
+created: 1740004929
+description: |-
+  R1 1776 is a version of DeepSeek-R1 that has been post-trained to remove censorship constraints related to topics restricted by the Chinese government. The model retains its original reasoning capabilities while providing direct responses to a wider range of queries. R1 1776 is an offline chat model that does not use the perplexity search subsystem.
+
+  The model was tested on a multilingual dataset of over 1,000 examples covering sensitive topics to measure its likelihood of refusal or overly filtered responses. [Evaluation Results](https://cdn-uploads.huggingface.co/production/uploads/675c8332d01f593dc90817f5/GiN2VqC5hawUgAGJ6oHla.png) Its performance on math and reasoning benchmarks remains similar to the base R1 model. [Reasoning Performance](https://cdn-uploads.huggingface.co/production/uploads/675c8332d01f593dc90817f5/n4Z9Byqp2S7sKUvCvI40R.png)
+
+  Read more on the [Blog Post](https://perplexity.ai/hub/blog/open-sourcing-r1-1776)
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: DeepSeek
+  instruct_type: deepseek-r1
+pricing:
+  prompt: '0.000002'
+  completion: '0.000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - top_k
+  - frequency_penalty
+  - presence_penalty
+  - stop
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+model_provider: perplexity

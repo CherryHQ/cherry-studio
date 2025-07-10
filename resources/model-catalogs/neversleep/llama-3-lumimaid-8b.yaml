@@ -1,0 +1,46 @@
+id: neversleep/llama-3-lumimaid-8b
+canonical_slug: neversleep/llama-3-lumimaid-8b
+hugging_face_id: NeverSleep/Llama-3-Lumimaid-8B-v0.1
+name: 'NeverSleep: Llama 3 Lumimaid 8B'
+type: chat
+created: 1714780800
+description: |-
+  The NeverSleep team is back, with a Llama 3 8B finetune trained on their curated roleplay data. Striking a balance between eRP and RP, Lumimaid was designed to be serious, yet uncensored when necessary.
+
+  To enhance it's overall intelligence and chat capability, roughly 40% of the training data was not roleplay. This provides a breadth of knowledge to access, while still keeping roleplay as the primary strength.
+
+  Usage of this model is subject to [Meta's Acceptable Use Policy](https://llama.meta.com/llama3/use-policy/).
+context_length: 24576
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.0000002'
+  completion: '0.00000125'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+  - logit_bias
+  - top_a
+model_provider: neversleep

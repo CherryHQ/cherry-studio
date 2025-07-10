@@ -1,0 +1,51 @@
+id: openai/gpt-4o-2024-08-06
+canonical_slug: openai/gpt-4o-2024-08-06
+hugging_face_id: ''
+name: 'OpenAI: GPT-4o (2024-08-06)'
+type: chat
+created: 1722902400
+description: |-
+  The 2024-08-06 version of GPT-4o offers improved performance in structured outputs, with the ability to supply a JSON schema in the respone_format. Read more [here](https://openai.com/index/introducing-structured-outputs-in-the-api/).
+
+  GPT-4o ("o" for "omni") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.
+
+  For benchmarking against other models, it was briefly called ["im-also-a-good-gpt2-chatbot"](https://twitter.com/LiamFedus/status/1790064963966370209)
+context_length: 128000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+    - file
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.0000025'
+  completion: '0.00001'
+  input_cache_read: '0.00000125'
+  input_cache_write: ''
+  request: '0'
+  image: '0.003613'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - web_search_options
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

@@ -1,0 +1,44 @@
+id: neversleep/llama-3.1-lumimaid-70b
+canonical_slug: neversleep/llama-3.1-lumimaid-70b
+hugging_face_id: NeverSleep/Lumimaid-v0.2-70B
+name: 'NeverSleep: Lumimaid v0.2 70B'
+type: chat
+created: 1729555200
+description: |-
+  Lumimaid v0.2 70B is a finetune of [Llama 3.1 70B](/meta-llama/llama-3.1-70b-instruct) with a "HUGE step up dataset wise" compared to Lumimaid v0.1. Sloppy chats output were purged.
+
+  Usage of this model is subject to [Meta's Acceptable Use Policy](https://llama.meta.com/llama3/use-policy/).
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.0000025'
+  completion: '0.000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+  - top_a
+model_provider: neversleep

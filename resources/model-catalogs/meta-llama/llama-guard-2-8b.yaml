@@ -1,0 +1,49 @@
+id: meta-llama/llama-guard-2-8b
+canonical_slug: meta-llama/llama-guard-2-8b
+hugging_face_id: meta-llama/Meta-Llama-Guard-2-8B
+name: 'Meta: LlamaGuard 2 8B'
+type: chat
+created: 1715558400
+description: |-
+  This safeguard model has 8B parameters and is based on the Llama 3 family. Just like is predecessor, [LlamaGuard 1](https://huggingface.co/meta-llama/LlamaGuard-7b), it can do both prompt and response classification.
+
+  LlamaGuard 2 acts as a normal LLM would, generating text that indicates whether the given input/output is safe/unsafe. If deemed unsafe, it will also share the content categories violated.
+
+  For best results, please use raw prompt input or the `/completions` endpoint, instead of the chat API.
+
+  It has demonstrated strong performance compared to leading closed-source models in human evaluations.
+
+  To read more about the model release, [click here](https://ai.meta.com/blog/meta-llama-3/). Usage of this model is subject to [Meta's Acceptable Use Policy](https://llama.meta.com/llama3/use-policy/).
+context_length: 8192
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: none
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+model_provider: meta-llama

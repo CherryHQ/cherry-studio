@@ -1,0 +1,43 @@
+id: microsoft/phi-4
+canonical_slug: microsoft/phi-4
+hugging_face_id: microsoft/phi-4
+name: 'Microsoft: Phi 4'
+type: chat
+created: 1736489872
+description: "[Microsoft Research](/microsoft) Phi-4 is designed to perform well in complex reasoning tasks and can operate efficiently in situations with limited memory or where quick responses are needed. \n\nAt 14 billion parameters, it was trained on a mix of high-quality synthetic datasets, data from curated websites, and academic materials. It has undergone careful improvement to follow instructions accurately and maintain strong safety standards. It works best with English language inputs.\n\nFor more information, please see [Phi-4 Technical Report](https://arxiv.org/pdf/2412.08905)\n"
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00000007'
+  completion: '0.00000014'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - repetition_penalty
+  - response_format
+  - min_p
+model_provider: microsoft

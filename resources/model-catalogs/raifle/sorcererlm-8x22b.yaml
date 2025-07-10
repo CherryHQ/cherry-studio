@@ -1,0 +1,45 @@
+id: raifle/sorcererlm-8x22b
+canonical_slug: raifle/sorcererlm-8x22b
+hugging_face_id: rAIfle/SorcererLM-8x22b-bf16
+name: SorcererLM 8x22B
+type: chat
+created: 1731105083
+description: |-
+  SorcererLM is an advanced RP and storytelling model, built as a Low-rank 16-bit LoRA fine-tuned on [WizardLM-2 8x22B](/microsoft/wizardlm-2-8x22b).
+
+  - Advanced reasoning and emotional intelligence for engaging and immersive interactions
+  - Vivid writing capabilities enriched with spatial and contextual awareness
+  - Enhanced narrative depth, promoting creative and dynamic storytelling
+context_length: 16000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: vicuna
+pricing:
+  prompt: '0.0000045'
+  completion: '0.0000045'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+model_provider: raifle

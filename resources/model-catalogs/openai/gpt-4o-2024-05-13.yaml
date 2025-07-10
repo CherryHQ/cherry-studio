@@ -1,0 +1,51 @@
+id: openai/gpt-4o-2024-05-13
+canonical_slug: openai/gpt-4o-2024-05-13
+hugging_face_id: ''
+name: 'OpenAI: GPT-4o (2024-05-13)'
+type: chat
+created: 1715558400
+description: |-
+  GPT-4o ("o" for "omni") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.
+
+  For benchmarking against other models, it was briefly called ["im-also-a-good-gpt2-chatbot"](https://twitter.com/LiamFedus/status/1790064963966370209)
+
+  #multimodal
+context_length: 128000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+    - file
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000005'
+  completion: '0.000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.007225'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - web_search_options
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

@@ -1,0 +1,46 @@
+id: google/gemini-flash-1.5-8b
+canonical_slug: google/gemini-flash-1.5-8b
+hugging_face_id: ''
+name: 'Google: Gemini 1.5 Flash 8B'
+type: chat
+created: 1727913600
+description: |-
+  Gemini Flash 1.5 8B is optimized for speed and efficiency, offering enhanced performance in small prompt tasks like chat, transcription, and translation. With reduced latency, it is highly effective for real-time and large-scale operations. This model focuses on cost-effective solutions while maintaining high-quality results.
+
+  [Click here to learn more about this model](https://developers.googleblog.com/en/gemini-15-flash-8b-is-now-generally-available-for-use/).
+
+  Usage of Gemini is subject to Google's [Gemini Terms of Use](https://ai.google.dev/terms).
+context_length: 1000000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.0000000375'
+  completion: '0.00000015'
+  input_cache_read: '0.00000001'
+  input_cache_write: '0.0000000583'
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - tools
+  - tool_choice
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

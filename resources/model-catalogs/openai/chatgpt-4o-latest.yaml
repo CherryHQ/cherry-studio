@@ -1,0 +1,45 @@
+id: openai/chatgpt-4o-latest
+canonical_slug: openai/chatgpt-4o-latest
+hugging_face_id: ''
+name: 'OpenAI: ChatGPT-4o'
+type: chat
+created: 1723593600
+description: |-
+  OpenAI ChatGPT 4o is continually updated by OpenAI to point to the current version of GPT-4o used by ChatGPT. It therefore differs slightly from the API version of [GPT-4o](/models/openai/gpt-4o) in that it has additional RLHF. It is intended for research and evaluation.
+
+  OpenAI notes that this model is not suited for production use-cases as it may be removed or redirected to another model in the future.
+context_length: 128000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000005'
+  completion: '0.000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.007225'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

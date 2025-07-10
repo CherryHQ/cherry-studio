@@ -1,0 +1,25 @@
+id: bytedance/doubao-embedding-large-text-240915
+canonical_slug: bytedance/doubao-embedding-large-text-240915
+type: embedding
+hugging_face_id: null
+name: 'ByteDance: Doubao Embedding Large Text (240915)'
+description: |-
+  Doubao Embedding Large 是字节跳动语义向量化模型的最新升级版，模型以豆包语言模型为基座，具备强大的语言理解能力；主要面向向量检索的使用场景，支持中、英双语。
+context_length: 4000
+dimensions:
+  - 512
+  - 1024
+  - 2048
+  - 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Doubao
+pricing:
+  prompt: '0.7'
+  unit: 1000000
+  currency: CNY
+model_provider: bytedance

@@ -1,0 +1,46 @@
+id: sao10k/l3-lunaris-8b
+canonical_slug: sao10k/l3-lunaris-8b
+hugging_face_id: Sao10K/L3-8B-Lunaris-v1
+name: 'Sao10K: Llama 3 8B Lunaris'
+type: chat
+created: 1723507200
+description: |-
+  Lunaris 8B is a versatile generalist and roleplaying model based on Llama 3. It's a strategic merge of multiple models, designed to balance creativity with improved logic and general knowledge.
+
+  Created by [Sao10k](https://huggingface.co/Sao10k), this model aims to offer an improved experience over Stheno v3.2, with enhanced creativity and logical reasoning.
+
+  For best results, use with Llama 3 Instruct context template, temperature 1.4, and min_p 0.1.
+context_length: 8192
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.00000002'
+  completion: '0.00000005'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+  - response_format
+model_provider: sao10k

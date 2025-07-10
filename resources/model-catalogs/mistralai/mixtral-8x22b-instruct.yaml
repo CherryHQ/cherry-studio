@@ -1,0 +1,52 @@
+id: mistralai/mixtral-8x22b-instruct
+canonical_slug: mistralai/mixtral-8x22b-instruct
+hugging_face_id: mistralai/Mixtral-8x22B-Instruct-v0.1
+name: 'Mistral: Mixtral 8x22B Instruct'
+type: chat
+created: 1713312000
+description: |-
+  Mistral's official instruct fine-tuned version of [Mixtral 8x22B](/models/mistralai/mixtral-8x22b). It uses 39B active parameters out of 141B, offering unparalleled cost efficiency for its size. Its strengths include:
+  - strong math, coding, and reasoning
+  - large context length (64k)
+  - fluency in English, French, Italian, German, and Spanish
+
+  See benchmarks on the launch announcement [here](https://mistral.ai/news/mixtral-8x22b/).
+  #moe
+context_length: 65536
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.0000009'
+  completion: '0.0000009'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - structured_outputs
+  - seed
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: mistralai

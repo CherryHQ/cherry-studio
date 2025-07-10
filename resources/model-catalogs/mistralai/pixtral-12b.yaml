@@ -1,0 +1,47 @@
+id: mistralai/pixtral-12b
+canonical_slug: mistralai/pixtral-12b
+hugging_face_id: mistralai/Pixtral-12B-2409
+name: 'Mistral: Pixtral 12B'
+type: chat
+created: 1725926400
+description: 'The first multi-modal, text+image-to-text model from Mistral AI. Its weights were launched via torrent: https://x.com/mistralai/status/1833758285167722836.'
+context_length: 32768
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0001445'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - logprobs
+  - top_logprobs
+  - seed
+  - logit_bias
+  - top_k
+  - min_p
+  - repetition_penalty
+  - tools
+  - tool_choice
+  - response_format
+  - structured_outputs
+model_provider: mistralai

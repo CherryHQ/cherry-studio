@@ -1,0 +1,43 @@
+id: mistralai/mistral-7b-instruct-v0.1
+canonical_slug: mistralai/mistral-7b-instruct-v0.1
+hugging_face_id: mistralai/Mistral-7B-Instruct-v0.1
+name: 'Mistral: Mistral 7B Instruct v0.1'
+type: chat
+created: 1695859200
+description: A 7.3B parameter model that outperforms Llama 2 13B on all benchmarks, with optimizations for speed and context length.
+context_length: 2824
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.00000011'
+  completion: '0.00000019'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - seed
+model_provider: mistralai

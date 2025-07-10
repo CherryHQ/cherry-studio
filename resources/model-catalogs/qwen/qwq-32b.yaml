@@ -1,0 +1,46 @@
+id: qwen/qwq-32b
+canonical_slug: qwen/qwq-32b
+hugging_face_id: Qwen/QwQ-32B
+name: 'Qwen: QwQ 32B'
+type: chat
+created: 1741208814
+description: QwQ is the reasoning model of the Qwen series. Compared with conventional instruction-tuned models, QwQ, which is capable of thinking and reasoning, can achieve significantly enhanced performance in downstream tasks, especially hard problems. QwQ-32B is the medium-sized reasoning model, which is capable of achieving competitive performance against state-of-the-art reasoning models, e.g., DeepSeek-R1, o1-mini.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: qwq
+pricing:
+  prompt: '0.00000015'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - logprobs
+  - top_logprobs
+  - seed
+  - structured_outputs
+model_provider: qwen

@@ -1,0 +1,42 @@
+id: anthropic/claude-3-sonnet:beta
+canonical_slug: anthropic/claude-3-sonnet
+hugging_face_id: ''
+name: 'Anthropic: Claude 3 Sonnet (self-moderated)'
+type: chat
+created: 1709596800
+description: |-
+  Claude 3 Sonnet is an ideal balance of intelligence and speed for enterprise workloads. Maximum utility at a lower price, dependable, balanced for scaled deployments.
+
+  See the launch announcement and benchmark results [here](https://www.anthropic.com/news/claude-3-family)
+
+  #multimodal
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.000003'
+  completion: '0.000015'
+  input_cache_read: '0.0000003'
+  input_cache_write: '0.00000375'
+  request: '0'
+  image: '0.0048'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: anthropic

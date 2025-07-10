@@ -1,0 +1,45 @@
+id: openai/gpt-3.5-turbo-0125
+canonical_slug: openai/gpt-3.5-turbo-0125
+hugging_face_id: ''
+name: 'OpenAI: GPT-3.5 Turbo 16k'
+type: chat
+created: 1685232000
+description: |-
+  The latest GPT-3.5 Turbo model with improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more. Training data: up to Sep 2021.
+
+  This version has a higher accuracy at responding in requested formats and a fix for a bug which caused a text encoding issue for non-English language function calls.
+context_length: 16385
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.0000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: openai

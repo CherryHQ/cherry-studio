@@ -1,0 +1,50 @@
+id: meta-llama/llama-4-maverick
+canonical_slug: meta-llama/llama-4-maverick-17b-128e-instruct
+hugging_face_id: meta-llama/Llama-4-Maverick-17B-128E-Instruct
+name: 'Meta: Llama 4 Maverick'
+type: chat
+created: 1743881822
+description: |-
+  Llama 4 Maverick 17B Instruct (128E) is a high-capacity multimodal language model from Meta, built on a mixture-of-experts (MoE) architecture with 128 experts and 17 billion active parameters per forward pass (400B total). It supports multilingual text and image input, and produces multilingual text and code output across 12 supported languages. Optimized for vision-language tasks, Maverick is instruction-tuned for assistant-like behavior, image reasoning, and general-purpose multimodal interaction.
+
+  Maverick features early fusion for native multimodality and a 1 million token context window. It was trained on a curated mixture of public, licensed, and Meta-platform data, covering ~22 trillion tokens, with a knowledge cutoff in August 2024. Released on April 5, 2025 under the Llama 4 Community License, Maverick is suited for research and commercial applications requiring advanced multimodal understanding and high model throughput.
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Llama4
+  instruct_type: null
+pricing:
+  prompt: '0.00000015'
+  completion: '0.0000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0006684'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - response_format
+  - top_k
+  - seed
+  - min_p
+  - logit_bias
+  - tools
+  - tool_choice
+  - structured_outputs
+  - logprobs
+  - top_logprobs
+model_provider: meta-llama

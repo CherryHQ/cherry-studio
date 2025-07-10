@@ -1,0 +1,41 @@
+id: deepseek/deepseek-prover-v2
+canonical_slug: deepseek/deepseek-prover-v2
+hugging_face_id: deepseek-ai/DeepSeek-Prover-V2-671B
+name: 'DeepSeek: DeepSeek Prover V2'
+type: chat
+created: 1746013094
+description: DeepSeek Prover V2 is a 671B parameter model, speculated to be geared towards logic and mathematics. Likely an upgrade from [DeepSeek-Prover-V1.5](https://huggingface.co/deepseek-ai/DeepSeek-Prover-V1.5-RL) Not much is known about the model yet, as DeepSeek released it on Hugging Face without an announcement or description.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: DeepSeek
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.00000218'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+  - response_format
+model_provider: deepseek

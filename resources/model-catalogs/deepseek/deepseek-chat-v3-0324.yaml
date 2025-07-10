@@ -1,0 +1,49 @@
+id: deepseek/deepseek-chat-v3-0324
+canonical_slug: deepseek/deepseek-chat-v3-0324
+hugging_face_id: deepseek-ai/DeepSeek-V3-0324
+name: 'DeepSeek: DeepSeek V3 0324'
+type: chat
+created: 1742824755
+description: |-
+  DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team.
+
+  It succeeds the [DeepSeek V3](/deepseek/deepseek-chat-v3) model and performs really well on a variety of tasks.
+context_length: 163840
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: DeepSeek
+  instruct_type: null
+pricing:
+  prompt: '0.0000003'
+  completion: '0.00000088'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - structured_outputs
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - seed
+  - min_p
+model_provider: deepseek

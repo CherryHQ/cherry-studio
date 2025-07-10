@@ -1,0 +1,41 @@
+id: bytedance/doubao-seed-1.6-flash
+canonical_slug: bytedance/doubao-seed-1.6-flash
+type: chat
+hugging_face_id: ''
+name: 'ByteDance: Doubao Seed 1.6 Flash'
+created: 1738402289
+description: 有极致推理速度的多模态深度思考模型；同时支持文本和视觉理解。文本理解能力超过上一代 Lite 系列模型，视觉理解比肩友商 Pro 系列模型。
+context_length: 256000
+architecture:
+  modality: text+image+vedio->text
+  input_modalities:
+    - text
+    - image
+    - video
+  output_modalities:
+    - text
+  tokenizer: Doubao
+  instruct_type: null
+pricing:
+  prompt: '0.15'
+  completion: '1.5'
+  input_cache_read: '0.03'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  currency: CNY
+  unit: 1000000
+supported_parameters:
+  - max_tokens
+  - temperature
+  - stop
+  - reasoning
+  - include_reasoning
+  - tools
+  - tool_choice
+  - top_p
+  - top_k
+  - structured_outputs
+model_provider: bytedance

@@ -1,0 +1,39 @@
+id: alfredpros/codellama-7b-instruct-solidity
+canonical_slug: alfredpros/codellama-7b-instruct-solidity
+hugging_face_id: AlfredPros/CodeLlama-7b-Instruct-Solidity
+name: 'AlfredPros: CodeLLaMa 7B Instruct Solidity'
+type: chat
+created: 1744641874
+description: A finetuned 7 billion parameters Code LLaMA - Instruct model to generate Solidity smart contract using 4-bit QLoRA finetuning provided by PEFT library.
+context_length: 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: alpaca
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: alfredpros

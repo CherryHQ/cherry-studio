@@ -1,0 +1,47 @@
+id: 01-ai/yi-large
+canonical_slug: 01-ai/yi-large
+hugging_face_id: ''
+name: '01.AI: Yi Large'
+type: chat
+created: 1719273600
+description: |-
+  The Yi Large model was designed by 01.AI with the following usecases in mind: knowledge search, data classification, human-like chat bots, and customer service.
+
+  It stands out for its multilingual proficiency, particularly in Spanish, Chinese, Japanese, German, and French.
+
+  Check out the [launch announcement](https://01-ai.github.io/blog/01.ai-yi-large-llm-launch) to learn more.
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Yi
+  instruct_type: null
+pricing:
+  prompt: '0.000003'
+  completion: '0.000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - response_format
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: 01-ai

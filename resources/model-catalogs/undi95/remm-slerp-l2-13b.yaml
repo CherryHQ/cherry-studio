@@ -1,0 +1,41 @@
+id: undi95/remm-slerp-l2-13b
+canonical_slug: undi95/remm-slerp-l2-13b
+hugging_face_id: Undi95/ReMM-SLERP-L2-13B
+name: ReMM SLERP 13B
+type: chat
+created: 1689984000
+description: 'A recreation trial of the original MythoMax-L2-B13 but with updated models. #merge'
+context_length: 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: alpaca
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+  - logit_bias
+  - top_a
+model_provider: undi95

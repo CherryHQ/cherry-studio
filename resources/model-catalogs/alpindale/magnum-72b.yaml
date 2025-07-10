@@ -1,0 +1,42 @@
+id: alpindale/magnum-72b
+canonical_slug: alpindale/magnum-72b
+hugging_face_id: alpindale/magnum-72b-v1
+name: Magnum 72B
+type: chat
+created: 1720656000
+description: |-
+  From the maker of [Goliath](https://openrouter.ai/models/alpindale/goliath-120b), Magnum 72B is the first in a new family of models designed to achieve the prose quality of the Claude 3 models, notably Opus & Sonnet.
+
+  The model is based on [Qwen2 72B](https://openrouter.ai/models/qwen/qwen-2-72b-instruct) and trained with 55 million tokens of highly curated roleplay (RP) data.
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: chatml
+pricing:
+  prompt: '0.000004'
+  completion: '0.000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: alpindale

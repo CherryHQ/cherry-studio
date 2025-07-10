@@ -1,0 +1,47 @@
+id: sao10k/l3-euryale-70b
+canonical_slug: sao10k/l3-euryale-70b
+hugging_face_id: Sao10K/L3-70B-Euryale-v2.1
+name: 'Sao10k: Llama 3 Euryale 70B v2.1'
+type: chat
+created: 1718668800
+description: |-
+  Euryale 70B v2.1 is a model focused on creative roleplay from [Sao10k](https://ko-fi.com/sao10k).
+
+  - Better prompt adherence.
+  - Better anatomy / spatial awareness.
+  - Adapts much better to unique and custom formatting / reply formats.
+  - Very creative, lots of unique swipes.
+  - Is not restrictive during roleplays.
+context_length: 8192
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.00000148'
+  completion: '0.00000148'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+model_provider: sao10k

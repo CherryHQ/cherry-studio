@@ -1,0 +1,43 @@
+id: deepseek/deepseek-r1-distill-qwen-32b
+canonical_slug: deepseek/deepseek-r1-distill-qwen-32b
+hugging_face_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+name: 'DeepSeek: R1 Distill Qwen 32B'
+type: chat
+created: 1738194830
+description: 'DeepSeek R1 Distill Qwen 32B is a distilled large language model based on [Qwen 2.5 32B](https://huggingface.co/Qwen/Qwen2.5-32B), using outputs from [DeepSeek R1](/deepseek/deepseek-r1). It outperforms OpenAI''s o1-mini across various benchmarks, achieving new state-of-the-art results for dense models.\n\nOther benchmark results include:\n\n- AIME 2024 pass@1: 72.6\n- MATH-500 pass@1: 94.3\n- CodeForces Rating: 1691\n\nThe model leverages fine-tuning from DeepSeek R1''s outputs, enabling competitive performance comparable to larger frontier models.'
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: deepseek-r1
+pricing:
+  prompt: '0.00000012'
+  completion: '0.00000018'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - seed
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+  - response_format
+model_provider: deepseek

@@ -1,0 +1,49 @@
+id: qwen/qwq-32b-preview
+canonical_slug: qwen/qwq-32b-preview
+hugging_face_id: Qwen/QwQ-32B-Preview
+name: 'Qwen: QwQ 32B Preview'
+type: chat
+created: 1732754541
+description: |+
+  QwQ-32B-Preview is an experimental research model focused on AI reasoning capabilities developed by the Qwen Team. As a preview release, it demonstrates promising analytical abilities while having several important limitations:
+
+  1. **Language Mixing and Code-Switching**: The model may mix languages or switch between them unexpectedly, affecting response clarity.
+  2. **Recursive Reasoning Loops**: The model may enter circular reasoning patterns, leading to lengthy responses without a conclusive answer.
+  3. **Safety and Ethical Considerations**: The model requires enhanced safety measures to ensure reliable and secure performance, and users should exercise caution when deploying it.
+  4. **Performance and Benchmark Limitations**: The model excels in math and coding but has room for improvement in other areas, such as common sense reasoning and nuanced language understanding.
+
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: deepseek-r1
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - logprobs
+  - top_logprobs
+  - seed
+  - logit_bias
+  - top_k
+  - min_p
+  - repetition_penalty
+model_provider: qwen

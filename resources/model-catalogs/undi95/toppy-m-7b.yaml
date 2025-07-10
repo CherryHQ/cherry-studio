@@ -1,0 +1,48 @@
+id: undi95/toppy-m-7b
+canonical_slug: undi95/toppy-m-7b
+hugging_face_id: Undi95/Toppy-M-7B
+name: Toppy M 7B
+type: chat
+created: 1699574400
+description: |-
+  A wild 7B parameter model that merges several models using the new task_arithmetic merge method from mergekit.
+  List of merged models:
+  - NousResearch/Nous-Capybara-7B-V1.9
+  - [HuggingFaceH4/zephyr-7b-beta](/models/huggingfaceh4/zephyr-7b-beta)
+  - lemonilia/AshhLimaRP-Mistral-7B
+  - Vulkane/120-Days-of-Sodom-LoRA-Mistral-7b
+  - Undi95/Mistral-pippa-sharegpt-7b-qlora
+
+  #merge #uncensored
+context_length: 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: alpaca
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: undi95

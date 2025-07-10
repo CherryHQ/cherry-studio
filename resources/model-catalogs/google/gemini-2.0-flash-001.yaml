@@ -1,0 +1,42 @@
+id: google/gemini-2.0-flash-001
+canonical_slug: google/gemini-2.0-flash-001
+hugging_face_id: ''
+name: 'Google: Gemini 2.0 Flash'
+type: chat
+created: 1738769413
+description: Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It introduces notable enhancements in multimodal understanding, coding capabilities, complex instruction following, and function calling. These advancements come together to deliver more seamless and robust agentic experiences.
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+    - file
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000004'
+  input_cache_read: '0.000000025'
+  input_cache_write: '0.0000001833'
+  request: '0'
+  image: '0.0000258'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

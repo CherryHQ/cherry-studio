@@ -1,0 +1,41 @@
+id: mancer/weaver
+canonical_slug: mancer/weaver
+hugging_face_id: ''
+name: 'Mancer: Weaver (alpha)'
+type: chat
+created: 1690934400
+description: An attempt to recreate Claude-style verbosity, but don't expect the same level of coherence or memory. Meant for use in roleplay/narrative situations.
+context_length: 8000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: alpaca
+pricing:
+  prompt: '0.0000015'
+  completion: '0.0000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+  - top_a
+model_provider: mancer

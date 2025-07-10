@@ -1,0 +1,43 @@
+id: google/gemini-2.5-pro-exp-03-25
+canonical_slug: google/gemini-2.5-pro-exp-03-25
+hugging_face_id: ''
+name: 'Google: Gemini 2.5 Pro Experimental'
+type: chat
+created: 1742922099
+description: |-
+  This model has been deprecated by Google in favor of the (paid Preview model)[google/gemini-2.5-pro-preview]
+   
+  Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+    - file
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0'
+  completion: '0'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - tools
+  - tool_choice
+  - stop
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

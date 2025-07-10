@@ -1,0 +1,57 @@
+id: google/gemini-pro-1.5
+canonical_slug: google/gemini-pro-1.5
+hugging_face_id: ''
+name: 'Google: Gemini 1.5 Pro'
+type: chat
+created: 1712620800
+description: |-
+  Google's latest multimodal model, supports image and video[0] in text or chat prompts.
+
+  Optimized for language tasks including:
+
+  - Code generation
+  - Text generation
+  - Text editing
+  - Problem solving
+  - Recommendations
+  - Information extraction
+  - Data extraction or generation
+  - AI agents
+
+  Usage of Gemini is subject to Google's [Gemini Terms of Use](https://ai.google.dev/terms).
+
+  * [0]: Video input is not available through OpenRouter at this time.
+context_length: 2000000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.00000125'
+  completion: '0.000005'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0006575'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - tools
+  - tool_choice
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

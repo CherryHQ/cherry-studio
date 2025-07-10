@@ -1,0 +1,49 @@
+id: meta-llama/llama-3.2-90b-vision-instruct
+canonical_slug: meta-llama/llama-3.2-90b-vision-instruct
+hugging_face_id: meta-llama/Llama-3.2-90B-Vision-Instruct
+name: 'Meta: Llama 3.2 90B Vision Instruct'
+type: chat
+created: 1727222400
+description: |-
+  The Llama 90B Vision model is a top-tier, 90-billion-parameter multimodal model designed for the most challenging visual reasoning and language tasks. It offers unparalleled accuracy in image captioning, visual question answering, and advanced image-text comprehension. Pre-trained on vast multimodal datasets and fine-tuned with human feedback, the Llama 90B Vision is engineered to handle the most demanding image-based AI tasks.
+
+  This model is perfect for industries requiring cutting-edge multimodal AI capabilities, particularly those dealing with complex, real-time visual and textual analysis.
+
+  Click here for the [original model card](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD_VISION.md).
+
+  Usage of this model is subject to [Meta's Acceptable Use Policy](https://www.llama.com/llama3/use-policy/).
+context_length: 131072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.0000012'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.001734'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - seed
+model_provider: meta-llama

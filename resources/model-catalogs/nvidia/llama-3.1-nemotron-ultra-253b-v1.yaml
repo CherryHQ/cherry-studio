@@ -1,0 +1,45 @@
+id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+canonical_slug: nvidia/llama-3.1-nemotron-ultra-253b-v1
+hugging_face_id: nvidia/Llama-3_1-Nemotron-Ultra-253B-v1
+name: 'NVIDIA: Llama 3.1 Nemotron Ultra 253B v1'
+type: chat
+created: 1744115059
+description: |-
+  Llama-3.1-Nemotron-Ultra-253B-v1 is a large language model (LLM) optimized for advanced reasoning, human-interactive chat, retrieval-augmented generation (RAG), and tool-calling tasks. Derived from Meta’s Llama-3.1-405B-Instruct, it has been significantly customized using Neural Architecture Search (NAS), resulting in enhanced efficiency, reduced memory usage, and improved inference latency. The model supports a context length of up to 128K tokens and can operate efficiently on an 8x NVIDIA H100 node.
+
+  Note: you must include `detailed thinking on` in the system prompt to enable reasoning. Please see [Usage Recommendations](https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1#quick-start-and-usage-recommendations) for more.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: null
+pricing:
+  prompt: '0.0000006'
+  completion: '0.0000018'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: nvidia

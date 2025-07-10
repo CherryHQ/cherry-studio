@@ -1,0 +1,47 @@
+id: cognitivecomputations/dolphin-mixtral-8x22b
+canonical_slug: cognitivecomputations/dolphin-mixtral-8x22b
+hugging_face_id: cognitivecomputations/dolphin-2.9.2-mixtral-8x22b
+name: "Dolphin 2.9.2 Mixtral 8x22B \U0001F42C"
+type: chat
+created: 1717804800
+description: |-
+  Dolphin 2.9 is designed for instruction following, conversational, and coding. This model is a finetune of [Mixtral 8x22B Instruct](/models/mistralai/mixtral-8x22b-instruct). It features a 64k context length and was fine-tuned with a 16k sequence length using ChatML templates.
+
+  This model is a successor to [Dolphin Mixtral 8x7B](/models/cognitivecomputations/dolphin-mixtral-8x7b).
+
+  The model is uncensored and is stripped of alignment and bias. It requires an external alignment layer for ethical use. Users are cautioned to use this highly compliant model responsibly, as detailed in a blog post about uncensored models at [erichartford.com/uncensored-models](https://erichartford.com/uncensored-models).
+
+  #moe #uncensored
+context_length: 16000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: chatml
+pricing:
+  prompt: '0.0000009'
+  completion: '0.0000009'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+model_provider: cognitivecomputations

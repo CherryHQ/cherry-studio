@@ -1,0 +1,41 @@
+id: amazon/nova-pro-v1
+canonical_slug: amazon/nova-pro-v1
+hugging_face_id: ''
+name: 'Amazon: Nova Pro 1.0'
+type: chat
+created: 1733436303
+description: |-
+  Amazon Nova Pro 1.0 is a capable multimodal model from Amazon focused on providing a combination of accuracy, speed, and cost for a wide range of tasks. As of December 2024, it achieves state-of-the-art performance on key benchmarks including visual question answering (TextVQA) and video understanding (VATEX).
+
+  Amazon Nova Pro demonstrates strong capabilities in processing both visual and textual information and at analyzing financial documents.
+
+  **NOTE**: Video input is not supported at this time.
+context_length: 300000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Nova
+  instruct_type: null
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000032'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0012'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: amazon

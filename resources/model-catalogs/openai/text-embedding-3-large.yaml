@@ -1,0 +1,22 @@
+id: openai/text-embedding-3-large
+canonical_slug: openai/text-embedding-3-large
+type: embedding
+hugging_face_id: null
+name: 'OpenAI: Text Embedding 3 Large'
+description: |-
+  text-embedding-3-large is our most capable embedding model for both english and non-english tasks. Embeddings are a numerical representation of text that can be used to measure the relatedness between two pieces of text. Embeddings are useful for search, clustering, recommendations, anomaly detection, and classification tasks.
+context_length: 256000
+max_dimension: 3072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.13'
+  unit: 1000000
+  currency: USD
+model_provider: OpenAI

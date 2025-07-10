@@ -1,0 +1,36 @@
+id: openai/o1
+canonical_slug: openai/o1-2024-12-17
+hugging_face_id: ''
+name: 'OpenAI: o1'
+type: chat
+created: 1734459999
+description: "The latest and strongest model family from OpenAI, o1 is designed to spend more time thinking before responding. The o1 model series is trained with large-scale reinforcement learning to reason using chain of thought. \n\nThe o1 models are optimized for math, science, programming, and other STEM-related tasks. They consistently exhibit PhD-level accuracy on benchmarks in physics, chemistry, and biology. Learn more in the [launch announcement](https://openai.com/o1).\n"
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000015'
+  completion: '0.00006'
+  input_cache_read: '0.0000075'
+  input_cache_write: ''
+  request: '0'
+  image: '0.021675'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - seed
+  - max_tokens
+  - response_format
+  - structured_outputs
+model_provider: openai

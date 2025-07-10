@@ -1,0 +1,46 @@
+id: openai/gpt-4.1
+canonical_slug: openai/gpt-4.1-2025-04-14
+hugging_face_id: ''
+name: 'OpenAI: GPT-4.1'
+type: chat
+created: 1744651385
+description: GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning. It supports a 1 million token context window and outperforms GPT-4o and GPT-4.5 across coding (54.6% SWE-bench Verified), instruction compliance (87.4% IFEval), and multimodal understanding benchmarks. It is tuned for precise code diffs, agent reliability, and high recall in large document contexts, making it ideal for agents, IDE tooling, and enterprise knowledge retrieval.
+context_length: 1047576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - image
+    - text
+    - file
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000002'
+  completion: '0.000008'
+  input_cache_read: '0.0000005'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - web_search_options
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

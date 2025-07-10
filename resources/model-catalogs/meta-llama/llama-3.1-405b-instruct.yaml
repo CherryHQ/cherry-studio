@@ -1,0 +1,53 @@
+id: meta-llama/llama-3.1-405b-instruct
+canonical_slug: meta-llama/llama-3.1-405b-instruct
+hugging_face_id: meta-llama/Meta-Llama-3.1-405B-Instruct
+name: 'Meta: Llama 3.1 405B Instruct'
+type: chat
+created: 1721692800
+description: |-
+  The highly anticipated 400B class of Llama3 is here! Clocking in at 128k context with impressive eval scores, the Meta AI team continues to push the frontier of open-source LLMs.
+
+  Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This 405B instruct-tuned version is optimized for high quality dialogue usecases.
+
+  It has demonstrated strong performance compared to leading closed-source models including GPT-4o and Claude 3.5 Sonnet in evaluations.
+
+  To read more about the model release, [click here](https://ai.meta.com/blog/meta-llama-3-1/). Usage of this model is subject to [Meta's Acceptable Use Policy](https://llama.meta.com/llama3/use-policy/).
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - response_format
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - min_p
+  - seed
+model_provider: meta-llama

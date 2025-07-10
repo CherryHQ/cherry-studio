@@ -1,0 +1,48 @@
+id: nvidia/llama-3.1-nemotron-70b-instruct
+canonical_slug: nvidia/llama-3.1-nemotron-70b-instruct
+hugging_face_id: nvidia/Llama-3.1-Nemotron-70B-Instruct-HF
+name: 'NVIDIA: Llama 3.1 Nemotron 70B Instruct'
+type: chat
+created: 1728950400
+description: |-
+  NVIDIA's Llama 3.1 Nemotron 70B is a language model designed for generating precise and useful responses. Leveraging [Llama 3.1 70B](/models/meta-llama/llama-3.1-70b-instruct) architecture and Reinforcement Learning from Human Feedback (RLHF), it excels in automatic alignment benchmarks. This model is tailored for applications requiring high accuracy in helpfulness and response generation, suitable for diverse user queries across multiple domains.
+
+  Usage of this model is subject to [Meta's Acceptable Use Policy](https://www.llama.com/llama3/use-policy/).
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.00000012'
+  completion: '0.0000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - min_p
+  - repetition_penalty
+  - top_k
+model_provider: nvidia

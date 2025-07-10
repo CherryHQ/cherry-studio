@@ -1,0 +1,44 @@
+id: x-ai/grok-3
+canonical_slug: x-ai/grok-3
+hugging_face_id: ''
+name: 'xAI: Grok 3'
+type: chat
+created: 1749582908
+description: |+
+  Grok 3 is the latest model from xAI. It's their flagship model that excels at enterprise use cases like data extraction, coding, and text summarization. Possesses deep domain knowledge in finance, healthcare, law, and science.
+
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Grok
+  instruct_type: null
+pricing:
+  prompt: '0.000003'
+  completion: '0.000015'
+  input_cache_read: '0.00000075'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - structured_outputs
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: x-ai

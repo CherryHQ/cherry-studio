@@ -1,0 +1,53 @@
+id: meta-llama/llama-3.2-11b-vision-instruct
+canonical_slug: meta-llama/llama-3.2-11b-vision-instruct
+hugging_face_id: meta-llama/Llama-3.2-11B-Vision-Instruct
+name: 'Meta: Llama 3.2 11B Vision Instruct'
+type: chat
+created: 1727222400
+description: |-
+  Llama 3.2 11B Vision is a multimodal model with 11 billion parameters, designed to handle tasks combining visual and textual data. It excels in tasks such as image captioning and visual question answering, bridging the gap between language generation and visual reasoning. Pre-trained on a massive dataset of image-text pairs, it performs well in complex, high-accuracy image analysis.
+
+  Its ability to integrate visual understanding with language processing makes it an ideal solution for industries requiring comprehensive visual-linguistic AI applications, such as content creation, AI-driven customer service, and research.
+
+  Click here for the [original model card](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD_VISION.md).
+
+  Usage of this model is subject to [Meta's Acceptable Use Policy](https://www.llama.com/llama3/use-policy/).
+context_length: 131072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.000000049'
+  completion: '0.000000049'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.00007948'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - seed
+  - repetition_penalty
+  - frequency_penalty
+  - presence_penalty
+  - stop
+  - logit_bias
+  - min_p
+  - response_format
+  - top_logprobs
+  - tools
+  - tool_choice
+  - logprobs
+model_provider: meta-llama

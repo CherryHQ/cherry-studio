@@ -1,0 +1,45 @@
+id: openai/gpt-4.1-nano
+canonical_slug: openai/gpt-4.1-nano-2025-04-14
+hugging_face_id: ''
+name: 'OpenAI: GPT-4.1 Nano'
+type: chat
+created: 1744651369
+description: For tasks that demand low latency, GPT‑4.1 nano is the fastest and cheapest model in the GPT-4.1 series. It delivers exceptional performance at a small size with its 1 million token context window, and scores 80.1% on MMLU, 50.3% on GPQA, and 9.8% on Aider polyglot coding – even higher than GPT‑4o mini. It’s ideal for tasks like classification or autocompletion.
+context_length: 1047576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - image
+    - text
+    - file
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000004'
+  input_cache_read: '0.000000025'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

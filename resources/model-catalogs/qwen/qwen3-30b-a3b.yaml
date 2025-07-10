@@ -1,0 +1,51 @@
+id: qwen/qwen3-30b-a3b
+canonical_slug: qwen/qwen3-30b-a3b-04-28
+hugging_face_id: Qwen/Qwen3-30B-A3B
+name: 'Qwen: Qwen3 30B A3B'
+type: chat
+created: 1745878604
+description: |-
+  Qwen3, the latest generation in the Qwen large language model series, features both dense and mixture-of-experts (MoE) architectures to excel in reasoning, multilingual support, and advanced agent tasks. Its unique ability to switch seamlessly between a thinking mode for complex reasoning and a non-thinking mode for efficient dialogue ensures versatile, high-quality performance.
+
+  Significantly outperforming prior models like QwQ and Qwen2.5, Qwen3 delivers superior mathematics, coding, commonsense reasoning, creative writing, and interactive dialogue capabilities. The Qwen3-30B-A3B variant includes 30.5 billion parameters (3.3 billion activated), 48 layers, 128 experts (8 activated per task), and supports up to 131K token contexts with YaRN, setting a new standard among open-source models.
+context_length: 40960
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen3
+  instruct_type: qwen3
+pricing:
+  prompt: '0.00000008'
+  completion: '0.00000029'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - seed
+  - min_p
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: qwen

@@ -1,0 +1,43 @@
+id: mistralai/mistral-saba
+canonical_slug: mistralai/mistral-saba-2502
+hugging_face_id: ''
+name: 'Mistral: Saba'
+type: chat
+created: 1739803239
+description: Mistral Saba is a 24B-parameter language model specifically designed for the Middle East and South Asia, delivering accurate and contextually relevant responses while maintaining efficient performance. Trained on curated regional datasets, it supports multiple Indian-origin languages—including Tamil and Malayalam—alongside Arabic. This makes it a versatile option for a range of regional and multilingual applications. Read more at the blog post [here](https://mistral.ai/en/news/mistral-saba)
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - structured_outputs
+  - seed
+  - top_logprobs
+  - logprobs
+  - logit_bias
+model_provider: mistralai

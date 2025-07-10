@@ -1,0 +1,40 @@
+id: openai/o3-pro
+canonical_slug: openai/o3-pro-2025-06-10
+hugging_face_id: ''
+name: 'OpenAI: o3 Pro'
+type: chat
+created: 1749598352
+description: |-
+  The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning. The o3-pro model uses more compute to think harder and provide consistently better answers.
+
+  Note that BYOK is required for this model. Set up here: https://openrouter.ai/settings/integrations
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - file
+    - image
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00002'
+  completion: '0.00008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0153'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - seed
+  - max_tokens
+  - response_format
+  - structured_outputs
+model_provider: openai

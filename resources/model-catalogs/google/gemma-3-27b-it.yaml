@@ -1,0 +1,44 @@
+id: google/gemma-3-27b-it
+canonical_slug: google/gemma-3-27b-it
+hugging_face_id: ''
+name: 'Google: Gemma 3 27B'
+type: chat
+created: 1741756359
+description: Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling. Gemma 3 27B is Google's latest open source model, successor to [Gemma 2](google/gemma-2-27b-it)
+context_length: 131072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: gemma
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0000256'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - response_format
+  - top_k
+  - seed
+  - min_p
+  - logit_bias
+  - top_logprobs
+  - logprobs
+model_provider: google

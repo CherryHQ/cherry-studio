@@ -1,0 +1,45 @@
+id: thedrummer/unslopnemo-12b
+canonical_slug: thedrummer/unslopnemo-12b
+hugging_face_id: TheDrummer/UnslopNemo-12B-v4.1
+name: 'TheDrummer: UnslopNemo 12B'
+type: chat
+created: 1731103448
+description: UnslopNemo v4.1 is the latest addition from the creator of Rocinante, designed for adventure writing and role-play scenarios.
+context_length: 32000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.00000045'
+  completion: '0.00000045'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+  - tools
+  - tool_choice
+  - structured_outputs
+  - response_format
+  - logprobs
+model_provider: thedrummer

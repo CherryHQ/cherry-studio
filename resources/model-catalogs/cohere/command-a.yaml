@@ -1,0 +1,41 @@
+id: cohere/command-a
+canonical_slug: cohere/command-a-03-2025
+hugging_face_id: CohereForAI/c4ai-command-a-03-2025
+name: 'Cohere: Command A'
+type: chat
+created: 1741894342
+description: |-
+  Command A is an open-weights 111B parameter model with a 256k context window focused on delivering great performance across agentic, multilingual, and coding use cases.
+  Compared to other leading proprietary and open-weights models Command A delivers maximum performance with minimum hardware costs, excelling on business-critical agentic and multilingual tasks.
+context_length: 256000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000025'
+  completion: '0.00001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: cohere

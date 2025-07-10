@@ -1,0 +1,44 @@
+id: google/gemini-2.5-flash-lite-preview-06-17
+canonical_slug: google/gemini-2.5-flash-lite-preview-06-17
+hugging_face_id: ''
+name: 'Google: Gemini 2.5 Flash Lite Preview 06-17'
+type: chat
+created: 1750173831
+description: 'Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance across common benchmarks compared to earlier Flash models. By default, "thinking" (i.e. multi-pass reasoning) is disabled to prioritize speed, but developers can enable it via the [Reasoning API parameter](https://openrouter.ai/docs/use-cases/reasoning-tokens) to selectively trade off cost for intelligence. '
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - file
+    - image
+    - text
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000004'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - structured_outputs
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+model_provider: google

@@ -1,0 +1,46 @@
+id: openai/gpt-4-1106-preview
+canonical_slug: openai/gpt-4-1106-preview
+hugging_face_id: ''
+name: 'OpenAI: GPT-4 Turbo (older v1106)'
+type: chat
+created: 1699228800
+description: |-
+  The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.
+
+  Training data: up to April 2023.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.00001'
+  completion: '0.00003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

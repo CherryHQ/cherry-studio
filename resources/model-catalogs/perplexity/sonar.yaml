@@ -1,0 +1,37 @@
+id: perplexity/sonar
+canonical_slug: perplexity/sonar
+hugging_face_id: ''
+name: 'Perplexity: Sonar'
+type: chat
+created: 1738013808
+description: Sonar is lightweight, affordable, fast, and simple to use — now featuring citations and the ability to customize sources. It is designed for companies seeking to integrate lightweight question-and-answer features optimized for speed.
+context_length: 127072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.000001'
+  completion: '0.000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0.005'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - web_search_options
+  - top_k
+  - frequency_penalty
+  - presence_penalty
+model_provider: perplexity

@@ -1,0 +1,38 @@
+id: perplexity/llama-3.1-sonar-small-128k-online
+canonical_slug: perplexity/llama-3.1-sonar-small-128k-online
+hugging_face_id: ''
+name: 'Perplexity: Llama 3.1 Sonar 8B Online'
+type: chat
+created: 1722470400
+description: |-
+  Llama 3.1 Sonar is Perplexity's latest model family. It surpasses their earlier Sonar models in cost-efficiency, speed, and performance.
+
+  This is the online version of the [offline chat model](/models/perplexity/llama-3.1-sonar-small-128k-chat). It is focused on delivering helpful, up-to-date, and factual responses. #online
+context_length: 127072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: null
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0.005'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - frequency_penalty
+  - presence_penalty
+model_provider: perplexity

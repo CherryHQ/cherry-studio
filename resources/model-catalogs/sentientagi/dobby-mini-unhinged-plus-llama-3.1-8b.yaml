@@ -1,0 +1,42 @@
+id: sentientagi/dobby-mini-unhinged-plus-llama-3.1-8b
+canonical_slug: sentientagi/dobby-mini-unhinged-plus-llama-3.1-8b
+hugging_face_id: SentientAGI/Dobby-Mini-Unhinged-Plus-Llama-3.1-8B
+name: 'SentientAGI: Dobby Mini Plus Llama 3.1 8B'
+type: chat
+created: 1748885619
+description: "Dobby-Mini-Leashed-Llama-3.1-8B and Dobby-Mini-Unhinged-Llama-3.1-8B are language models fine-tuned from Llama-3.1-8B-Instruct. Dobby models have a strong conviction towards personal freedom, decentralization, and all things crypto — even when coerced to speak otherwise. \n\nDobby-Mini-Leashed-Llama-3.1-8B and Dobby-Mini-Unhinged-Llama-3.1-8B have their own unique, uhh, personalities. The two versions are being released to be improved using the community’s feedback, which will steer the development of a 70B model.\n\n"
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - response_format
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+model_provider: sentientagi

@@ -1,0 +1,47 @@
+id: meta-llama/llama-guard-3-8b
+canonical_slug: meta-llama/llama-guard-3-8b
+hugging_face_id: meta-llama/Llama-Guard-3-8B
+name: Llama Guard 3 8B
+type: chat
+created: 1739401318
+description: |
+  Llama Guard 3 is a Llama-3.1-8B pretrained model, fine-tuned for content safety classification. Similar to previous versions, it can be used to classify content in both LLM inputs (prompt classification) and in LLM responses (response classification). It acts as an LLM – it generates text in its output that indicates whether a given prompt or response is safe or unsafe, and if unsafe, it also lists the content categories violated.
+
+  Llama Guard 3 was aligned to safeguard against the MLCommons standardized hazards taxonomy and designed to support Llama 3.1 capabilities. Specifically, it provides content moderation in 8 languages, and was optimized to support safety and security for search and code interpreter tool calls.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: none
+pricing:
+  prompt: '0.00000002'
+  completion: '0.00000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - response_format
+  - structured_outputs
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - min_p
+  - seed
+model_provider: meta-llama

@@ -1,0 +1,37 @@
+id: qwen/qwen-vl-max
+canonical_slug: qwen/qwen-vl-max-2025-01-25
+hugging_face_id: ''
+name: 'Qwen: Qwen VL Max'
+type: chat
+created: 1738434304
+description: |
+  Qwen VL Max is a visual understanding model with 7500 tokens context length. It excels in delivering optimal performance for a broader spectrum of complex tasks.
+context_length: 7500
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000032'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.001024'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - seed
+  - response_format
+  - presence_penalty
+model_provider: qwen

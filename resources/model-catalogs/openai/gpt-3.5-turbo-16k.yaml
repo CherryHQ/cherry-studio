@@ -1,0 +1,42 @@
+id: openai/gpt-3.5-turbo-16k
+canonical_slug: openai/gpt-3.5-turbo-16k
+hugging_face_id: ''
+name: 'OpenAI: GPT-3.5 Turbo 16k'
+type: chat
+created: 1693180800
+description: 'This model offers four times the context length of gpt-3.5-turbo, allowing it to support approximately 20 pages of text in a single request at a higher cost. Training data: up to Sep 2021.'
+context_length: 16385
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000003'
+  completion: '0.000004'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: openai
