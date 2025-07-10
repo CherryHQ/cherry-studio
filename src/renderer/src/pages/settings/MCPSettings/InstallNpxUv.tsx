@@ -36,8 +36,7 @@ const InstallNpxUv: FC = () => {
     try {
       setIsInstallingUv(true)
       await window.api.installUVBinary()
-      setIsUvInstalled(true)
-      setIsInstallingUv(false)
+      dispatch(setIsUvInstalled(true))
     } catch (error: any) {
       window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
       setIsInstallingUv(false)
@@ -49,8 +48,7 @@ const InstallNpxUv: FC = () => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
-      setIsBunInstalled(true)
-      setIsInstallingBun(false)
+      dispatch(setIsBunInstalled(true))
     } catch (error: any) {
       window.message.error({
         content: `${t('settings.mcp.installError')}: ${error.message}`,
@@ -60,6 +58,18 @@ const InstallNpxUv: FC = () => {
     }
     setTimeout(checkBinaries, 1000)
   }
+
+  useEffect(() => {
+    if (isUvInstalled && isInstallingUv) {
+      setIsInstallingUv(false)
+    }
+  }, [isUvInstalled, isInstallingUv])
+
+  useEffect(() => {
+    if (isBunInstalled && isInstallingBun) {
+      setIsInstallingBun(false)
+    }
+  }, [isBunInstalled, isInstallingBun])
 
   useEffect(() => {
     checkBinaries()
