@@ -1864,6 +1864,7 @@
           "autoApprove.tooltip.howToEnable": "啟用工具後才能使用自動批准",
           "autoApprove.tooltip.enabled": "工具將自動運行而無需批准",
           "autoApprove.tooltip.disabled": "工具運行前需要手動批准",
+          "autoApprove.tooltip.confirm": "是否運行該MCP工具？",
           "run": "運行"
         },
         "type": "類型",

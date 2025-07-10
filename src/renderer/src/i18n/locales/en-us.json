@@ -1864,6 +1864,7 @@
           "autoApprove.tooltip.howToEnable": "Enable the tool first to use auto-approve",
           "autoApprove.tooltip.enabled": "Tool will run automatically without confirmation",
           "autoApprove.tooltip.disabled": "Tool will require manual approval before running",
+          "autoApprove.tooltip.confirm": "Are you sure you want to run this MCP tool?",
           "run": "Run"
         },
         "type": "Type",
