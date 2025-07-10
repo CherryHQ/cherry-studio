@@ -244,7 +244,7 @@ export function readTextFileWithAutoEncoding(filePath: string) {
           continue
         }
         Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
-        const content = iconv.decode(buffer, item.encoding)
+        const content = iconv.decode(data, item.encoding)
         if (!content.includes('\uFFFD')) {
           Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
           return content
@@ -254,7 +254,7 @@ export function readTextFileWithAutoEncoding(filePath: string) {
       }
     }
     Logger.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
-    return iconv.decode(buffer, 'UTF-8')
+    return iconv.decode(data, 'UTF-8')
   }
 
   return content
