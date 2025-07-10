@@ -131,6 +131,43 @@ const MessageTools: FC<Props> = ({ block }) => {
     })
   }
 
+  const renderStatusIndicator = (status: string, hasError: boolean) => {
+    let label = ''
+    let icon: React.ReactNode | null = null
+    switch (status) {
+      case 'pending':
+        label = t('message.tools.pending', 'Awaiting Approval')
+        icon = <LoadingOutlined spin style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
+        break
+      case 'invoking':
+        label = t('message.tools.invoking')
+        icon = <LoadingOutlined spin style={{ marginLeft: 6 }} />
+        break
+      case 'cancelled':
+        label = t('message.tools.cancelled')
+        icon = <CloseOutlined style={{ marginLeft: 6 }} />
+        break
+      case 'done':
+        if (hasError) {
+          label = t('message.tools.error')
+          icon = <WarningOutlined style={{ marginLeft: 6 }} />
+        } else {
+          label = t('message.tools.completed')
+          icon = <CheckOutlined style={{ marginLeft: 6 }} />
+        }
+        break
+      default:
+        label = ''
+        icon = null
+    }
+    return (
+      <StatusIndicator status={status} hasError={hasError}>
+        {label}
+        {icon}
+      </StatusIndicator>
+    )
+  }
+
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
@@ -149,55 +186,11 @@ const MessageTools: FC<Props> = ({ block }) => {
               {tool.name}
               {isToolAutoApproved(tool) && (
                 <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
-                  <ShieldCheck size={14} color="green" />
+                  <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
             </ToolName>
-            <StatusIndicator status={status} hasError={hasError}>
-              {(() => {
-                switch (status) {
-                  case 'pending':
-                    return (
-                      <>
-                        {t('message.tools.pending', 'Awaiting Approval')}
-                        <LoadingOutlined spin style={{ marginLeft: 6, color: 'var(--color-warning)' }} />
-                      </>
-                    )
-                  case 'invoking':
-                    return (
-                      <>
-                        {t('message.tools.invoking')}
-                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
-                      </>
-                    )
-                  case 'cancelled':
-                    return (
-                      <>
-                        {t('message.tools.cancelled')}
-                        <CloseOutlined style={{ marginLeft: 6 }} />
-                      </>
-                    )
-                  case 'done':
-                    if (hasError) {
-                      return (
-                        <>
-                          {t('message.tools.error')}
-                          <WarningOutlined style={{ marginLeft: 6 }} />
-                        </>
-                      )
-                    } else {
-                      return (
-                        <>
-                          {t('message.tools.completed')}
-                          <CheckOutlined style={{ marginLeft: 6 }} />
-                        </>
-                      )
-                    }
-                  default:
-                    return ''
-                }
-              })()}
-            </StatusIndicator>
+            {renderStatusIndicator(status, hasError)}
           </TitleContent>
           <ActionButtonsContainer>
             {isPending && (
@@ -244,7 +237,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                     handleAbortTool()
                   }}
                   aria-label={t('chat.input.pause')}>
-                  <PauseCircle color="var(--color-error)" size={14} />
+                  <PauseCircle color="var(--status-color-error)" size={14} />
                 </ActionButton>
               </Tooltip>
             )}
@@ -324,6 +317,11 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
 }
 
 const CollapseContainer = styled(Collapse)`
+  --status-color-warning: var(--color-warning, #faad14);
+  --status-color-invoking: var(--color-primary);
+  --status-color-error: var(--color-error, #ff4d4f);
+  --status-color-success: var(--color-success, green);
+
   border-radius: 8px;
   border: none;
   overflow: hidden;
@@ -400,13 +398,13 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
   color: ${(props) => {
     switch (props.status) {
       case 'pending':
-        return 'var(--color-warning, #faad14)'
+        return 'var(--status-color-warning)'
       case 'invoking':
-        return 'var(--color-primary)'
+        return 'var(--status-color-invoking)'
       case 'cancelled':
-        return 'var(--color-error, #ff4d4f)' // Assuming cancelled should also be an error color
+        return 'var(--status-color-error)'
       case 'done':
-        return props.hasError ? 'var(--color-error, #ff4d4f)' : 'var(--color-success, #52c41a)'
+        return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
       default:
         return 'var(--color-text)'
     }
