@@ -3,6 +3,7 @@ import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@go
 import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -266,7 +267,11 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  topicId?: string,
+  modelName?: string
+): Promise<MCPCallToolResponse> {
   Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
@@ -275,12 +280,15 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments,
-      callId: toolResponse.id
-    })
+    const resp = await window.api.mcp.callTool(
+      {
+        server,
+        name: toolResponse.tool.name,
+        args: toolResponse.arguments,
+        callId: toolResponse.id
+      },
+      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+    )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
         const mcpServer: MCPServer = {
@@ -526,7 +534,8 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -536,7 +545,8 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -546,7 +556,8 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
@@ -594,7 +605,7 @@ export async function parseAndCallTools<R>(
           // 执行工具调用
           try {
             const images: string[] = []
-            const toolCallResponse = await callMCPTool(toolResponse)
+            const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
 
             // 立即更新为done状态
             upsertMCPToolResponse(

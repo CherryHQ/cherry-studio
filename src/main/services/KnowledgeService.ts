@@ -30,6 +30,7 @@ import Reranker from '@main/knowledage/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -159,7 +160,7 @@ class KnowledgeService {
     await ragApplication.reset()
   }
 
-  public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+  public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
     console.log('id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
@@ -477,7 +478,7 @@ class KnowledgeService {
     })
   }
 
-  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+  public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
       const { base, item, forceReload = false, userId = '' } = options
       const optionsNonNullableAttribute = { base, item, forceReload, userId }
@@ -524,10 +525,11 @@ class KnowledgeService {
     })
   }
 
-  public remove = async (
+  @TraceMethod({ spanName: 'remove', tag: 'Knowledge' })
+  public async remove(
     _: Electron.IpcMainInvokeEvent,
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
-  ): Promise<void> => {
+  ): Promise<void> {
     const ragApplication = await this.getRagApplication(base)
     Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
     for (const id of uniqueIds) {
@@ -535,18 +537,21 @@ class KnowledgeService {
     }
   }
 
-  public search = async (
+  @TraceMethod({ spanName: 'RagSearch', tag: 'Knowledge' })
+  public async search(
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
-  ): Promise<ExtractChunkData[]> => {
+  ): Promise<ExtractChunkData[]> {
+    console.log(`[ KnowledgeService Search: ${JSON.stringify(base)} ]`)
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
   }
 
-  public rerank = async (
+  @TraceMethod({ spanName: 'rerank', tag: 'Knowledge' })
+  public async rerank(
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
-  ): Promise<ExtractChunkData[]> => {
+  ): Promise<ExtractChunkData[]> {
     if (results.length === 0) {
       return results
     }

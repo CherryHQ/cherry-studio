@@ -2410,6 +2410,23 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "trace": {
+      "label": "呼び出しチェーン",
+      "traceWindow": "呼び出しチェーンウィンドウ",
+      "backList": "リストに戻る",
+      "spanDetail": "スパンの詳細",
+      "name": "名前",
+      "tag": "Tagラベル",
+      "startTime": "開始時間",
+      "endTime": "終了時間",
+      "tokenUsage": "トークンの使用",
+      "spendTime": "時間を過ごす",
+      "parentId": "親ID",
+      "inputs": "入力",
+      "outputs": "出力",
+      "noTraceList": "トレース情報が見つかりません",
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }

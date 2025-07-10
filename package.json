@@ -13,13 +13,17 @@
     ],
     "installConfig": {
       "hoistingLimits": [
-        "packages/database"
+        "packages/database",
+        "packages/mcp-trace/trace-core",
+        "packages/mcp-trace/trace-node",
+        "packages/mcp-trace/trace-web"
       ]
     }
   },
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
+    "dev:win": "cross-env NODE_OPTIONS='--max-old-space-size=4096' electron-vite dev",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn typecheck && yarn check:i18n && yarn test",
@@ -38,6 +42,7 @@
     "publish": "yarn build:check && yarn release patch push",
     "pulish:artifacts": "cd packages/artifacts && npm publish && cd -",
     "generate:agents": "yarn workspace @cherry-studio/database agents",
+    "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
@@ -71,6 +76,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
+    "react-json-view": "^1.21.3",
     "selection-hook": "^1.0.5",
     "turndown": "7.2.0"
   },
@@ -111,6 +117,12 @@
     "@modelcontextprotocol/sdk": "^1.12.3",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "2.0.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
+    "@opentelemetry/sdk-trace-node": "^2.0.0",
+    "@opentelemetry/sdk-trace-web": "^2.0.0",
     "@playwright/test": "^1.52.0",
     "@reduxjs/toolkit": "^2.2.5",
     "@shikijs/markdown-it": "^3.7.0",
@@ -192,7 +204,7 @@
     "mime": "^4.0.4",
     "motion": "^12.10.5",
     "npx-scope-finder": "^1.2.0",
-    "officeparser": "^4.1.1",
+    "officeparser": "^4.2.0",
     "openai": "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch",
     "p-queue": "^8.1.0",
     "playwright": "^1.52.0",
@@ -212,6 +224,7 @@
     "react-window": "^1.8.11",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
+    "reflect-metadata": "0.2.2",
     "rehype-katex": "^7.0.1",
     "rehype-mathjax": "^7.1.0",
     "rehype-raw": "^7.0.0",

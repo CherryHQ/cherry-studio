@@ -1,3 +1,4 @@
+import { withSpanResult } from '@renderer/services/SpanManagerService'
 import {
   RequestOptions,
   SdkInstance,
@@ -254,11 +255,21 @@ export function applyCompletionsMiddlewares<
 
       // Call the original SDK method with transformed parameters
       // 使用转换后的参数调用原始 SDK 方法
-      const rawOutput = await originalCompletionsMethod.call(originalApiClientInstance, sdkPayload, {
-        ...options,
-        signal: abortSignal,
-        timeout
-      })
+      const rawOutput = await withSpanResult(
+        async (payload) =>
+          await originalCompletionsMethod.call(originalApiClientInstance, payload, {
+            ...options,
+            signal: abortSignal,
+            timeout
+          }),
+        {
+          name: `${params.assistant?.model?.name}.client`,
+          tag: 'LLM',
+          topicId: params.topicId || '',
+          modelName: params.assistant?.model?.name
+        },
+        sdkPayload
+      )
 
       // Return result wrapped in CompletionsResult format
       // 以 CompletionsResult 格式返回包装的结果

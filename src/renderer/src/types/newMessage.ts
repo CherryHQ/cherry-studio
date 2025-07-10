@@ -187,6 +187,9 @@ export type Message = {
 
   // 块集合
   blocks: MessageBlock['id'][]
+
+  // 跟踪Id
+  traceId?: string
 }
 
 export interface Response {

@@ -2410,6 +2410,23 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "trace": {
+      "label": "调用链",
+      "traceWindow": "调用链窗口",
+      "backList": "返回列表",
+      "spanDetail": "Span详情",
+      "name": "名字",
+      "tag": "标签",
+      "startTime": "开始时间",
+      "endTime": "结束时间",
+      "tokenUsage": "Token使用量",
+      "spendTime": "消耗时间",
+      "parentId": "上级Id",
+      "inputs": "输入",
+      "outputs": "输出",
+      "noTraceList": "没有找到Trace信息",
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }

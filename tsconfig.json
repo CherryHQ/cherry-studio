@@ -1,4 +1,5 @@
 {
+  "tsDecorders": "legacy",
   "files": [],
   "references": [
     {
@@ -7,5 +8,10 @@
     {
       "path": "./tsconfig.web.json"
     }
-  ]
+  ],
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": true
+  }
 }

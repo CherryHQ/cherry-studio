@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { trace } from '@opentelemetry/api'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
@@ -26,6 +27,7 @@ import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
+import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -207,7 +209,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     Logger.log('[DEBUG] Starting to send message')
 
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
+    const parent = spanManagerService.startTrace(
+      { topicId: topic.id, name: 'sendMessage', inputs: text },
+      mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
+    )
+    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent.spanContext().traceId })
 
     try {
       // Dispatch the sendMessage action with all options
@@ -229,9 +235,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
         : assistant
 
+      Logger.log('current tracer', trace.getActiveSpan()?.spanContext())
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
+      message.traceId = parent.spanContext().traceId
 
       currentMessageId.current = message.id
       dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
@@ -244,6 +252,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setExpend(false)
     } catch (error) {
       console.error('Failed to send message:', error)
+      parent.recordException(error as Error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
 
@@ -470,7 +479,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       await onPause()
       await delay(1)
     }
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
+    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }
 
   const onNewContext = () => {

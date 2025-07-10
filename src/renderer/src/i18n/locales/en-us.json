@@ -2410,6 +2410,23 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "trace": {
+      "label": "Call Chain",
+      "traceWindow": "Call Chain Window",
+      "backList": "Back To List",
+      "spanDetail": "Span Details",
+      "name": "Name",
+      "tag": "Tag",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "tokenUsage": "Token Usage",
+      "spendTime": "Spend Time",
+      "parentId": "Parent Id",
+      "inputs": "Inputs",
+      "outputs": "Outputs",
+      "noTraceList": "No trace information found",
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }

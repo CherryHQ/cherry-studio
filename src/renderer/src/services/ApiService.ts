@@ -17,6 +17,7 @@ import {
 } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import {
   Assistant,
   ExternalToolResult,
@@ -103,10 +104,21 @@ async function fetchExternalTool(
     summaryAssistant.prompt = prompt
 
     try {
-      const result = await fetchSearchSummary({
-        messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-        assistant: summaryAssistant
-      })
+      const result = await withSpanResult(
+        async (params) => {
+          return await fetchSearchSummary(params)
+        },
+        {
+          name: `${summaryAssistant.model?.name}.Summary`,
+          tag: 'LLM',
+          topicId: lastUserMessage.topicId,
+          modelName: summaryAssistant.model.name
+        },
+        {
+          messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+          assistant: summaryAssistant
+        }
+      )
 
       if (!result) return getFallbackResult()
 
@@ -137,7 +149,10 @@ async function fetchExternalTool(
   }
 
   // --- Web Search Function ---
-  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
+  const searchTheWeb = async (
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string
+  ): Promise<WebSearchResponse | undefined> => {
     if (!shouldWebSearch) return
 
     // Add check for extractResults existence early
@@ -157,8 +172,17 @@ async function fetchExternalTool(
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
+      let safeWebSearchProvider = webSearchProvider
+      if (webSearchProvider) {
+        safeWebSearchProvider = {
+          ...webSearchProvider,
+          topicId: lastUserMessage.topicId,
+          parentSpanId,
+          modelName: assistant.model.name
+        }
+      }
       const webSearchResponse = await WebSearchService.processWebsearch(
-        webSearchProvider!,
+        safeWebSearchProvider!,
         extractResults,
         lastUserMessage.id
       )
@@ -175,7 +199,9 @@ async function fetchExternalTool(
 
   // --- Knowledge Base Search Function ---
   const searchKnowledgeBase = async (
-    extractResults: ExtractResults | undefined
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string,
+    modelName?: string
   ): Promise<KnowledgeReference[] | undefined> => {
     if (!hasKnowledgeBase) return
 
@@ -206,7 +232,13 @@ async function fetchExternalTool(
       // const mainTextBlock = mainTextBlocks
       //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
+      return await processKnowledgeSearch(
+        tempExtractResults,
+        knowledgeBaseIds,
+        lastUserMessage.topicId,
+        parentSpanId,
+        modelName
+      )
     } catch (error) {
       console.error('Knowledge base search failed:', error)
       return
@@ -226,11 +258,12 @@ async function fetchExternalTool(
     let webSearchResponseFromSearch: WebSearchResponse | undefined
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
 
+    const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        searchTheWeb(extractResults),
-        searchKnowledgeBase(extractResults)
+        searchTheWeb(extractResults, parentSpanId),
+        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
       ])
     }
 
@@ -265,9 +298,10 @@ async function fetchExternalTool(
 
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
+        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
           try {
-            const tools = await window.api.mcp.listTools(mcpServer)
+            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
             console.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
@@ -359,7 +393,14 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-  await AI.completions(
+  return await withSpanResult(
+    async (params, options) => await AI.completions(params, options),
+    {
+      name: `${model.name}.Chat`,
+      tag: 'LLM',
+      topicId: lastUserMessage.topicId,
+      modelName: model.name
+    },
     {
       callType: 'chat',
       messages: _messages,
@@ -370,7 +411,8 @@ export async function fetchChatCompletion({
       streamOutput: assistant.settings?.streamOutput || false,
       enableReasoning,
       enableWebSearch,
-      enableGenerateImage
+      enableGenerateImage,
+      topicId: lastUserMessage.topicId
     },
     {
       streamOutput: assistant.settings?.streamOutput || false
@@ -443,6 +485,8 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
@@ -480,11 +524,21 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
     streamOutput: false,
+    topicId,
     enableReasoning: false
   }
 
   try {
-    const { getText } = await AI.completions(params)
+    const { getText } = await withSpanResult(
+      async (parameters) => await AI.completions(parameters),
+      {
+        name: `${model.name}.Summary`,
+        tag: 'LLM',
+        topicId: topicId || '',
+        modelName: model.name
+      },
+      params
+    )
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -500,16 +554,30 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     return null
   }
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
     callType: 'search',
     messages: messages,
     assistant,
-    streamOutput: false
+    streamOutput: false,
+    topicId
   }
 
-  return await AI.completions(params)
+  return await withSpanResult(
+    async (parameters) => {
+      return await AI.completions(parameters)
+    },
+    {
+      name: `${model.name}.SearchSummary`,
+      tag: 'LLM',
+      topicId: topicId || '',
+      modelName: model.name
+    },
+    params
+  )
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {

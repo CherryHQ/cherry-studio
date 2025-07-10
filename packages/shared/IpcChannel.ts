@@ -241,5 +241,19 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+
+  // TRACE
+  TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
+  TRACE_SAVE_ENTITY = 'trace:saveEntity',
+  TRACE_GET_ENTITY = 'trace:getEntity',
+  TRACE_BIND_TOPIC = 'trace:bindTopic',
+  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
+  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
+  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_OPEN_WINDOW = 'trace:openWindow',
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
 }

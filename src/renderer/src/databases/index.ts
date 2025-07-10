@@ -73,7 +73,6 @@ db.version(7)
     message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
   })
   .upgrade((tx) => upgradeToV7(tx))
-
 db.version(8)
   .stores({
     // Re-declare all tables for the new version

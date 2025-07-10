@@ -2410,6 +2410,23 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "trace": {
+      "label": "Цепочка вызовов",
+      "traceWindow": "Окно цепочки вызовов",
+      "backList": "Вернуться к списку",
+      "spanDetail": "Span Подробнее",
+      "name": "имя",
+      "tag": "ярлык",
+      "startTime": "время начала",
+      "endTime": "время окончания",
+      "tokenUsage": "Использование токена",
+      "spendTime": "тратитьВремя",
+      "parentId": "Родительский идентификатор",
+      "inputs": "входы",
+      "outputs": "выходы",
+      "noTraceList": "Информация о следах не найдена",
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }
