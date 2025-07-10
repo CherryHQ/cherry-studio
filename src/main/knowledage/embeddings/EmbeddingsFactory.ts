@@ -5,6 +5,7 @@ import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-op
 import { getInstanceName } from '@main/utils'
 import { KnowledgeBaseParams } from '@types'
 
+import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
@@ -14,7 +15,7 @@ export default class EmbeddingsFactory {
       return new VoyageEmbeddings({
         modelName: model,
         apiKey,
-        outputDimension: dimensions,
+        outputDimension: VOYAGE_SUPPORTED_DIM_MODELS.includes(model) ? dimensions : undefined,
         batchSize: 8
       })
     }
