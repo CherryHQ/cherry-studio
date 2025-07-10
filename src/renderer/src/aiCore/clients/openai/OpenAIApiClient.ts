@@ -31,7 +31,7 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
+import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   OpenAISdkMessageParam,
@@ -307,7 +307,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'text',
           text: file.origin_name + '\n' + fileContent
@@ -659,6 +659,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       isFinished = true
     }
 
+    let isFirstThinkingChunk = true
+    let isFirstTextChunk = true
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 持续更新usage信息
@@ -699,6 +701,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
+              if (isFirstThinkingChunk) {
+                controller.enqueue({
+                  type: ChunkType.THINKING_START
+                } as ThinkingStartChunk)
+                isFirstThinkingChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
@@ -707,6 +715,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 处理文本内容
             if (contentSource.content) {
+              if (isFirstTextChunk) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_START
+                } as TextStartChunk)
+                isFirstTextChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: contentSource.content

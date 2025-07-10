@@ -43,7 +43,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
+  const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -75,14 +75,14 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         supportExts,
         setFiles,
         undefined, // 不需要setText
-        pasteLongTextAsFile,
+        false, // 不需要 pasteLongTextAsFile
         pasteLongTextThreshold,
         undefined, // 不需要text
         resizeTextArea,
         t
       )
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t]
+    [model, pasteLongTextThreshold, resizeTextArea, supportExts, t]
   )
 
   // 添加全局粘贴事件处理
@@ -256,71 +256,72 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   }, [couldAddImageFile, couldAddTextFile])
 
   return (
-    <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
-      {editedBlocks
-        .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-        .map((block) => (
-          <Textarea
-            className={classNames('editing-message', isFileDragging && 'file-dragging')}
-            key={block.id}
-            ref={textareaRef}
-            variant="borderless"
-            value={block.content}
-            onChange={(e) => {
-              handleTextChange(block.id, e.target.value)
-              resizeTextArea()
-            }}
-            onKeyDown={(e) => handleKeyDown(e, block.id)}
-            autoFocus
-            spellCheck={enableSpellCheck}
-            onPaste={(e) => onPaste(e.nativeEvent)}
-            onFocus={() => {
-              // 记录当前聚焦的组件
-              PasteService.setLastFocusedComponent('messageEditor')
-            }}
-            onContextMenu={(e) => {
-              // 阻止事件冒泡，避免触发全局的 Electron contextMenu
-              e.stopPropagation()
-            }}
-            style={{
-              fontSize,
-              padding: '0px 15px 8px 15px'
-            }}>
-            <TranslateButton onTranslated={onTranslated} />
-          </Textarea>
-        ))}
-      {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
-        files.length > 0) && (
-        <FileBlocksContainer>
-          {editedBlocks
-            .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-            .map(
-              (block) =>
-                block.file && (
-                  <CustomTag
-                    key={block.id}
-                    icon={getFileIcon(block.file.ext)}
-                    color="#37a5aa"
-                    closable
-                    onClose={() => handleFileRemove(block.id)}>
-                    <FileNameRender file={block.file} />
-                  </CustomTag>
-                )
-            )}
-
-          {files.map((file) => (
-            <CustomTag
-              key={file.id}
-              icon={getFileIcon(file.ext)}
-              color="#37a5aa"
-              closable
-              onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-              <FileNameRender file={file} />
-            </CustomTag>
+    <>
+      <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+        {editedBlocks
+          .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+          .map((block) => (
+            <Textarea
+              className={classNames('editing-message', isFileDragging && 'file-dragging')}
+              key={block.id}
+              ref={textareaRef}
+              variant="borderless"
+              value={block.content}
+              onChange={(e) => {
+                handleTextChange(block.id, e.target.value)
+                resizeTextArea()
+              }}
+              onKeyDown={(e) => handleKeyDown(e, block.id)}
+              autoFocus
+              spellCheck={enableSpellCheck}
+              onPaste={(e) => onPaste(e.nativeEvent)}
+              onFocus={() => {
+                // 记录当前聚焦的组件
+                PasteService.setLastFocusedComponent('messageEditor')
+              }}
+              onContextMenu={(e) => {
+                // 阻止事件冒泡，避免触发全局的 Electron contextMenu
+                e.stopPropagation()
+              }}
+              style={{
+                fontSize,
+                padding: '0px 15px 8px 15px'
+              }}>
+              <TranslateButton onTranslated={onTranslated} />
+            </Textarea>
           ))}
-        </FileBlocksContainer>
-      )}
+        {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+          files.length > 0) && (
+          <FileBlocksContainer>
+            {editedBlocks
+              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+              .map(
+                (block) =>
+                  block.file && (
+                    <CustomTag
+                      key={block.id}
+                      icon={getFileIcon(block.file.ext)}
+                      color="#37a5aa"
+                      closable
+                      onClose={() => handleFileRemove(block.id)}>
+                      <FileNameRender file={block.file} />
+                    </CustomTag>
+                  )
+              )}
 
+            {files.map((file) => (
+              <CustomTag
+                key={file.id}
+                icon={getFileIcon(file.ext)}
+                color="#37a5aa"
+                closable
+                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+                <FileNameRender file={file} />
+              </CustomTag>
+            ))}
+          </FileBlocksContainer>
+        )}
+      </EditorContainer>
       <ActionBar>
         <ActionBarLeft>
           {isUserMessage && (
@@ -355,17 +356,17 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
           )}
         </ActionBarRight>
       </ActionBar>
-    </EditorContainer>
+    </>
   )
 }
 
 const EditorContainer = styled.div`
-  padding: 8px 0;
+  padding: 18px 0;
+  padding-bottom: 5px;
   border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
-  margin-top: 5px;
-  margin-bottom: 10px;
+  margin-top: 18px;
   background-color: var(--color-background-opacity);
   width: 100%;
 

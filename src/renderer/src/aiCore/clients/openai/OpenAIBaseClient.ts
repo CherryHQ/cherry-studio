@@ -89,7 +89,7 @@ export abstract class OpenAIBaseClient<
     const data = await sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-      encoding_format: 'float'
+      encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
     })
     return data.data[0].embedding.length
   }
