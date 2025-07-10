@@ -210,8 +210,8 @@ const AssistantSettings: FC = () => {
         <Col span={19}>
           <Slider
             min={0}
-            max={20}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+            max={100}
+            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: <span style={{ fontSize: '18px' }}>∞</span> }}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
@@ -221,7 +221,7 @@ const AssistantSettings: FC = () => {
         <Col span={5}>
           <InputNumber
             min={0}
-            max={20}
+            max={100}
             step={1}
             value={contextCount}
             onChange={onContextCountChange}
