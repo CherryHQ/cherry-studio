@@ -9,7 +9,7 @@ import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import iconv from 'iconv-lite'
-import { detectAll as detectEncodingAll } from 'jschardet'
+import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -219,7 +219,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
   await fh.close()
 
-  const encodings = detectEncodingAll(bufferRead)
+  const encodings = jschardet.detectAll(bufferRead)
 
   if (encodings.length === 0) {
     Logger.error('Failed to detect encoding. Use utf-8 to decode.')
