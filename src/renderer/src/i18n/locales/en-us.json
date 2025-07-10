@@ -728,7 +728,6 @@
         "invoking": "Invoking",
         "pending": "Pending",
         "preview": "Preview",
-        "raw": "Raw",
         "autoApproveEnabled": "Auto-approve enabled for this tool"
       },
       "topic.added": "New topic added",
@@ -1855,7 +1854,10 @@
           "loadError": "Get tools Error",
           "noToolsAvailable": "No tools available",
           "enable": "Enable Tool",
-          "autoApprove": "Auto Approve & Run",
+          "autoApprove": "Auto Approve",
+          "autoApprove.tooltip.howToEnable": "Enable the tool first to use auto-approve",
+          "autoApprove.tooltip.enabled": "Tool will run automatically without confirmation",
+          "autoApprove.tooltip.disabled": "Tool will require manual approval before running",
           "run": "Run"
         },
         "type": "Type",

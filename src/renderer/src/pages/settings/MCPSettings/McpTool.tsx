@@ -1,6 +1,7 @@
-import { PauseCircleOutlined, PlayCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { MCPServer, MCPTool } from '@renderer/types'
-import { Badge, Collapse, Descriptions, Empty, Flex, Switch, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { ColumnsType } from 'antd/es/table'
+import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -55,137 +56,140 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       }
     }
 
+    // <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema')}:</Typography.Title>
     return (
-      <div style={{ marginTop: 12 }}>
-        <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema')}:</Typography.Title>
-        <Descriptions bordered size="small" column={1} style={{ marginTop: 8 }}>
-          {Object.entries(tool.inputSchema.properties).map(([key, prop]: [string, any]) => (
-            <Descriptions.Item
-              key={key}
-              label={
-                <Flex gap={4}>
-                  <Typography.Text strong>{key}</Typography.Text>
-                  {tool.inputSchema.required?.includes(key) && (
-                    <Tooltip title="Required field">
-                      <span style={{ color: '#f5222d' }}>*</span>
-                    </Tooltip>
-                  )}
-                </Flex>
-              }>
-              <Flex vertical gap={4}>
-                <Flex align="center" gap={8}>
-                  {prop.type && (
-                    // <Typography.Text type="secondary">{prop.type} </Typography.Text>
-                    <Badge
-                      color={getTypeColor(prop.type)}
-                      text={<Typography.Text type="secondary">{prop.type}</Typography.Text>}
-                    />
-                  )}
-                </Flex>
-                {prop.description && (
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                    {prop.description}
-                  </Typography.Paragraph>
-                )}
-                {prop.enum && (
-                  <div style={{ marginTop: 4 }}>
-                    <Typography.Text type="secondary">Allowed values: </Typography.Text>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                      {prop.enum.map((value: string, idx: number) => (
-                        <Tag key={idx}>{value}</Tag>
-                      ))}
-                    </div>
-                  </div>
+      <Descriptions bordered size="small" column={1} style={{ userSelect: 'text' }}>
+        {Object.entries(tool.inputSchema.properties).map(([key, prop]: [string, any]) => (
+          <Descriptions.Item
+            key={key}
+            label={
+              <Flex gap={4}>
+                <Typography.Text strong>{key}</Typography.Text>
+                {tool.inputSchema.required?.includes(key) && (
+                  <Tooltip title="Required field">
+                    <span style={{ color: '#f5222d' }}>*</span>
+                  </Tooltip>
                 )}
               </Flex>
-            </Descriptions.Item>
-          ))}
-        </Descriptions>
-      </div>
+            }>
+            <Flex vertical gap={4}>
+              <Flex align="center" gap={8}>
+                {prop.type && (
+                  // <Typography.Text type="secondary">{prop.type} </Typography.Text>
+                  <Badge
+                    color={getTypeColor(prop.type)}
+                    text={<Typography.Text type="secondary">{prop.type}</Typography.Text>}
+                  />
+                )}
+              </Flex>
+              {prop.description && (
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+                  {prop.description}
+                </Typography.Paragraph>
+              )}
+              {prop.enum && (
+                <div style={{ marginTop: 4 }}>
+                  <Typography.Text type="secondary">Allowed values: </Typography.Text>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    {prop.enum.map((value: string, idx: number) => (
+                      <Tag key={idx}>{value}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Flex>
+          </Descriptions.Item>
+        ))}
+      </Descriptions>
     )
   }
 
+  const columns: ColumnsType<MCPTool> = [
+    {
+      title: t('settings.mcp.tools.availableTools'),
+      dataIndex: 'name',
+      key: 'name',
+      filters: tools.map((tool) => ({
+        text: tool.name,
+        value: tool.name
+      })),
+      onFilter: (value, record) => record.name === value,
+      filterSearch: true,
+      render: (_, tool) => (
+        <Flex vertical align="flex-start">
+          <Flex align="center" gap={4} style={{ width: '100%' }}>
+            <Typography.Text strong>{tool.name}</Typography.Text>
+            <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
+              <Info size={14} />
+            </Tooltip>
+          </Flex>
+          {tool.description && (
+            <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
+              {tool.description.length > 100 ? `${tool.description.substring(0, 100)}...` : tool.description}
+            </Typography.Text>
+          )}
+        </Flex>
+      )
+    },
+    {
+      title: (
+        <Flex align="center" justify="center" gap={4}>
+          <Hammer size={14} color="orange" />
+          <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
+        </Flex>
+      ),
+      key: 'enable',
+      width: 150, // Fixed width might be good for alignment
+      align: 'center',
+      render: (_, tool) => (
+        <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} size="small" />
+      )
+    },
+    {
+      title: (
+        <Flex align="center" justify="center" gap={4}>
+          <Zap size={14} color="red" />
+          <Typography.Text strong>{t('settings.mcp.tools.autoApprove')}</Typography.Text>
+        </Flex>
+      ),
+      key: 'autoApprove',
+      width: 150, // Fixed width
+      align: 'center',
+      render: (_, tool) => (
+        <Tooltip
+          title={
+            !isToolEnabled(tool)
+              ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+              : isAutoApproveEnabled(tool)
+                ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
+                : t('settings.mcp.tools.autoApprove.tooltip.disabled')
+          }
+          placement="top">
+          <Switch
+            checked={isAutoApproveEnabled(tool)}
+            disabled={!isToolEnabled(tool)}
+            onChange={(checked) => handleAutoApproveToggle(tool, checked)}
+            size="small"
+          />
+        </Tooltip>
+      )
+    }
+  ]
+
   return (
     <Section>
-      <SectionTitle>{t('settings.mcp.tools.availableTools')}</SectionTitle>
       {tools.length > 0 ? (
-        <Collapse bordered={false} ghost>
-          {tools.map((tool) => (
-            <Collapse.Panel
-              key={tool.id}
-              header={
-                <Flex justify="space-between" align="center" style={{ width: '100%' }}>
-                  <Flex vertical align="flex-start">
-                    <Flex align="center" style={{ width: '100%' }}>
-                      <Typography.Text strong>{tool.name}</Typography.Text>
-                      <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
-                        {tool.id}
-                      </Typography.Text>
-                    </Flex>
-                    {tool.description && (
-                      <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-                        {tool.description.length > 100 ? `${tool.description.substring(0, 100)}...` : tool.description}
-                      </Typography.Text>
-                    )}
-                  </Flex>
-                  <SwitchContainer>
-                    <SwitchGroup>
-                      <SwitchLabel>
-                        {isToolEnabled(tool) ? (
-                          <PlayCircleOutlined style={{ fontSize: '14px', color: '#52c41a' }} />
-                        ) : (
-                          <PauseCircleOutlined style={{ fontSize: '14px', color: '#d9d9d9' }} />
-                        )}
-                        <Typography.Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
-                          {t('settings.mcp.tools.enable', 'Enable Tool')}
-                        </Typography.Text>
-                      </SwitchLabel>
-                      <Switch
-                        checked={isToolEnabled(tool)}
-                        onChange={(checked, event) => {
-                          event?.stopPropagation()
-                          handleToggle(tool, checked)
-                        }}
-                      />
-                    </SwitchGroup>
-                    <SwitchGroup>
-                      <Tooltip
-                        title={
-                          !isToolEnabled(tool)
-                            ? 'Enable the tool first to use auto-approve'
-                            : isAutoApproveEnabled(tool)
-                              ? 'Tool will run automatically without confirmation'
-                              : 'Tool will require manual approval before running'
-                        }
-                        placement="topRight">
-                        <SwitchLabel>
-                          <ThunderboltOutlined
-                            style={{
-                              fontSize: '14px',
-                              color: isAutoApproveEnabled(tool) && isToolEnabled(tool) ? '#faad14' : '#d9d9d9'
-                            }}
-                          />
-                          <Typography.Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
-                            {t('settings.mcp.tools.autoApprove', 'Auto Approve')}
-                          </Typography.Text>
-                        </SwitchLabel>
-                      </Tooltip>
-                      <Switch
-                        checked={isAutoApproveEnabled(tool)}
-                        disabled={!isToolEnabled(tool)}
-                        onChange={(checked, event) => {
-                          event?.stopPropagation()
-                          handleAutoApproveToggle(tool, checked)
-                        }}
-                      />
-                    </SwitchGroup>
-                  </SwitchContainer>
-                </Flex>
-              }>
-              <SelectableContent>{renderToolProperties(tool)}</SelectableContent>
-            </Collapse.Panel>
-          ))}
-        </Collapse>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={tools}
+          pagination={false}
+          bordered
+          sticky={{ offsetHeader: -55 }}
+          expandable={{
+            expandedRowRender: (tool) => renderToolProperties(tool)
+          }}
+        />
       ) : (
         <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
@@ -196,40 +200,6 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
 const Section = styled.div`
   margin-top: 8px;
   padding-top: 8px;
-`
-
-const SectionTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: var(--color-text-secondary);
-`
-
-const SelectableContent = styled.div`
-  user-select: text;
-  padding: 0 12px;
-`
-
-const SwitchContainer = styled.div`
-  display: flex;
-  gap: 24px;
-  align-items: center;
-`
-
-const SwitchGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-`
-
-const SwitchLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 80px;
-  justify-content: center;
-  text-align: center;
 `
 
 export default MCPToolsSection

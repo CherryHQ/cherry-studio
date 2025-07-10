@@ -1852,7 +1852,13 @@
           "availableTools": "利用可能なツール",
           "inputSchema": "入力スキーマ",
           "loadError": "ツール取得エラー",
-          "noToolsAvailable": "利用可能なツールなし"
+          "noToolsAvailable": "利用可能なツールなし",
+          "enable": "ツールを有効にする",
+          "autoApprove": "自動承認",
+          "autoApprove.tooltip.howToEnable": "ツールを有効にしてから自動承認を使用できます",
+          "autoApprove.tooltip.enabled": "ツールは承認なしで自動実行されます",
+          "autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です",
+          "run": "実行"
         },
         "type": "タイプ",
         "types": {

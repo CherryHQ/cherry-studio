@@ -728,7 +728,6 @@
         "invoking": "调用中",
         "pending": "等待中",
         "preview": "预览",
-        "raw": "原始",
         "autoApproveEnabled": "此工具已启用自动批准"
       },
       "topic.added": "话题添加成功",
@@ -1855,7 +1854,10 @@
           "loadError": "获取工具失败",
           "noToolsAvailable": "无可用工具",
           "enable": "启用工具",
-          "autoApprove": "自动批准并运行",
+          "autoApprove": "自动批准",
+          "autoApprove.tooltip.howToEnable": "启用工具后才能使用自动批准",
+          "autoApprove.tooltip.enabled": "工具将自动运行而无需批准",
+          "autoApprove.tooltip.disabled": "工具运行前需要手动批准",
           "run": "运行"
         },
         "type": "类型",

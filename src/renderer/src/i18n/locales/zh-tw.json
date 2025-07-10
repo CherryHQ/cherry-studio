@@ -1854,7 +1854,10 @@
           "loadError": "獲取工具失敗",
           "noToolsAvailable": "無可用工具",
           "enable": "啟用工具",
-          "autoApprove": "自動批准並運行",
+          "autoApprove": "自動批准",
+          "autoApprove.tooltip.howToEnable": "啟用工具後才能使用自動批准",
+          "autoApprove.tooltip.enabled": "工具將自動運行而無需批准",
+          "autoApprove.tooltip.disabled": "工具運行前需要手動批准",
           "run": "運行"
         },
         "type": "類型",
