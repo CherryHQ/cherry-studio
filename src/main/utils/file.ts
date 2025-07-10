@@ -1,9 +1,10 @@
 import * as fs from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isPortable } from '@main/constant'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
+import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
@@ -211,13 +212,14 @@ export function getAppConfigDir(name: string) {
  * @param filePath - 文件路径
  * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
  */
-export function detectEncoding(filePath: string): string {
+export async function detectEncoding(filePath: string): Promise<string> {
   // 读取文件前1KB来检测编码
-  const buffer = Buffer.alloc(1024)
-  const fd = fs.openSync(filePath, 'r')
-  fs.readSync(fd, buffer, 0, 1024, 0)
-  fs.closeSync(fd)
-  const { encoding } = detectEncoding_(buffer)
+  const buffer = Buffer.alloc(1 * MB)
+  const fh = await open(filePath, 'r')
+  const { bytesRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  const bufferRead = buffer.subarray(0, bytesRead)
+  await fh.close()
+  const { encoding } = detectEncoding_(bufferRead)
   return encoding
 }
 
@@ -226,18 +228,23 @@ export function detectEncoding(filePath: string): string {
  * @param filePath - 文件路径
  * @returns 解码后的文件内容
  */
-export function readTextFileWithAutoEncoding(filePath: string) {
-  const encoding = detectEncoding(filePath)
-  const data = fs.readFileSync(filePath)
+export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
+  let encoding = await detectEncoding(filePath)
+  if (encoding === 'ascii') {
+    encoding = 'UTF-8'
+  }
+  const data = await readFile(filePath)
   const content = iconv.decode(data, encoding)
 
-  if (content.includes('\uFFFD') && encoding !== 'UTF-8') {
+  if (content.includes('\uFFFD')) {
     Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
-    const buffer = Buffer.alloc(1024)
-    const fd = fs.openSync(filePath, 'r')
-    fs.readSync(fd, buffer, 0, 1024, 0)
-    fs.closeSync(fd)
-    const encodings = detectEncodingAll(buffer)
+    const buffer = Buffer.alloc(1 * MB)
+    const fh = await open(filePath, 'r')
+    const { bytesRead } = await fh.read(buffer, 0, 1 * MB, 0)
+    const bufferRead = buffer.subarray(0, bytesRead)
+    fh.close()
+
+    const encodings = detectEncodingAll(bufferRead)
     if (encodings.length > 0) {
       for (const item of encodings) {
         if (item.encoding === encoding) {
@@ -245,11 +252,11 @@ export function readTextFileWithAutoEncoding(filePath: string) {
         }
         Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
         const content = iconv.decode(data, item.encoding)
-        if (!content.includes('\uFFFD')) {
+        if (content.includes('\uFFFD')) {
+          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
+        } else {
           Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
           return content
-        } else {
-          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
         }
       }
     }
