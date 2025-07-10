@@ -214,7 +214,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         title={
           isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
         }
-        mouseEnterDelay={0.5}
+        mouseLeaveDelay={0}
         placement="top">
         <Button
           type={isAllFilteredInProvider ? 'default' : 'primary'}
@@ -241,11 +241,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               }
             }
           }}
-          disabled={list.length === 0}
+          disabled={loading || list.length === 0}
         />
       </Tooltip>
     )
-  }, [list, t, provider, onRemoveModel, models, onAddModel])
+  }, [list, t, loading, provider, onRemoveModel, models, onAddModel])
 
   const renderGroupTools = useCallback(
     (group: string) => {
@@ -258,7 +258,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               ? t(`settings.models.manage.remove_whole_group`)
               : t(`settings.models.manage.add_whole_group`)
           }
-          mouseEnterDelay={0.5}
+          mouseLeaveDelay={0}
           placement="top">
           <Button
             type="text"
@@ -436,7 +436,6 @@ const TopToolsWrapper = styled.div`
 
 const ListContainer = styled.div`
   height: calc(100vh - 300px);
-  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 16px;
