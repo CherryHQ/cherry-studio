@@ -219,7 +219,18 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
   await fh.close()
 
-  const encodings = jschardet.detectAll(bufferRead).slice(0, 2)
+  // 获取文件编码格式，最多取前两个可能的编码
+  const encodings = Array.from(
+    new Map(
+      jschardet
+        .detectAll(bufferRead)
+        .map((item) => ({
+          ...item,
+          encoding: item.encoding === 'ascii' ? 'UTF-8' : item.encoding
+        }))
+        .map((item) => [item.encoding, item])
+    ).values()
+  ).slice(0, 2)
 
   if (encodings.length === 0) {
     Logger.error('Failed to detect encoding. Use utf-8 to decode.')
@@ -231,7 +242,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
 
   for (const item of encodings) {
     const encoding = item.encoding
-    const content = iconv.decode(data, encoding === 'ascii' ? 'UTF-8' : encoding)
+    const content = iconv.decode(data, encoding)
     if (content.includes('\uFFFD')) {
       Logger.error(
         `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
