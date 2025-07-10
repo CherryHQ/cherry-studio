@@ -161,7 +161,7 @@ const SettingsTab: FC<Props> = (props) => {
   }, [assistant])
 
   const assistantContextCount = assistant?.settings?.contextCount || 20
-  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
+  const maxContextCount = 100
 
   const model = assistant.model || getDefaultModel()
 
@@ -217,6 +217,7 @@ const SettingsTab: FC<Props> = (props) => {
               <Slider
                 min={0}
                 max={maxContextCount}
+                marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: <span style={{ fontSize: '18px' }}>∞</span> }}
                 onChange={setContextCount}
                 onChangeComplete={onContextCountChange}
                 value={typeof contextCount === 'number' ? contextCount : 0}

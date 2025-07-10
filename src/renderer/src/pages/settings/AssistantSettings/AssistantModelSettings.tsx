@@ -312,7 +312,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <EditableNumber
             min={0}
-            max={20}
+            max={100}
             step={1}
             value={contextCount}
             changeOnBlur
@@ -334,7 +334,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
+            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: <span style={{ fontSize: '18px' }}>∞</span> }}
             step={1}
             tooltip={{ formatter: formatSliderTooltip }}
           />
