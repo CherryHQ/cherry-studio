@@ -8,7 +8,7 @@ import iconv from 'iconv-lite'
 import { detectAll as detectEncodingAll } from 'jschardet'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { detectEncoding, readTextFileWithAutoEncoding } from '../file'
+import { readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir } from '../file'
 
 // Mock dependencies
@@ -244,74 +244,6 @@ describe('file', () => {
     it('should handle empty app name', () => {
       const appConfigDir = getAppConfigDir('')
       expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/')
-    })
-  })
-
-  // 在 describe('file') 块内部添加新的 describe 块
-  describe('detectEncoding', () => {
-    const mockFilePath = '/path/to/mock/file.txt'
-
-    it('should correctly detect UTF-8 encoding', async () => {
-      // 准备UTF-8编码的Buffer
-      const content = '这是UTF-8测试内容'
-      const buffer = Buffer.from(content, 'utf-8')
-
-      // 创建模拟的 FileHandle 对象
-      const mockFileHandle = {
-        read: vi.fn().mockResolvedValue({
-          bytesRead: buffer.byteLength,
-          buffer: buffer
-        }),
-        close: vi.fn().mockResolvedValue(undefined)
-      }
-
-      // 模拟 fs.open 方法
-      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
-
-      const encoding = await detectEncoding(mockFilePath)
-      expect(encoding).toBe('UTF-8')
-    })
-
-    it('should correctly detect GB2312 encoding', async () => {
-      // 使用iconv创建GB2312编码内容
-      const content = '这是一段GB2312编码的测试内容'
-      const buffer = iconv.encode(content, 'GB2312')
-
-      // 创建模拟的 FileHandle 对象
-      const mockFileHandle = {
-        read: vi.fn().mockResolvedValue({
-          bytesRead: buffer.byteLength,
-          buffer: buffer
-        }),
-        close: vi.fn().mockResolvedValue(undefined)
-      }
-
-      // 模拟 fs.open 方法
-      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
-
-      const encoding = await detectEncoding(mockFilePath)
-      expect(encoding).toMatch(/GB2312|GB18030/i)
-    })
-
-    it('should correctly convert ascii encoding to utf-8', async () => {
-      // 准备ASCII编码内容
-      const content = 'ASCII content'
-      const buffer = Buffer.from(content, 'ascii')
-
-      // 创建模拟的 FileHandle 对象
-      const mockFileHandle = {
-        read: vi.fn().mockResolvedValue({
-          bytesRead: buffer.byteLength,
-          buffer: buffer
-        }),
-        close: vi.fn().mockResolvedValue(undefined)
-      }
-
-      // 模拟 fs.open 方法
-      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
-
-      const encoding = await detectEncoding(mockFilePath)
-      expect(encoding.toLowerCase()).toBe('utf-8')
     })
   })
 

@@ -9,7 +9,7 @@ import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import iconv from 'iconv-lite'
-import { detect as detectEncoding_, detectAll as detectEncodingAll } from 'jschardet'
+import { detectAll as detectEncodingAll } from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -205,24 +205,6 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
-}
-
-/**
- * 使用 jschardet 库检测文件编码格式
- * @param filePath - 文件路径
- * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
- */
-export async function detectEncoding(filePath: string): Promise<string> {
-  // 读取文件前1MB来检测编码
-  const buffer = Buffer.alloc(1 * MB)
-  const fh = await open(filePath, 'r')
-  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
-  await fh.close()
-  const { encoding } = detectEncoding_(bufferRead)
-  if (encoding === 'ascii') {
-    return 'UTF-8'
-  }
-  return encoding
 }
 
 /**
