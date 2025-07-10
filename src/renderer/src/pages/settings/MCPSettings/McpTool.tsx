@@ -4,7 +4,6 @@ import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typograp
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface MCPToolsSectionProps {
   tools: MCPTool[]
@@ -102,7 +101,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
 
   const columns: ColumnsType<MCPTool> = [
     {
-      title: t('settings.mcp.tools.availableTools'),
+      title: <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
       dataIndex: 'name',
       key: 'name',
       filters: tools.map((tool) => ({
@@ -173,14 +172,13 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   ]
 
   return (
-    <Section>
+    <>
       {tools.length > 0 ? (
         <Table
           rowKey="id"
           columns={columns}
           dataSource={tools}
           pagination={false}
-          bordered
           sticky={{ offsetHeader: -55 }}
           expandable={{
             expandedRowRender: (tool) => renderToolProperties(tool)
@@ -189,13 +187,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       ) : (
         <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
-    </Section>
+    </>
   )
 }
-
-const Section = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-`
 
 export default MCPToolsSection
