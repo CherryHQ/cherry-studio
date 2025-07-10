@@ -10,8 +10,8 @@ import {
   MessageContentStats,
   processMessageContent
 } from '@renderer/utils/knowledge'
-import { Checkbox, Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
-import { CircleHelp } from 'lucide-react'
+import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
+import { Check, CircleHelp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -242,7 +242,11 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
         <Form.Item label={t('chat.save.knowledge.select.content.title')}>
           <Flex gap={8} style={{ flexDirection: 'column' }}>
             {contentTypeOptions.map((option) => (
-              <ContentTypeItem key={option.type} onClick={() => handleContentTypeToggle(option.type)}>
+              <ContentTypeItem
+                key={option.type}
+                align="center"
+                justify="space-between"
+                onClick={() => handleContentTypeToggle(option.type)}>
                 <Flex align="center" gap={8}>
                   <CustomTag
                     color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
@@ -254,10 +258,7 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
                     <CircleHelp size={16} style={{ cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <Checkbox
-                  checked={selectedTypes.includes(option.type)}
-                  onChange={() => handleContentTypeToggle(option.type)}
-                />
+                {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
               </ContentTypeItem>
             ))}
           </Flex>
@@ -331,10 +332,8 @@ const EmptyContainer = styled.div`
   padding: 40px 20px;
 `
 
-const ContentTypeItem = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 12px 40px 12px 12px; /* 右边预留checkbox空间 */
+const ContentTypeItem = styled(Flex)`
+  padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   cursor: pointer;
@@ -343,13 +342,6 @@ const ContentTypeItem = styled.div`
 
   &:hover {
     border-color: var(--color-primary);
-  }
-
-  .ant-checkbox-wrapper {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
   }
 `
 
