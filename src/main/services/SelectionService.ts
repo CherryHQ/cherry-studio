@@ -1104,9 +1104,6 @@ export class SelectionService {
       hasShadow: false,
       thickFrame: false,
       show: false,
-
-      // type: 'panel',
-
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
