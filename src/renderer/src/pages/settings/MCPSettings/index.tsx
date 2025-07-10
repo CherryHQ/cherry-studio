@@ -7,7 +7,6 @@ import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { SettingContainer } from '..'
-import InstallNpxUv from './InstallNpxUv'
 import McpServersList from './McpServersList'
 import McpSettings from './McpSettings'
 import NpxSearch from './NpxSearch'
@@ -38,14 +37,6 @@ const MCPSettings: FC = () => {
             element={
               <SettingContainer theme={theme}>
                 <NpxSearch />
-              </SettingContainer>
-            }
-          />
-          <Route
-            path="mcp-install"
-            element={
-              <SettingContainer theme={theme}>
-                <InstallNpxUv />
               </SettingContainer>
             }
           />

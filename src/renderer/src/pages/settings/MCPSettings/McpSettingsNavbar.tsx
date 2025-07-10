@@ -95,7 +95,7 @@ export const McpSettingsNavbar = () => {
             <ChevronDown size={16} />
           </Button>
         </Dropdown>
-        <InstallNpxUv mini />
+        <InstallNpxUv />
       </HStack>
     </NavbarRight>
   )
