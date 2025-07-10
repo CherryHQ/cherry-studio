@@ -509,54 +509,55 @@ export class SelectionService {
     //should set every time the window is shown
     this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
 
-    // [macOS] a series of hacky ways only for macOS
-    if (isMac) {
-      // [macOS] a hacky way
-      // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
-      // so we just don't set `skipTransformProcessType: true` when in self app
-      const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
-
-      if (!isSelf) {
-        // [macOS] an ugly hacky way
-        // `focusable: true` will make mainWindow disappeared when `setVisibleOnAllWorkspaces`
-        // so we set `focusable: true` before showing, and then set false after showing
-        this.toolbarWindow!.setFocusable(false)
-
-        // [macOS]
-        // force `setVisibleOnAllWorkspaces: true` to let toolbar show in all workspaces. And we MUST not set it to false again
-        // set `skipTransformProcessType: true` to avoid dock icon spinning when `setVisibleOnAllWorkspaces`
-        this.toolbarWindow!.setVisibleOnAllWorkspaces(true, {
-          visibleOnFullScreen: true,
-          skipTransformProcessType: true
-        })
-      }
-
-      // [macOS] MUST use `showInactive()` to prevent other windows bring to front together
-      // [Windows] is OK for both `show()` and `showInactive()` because of `focusable: false`
-      this.toolbarWindow!.showInactive()
-
-      // [macOS] restore the focusable status
-      this.toolbarWindow!.setFocusable(true)
-
+    if (!isMac) {
+      this.toolbarWindow!.show()
+      /**
+       * [Windows]
+       *   In Windows 10, setOpacity(1) will make the window completely transparent
+       *   It's a strange behavior, so we don't use it for compatibility
+       */
+      // this.toolbarWindow!.setOpacity(1)
       this.startHideByMouseKeyListener()
-
       return
     }
 
-    /**
-     * The following is for Windows
-     */
+    /************************************************
+     * [macOS] the following code is only for macOS
+     *
+     * WARNING:
+     *   DO NOT MODIFY THESE CODES, UNLESS YOU REALLY KNOW WHAT YOU ARE DOING!!!!
+     *************************************************/
 
-    this.toolbarWindow!.show()
+    // [macOS] a hacky way
+    // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
+    // so we just don't set `skipTransformProcessType: true` when in self app
+    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
 
-    /**
-     * [Windows]
-     *   In Windows 10, setOpacity(1) will make the window completely transparent
-     *   It's a strange behavior, so we don't use it for compatibility
-     */
-    // this.toolbarWindow!.setOpacity(1)
+    if (!isSelf) {
+      // [macOS] an ugly hacky way
+      // `focusable: true` will make mainWindow disappeared when `setVisibleOnAllWorkspaces`
+      // so we set `focusable: true` before showing, and then set false after showing
+      this.toolbarWindow!.setFocusable(false)
+
+      // [macOS]
+      // force `setVisibleOnAllWorkspaces: true` to let toolbar show in all workspaces. And we MUST not set it to false again
+      // set `skipTransformProcessType: true` to avoid dock icon spinning when `setVisibleOnAllWorkspaces`
+      this.toolbarWindow!.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
+    }
+
+    // [macOS] MUST use `showInactive()` to prevent other windows bring to front together
+    // [Windows] is OK for both `show()` and `showInactive()` because of `focusable: false`
+    this.toolbarWindow!.showInactive()
+
+    // [macOS] restore the focusable status
+    this.toolbarWindow!.setFocusable(true)
 
     this.startHideByMouseKeyListener()
+
+    return
   }
 
   /**
@@ -911,6 +912,7 @@ export class SelectionService {
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
     }
 
+    // [macOS] isFullscreen is only available on macOS
     this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
     this.toolbarWindow!.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
   }
@@ -1344,12 +1346,13 @@ export class SelectionService {
       visibleOnFullScreen: true
     })
 
+    actionWindow.showInactive()
+
     // show the dock again if last time it was shown
+    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
     if (!app.dock?.isVisible() && isDockShown) {
       app.dock?.show()
     }
-
-    actionWindow.show()
 
     // unset everything
     setTimeout(() => {
@@ -1358,7 +1361,9 @@ export class SelectionService {
         skipTransformProcessType: true
       })
       actionWindow.setAlwaysOnTop(false)
+
       actionWindow.setFocusable(true)
+
       // regain the focus when all the works done
       actionWindow.focus()
     }, 50)
