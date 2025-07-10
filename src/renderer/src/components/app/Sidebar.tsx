@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import DragableList from '../DragableList'
+import { DraggableList } from '../DraggableList'
 import MinAppIcon from '../Icons/MinAppIcon'
 import UserPopup from '../Popups/UserPopup'
 
@@ -288,7 +288,7 @@ const PinnedApps: FC = () => {
   const { openMinappKeepAlive } = useMinappPopup()
 
   return (
-    <DragableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
+    <DraggableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
       {(app) => {
         const menuItems: MenuProps['items'] = [
           {
@@ -316,7 +316,7 @@ const PinnedApps: FC = () => {
           </Tooltip>
         )
       }}
-    </DragableList>
+    </DraggableList>
   )
 }
 

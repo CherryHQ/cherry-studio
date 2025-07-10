@@ -208,7 +208,7 @@ export const isDedicatedImageGenerationModel = (model: Model): boolean =>
   DEDICATED_IMAGE_MODELS.filter((m) => model.id.includes(m)).length > 0
 
 // Text to image models
-export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus/i
+export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -2320,8 +2320,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',

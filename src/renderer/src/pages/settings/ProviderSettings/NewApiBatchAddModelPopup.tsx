@@ -1,4 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
+import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -83,11 +84,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
           rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
-            <Select.Option value="openai">OpenAI</Select.Option>
-            <Select.Option value="openai-response">OpenAI-Response</Select.Option>
-            <Select.Option value="anthropic">Anthropic</Select.Option>
-            <Select.Option value="gemini">Gemini</Select.Option>
-            <Select.Option value="jina-rerank">Jina-Rerank</Select.Option>
+            {endpointTypeOptions.map((opt) => (
+              <Select.Option key={opt.value} value={opt.value}>
+                {t(opt.label)}
+              </Select.Option>
+            ))}
           </Select>
         </Form.Item>
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
