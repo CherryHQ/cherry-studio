@@ -19,13 +19,16 @@ export enum ChunkType {
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
   LLM_RESPONSE_CREATED = 'llm_response_created',
   LLM_RESPONSE_IN_PROGRESS = 'llm_response_in_progress',
+  TEXT_START = 'text.start',
   TEXT_DELTA = 'text.delta',
   TEXT_COMPLETE = 'text.complete',
+  AUDIO_START = 'audio.start',
   AUDIO_DELTA = 'audio.delta',
   AUDIO_COMPLETE = 'audio.complete',
   IMAGE_CREATED = 'image.created',
   IMAGE_DELTA = 'image.delta',
   IMAGE_COMPLETE = 'image.complete',
+  THINKING_START = 'thinking.start',
   THINKING_DELTA = 'thinking.delta',
   THINKING_COMPLETE = 'thinking.complete',
   LLM_WEB_SEARCH_IN_PROGRESS = 'llm_websearch_in_progress',
@@ -55,6 +58,18 @@ export interface LLMResponseInProgressChunk {
    */
   response?: Response
   type: ChunkType.LLM_RESPONSE_IN_PROGRESS
+}
+
+export interface TextStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.TEXT_START
+
+  /**
+   * The ID of the chunk
+   */
+  chunk_id?: number
 }
 export interface TextDeltaChunk {
   /**
@@ -88,6 +103,13 @@ export interface TextCompleteChunk {
    * The type of the chunk
    */
   type: ChunkType.TEXT_COMPLETE
+}
+
+export interface AudioStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.AUDIO_START
 }
 
 export interface AudioDeltaChunk {
@@ -138,6 +160,13 @@ export interface ImageCompleteChunk {
    * The image content of the chunk
    */
   image?: { type: 'url' | 'base64'; images: string[] }
+}
+
+export interface ThinkingStartChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.THINKING_START
 }
 
 export interface ThinkingDeltaChunk {
@@ -365,13 +394,16 @@ export type Chunk =
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型
   | LLMResponseInProgressChunk // 大模型响应进行中
+  | TextStartChunk // 文本内容生成开始
   | TextDeltaChunk // 文本内容生成中
   | TextCompleteChunk // 文本内容生成完成
+  | AudioStartChunk // 音频内容生成开始
   | AudioDeltaChunk // 音频内容生成中
   | AudioCompleteChunk // 音频内容生成完成
   | ImageCreatedChunk // 图片内容创建
   | ImageDeltaChunk // 图片内容生成中
   | ImageCompleteChunk // 图片内容生成完成
+  | ThinkingStartChunk // 思考内容生成开始
   | ThinkingDeltaChunk // 思考内容生成中
   | ThinkingCompleteChunk // 思考内容生成完成
   | LLMWebSearchInProgressChunk // 大模型内部搜索进行中，无明显特征

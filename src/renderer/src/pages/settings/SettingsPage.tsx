@@ -71,16 +71,16 @@ const SettingsPage: FC = () => {
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
               <SquareTerminal size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/tool">
+            <MenuItem className={isRoute('/settings/tool')}>
+              <PencilRuler size={18} />
+              {t('settings.tool.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">

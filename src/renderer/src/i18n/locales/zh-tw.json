@@ -1870,7 +1870,20 @@
         "updateError": "更新伺服器失敗",
         "updateSuccess": "伺服器更新成功",
         "url": "URL",
-        "user": "用戶"
+        "user": "用戶",
+        "requiresConfig": "需要配置",
+        "builtinServers": "內置伺服器",
+        "more": {
+          "modelscope": "魔搭社區 MCP 伺服器",
+          "higress": "Higress MCP 伺服器",
+          "mcpso": "MCP 伺服器發現平台",
+          "smithery": "Smithery MCP 工具",
+          "glama": "Glama MCP 伺服器目錄",
+          "pulsemcp": "Pulse MCP 伺服器",
+          "composio": "Composio MCP 開發工具",
+          "official": "官方 MCP 伺服器集合",
+          "awesome": "精選的 MCP 伺服器清單"
+        }
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.divider.tooltip": "不適用於氣泡樣式消息",

@@ -1870,7 +1870,20 @@
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
         "url": "URL",
-        "user": "ユーザー"
+        "user": "ユーザー",
+        "requiresConfig": "設定が必要",
+        "builtinServers": "組み込みサーバー",
+        "more": {
+          "modelscope": "魔搭コミュニティ MCP サーバー",
+          "higress": "Higress MCP サーバー",
+          "mcpso": "MCP サーバー発見プラットフォーム",
+          "smithery": "Smithery MCP ツール",
+          "glama": "Glama MCP サーバーディレクトリ",
+          "pulsemcp": "Pulse MCP サーバー",
+          "composio": "Composio MCP 開発ツール",
+          "official": "公式 MCP サーバーコレクション",
+          "awesome": "厳選された MCP サーバーリスト"
+        }
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",

@@ -54,7 +54,7 @@ const FloatingSidebar: FC<Props> = ({
         style={{
           background: 'transparent',
           border: 'none',
-          maxHeight: maxHeight
+          height: '100%'
         }}
       />
     </PopoverContent>
@@ -82,6 +82,9 @@ const FloatingSidebar: FC<Props> = ({
 
 const PopoverContent = styled.div<{ maxHeight: number }>`
   max-height: ${(props) => props.maxHeight}px;
+  &.ant-popover-inner-content {
+    overflow-y: hidden;
+  }
 `
 
 export default FloatingSidebar
