@@ -213,13 +213,15 @@ export function getAppConfigDir(name: string) {
  * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
  */
 export async function detectEncoding(filePath: string): Promise<string> {
-  // 读取文件前1KB来检测编码
+  // 读取文件前1MB来检测编码
   const buffer = Buffer.alloc(1 * MB)
   const fh = await open(filePath, 'r')
-  const { bytesRead } = await fh.read(buffer, 0, 1 * MB, 0)
-  const bufferRead = buffer.subarray(0, bytesRead)
+  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
   await fh.close()
   const { encoding } = detectEncoding_(bufferRead)
+  if (encoding === 'ascii') {
+    return 'UTF-8'
+  }
   return encoding
 }
 
@@ -229,40 +231,43 @@ export async function detectEncoding(filePath: string): Promise<string> {
  * @returns 解码后的文件内容
  */
 export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
-  let encoding = await detectEncoding(filePath)
-  if (encoding === 'ascii') {
-    encoding = 'UTF-8'
-  }
-  const data = await readFile(filePath)
-  const content = iconv.decode(data, encoding)
+  // 读取前1MB以检测编码
+  const buffer = Buffer.alloc(1 * MB)
+  const fh = await open(filePath, 'r')
+  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  await fh.close()
 
-  if (content.includes('\uFFFD')) {
-    Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
-    const buffer = Buffer.alloc(1 * MB)
-    const fh = await open(filePath, 'r')
-    const { bytesRead } = await fh.read(buffer, 0, 1 * MB, 0)
-    const bufferRead = buffer.subarray(0, bytesRead)
-    fh.close()
+  const encodings = detectEncodingAll(bufferRead)
 
-    const encodings = detectEncodingAll(bufferRead)
-    if (encodings.length > 0) {
-      for (const item of encodings) {
-        if (item.encoding === encoding) {
-          continue
-        }
-        Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
-        const content = iconv.decode(data, item.encoding)
-        if (content.includes('\uFFFD')) {
-          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
-        } else {
-          Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
-          return content
-        }
-      }
-    }
-    Logger.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
+  if (encodings.length === 0) {
+    Logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    const data = await readFile(filePath)
     return iconv.decode(data, 'UTF-8')
   }
 
-  return content
+  const data = await readFile(filePath)
+  const maxRetries = 2
+  let fails = 0
+
+  for (const item of encodings) {
+    if (fails >= maxRetries) {
+      break
+    }
+    if (fails >= 1) {
+      Logger.log(`Attempting to decode file ${filePath} with ${item.encoding}`)
+    }
+    const encoding = item.encoding
+    const content = iconv.decode(data, encoding === 'ascii' ? 'UTF-8' : encoding)
+    if (content.includes('\uFFFD')) {
+      Logger.error(
+        `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
+      )
+      fails += 1
+    } else {
+      return content
+    }
+  }
+
+  Logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  return iconv.decode(data, 'UTF-8')
 }
