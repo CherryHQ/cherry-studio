@@ -338,6 +338,12 @@
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate"
     },
+    "html_artifacts": {
+      "code": "Code",
+      "generating": "Generating",
+      "preview": "Preview",
+      "split": "Split"
+    },
     "code_block": {
       "collapse": "Collapse",
       "copy": "Copy",
@@ -1890,7 +1896,6 @@
       "messages.navigation.none": "None",
       "messages.prompt": "Show prompt",
       "messages.title": "Message Settings",
-      "messages.tokens": "Show token usage",
       "messages.use_serif_font": "Use serif font",
       "mineru.api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key.",
       "miniapps": {

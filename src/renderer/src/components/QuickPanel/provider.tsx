@@ -27,6 +27,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // 添加更新item选中状态的方法
+  const updateItemSelection = useCallback((targetItem: QuickPanelListItem, isSelected: boolean) => {
+    setList((prevList) => prevList.map((item) => (item === targetItem ? { ...item, isSelected } : item)))
+  }, [])
+
   const open = useCallback((options: QuickPanelOpenOptions) => {
     if (clearTimer.current) {
       clearTimeout(clearTimer.current)
@@ -77,6 +82,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     () => ({
       open,
       close,
+      updateItemSelection,
 
       isVisible,
       symbol,
@@ -90,7 +96,21 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       beforeAction,
       afterAction
     }),
-    [open, close, isVisible, symbol, list, title, defaultIndex, pageSize, multiple, onClose, beforeAction, afterAction]
+    [
+      open,
+      close,
+      updateItemSelection,
+      isVisible,
+      symbol,
+      list,
+      title,
+      defaultIndex,
+      pageSize,
+      multiple,
+      onClose,
+      beforeAction,
+      afterAction
+    ]
   )
 
   return <QuickPanelContext value={value}>{children}</QuickPanelContext>

@@ -55,6 +55,7 @@
   p {
     margin: 1em 0;
     white-space: pre-wrap;
+    line-height: 2em;
 
     &:last-child {
       margin-bottom: 5px;
@@ -108,6 +109,7 @@
   li code {
     background: var(--color-background-mute);
     padding: 3px 5px;
+    margin: 0 2px;
     border-radius: 5px;
     word-break: keep-all;
     white-space: pre;
