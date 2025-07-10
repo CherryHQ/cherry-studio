@@ -136,8 +136,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       }
     )
 
-    if (!demo) updateWindowSize()
-
     return () => {
       textSelectionListenRemover()
       toolbarVisibilityChangeListenRemover()

@@ -1,7 +1,7 @@
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import Logger from 'electron-log'
 import { join } from 'path'
 import type {
@@ -1315,6 +1315,9 @@ export class SelectionService {
 
     /************************************************
      * [macOS] the following code is only for macOS
+     *
+     * WARNING:
+     *   DO NOT MODIFY THESE CODES, UNLESS YOU REALLY KNOW WHAT YOU ARE DOING!!!!
      *************************************************/
 
     // act normally when the app is not in fullscreen mode
@@ -1323,23 +1326,44 @@ export class SelectionService {
       return
     }
 
-    // [macOS] HACKY way for fullscreen override settings
+    // [macOS] an UGLY HACKY way for fullscreen override settings
 
     // FIXME sometimes the dock will be shown when the action window is shown
     // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
+    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
+    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
 
+    // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
+    actionWindow.setFocusable(false)
     actionWindow.setAlwaysOnTop(true, 'floating')
 
-    // [macOS] DO NOT set `skipTransformProcessType: true`
+    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
+    // just store the dock icon status, and show it again
+    const isDockShown = app.dock?.isVisible()
+
+    // DO NOT set `skipTransformProcessType: true`,
+    // it will cause the action window to be shown on other space
     actionWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true
     })
 
+    // show the dock again if last time it was shown
+    if (!app.dock?.isVisible() && isDockShown) {
+      app.dock?.show()
+    }
+
     actionWindow.show()
 
+    // unset everything
     setTimeout(() => {
-      actionWindow.setVisibleOnAllWorkspaces(false)
+      actionWindow.setVisibleOnAllWorkspaces(false, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
       actionWindow.setAlwaysOnTop(false)
+      actionWindow.setFocusable(true)
+      // regain the focus when all the works done
+      actionWindow.focus()
     }, 50)
   }
 
