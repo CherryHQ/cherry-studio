@@ -10,8 +10,8 @@ type Props = {
 
 export default function MaxContextCount({ maxContext, style, size = 14 }: Props) {
   return maxContext === MAX_CONTEXT_COUNT ? (
-    <InfinityIcon size={size} style={style} />
+    <InfinityIcon size={size} style={style} aria-label="infinity" />
   ) : (
-    <span>{maxContext.toString()}</span>
+    <span style={style}>{maxContext.toString()}</span>
   )
 }
