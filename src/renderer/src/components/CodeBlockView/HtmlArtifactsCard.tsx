@@ -30,6 +30,16 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
 
     const trimmedHtml = htmlContent.trim()
 
+    // 提前检查：如果包含关键的结束标签，直接判断为完整文档
+    if (/<\/html\s*>/i.test(trimmedHtml)) {
+      return false
+    }
+
+    // 如果同时包含 DOCTYPE 和 </body>，通常也是完整文档
+    if (/<!DOCTYPE\s+html/i.test(trimmedHtml) && /<\/body\s*>/i.test(trimmedHtml)) {
+      return false
+    }
+
     // 检查 HTML 是否看起来是完整的
     const indicators = {
       // 1. 检查常见的 HTML 结构完整性
@@ -78,13 +88,31 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
   function checkUnmatchedTags(html: string): boolean {
     const stack: string[] = []
     const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
+
+    // HTML5 void 元素（自闭合元素）的完整列表
+    const voidElements = [
+      'area',
+      'base',
+      'br',
+      'col',
+      'embed',
+      'hr',
+      'img',
+      'input',
+      'link',
+      'meta',
+      'param',
+      'source',
+      'track',
+      'wbr'
+    ]
+
     let match
 
     while ((match = tagRegex.exec(html)) !== null) {
       const [fullTag, tagName] = match
       const isClosing = fullTag.startsWith('</')
-      const isSelfClosing =
-        fullTag.endsWith('/>') || ['img', 'br', 'hr', 'input', 'meta', 'link'].includes(tagName.toLowerCase())
+      const isSelfClosing = fullTag.endsWith('/>') || voidElements.includes(tagName.toLowerCase())
 
       if (isSelfClosing) continue
 
@@ -350,7 +378,7 @@ const Content = styled.div`
 `
 
 const ButtonContainer = styled.div`
-  margin: 16px;
+  margin: 16px !important;
   display: flex;
   flex-direction: row;
   gap: 8px;

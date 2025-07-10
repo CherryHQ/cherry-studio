@@ -1870,7 +1870,20 @@
         "updateError": "Failed to update server",
         "updateSuccess": "Server updated successfully",
         "url": "URL",
-        "user": "User"
+        "user": "User",
+        "requiresConfig": "Requires Configuration",
+        "builtinServers": "Builtin Servers",
+        "more": {
+          "modelscope": "ModelScope Community MCP Server",
+          "higress": "Higress MCP Server",
+          "mcpso": "MCP Server Discovery Platform",
+          "smithery": "Smithery MCP Tools",
+          "glama": "Glama MCP Server Directory",
+          "pulsemcp": "Pulse MCP Server",
+          "composio": "Composio MCP Development Tools",
+          "official": "Official MCP Server Collection",
+          "awesome": "Curated MCP Server List"
+        }
       },
       "messages.divider": "Show divider between messages",
       "messages.divider.tooltip": "Not applicable to bubble-style message",

@@ -14,7 +14,9 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
+import BuiltinMCPServersSection from './BuiltinMCPServersSection'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
+import McpResourcesSection from './McpResourcesSection'
 import SyncServersPopup from './SyncServersPopup'
 
 const McpServersList: FC = () => {
@@ -179,6 +181,10 @@ const McpServersList: FC = () => {
           style={{ marginTop: 20 }}
         />
       )}
+
+      <McpResourcesSection />
+      <BuiltinMCPServersSection />
+
       <AddMcpServerModal
         visible={isAddModalVisible}
         onClose={() => setIsAddModalVisible(false)}
@@ -295,6 +301,7 @@ const ServerFooter = styled.div`
 
 const ButtonGroup = styled.div`
   display: flex;
+  align-items: center;
   gap: 8px;
 `
 

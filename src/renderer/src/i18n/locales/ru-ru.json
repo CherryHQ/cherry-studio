@@ -1870,7 +1870,20 @@
         "updateError": "Ошибка обновления сервера",
         "updateSuccess": "Сервер успешно обновлен",
         "url": "URL",
-        "user": "Пользователь"
+        "user": "Пользователь",
+        "requiresConfig": "Требуется настройка",
+        "builtinServers": "Встроенные серверы",
+        "more": {
+          "modelscope": "Сервер MCP сообщества ModelScope",
+          "higress": "Сервер Higress MCP",
+          "mcpso": "Платформа поиска серверов MCP",
+          "smithery": "Инструменты Smithery MCP",
+          "glama": "Каталог серверов Glama MCP",
+          "pulsemcp": "Сервер Pulse MCP",
+          "composio": "Инструменты разработки Composio MCP",
+          "official": "Официальная коллекция серверов MCP",
+          "awesome": "Кураторский список серверов MCP"
+        }
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.divider.tooltip": "Не применимо к сообщениям в стиле пузырей",
