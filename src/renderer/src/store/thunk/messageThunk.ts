@@ -357,9 +357,11 @@ const fetchAndProcessAssistantResponseImpl = async (
     ) => {
       const isBlockTypeChanged = currentActiveBlockType !== null && currentActiveBlockType !== blockType
       if (isBlockTypeChanged || isComplete) {
+        // 如果块类型改变，则取消上一个块的节流更新，并保存块更新到redux中（尽管有可能被上一个块本身的oncomplete事件的取消节流已经取消了）
         if (isBlockTypeChanged && lastBlockId) {
           cancelThrottledBlockUpdate(lastBlockId)
         }
+        // 如果当前块完成，则取消当前块的节流更新，并保存块更新到redux中，避免streaming状态覆盖掉完成状态
         if (isComplete) {
           cancelThrottledBlockUpdate(blockId)
         }
