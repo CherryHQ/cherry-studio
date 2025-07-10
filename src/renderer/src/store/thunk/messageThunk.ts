@@ -357,8 +357,11 @@ const fetchAndProcessAssistantResponseImpl = async (
     ) => {
       const isBlockTypeChanged = currentActiveBlockType !== null && currentActiveBlockType !== blockType
       if (isBlockTypeChanged || isComplete) {
-        if (lastBlockId && lastBlockId !== blockId) {
+        if (isBlockTypeChanged && lastBlockId) {
           cancelThrottledBlockUpdate(lastBlockId)
+        }
+        if (isComplete) {
+          cancelThrottledBlockUpdate(blockId)
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
         saveUpdatedBlockToDB(blockId, assistantMsgId, topicId, getState)
