@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, QuickPhrase } from '@renderer/types'
 import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
@@ -87,7 +87,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       <SettingDivider />
       <SettingRow>
         <StyledPromptList>
-          <DragableList
+          <DraggableList
             list={reversedPrompts}
             onUpdate={(newPrompts) => handleUpdateOrder([...newPrompts].reverse())}
             style={{ paddingBottom: dragging ? '34px' : 0 }}
@@ -120,7 +120,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                 }}
               />
             )}
-          </DragableList>
+          </DraggableList>
         </StyledPromptList>
       </SettingRow>
 

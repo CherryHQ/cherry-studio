@@ -178,7 +178,7 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -209,7 +209,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -318,6 +318,8 @@ export interface PaintingsState {
   upscale: Partial<ScalePainting> & PaintingParams[]
   DMXAPIPaintings: DmxapiPainting[]
   tokenFluxPaintings: TokenFluxPainting[]
+  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  openai_image_edit: Partial<EditPainting> & PaintingParams[]
 }
 
 export type MinAppType = {
@@ -340,16 +342,7 @@ export enum ThemeMode {
 
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
-export type TranslateLanguageVarious =
-  | 'chinese'
-  | 'chinese-traditional'
-  | 'greek'
-  | 'english'
-  | 'spanish'
-  | 'french'
-  | 'japanese'
-  | 'portuguese'
-  | 'russian'
+export type TranslateLanguageVarious = LanguageCode
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -489,12 +482,41 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
+export type LanguageCode =
+  | 'en-us'
+  | 'zh-cn'
+  | 'zh-tw'
+  | 'ja-jp'
+  | 'ko-kr'
+  | 'fr-fr'
+  | 'de-de'
+  | 'it-it'
+  | 'es-es'
+  | 'pt-pt'
+  | 'ru-ru'
+  | 'pl-pl'
+  | 'ar-ar'
+  | 'tr-tr'
+  | 'th-th'
+  | 'vi-vn'
+  | 'id-id'
+  | 'ur-pk'
+  | 'ms-my'
+
+// langCode应当能够唯一确认一种语言
+export type Language = {
+  value: string
+  langCode: LanguageCode
+  label: () => string
+  emoji: string
+}
+
 export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: string
-  targetLanguage: string
+  sourceLanguage: LanguageCode
+  targetLanguage: LanguageCode
   createdAt: string
 }
 
@@ -663,11 +685,13 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
+export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+
 interface BaseToolResponse {
   id: string // unique id
   tool: MCPTool
   arguments: Record<string, unknown> | undefined
-  status: string // 'invoking' | 'done'
+  status: MCPToolResponseStatus
   response?: any
 }
 
@@ -749,4 +773,19 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export type S3Config = {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
+  fileName?: string
+  skipBackupFile: boolean
+  autoSync: boolean
+  syncInterval: number
+  maxBackups: number
+}
+
 export type { Message } from './newMessage'
