@@ -1,4 +1,5 @@
 import { MCPServer, MCPTool } from '@renderer/types'
+import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
@@ -18,11 +19,6 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
     return !server.disabledTools?.includes(tool.name)
-  }
-
-  // Check if auto-approve is enabled for a tool
-  const isAutoApproveEnabled = (tool: MCPTool) => {
-    return !server.disabledAutoApproveTools?.includes(tool.name)
   }
 
   // Handle tool toggle
@@ -160,13 +156,13 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           title={
             !isToolEnabled(tool)
               ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
-              : isAutoApproveEnabled(tool)
+              : isToolAutoApproved(tool, server)
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }
           placement="top">
           <Switch
-            checked={isAutoApproveEnabled(tool)}
+            checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}
             onChange={(checked) => handleAutoApproveToggle(tool, checked)}
             size="small"

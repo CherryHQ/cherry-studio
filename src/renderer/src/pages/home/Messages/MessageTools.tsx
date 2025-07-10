@@ -10,11 +10,12 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { Button, Collapse, Flex, message as antdMessage, Tooltip } from 'antd'
 import { message } from 'antd'
 import Logger from 'electron-log/renderer'
-import { PauseCircle } from 'lucide-react'
+import { PauseCircle, ShieldCheck } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -144,7 +145,14 @@ const MessageTools: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName>{tool.name}</ToolName>
+            <ToolName align="center" gap={4}>
+              {tool.name}
+              {isToolAutoApproved(tool) && (
+                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                  <ShieldCheck size={14} color="green" />
+                </Tooltip>
+              )}
+            </ToolName>
             <StatusIndicator status={status} hasError={hasError}>
               {(() => {
                 switch (status) {
@@ -193,41 +201,39 @@ const MessageTools: FC<Props> = ({ block }) => {
           </TitleContent>
           <ActionButtonsContainer>
             {isPending && (
-              <>
-                <Tooltip title={t('common.cancel')} mouseEnterDelay={0.3}>
-                  <CancelActionButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleCancelTool()
-                    }}
-                    aria-label={t('common.cancel')}>
-                    <CloseOutlined style={{ fontSize: '16px' }} />
-                    <span>{t('common.cancel')}</span>
-                  </CancelActionButton>
-                </Tooltip>
-                <Tooltip title={t('settings.mcp.tools.autoApprove')} mouseEnterDelay={0.3}>
-                  <AutoApproveButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleAutoApprove()
-                    }}
-                    aria-label={t('settings.mcp.tools.autoApprove')}>
-                    <ThunderboltOutlined style={{ fontSize: '14px' }} />
-                    <span>{t('settings.mcp.tools.autoApprove')}</span>
-                  </AutoApproveButton>
-                </Tooltip>
-                <Tooltip title={t('settings.mcp.tools.run', 'Run')} mouseEnterDelay={0.3}>
-                  <RunActionButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleConfirmTool()
-                    }}
-                    aria-label={t('settings.mcp.tools.run', 'Run')}>
-                    <PlayCircleOutlined style={{ fontSize: '16px' }} />
-                    <span>{t('settings.mcp.tools.run', 'Run')}</span>
-                  </RunActionButton>
-                </Tooltip>
-              </>
+              <Flex align="center" gap={6}>
+                <PendingActionButton
+                  type="text"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCancelTool()
+                  }}
+                  aria-label={t('common.cancel')}>
+                  <CloseOutlined style={{ fontSize: '14px' }} />
+                  {t('common.cancel')}
+                </PendingActionButton>
+                <PendingActionButton
+                  type="text"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleAutoApprove()
+                  }}
+                  aria-label={t('settings.mcp.tools.autoApprove')}>
+                  <ThunderboltOutlined style={{ fontSize: '14px' }} />
+                  {t('settings.mcp.tools.autoApprove')}
+                </PendingActionButton>
+                <PendingActionButton
+                  className="animation-pulse"
+                  type="primary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleConfirmTool()
+                  }}
+                  aria-label={t('settings.mcp.tools.run', 'Run')}>
+                  <PlayCircleOutlined style={{ fontSize: '14px' }} />
+                  {t('settings.mcp.tools.run', 'Run')}
+                </PendingActionButton>
+              </Flex>
             )}
             {isInvoking && toolResponse?.id && (
               <Tooltip title={t('chat.input.pause')} mouseEnterDelay={0.3}>
@@ -384,7 +390,7 @@ const TitleContent = styled.div`
   gap: 8px;
 `
 
-const ToolName = styled.span`
+const ToolName = styled(Flex)`
   color: var(--color-text);
   font-weight: 500;
   font-size: 13px;
@@ -463,143 +469,19 @@ const ActionButton = styled.button`
   }
 `
 
-const RunActionButton = styled.button`
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light, var(--color-primary)));
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 6px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  animation: pulse 2s infinite;
-  min-width: 65px;
-  height: 32px;
-
-  &:hover {
-    background: linear-gradient(135deg, var(--color-primary-hover, var(--color-primary)), var(--color-primary));
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    animation: none;
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-
-  span {
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  @keyframes pulse {
-    0% {
-      box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 0 0 0 var(--color-primary);
-    }
-    50% {
-      box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 0 0 4px rgba(var(--color-primary-rgb, 24, 144, 255), 0.3);
-    }
-    100% {
-      box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 0 0 0 rgba(var(--color-primary-rgb, 24, 144, 255), 0);
-    }
-  }
-`
-
-const CancelActionButton = styled.button`
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-2);
-  cursor: pointer;
-  padding: 6px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  min-width: 65px;
-  height: 32px;
-
-  &:hover {
-    background: var(--color-error-bg);
-    border-color: var(--color-error);
-    color: var(--color-error);
-  }
-
-  &:active {
-    background: var(--color-error-bg);
-    border-color: var(--color-error);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-error);
-    outline-offset: 2px;
-  }
-
-  span {
-    font-size: 12px;
-    font-weight: 500;
-  }
-`
-
-const AutoApproveButton = styled.button`
-  background: var(--color-bg-3);
-  border: 1px solid var(--color-border);
-  color: var(--color-warning);
-  cursor: pointer;
-  padding: 6px 10px;
+const PendingActionButton = styled(Button)`
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
   transition: all 0.2s ease;
-  min-width: 90px;
-  height: 32px;
+  will-change: transform;
+  padding: 6px;
 
   &:hover {
-    background: var(--color-warning-bg);
-    border-color: var(--color-warning);
-    color: var(--color-warning);
-    transform: translateY(-1px);
+    border: 1px solid var(--color-border);
+    transform: translateY(-2px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  &:active {
-    transform: translateY(0);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-warning);
-    outline-offset: 2px;
-  }
-
-  span {
-    font-size: 11px;
-    font-weight: 500;
   }
 `
 

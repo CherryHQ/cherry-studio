@@ -461,6 +461,11 @@ export function getMcpServerByTool(tool: MCPTool) {
   return servers.find((s) => s.id === tool.serverId)
 }
 
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  const effectiveServer = server ?? getMcpServerByTool(tool)
+  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+}
+
 export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
@@ -577,7 +582,7 @@ export async function parseAndCallTools<R>(
 
   curToolResponses.forEach((toolResponse) => {
     const server = getMcpServerByTool(toolResponse.tool)
-    const isAutoApproveEnabled = !server?.disabledAutoApproveTools?.includes(toolResponse.tool.name)
+    const isAutoApproveEnabled = isToolAutoApproved(toolResponse.tool, server)
     let confirmationPromise: Promise<boolean>
     if (isAutoApproveEnabled) {
       confirmationPromise = Promise.resolve(true)
