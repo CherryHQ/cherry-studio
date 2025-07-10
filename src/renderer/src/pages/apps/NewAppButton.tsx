@@ -28,7 +28,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
 
   const handleAddCustomApp = async (values: any) => {
     try {
-      const content = await window.api.file.read('custom-minapps.json')
+      const content = await window.api.file.read('custom-minapps.json', true)
       const customApps = JSON.parse(content)
 
       // Check for duplicate ID

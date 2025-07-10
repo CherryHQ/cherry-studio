@@ -57,7 +57,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             danger: true,
             onClick: async () => {
               try {
-                const content = await window.api.file.read('custom-minapps.json')
+                const content = await window.api.file.read('custom-minapps.json', true)
                 const customApps = JSON.parse(content)
                 const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
                 await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
