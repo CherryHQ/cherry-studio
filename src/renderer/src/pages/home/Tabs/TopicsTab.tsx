@@ -450,7 +450,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       className="topics-tab"
       list={sortedTopics}
       onUpdate={updateTopics}
-      style={{ padding: '10px 0 10px 10px' }}
+      style={{ padding: '13px 0 10px 10px' }}
       itemContainerStyle={{ paddingBottom: '8px' }}>
       {(topic) => {
         const isActive = topic.id === activeTopic?.id

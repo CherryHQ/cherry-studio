@@ -140,7 +140,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
     const [isCaseSensitive, setIsCaseSensitive] = useState(false)
     const [isWholeWord, setIsWholeWord] = useState(false)
     const [allRanges, setAllRanges] = useState<Range[]>([])
-    const [currentIndex, setCurrentIndex] = useState(0)
+    const [currentIndex, setCurrentIndex] = useState(-1)
     const prevSearchText = useRef('')
     const { t } = useTranslation()
 
@@ -182,15 +182,18 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       [allRanges, currentIndex]
     )
 
-    const search = useCallback(() => {
-      const searchText = searchInputRef.current?.value.trim() ?? null
-      setSearchCompleted(SearchCompletedState.Searched)
-      if (target && searchText !== null && searchText !== '') {
-        const ranges = findRangesInTarget(target, filter, searchText, isCaseSensitive, isWholeWord)
-        setAllRanges(ranges)
-        setCurrentIndex(0)
-      }
-    }, [target, filter, isCaseSensitive, isWholeWord])
+    const search = useCallback(
+      (jump = false) => {
+        const searchText = searchInputRef.current?.value.trim() ?? null
+        setSearchCompleted(SearchCompletedState.Searched)
+        if (target && searchText !== null && searchText !== '') {
+          const ranges = findRangesInTarget(target, filter, searchText, isCaseSensitive, isWholeWord)
+          setAllRanges(ranges)
+          setCurrentIndex(jump && ranges.length > 0 ? 0 : -1)
+        }
+      },
+      [target, filter, isCaseSensitive, isWholeWord]
+    )
 
     const implementation = useMemo(
       () => ({
@@ -207,7 +210,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               requestAnimationFrame(() => {
                 inputEl.focus()
                 inputEl.select()
-                search()
+                search(false)
               })
             } else {
               requestAnimationFrame(() => {
@@ -231,11 +234,11 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
           setSearchCompleted(SearchCompletedState.NotSearched)
         },
         search: () => {
-          search()
+          search(true)
           locateByIndex(true)
         },
         silentSearch: () => {
-          search()
+          search(false)
           locateByIndex(false)
         },
         focus: () => {
@@ -302,7 +305,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
 
     useEffect(() => {
       if (enableContentSearch && searchInputRef.current?.value.trim()) {
-        search()
+        search(true)
       }
     }, [isCaseSensitive, isWholeWord, enableContentSearch, search])
 
@@ -365,16 +368,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             </InputWrapper>
             <Separator></Separator>
             <SearchResults>
-              {searchCompleted !== SearchCompletedState.NotSearched ? (
-                allRanges.length > 0 ? (
-                  <>
-                    <SearchResultCount>{currentIndex + 1}</SearchResultCount>
-                    <SearchResultSeparator>/</SearchResultSeparator>
-                    <SearchResultTotalCount>{allRanges.length}</SearchResultTotalCount>
-                  </>
-                ) : (
-                  <NoResults>{t('common.no_results')}</NoResults>
-                )
+              {searchCompleted !== SearchCompletedState.NotSearched && allRanges.length > 0 ? (
+                <>
+                  <SearchResultCount>{currentIndex + 1}</SearchResultCount>
+                  <SearchResultSeparator>/</SearchResultSeparator>
+                  <SearchResultTotalCount>{allRanges.length}</SearchResultTotalCount>
+                </>
               ) : (
                 <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
               )}
@@ -475,10 +474,6 @@ const SearchResults = styled.div`
 const SearchResultsPlaceholder = styled.span`
   color: var(--color-text-1);
   opacity: 0.5;
-`
-
-const NoResults = styled.span`
-  color: var(--color-text-1);
 `
 
 const SearchResultCount = styled.span`

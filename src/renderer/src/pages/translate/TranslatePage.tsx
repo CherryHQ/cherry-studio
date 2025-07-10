@@ -514,7 +514,7 @@ const TranslatePage: FC = () => {
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
-    if (isEnterPressed && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
       onTranslate()
     }

@@ -108,6 +108,9 @@ export async function reset() {
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),
     centered: true,
+    okButtonProps: {
+      danger: true
+    },
     onOk: async () => {
       window.modal.confirm({
         title: i18n.t('message.reset.double.confirm.title'),

@@ -252,7 +252,9 @@ async function executeToolCalls(
         ('name' in toolCall &&
           (toolCall.name?.includes(confirmed.tool.name) || toolCall.name?.includes(confirmed.tool.id))) ||
         confirmed.tool.name === toolCall.id ||
-        confirmed.tool.id === toolCall.id
+        confirmed.tool.id === toolCall.id ||
+        ('toolCallId' in confirmed && confirmed.toolCallId === toolCall.id) ||
+        ('function' in toolCall && toolCall.function.name.toLowerCase().includes(confirmed.tool.name.toLowerCase()))
       )
     })
   })
