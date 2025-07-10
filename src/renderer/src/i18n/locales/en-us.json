@@ -233,6 +233,7 @@
       },
       "resend": "Resend",
       "save": "Save",
+      "save.file.title": "Save to Local File",
       "save.knowledge": {
         "title": "Save to Knowledge Base",
         "content.maintext.title": "Main Text",
