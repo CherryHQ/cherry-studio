@@ -2,8 +2,8 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { IntegrationType, useThirdPartyIntegration } from '@renderer/hooks/useThirdPartyIntegration'
+import { RootState } from '@renderer/store'
 import {
   setNotionApiKey,
   setNotionDatabaseID,
@@ -20,73 +20,57 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 const NotionSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
 
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
   const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
   const notionExportReasoning = useSelector((state: RootState) => state.settings.notionExportReasoning)
 
-  const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionApiKey(e.target.value))
-  }
-
-  const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionDatabaseID(e.target.value))
-  }
-
-  const handleNotionPageNameKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionPageNameKey(e.target.value))
-  }
-
-  const handleNotionConnectionCheck = () => {
-    if (notionApiKey === null) {
-      window.message.error(t('settings.data.notion.check.empty_api_key'))
-      return
-    }
-    if (notionDatabaseID === null) {
-      window.message.error(t('settings.data.notion.check.empty_database_id'))
-      return
-    }
-    const notion = new Client({ auth: notionApiKey })
-    notion.databases
-      .retrieve({
-        database_id: notionDatabaseID
-      })
-      .then((result) => {
-        if (result) {
-          window.message.success(t('settings.data.notion.check.success'))
-        } else {
-          window.message.error(t('settings.data.notion.check.fail'))
+  const notionConfig = {
+    type: 'notion' as IntegrationType,
+    helpUrl: 'https://docs.cherry-ai.com/advanced-basic/notion',
+    fieldSetters: {
+      notionApiKey: setNotionApiKey,
+      notionDatabaseID: setNotionDatabaseID,
+      notionPageNameKey: setNotionPageNameKey,
+      notionExportReasoning: setNotionExportReasoning
+    },
+    connectionCheckConfig: {
+      requiredFields: ['notionApiKey', 'notionDatabaseID'],
+      checkFunction: async (values, t) => {
+        try {
+          const notion = new Client({ auth: values.notionApiKey })
+          const result = await notion.databases.retrieve({
+            database_id: values.notionDatabaseID
+          })
+          if (result) {
+            window.message.success(t('settings.data.notion.check.success'))
+          } else {
+            window.message.error(t('settings.data.notion.check.fail'))
+          }
+        } catch (e) {
+          window.message.error(t('settings.data.notion.check.error'))
         }
-      })
-      .catch(() => {
-        window.message.error(t('settings.data.notion.check.error'))
-      })
+      }
+    }
   }
 
-  const handleNotionTitleClick = () => {
-    openMinapp({
-      id: 'notion-help',
-      name: 'Notion Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/notion'
-    })
+  const fieldValues = {
+    notionApiKey,
+    notionDatabaseID,
+    notionPageNameKey,
+    notionExportReasoning
   }
 
-  const handleNotionExportReasoningChange = (checked: boolean) => {
-    dispatch(setNotionExportReasoning(checked))
-  }
+  const { handleInputChange, handleInputBlur, handleSwitchChange, handleConnectionCheck, handleHelpClick } =
+    useThirdPartyIntegration(notionConfig, fieldValues)
 
   return (
     <SettingGroup theme={theme}>
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
         {t('settings.data.notion.title')}
         <Tooltip title={t('settings.data.notion.help')} placement="right">
-          <InfoCircleOutlined
-            style={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
-            onClick={handleNotionTitleClick}
-          />
+          <InfoCircleOutlined style={{ color: 'var(--color-text-2)', cursor: 'pointer' }} onClick={handleHelpClick} />
         </Tooltip>
       </SettingTitle>
       <SettingDivider />
@@ -96,8 +80,8 @@ const NotionSettings: FC = () => {
           <Input
             type="text"
             value={notionDatabaseID || ''}
-            onChange={handleNotionDatabaseIdChange}
-            onBlur={handleNotionDatabaseIdChange}
+            onChange={handleInputChange('notionDatabaseID')}
+            onBlur={handleInputBlur('notionDatabaseID')}
             style={{ width: 315 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
@@ -110,8 +94,8 @@ const NotionSettings: FC = () => {
           <Input
             type="text"
             value={notionPageNameKey || ''}
-            onChange={handleNotionPageNameKeyChange}
-            onBlur={handleNotionPageNameKeyChange}
+            onChange={handleInputChange('notionPageNameKey')}
+            onBlur={handleInputBlur('notionPageNameKey')}
             style={{ width: 315 }}
             placeholder={t('settings.data.notion.page_name_key_placeholder')}
           />
@@ -124,19 +108,19 @@ const NotionSettings: FC = () => {
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={notionApiKey || ''}
-              onChange={handleNotionTokenChange}
-              onBlur={handleNotionTokenChange}
+              onChange={handleInputChange('notionApiKey')}
+              onBlur={handleInputBlur('notionApiKey')}
               placeholder={t('settings.data.notion.api_key_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
+            <Button onClick={handleConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
           </Space.Compact>
         </HStack>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
-        <Switch checked={notionExportReasoning} onChange={handleNotionExportReasoningChange} />
+        <Switch checked={notionExportReasoning} onChange={handleSwitchChange('notionExportReasoning')} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>

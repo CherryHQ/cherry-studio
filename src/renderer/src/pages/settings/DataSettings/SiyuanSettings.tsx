@@ -1,8 +1,8 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { IntegrationType, useThirdPartyIntegration } from '@renderer/hooks/useThirdPartyIntegration'
+import { RootState } from '@renderer/store'
 import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
@@ -13,72 +13,66 @@ import { useSelector } from 'react-redux'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const SiyuanSettings: FC = () => {
-  const { openMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
   const siyuanApiUrl = useSelector((state: RootState) => state.settings.siyuanApiUrl)
   const siyuanToken = useSelector((state: RootState) => state.settings.siyuanToken)
   const siyuanBoxId = useSelector((state: RootState) => state.settings.siyuanBoxId)
   const siyuanRootPath = useSelector((state: RootState) => state.settings.siyuanRootPath)
 
-  const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanApiUrl(e.target.value))
-  }
+  const siyuanConfig = {
+    type: 'siyuan' as IntegrationType,
+    helpUrl: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
+    fieldSetters: {
+      siyuanApiUrl: setSiyuanApiUrl,
+      siyuanToken: setSiyuanToken,
+      siyuanBoxId: setSiyuanBoxId,
+      siyuanRootPath: setSiyuanRootPath
+    },
+    connectionCheckConfig: {
+      requiredFields: ['siyuanApiUrl', 'siyuanToken'],
+      checkFunction: async (values, t) => {
+        try {
+          const response = await fetch(`${values.siyuanApiUrl}/api/notebook/lsNotebooks`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Token ${values.siyuanToken}`
+            }
+          })
 
-  const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanToken(e.target.value))
-  }
+          if (!response.ok) {
+            window.message.error(t('settings.data.siyuan.check.fail'))
+            return
+          }
 
-  const handleBoxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanBoxId(e.target.value))
-  }
+          const data = await response.json()
+          if (data.code !== 0) {
+            window.message.error(t('settings.data.siyuan.check.fail'))
+            return
+          }
 
-  const handleRootPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanRootPath(e.target.value))
-  }
-
-  const handleSiyuanHelpClick = () => {
-    openMinapp({
-      id: 'siyuan-help',
-      name: 'Siyuan Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan'
-    })
-  }
-
-  const handleCheckConnection = async () => {
-    try {
-      if (!siyuanApiUrl || !siyuanToken) {
-        window.message.error(t('settings.data.siyuan.check.empty_config'))
-        return
-      }
-
-      const response = await fetch(`${siyuanApiUrl}/api/notebook/lsNotebooks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Token ${siyuanToken}`
+          window.message.success(t('settings.data.siyuan.check.success'))
+        } catch (error) {
+          console.error('Check Siyuan connection failed:', error)
+          window.message.error(t('settings.data.siyuan.check.error'))
         }
-      })
-
-      if (!response.ok) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
-        return
       }
-
-      const data = await response.json()
-      if (data.code !== 0) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
-        return
-      }
-
-      window.message.success(t('settings.data.siyuan.check.success'))
-    } catch (error) {
-      console.error('Check Siyuan connection failed:', error)
-      window.message.error(t('settings.data.siyuan.check.error'))
     }
   }
+
+  const fieldValues = {
+    siyuanApiUrl,
+    siyuanToken,
+    siyuanBoxId,
+    siyuanRootPath
+  }
+
+  const { handleInputChange, handleInputBlur, handleConnectionCheck, handleHelpClick } = useThirdPartyIntegration(
+    siyuanConfig,
+    fieldValues
+  )
 
   return (
     <SettingGroup theme={theme}>
@@ -90,7 +84,8 @@ const SiyuanSettings: FC = () => {
           <Input
             type="text"
             value={siyuanApiUrl || ''}
-            onChange={handleApiUrlChange}
+            onChange={handleInputChange('siyuanApiUrl')}
+            onBlur={handleInputBlur('siyuanApiUrl')}
             style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.api_url_placeholder')}
           />
@@ -103,7 +98,7 @@ const SiyuanSettings: FC = () => {
           <Tooltip title={t('settings.data.siyuan.token.help')} placement="left">
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleSiyuanHelpClick}
+              onClick={handleHelpClick}
             />
           </Tooltip>
         </SettingRowTitle>
@@ -111,12 +106,12 @@ const SiyuanSettings: FC = () => {
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={siyuanToken || ''}
-              onChange={handleTokenChange}
-              onBlur={handleTokenChange}
+              onChange={handleInputChange('siyuanToken')}
+              onBlur={handleInputBlur('siyuanToken')}
               placeholder={t('settings.data.siyuan.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+            <Button onClick={handleConnectionCheck}>{t('settings.data.siyuan.check.button')}</Button>
           </Space.Compact>
         </HStack>
       </SettingRow>
@@ -127,7 +122,8 @@ const SiyuanSettings: FC = () => {
           <Input
             type="text"
             value={siyuanBoxId || ''}
-            onChange={handleBoxIdChange}
+            onChange={handleInputChange('siyuanBoxId')}
+            onBlur={handleInputBlur('siyuanBoxId')}
             style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.box_id_placeholder')}
           />
@@ -140,7 +136,8 @@ const SiyuanSettings: FC = () => {
           <Input
             type="text"
             value={siyuanRootPath || ''}
-            onChange={handleRootPathChange}
+            onChange={handleInputChange('siyuanRootPath')}
+            onBlur={handleInputBlur('siyuanRootPath')}
             style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.root_path_placeholder')}
           />

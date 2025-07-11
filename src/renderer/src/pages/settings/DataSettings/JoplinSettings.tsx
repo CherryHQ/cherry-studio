@@ -1,8 +1,8 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { IntegrationType, useThirdPartyIntegration } from '@renderer/hooks/useThirdPartyIntegration'
+import { RootState } from '@renderer/store'
 import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
 import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
@@ -15,67 +15,47 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 const JoplinSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
 
   const joplinToken = useSelector((state: RootState) => state.settings.joplinToken)
   const joplinUrl = useSelector((state: RootState) => state.settings.joplinUrl)
   const joplinExportReasoning = useSelector((state: RootState) => state.settings.joplinExportReasoning)
 
-  const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setJoplinToken(e.target.value))
-  }
+  const joplinConfig = {
+    type: 'joplin' as IntegrationType,
+    helpUrl: 'https://joplinapp.org/help/apps/clipper',
+    fieldSetters: {
+      joplinToken: setJoplinToken,
+      joplinUrl: setJoplinUrl,
+      joplinExportReasoning: setJoplinExportReasoning
+    },
+    connectionCheckConfig: {
+      requiredFields: ['joplinToken', 'joplinUrl'],
+      checkFunction: async (values, t) => {
+        try {
+          const response = await fetch(`${values.joplinUrl}notes?limit=1&token=${values.joplinToken}`)
+          const data = await response.json()
 
-  const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setJoplinUrl(e.target.value))
-  }
+          if (!response.ok || data?.error) {
+            window.message.error(t('settings.data.joplin.check.fail'))
+            return
+          }
 
-  const handleJoplinUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    let url = e.target.value
-    // 确保URL以/结尾，但只在失去焦点时执行
-    if (url && !url.endsWith('/')) {
-      url = `${url}/`
-      dispatch(setJoplinUrl(url))
+          window.message.success(t('settings.data.joplin.check.success'))
+        } catch (e) {
+          window.message.error(t('settings.data.joplin.check.fail'))
+        }
+      }
     }
   }
 
-  const handleJoplinConnectionCheck = async () => {
-    try {
-      if (!joplinToken) {
-        window.message.error(t('settings.data.joplin.check.empty_token'))
-        return
-      }
-      if (!joplinUrl) {
-        window.message.error(t('settings.data.joplin.check.empty_url'))
-        return
-      }
-
-      const response = await fetch(`${joplinUrl}notes?limit=1&token=${joplinToken}`)
-
-      const data = await response.json()
-
-      if (!response.ok || data?.error) {
-        window.message.error(t('settings.data.joplin.check.fail'))
-        return
-      }
-
-      window.message.success(t('settings.data.joplin.check.success'))
-    } catch (e) {
-      window.message.error(t('settings.data.joplin.check.fail'))
-    }
+  const fieldValues = {
+    joplinToken,
+    joplinUrl,
+    joplinExportReasoning
   }
 
-  const handleJoplinHelpClick = () => {
-    openMinapp({
-      id: 'joplin-help',
-      name: 'Joplin Help',
-      url: 'https://joplinapp.org/help/apps/clipper'
-    })
-  }
-
-  const handleToggleJoplinExportReasoning = (checked: boolean) => {
-    dispatch(setJoplinExportReasoning(checked))
-  }
+  const { handleInputChange, handleInputBlur, handleSwitchChange, handleConnectionCheck, handleHelpClick } =
+    useThirdPartyIntegration(joplinConfig, fieldValues)
 
   return (
     <SettingGroup theme={theme}>
@@ -87,8 +67,8 @@ const JoplinSettings: FC = () => {
           <Input
             type="text"
             value={joplinUrl || ''}
-            onChange={handleJoplinUrlChange}
-            onBlur={handleJoplinUrlBlur}
+            onChange={handleInputChange('joplinUrl')}
+            onBlur={handleInputBlur('joplinUrl', (value) => (value && !value.endsWith('/') ? `${value}/` : value))}
             style={{ width: 315 }}
             placeholder={t('settings.data.joplin.url_placeholder')}
           />
@@ -101,7 +81,7 @@ const JoplinSettings: FC = () => {
           <Tooltip title={t('settings.data.joplin.help')} placement="left">
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleJoplinHelpClick}
+              onClick={handleHelpClick}
             />
           </Tooltip>
         </SettingRowTitle>
@@ -109,19 +89,19 @@ const JoplinSettings: FC = () => {
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={joplinToken || ''}
-              onChange={handleJoplinTokenChange}
-              onBlur={handleJoplinTokenChange}
+              onChange={handleInputChange('joplinToken')}
+              onBlur={handleInputBlur('joplinToken')}
               placeholder={t('settings.data.joplin.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
+            <Button onClick={handleConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
           </Space.Compact>
         </HStack>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.export_reasoning.title')}</SettingRowTitle>
-        <Switch checked={joplinExportReasoning} onChange={handleToggleJoplinExportReasoning} />
+        <Switch checked={joplinExportReasoning} onChange={handleSwitchChange('joplinExportReasoning')} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.joplin.export_reasoning.help')}</SettingHelpText>
