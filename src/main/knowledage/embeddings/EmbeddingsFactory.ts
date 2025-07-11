@@ -5,7 +5,7 @@ import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-op
 import { getInstanceName } from '@main/utils'
 import { KnowledgeBaseParams } from '@types'
 
-import { EMBEDDING_MODEL_DEFAULT_DIMS, getBaseModelName, VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
+import { EMBEDDING_MODEL_DEFAULT_DIMS, getLowerBaseModelName, VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
@@ -51,7 +51,7 @@ export default class EmbeddingsFactory {
     }
 
     let newDimensions: number | undefined = dimensions
-    const baseModelName = getBaseModelName(model)
+    const baseModelName = getLowerBaseModelName(model)
     if (dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[baseModelName]) {
       newDimensions = undefined
     }
