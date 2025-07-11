@@ -5,6 +5,12 @@ export interface PyodideOutput {
   result: any
   text: string | null
   error: string | null
+  image?: string
+}
+
+export interface PyodideExecutionResult {
+  text: string
+  image?: string
 }
 
 /**
@@ -122,17 +128,23 @@ class PyodideService {
    * @param timeout 超时时间（毫秒）
    * @returns 格式化后的执行结果
    */
-  public async runScript(script: string, context: Record<string, any> = {}, timeout: number = 60000): Promise<string> {
+  public async runScript(
+    script: string,
+    context: Record<string, any> = {},
+    timeout: number = 60000
+  ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
     try {
       await this.initialize()
     } catch (error: unknown) {
       console.error('Pyodide initialization failed, cannot execute Python code', error)
-      return `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      return { text }
     }
 
     if (!this.worker) {
-      return 'Internal error: Pyodide worker is not initialized'
+      const text = 'Internal error: Pyodide worker is not initialized'
+      return { text }
     }
 
     try {
@@ -163,9 +175,10 @@ class PyodideService {
         })
       })
 
-      return this.formatOutput(output)
+      return { text: this.formatOutput(output), image: output.image }
     } catch (error: unknown) {
-      return `Internal error: ${error instanceof Error ? error.message : String(error)}`
+      const text = `Internal error: ${error instanceof Error ? error.message : String(error)}`
+      return { text }
     }
   }
 
@@ -247,13 +260,13 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
 
   window.electron.ipcRenderer.on('python-execution-request', async (_, request: PythonExecutionRequest) => {
     try {
-      const result = await pyodideService.runScript(request.script, request.context, request.timeout)
+      const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
       const response: PythonExecutionResponse = {
         id: request.id,
-        result
+        result: text
       }
       window.electron.ipcRenderer.send('python-execution-response', response)
-    } catch (error) {
+    } catch (error: unknown) {
       const response: PythonExecutionResponse = {
         id: request.id,
         error: error instanceof Error ? error.message : String(error)

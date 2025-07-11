@@ -45,7 +45,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const [viewMode, setViewMode] = useState<ViewMode>('special')
   const [isRunning, setIsRunning] = useState(false)
-  const [output, setOutput] = useState('')
+  const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
   const [tools, setTools] = useState<CodeTool[]>([])
   const { registerTool, removeTool } = useCodeTool(setTools)
@@ -84,16 +84,18 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const handleRunScript = useCallback(() => {
     setIsRunning(true)
-    setOutput('')
+    setExecutionResult(null)
 
     pyodideService
       .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
-      .then((formattedOutput) => {
-        setOutput(formattedOutput)
+      .then((result) => {
+        setExecutionResult(result)
       })
       .catch((error) => {
         console.error('Unexpected error:', error)
-        setOutput(`Unexpected error: ${error.message || 'Unknown error'}`)
+        setExecutionResult({
+          text: `Unexpected error: ${error.message || 'Unknown error'}`
+        })
       })
       .finally(() => {
         setIsRunning(false)
@@ -238,10 +240,28 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
-      {isExecutable && output && <StatusBar>{output}</StatusBar>}
+      {isExecutable && executionResult && (
+        <StatusBar>
+          {executionResult.text}
+          {executionResult.image && (
+            <ImageOutput>
+              <img src={executionResult.image} alt="Matplotlib plot" />
+            </ImageOutput>
+          )}
+        </StatusBar>
+      )}
     </CodeBlockWrapper>
   )
 })
+
+const ImageOutput = styled.div`
+  padding: 12px;
+  border-top: 1px solid var(--st-border-color);
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+`
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
