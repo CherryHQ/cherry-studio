@@ -764,7 +764,8 @@
         "invoking": "Invoking",
         "pending": "Pending",
         "preview": "Preview",
-        "autoApproveEnabled": "Auto-approve enabled for this tool"
+        "autoApproveEnabled": "Auto-approve enabled for this tool",
+        "raw": "Raw"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",

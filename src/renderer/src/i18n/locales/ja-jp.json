@@ -764,7 +764,8 @@
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "autoApproveEnabled": "このツールは自動承認が有効になっています"
+        "autoApproveEnabled": "このツールは自動承認が有効になっています",
+        "raw": "生データ"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
