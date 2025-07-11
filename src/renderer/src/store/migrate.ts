@@ -5,7 +5,7 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
+import { Assistant, LanguageCode, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -897,6 +897,7 @@ const migrateConfig = {
   },
   '65': (state: RootState) => {
     try {
+      // @ts-ignore expect error
       state.settings.targetLanguage = 'english'
       return state
     } catch (error) {
@@ -1190,7 +1191,6 @@ const migrateConfig = {
       console.error(error)
       return state
     }
-
     return state
   },
   '87': (state: RootState) => {
@@ -1663,10 +1663,102 @@ const migrateConfig = {
   },
   '117': (state: RootState) => {
     try {
-      updateProvider(state, 'ppio', {
-        models: SYSTEM_MODELS.ppio,
-        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      const ppioProvider = state.llm.providers.find((provider) => provider.id === 'ppio')
+      const modelsToRemove = [
+        'qwen/qwen-2.5-72b-instruct',
+        'qwen/qwen2.5-32b-instruct',
+        'meta-llama/llama-3.1-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+        '01-ai/yi-1.5-34b-chat',
+        '01-ai/yi-1.5-9b-chat',
+        'thudm/glm-z1-32b-0414',
+        'thudm/glm-z1-9b-0414'
+      ]
+      if (ppioProvider) {
+        updateProvider(state, 'ppio', {
+          models: [
+            ...ppioProvider.models.filter((model) => !modelsToRemove.includes(model.id)),
+            ...SYSTEM_MODELS.ppio.filter(
+              (systemModel) => !ppioProvider.models.some((existingModel) => existingModel.id === systemModel.id)
+            )
+          ],
+          apiHost: 'https://api.ppinfra.com/v3/openai/'
+        })
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.streamOutput === undefined) {
+          assistant.settings = {
+            ...assistant.settings,
+            streamOutput: true
+          }
+        }
       })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '118': (state: RootState) => {
+    try {
+      addProvider(state, 'ph8')
+      state.llm.providers = moveProvider(state.llm.providers, 'ph8', 14)
+
+      if (!state.settings.userId) {
+        state.settings.userId = uuid()
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'mistral') {
+          provider.type = 'mistral'
+        }
+      })
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '119': (state: RootState) => {
+    try {
+      addProvider(state, 'new-api')
+      state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
+      state.settings.disableHardwareAcceleration = false
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '120': (state: RootState) => {
+    try {
+      if (!state.settings.s3) {
+        state.settings.s3 = settingsInitialState.s3
+      }
+
+      const langMap: Record<string, LanguageCode> = {
+        english: 'en-us',
+        chinese: 'zh-cn',
+        'chinese-traditional': 'zh-tw',
+        japanese: 'ja-jp',
+        russian: 'ru-ru'
+      }
+
+      const origin = state.settings.targetLanguage
+      const newLang = langMap[origin]
+      if (newLang) state.settings.targetLanguage = newLang
+      else state.settings.targetLanguage = 'en-us'
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'azure-openai') {
+          provider.type = 'azure-openai'
+        }
+      })
+
+      state.settings.localBackupMaxBackups = 0
+      state.settings.localBackupSkipBackupFile = false
+      state.settings.localBackupDir = ''
+      state.settings.localBackupAutoSync = false
+      state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
       return state

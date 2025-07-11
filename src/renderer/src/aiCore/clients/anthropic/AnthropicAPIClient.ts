@@ -50,9 +50,11 @@ import {
   LLMWebSearchInProgressChunk,
   MCPToolCreatedChunk,
   TextDeltaChunk,
-  ThinkingDeltaChunk
+  TextStartChunk,
+  ThinkingDeltaChunk,
+  ThinkingStartChunk
 } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message } from '@renderer/types/newMessage'
 import {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,
@@ -229,7 +231,7 @@ export class AnthropicAPIClient extends BaseApiClient<
             }
           })
         } else {
-          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
           parts.push({
             type: 'text',
             text: file.origin_name + '\n' + fileContent
@@ -493,7 +495,8 @@ export class AnthropicAPIClient extends BaseApiClient<
           system: systemMessage ? [systemMessage] : undefined,
           thinking: this.getBudgetToken(assistant, model),
           tools: tools.length > 0 ? tools : undefined,
-          ...this.getCustomParameters(assistant)
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const finalParams: MessageCreateParams = streamOutput
@@ -516,7 +519,6 @@ export class AnthropicAPIClient extends BaseApiClient<
     return () => {
       let accumulatedJson = ''
       const toolCalls: Record<number, ToolUseBlock> = {}
-
       return {
         async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
           switch (rawChunk.type) {
@@ -609,6 +611,19 @@ export class AnthropicAPIClient extends BaseApiClient<
                 }
                 case 'tool_use': {
                   toolCalls[rawChunk.index] = contentBlock
+                  break
+                }
+                case 'text': {
+                  controller.enqueue({
+                    type: ChunkType.TEXT_START
+                  } as TextStartChunk)
+                  break
+                }
+                case 'thinking':
+                case 'redacted_thinking': {
+                  controller.enqueue({
+                    type: ChunkType.THINKING_START
+                  } as ThinkingStartChunk)
                   break
                 }
               }

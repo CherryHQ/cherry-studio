@@ -44,6 +44,7 @@ const StyledEmojiAvatar = styled.div<{ $size: number; $fontSize: number }>`
   height: ${(props) => props.$size}px;
   font-size: ${(props) => props.$fontSize}px;
   transition: opacity 0.3s ease;
+
   &:hover {
     opacity: 0.8;
   }

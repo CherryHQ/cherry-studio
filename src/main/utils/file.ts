@@ -1,11 +1,15 @@
 import * as fs from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isPortable } from '@main/constant'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
-import { FileType, FileTypes } from '@types'
+import { isLinux, isPortable } from '@main/constant'
+import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
+import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
+import Logger from 'electron-log'
+import iconv from 'iconv-lite'
+import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -59,6 +63,13 @@ function getAppDataPathFromConfig() {
       return null
     }
 
+    let executablePath = app.getPath('exe')
+    if (isLinux && process.env.APPIMAGE) {
+      // 如果是 AppImage 打包的应用，直接使用 APPIMAGE 环境变量
+      // 这样可以确保获取到正确的可执行文件路径
+      executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
+    }
+
     let appDataPath = null
     // 兼容旧版本
     if (config.appDataPath && typeof config.appDataPath === 'string') {
@@ -67,7 +78,7 @@ function getAppDataPathFromConfig() {
       appDataPath && updateAppDataConfig(appDataPath)
     } else {
       appDataPath = config.appDataPath.find(
-        (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+        (item: { executablePath: string }) => item.executablePath === executablePath
       )?.dataPath
     }
 
@@ -90,11 +101,13 @@ export function updateAppDataConfig(appDataPath: string) {
   // config.json
   // appDataPath: [{ executablePath: string, dataPath: string }]
   const configPath = path.join(getConfigDir(), 'config.json')
+  let executablePath = app.getPath('exe')
+  if (isLinux && process.env.APPIMAGE) {
+    executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
+  }
+
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ appDataPath: [{ executablePath: app.getPath('exe'), dataPath: appDataPath }] }, null, 2)
-    )
+    fs.writeFileSync(configPath, JSON.stringify({ appDataPath: [{ executablePath, dataPath: appDataPath }] }, null, 2))
     return
   }
 
@@ -104,13 +117,13 @@ export function updateAppDataConfig(appDataPath: string) {
   }
 
   const existingPath = config.appDataPath.find(
-    (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+    (item: { executablePath: string }) => item.executablePath === executablePath
   )
 
   if (existingPath) {
     existingPath.dataPath = appDataPath
   } else {
-    config.appDataPath.push({ executablePath: app.getPath('exe'), dataPath: appDataPath })
+    config.appDataPath.push({ executablePath, dataPath: appDataPath })
   }
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
@@ -121,7 +134,19 @@ export function getFileType(ext: string): FileTypes {
   return fileTypeMap.get(ext) || FileTypes.OTHER
 }
 
-export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): FileType[] {
+export function getFileDir(filePath: string) {
+  return path.dirname(filePath)
+}
+
+export function getFileName(filePath: string) {
+  return path.basename(filePath)
+}
+
+export function getFileExt(filePath: string) {
+  return path.extname(filePath)
+}
+
+export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []): FileMetadata[] {
   const files = fs.readdirSync(dirPath)
 
   files.forEach((file) => {
@@ -143,7 +168,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
       const name = path.basename(file)
       const size = fs.statSync(fullPath).size
 
-      const fileItem: FileType = {
+      const fileItem: FileMetadata = {
         id: uuidv4(),
         name,
         path: fullPath,
@@ -180,4 +205,50 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
+}
+
+/**
+ * 读取文件内容并自动检测编码格式进行解码
+ * @param filePath - 文件路径
+ * @returns 解码后的文件内容
+ */
+export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
+  // 读取前1MB以检测编码
+  const buffer = Buffer.alloc(1 * MB)
+  const fh = await open(filePath, 'r')
+  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  await fh.close()
+
+  // 获取文件编码格式，最多取前两个可能的编码
+  const encodings = jschardet
+    .detectAll(bufferRead)
+    .map((item) => ({
+      ...item,
+      encoding: item.encoding === 'ascii' ? 'UTF-8' : item.encoding
+    }))
+    .filter((item, index, array) => array.findIndex((prevItem) => prevItem.encoding === item.encoding) === index)
+    .slice(0, 2)
+
+  if (encodings.length === 0) {
+    Logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    const data = await readFile(filePath)
+    return iconv.decode(data, 'UTF-8')
+  }
+
+  const data = await readFile(filePath)
+
+  for (const item of encodings) {
+    const encoding = item.encoding
+    const content = iconv.decode(data, encoding)
+    if (content.includes('\uFFFD')) {
+      Logger.error(
+        `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
+      )
+    } else {
+      return content
+    }
+  }
+
+  Logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  return iconv.decode(data, 'UTF-8')
 }

@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
@@ -79,7 +79,7 @@ const QuickPhraseSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <QuickPhraseList>
-            <DragableList
+            <DraggableList
               list={reversedPhrases}
               onUpdate={(newPhrases) => handleUpdateOrder([...newPhrases].reverse())}
               style={{ paddingBottom: dragging ? '34px' : 0 }}
@@ -109,7 +109,7 @@ const QuickPhraseSettings: FC = () => {
                   }}
                 />
               )}
-            </DragableList>
+            </DraggableList>
           </QuickPhraseList>
         </SettingRow>
       </SettingGroup>

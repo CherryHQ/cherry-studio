@@ -143,6 +143,16 @@ const assistantsSlice = createSlice({
         return assistant
       })
     },
+    updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
+      outer: for (const assistant of state.assistants) {
+        for (const topic of assistant.topics) {
+          if (topic.id === action.payload.topicId) {
+            topic.updatedAt = new Date().toISOString()
+            break outer
+          }
+        }
+      }
+    },
     setModel: (state, action: PayloadAction<{ assistantId: string; model: Model }>) => {
       state.assistants = state.assistants.map((assistant) =>
         assistant.id === action.payload.assistantId
@@ -167,6 +177,7 @@ export const {
   updateTopic,
   updateTopics,
   removeAllTopics,
+  updateTopicUpdatedAt,
   setModel,
   setTagsOrder,
   updateAssistantSettings,

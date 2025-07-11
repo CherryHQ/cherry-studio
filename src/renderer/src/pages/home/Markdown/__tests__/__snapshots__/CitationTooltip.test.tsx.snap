@@ -58,7 +58,9 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
   <div
     data-testid="tooltip-content"
   >
-    <div>
+    <div
+      style="user-select: text;"
+    >
       <div
         aria-label="Open Example Article in new tab"
         class="c0"

@@ -2,7 +2,7 @@ import { RedoOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -16,7 +16,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
-import { ChevronDown, CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -41,16 +41,25 @@ const ModelSettings: FC = () => {
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m))
+    .flatMap((p) => {
+      const filteredModels = sortBy(p.models, 'name')
+        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
         .map((m) => ({
           label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
           value: getModelUniqId(m)
         }))
-    }))
+
+      if (filteredModels.length > 0) {
+        return [
+          {
+            label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+            title: p.name,
+            options: filteredModels
+          }
+        ]
+      }
+      return []
+    })
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
@@ -104,7 +113,6 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
         </HStack>
@@ -126,7 +134,6 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
         </HStack>
@@ -148,7 +155,6 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
@@ -194,8 +200,7 @@ const ModelSettings: FC = () => {
               value={quickAssistantId || defaultAssistant.id}
               style={{ width: 360 }}
               onChange={(value) => dispatch(setQuickAssistantId(value))}
-              placeholder={t('settings.models.quick_assistant_selection')}
-              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}>
+              placeholder={t('settings.models.quick_assistant_selection')}>
               <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
                 <AssistantItem>
                   <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
@@ -237,7 +242,7 @@ const StyledButton = styled(Button)<{ selected: boolean }>`
   &:first-child {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
-    border-right-width: 0px; // No right border for the first button when not selected
+    border-right-width: 0; // No right border for the first button when not selected
   }
 
   &:last-child {
@@ -247,6 +252,7 @@ const StyledButton = styled(Button)<{ selected: boolean }>`
   }
 
   // Override Ant Design's default hover and focus styles for a cleaner look
+
   &:hover,
   &:focus {
     z-index: 1;

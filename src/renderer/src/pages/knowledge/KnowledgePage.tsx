@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AddKnowledgePopup from './components/AddKnowledgePopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
@@ -55,10 +55,10 @@ const KnowledgePage: FC = () => {
           }
         },
         {
-          label: t('knowledge.settings'),
+          label: t('knowledge.settings.title'),
           key: 'settings',
           icon: <SettingOutlined />,
-          onClick: () => KnowledgeSettingsPopup.show({ base })
+          onClick: () => KnowledgeSettings.show({ base })
         },
         { type: 'divider' },
         {
@@ -96,9 +96,9 @@ const KnowledgePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <SideNav>
+        <KnowledgeSideNav>
           <ScrollContainer>
-            <DragableList
+            <DraggableList
               list={bases}
               onUpdate={updateKnowledgeBases}
               style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
@@ -116,7 +116,7 @@ const KnowledgePage: FC = () => {
                   </div>
                 </Dropdown>
               )}
-            </DragableList>
+            </DraggableList>
             {!isDragging && (
               <AddKnowledgeItem onClick={handleAddKnowledge}>
                 <AddKnowledgeName>
@@ -127,7 +127,7 @@ const KnowledgePage: FC = () => {
             )}
             <div style={{ minHeight: '10px' }}></div>
           </ScrollContainer>
-        </SideNav>
+        </KnowledgeSideNav>
         {bases.length === 0 ? (
           <MainContent>
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -162,7 +162,7 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
 `
 
-const SideNav = styled.div`
+export const KnowledgeSideNav = styled.div`
   min-width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   padding: 12px 10px;

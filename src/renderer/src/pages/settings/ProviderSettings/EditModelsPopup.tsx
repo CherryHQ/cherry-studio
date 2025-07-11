@@ -16,6 +16,8 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
@@ -41,6 +43,10 @@ interface Props extends ShowParams {
 // Check if the model exists in the provider's model list
 const isModelInProvider = (provider: Provider, modelId: string): boolean => {
   return provider.models.some((m) => m.id === modelId)
+}
+
+const isValidNewApiModel = (model: Model): boolean => {
+  return !!(model.supported_endpoint_types && model.supported_endpoint_types.length > 0)
 }
 
 const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
@@ -129,10 +135,21 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const onAddModel = useCallback(
     (model: Model) => {
       if (!isEmpty(model.name)) {
-        addModel(model)
+        if (provider.id === 'new-api') {
+          if (model.supported_endpoint_types && model.supported_endpoint_types.length > 0) {
+            addModel({
+              ...model,
+              endpoint_type: model.supported_endpoint_types[0]
+            })
+          } else {
+            NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
+          }
+        } else {
+          addModel(model)
+        }
       }
     },
-    [addModel]
+    [addModel, provider, t]
   )
 
   const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
@@ -155,7 +172,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               // @ts-ignore description
               description: model?.description || '',
               // @ts-ignore owned_by
-              owned_by: model?.owned_by || ''
+              owned_by: model?.owned_by || '',
+              // @ts-ignore supported_endpoint_types
+              supported_endpoint_types: model?.supported_endpoint_types
             }))
             .filter((model) => !isEmpty(model.name))
         )
@@ -207,14 +226,27 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             if (isAllFilteredInProvider) {
               list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
             } else {
-              list.filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+              const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+              if (provider.id === 'new-api') {
+                if (models.every(isValidNewApiModel)) {
+                  wouldAddModel.forEach(onAddModel)
+                } else {
+                  NewApiBatchAddModelPopup.show({
+                    title: t('settings.models.add.batch_add_models'),
+                    batchModels: wouldAddModel,
+                    provider
+                  })
+                }
+              } else {
+                wouldAddModel.forEach(onAddModel)
+              }
             }
           }}
           disabled={list.length === 0}
         />
       </Tooltip>
     )
-  }, [list, provider, onAddModel, onRemoveModel, t])
+  }, [list, t, provider, onRemoveModel, models, onAddModel])
 
   const renderGroupTools = useCallback(
     (group: string) => {
@@ -237,7 +269,20 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               if (isAllInProvider) {
                 modelGroups[group].filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
               } else {
-                modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+                const wouldAddModel = modelGroups[group].filter((model) => !isModelInProvider(provider, model.id))
+                if (provider.id === 'new-api') {
+                  if (wouldAddModel.every(isValidNewApiModel)) {
+                    wouldAddModel.forEach(onAddModel)
+                  } else {
+                    NewApiBatchAddModelPopup.show({
+                      title: t('settings.models.add.batch_add_models'),
+                      batchModels: wouldAddModel,
+                      provider
+                    })
+                  }
+                } else {
+                  wouldAddModel.forEach(onAddModel)
+                }
               }
             }}
           />

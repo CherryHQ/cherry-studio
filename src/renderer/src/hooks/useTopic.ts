@@ -1,5 +1,6 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
@@ -133,8 +134,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
       try {
         startTopicRenaming(topicId)
-
-        const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
         const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
         if (summaryText) {
           const data = { ...topic, name: summaryText }

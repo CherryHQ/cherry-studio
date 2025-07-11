@@ -4,13 +4,12 @@ import EditableNumber from '@renderer/components/EditableNumber'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { ChevronDown } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -118,7 +117,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               { label: 'true', value: true },
               { label: 'false', value: false }
             ]}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
         )
       case 'json':
@@ -314,7 +312,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <EditableNumber
             min={0}
-            max={20}
+            max={MAX_CONTEXT_COUNT}
             step={1}
             value={contextCount}
             changeOnBlur
@@ -332,7 +330,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={24}>
           <Slider
             min={0}
-            max={100}
+            max={MAX_CONTEXT_COUNT}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
@@ -437,8 +435,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Select
               value={param.type}
               onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}
-              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}>
+              style={{ width: '100%' }}>
               <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
               <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
               <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>

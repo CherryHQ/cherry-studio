@@ -65,7 +65,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
                   thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                 }
                 controller.enqueue(enhancedChunk)
-              } else if (hasThinkingContent && thinkingStartTime > 0) {
+              } else if (hasThinkingContent && thinkingStartTime > 0 && chunk.type !== ChunkType.THINKING_START) {
                 // 收到任何非THINKING_DELTA的chunk时，如果有累积的思考内容，生成THINKING_COMPLETE
                 const thinkingCompleteChunk: ThinkingCompleteChunk = {
                   type: ChunkType.THINKING_COMPLETE,

@@ -1,8 +1,10 @@
 {
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit"
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"
   },
+  "files.eol": "\n",
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true

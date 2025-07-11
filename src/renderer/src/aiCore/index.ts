@@ -8,6 +8,7 @@ import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 import { OpenAIAPIClient } from './clients'
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
 import { AnthropicAPIClient } from './clients/anthropic/AnthropicAPIClient'
+import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
 import { MIDDLEWARE_NAME as AbortHandlerMiddlewareName } from './middleware/common/AbortHandlerMiddleware'
@@ -48,6 +49,11 @@ export default class AiProvider {
       if (client instanceof OpenAIResponseAPIClient) {
         client = client.getClient(model) as BaseApiClient
       }
+    } else if (this.apiClient instanceof NewAPIClient) {
+      client = this.apiClient.getClientForModel(model)
+      if (client instanceof OpenAIResponseAPIClient) {
+        client = client.getClient(model) as BaseApiClient
+      }
     } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
       // OpenAIResponseAPIClient: 根据模型特征选择API类型
       client = this.apiClient.getClient(model) as BaseApiClient
@@ -69,11 +75,12 @@ export default class AiProvider {
     } else {
       // Existing logic for other models
       if (!params.enableReasoning) {
-        builder.remove(ThinkingTagExtractionMiddlewareName)
+        // 这里注释掉不会影响正常的关闭思考,可忽略不计的性能下降
+        // builder.remove(ThinkingTagExtractionMiddlewareName)
         builder.remove(ThinkChunkMiddlewareName)
       }
       // 注意：用client判断会导致typescript类型收窄
-      if (!(this.apiClient instanceof OpenAIAPIClient)) {
+      if (!(this.apiClient instanceof OpenAIAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
       if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {

@@ -164,7 +164,7 @@ const visionAllowedModels = [
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
-  'glm-4v',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
@@ -208,7 +208,7 @@ export const isDedicatedImageGenerationModel = (model: Model): boolean =>
   DEDICATED_IMAGE_MODELS.filter((m) => model.id.includes(m)).length > 0
 
 // Text to image models
-export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus/i
+export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -522,6 +522,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-reranker-m0',
       provider: '302ai',
       group: 'Jina AI'
+    }
+  ],
+  ph8: [
+    {
+      id: 'deepseek-v3-241226',
+      name: 'deepseek-v3-241226',
+      provider: 'ph8',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      name: 'deepseek-r1-250120',
+      provider: 'ph8',
+      group: 'DeepSeek'
     }
   ],
   aihubmix: [
@@ -844,18 +858,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ppio',
       name: 'Qwen3 Reranker 8B',
       group: 'qwen'
-    },
-    {
-      id: 'thudm/glm-z1-32b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 32B',
-      group: 'thudm'
-    },
-    {
-      id: 'thudm/glm-z1-9b-0414',
-      provider: 'ppio',
-      name: 'GLM-Z1 9B',
-      group: 'thudm'
     }
   ],
   alayanew: [],
@@ -2233,7 +2235,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: []
+  lanyun: [],
+  'new-api': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2317,8 +2320,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
@@ -2486,7 +2487,7 @@ export function isGrokModel(model?: Model): boolean {
   return model.id.includes('grok')
 }
 
-export function isGrokReasoningModel(model?: Model): boolean {
+export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -2498,7 +2499,16 @@ export function isGrokReasoningModel(model?: Model): boolean {
   return false
 }
 
-export const isSupportedReasoningEffortGrokModel = isGrokReasoningModel
+export function isGrokReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (isSupportedReasoningEffortGrokModel(model) || model.id.includes('grok-4')) {
+    return true
+  }
+
+  return false
+}
 
 export function isGeminiReasoningModel(model?: Model): boolean {
   if (!model) {
@@ -2907,3 +2917,12 @@ export function isDoubaoThinkingAutoModel(model: Model): boolean {
 }
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
+
+// 模型集合功能测试
+export const isVisionModels = (models: Model[]) => {
+  return models.every((model) => isVisionModel(model))
+}
+
+export const isGenerateImageModels = (models: Model[]) => {
+  return models.every((model) => isGenerateImageModel(model))
+}

@@ -280,21 +280,26 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
-      try {
-        await window.api.mcp.restartServer(mcpServer)
-        updateMCPServer({ ...mcpServer, isActive: true })
-        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
-        setLoading(false)
-        setIsFormChanged(false)
-      } catch (error: any) {
+      if (server.isActive) {
+        try {
+          await window.api.mcp.restartServer(mcpServer)
+          updateMCPServer({ ...mcpServer, isActive: true })
+          window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+          setIsFormChanged(false)
+        } catch (error: any) {
+          updateMCPServer({ ...mcpServer, isActive: false })
+          window.modal.error({
+            title: t('settings.mcp.updateError'),
+            content: error.message,
+            centered: true
+          })
+        }
+      } else {
         updateMCPServer({ ...mcpServer, isActive: false })
-        window.modal.error({
-          title: t('settings.mcp.updateError'),
-          content: error.message,
-          centered: true
-        })
-        setLoading(false)
+        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+        setIsFormChanged(false)
       }
+      setLoading(false)
     } catch (error: any) {
       setLoading(false)
       console.error('Failed to save MCP server settings:', error)
@@ -429,6 +434,33 @@ const McpSettings: React.FC = () => {
       const updatedServer = {
         ...server,
         disabledTools
+      }
+
+      // Save the updated server configuration
+      // await window.api.mcp.updateServer(updatedServer)
+      updateMCPServer(updatedServer)
+    },
+    [server, updateMCPServer]
+  )
+
+  // Handle toggling auto-approve for a tool
+  const handleToggleAutoApprove = useCallback(
+    async (tool: MCPTool, autoApprove: boolean) => {
+      let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+
+      if (autoApprove) {
+        disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
+      } else {
+        // Add tool to disabledTools if it's being disabled
+        if (!disabledAutoApproveTools.includes(tool.name)) {
+          disabledAutoApproveTools.push(tool.name)
+        }
+      }
+
+      // Update the server with new disabledTools
+      const updatedServer = {
+        ...server,
+        disabledAutoApproveTools
       }
 
       // Save the updated server configuration
@@ -644,7 +676,14 @@ const McpSettings: React.FC = () => {
       {
         key: 'tools',
         label: t('settings.mcp.tabs.tools'),
-        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+        children: (
+          <MCPToolsSection
+            tools={tools}
+            server={server}
+            onToggleTool={handleToggleTool}
+            onToggleAutoApprove={handleToggleAutoApprove}
+          />
+        )
       },
       {
         key: 'prompts',

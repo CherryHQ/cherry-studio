@@ -1,4 +1,4 @@
-import { backupToS3, handleData } from '@renderer/services/BackupService'
+import { backupToS3 } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
 import { Input, Modal, Select, Spin } from 'antd'
 import dayjs from 'dayjs'
@@ -92,8 +92,8 @@ interface UseS3RestoreModalProps {
   endpoint: string | undefined
   region: string | undefined
   bucket: string | undefined
-  access_key_id: string | undefined
-  secret_access_key: string | undefined
+  accessKeyId: string | undefined
+  secretAccessKey: string | undefined
   root?: string | undefined
 }
 
@@ -101,8 +101,8 @@ export function useS3RestoreModal({
   endpoint,
   region,
   bucket,
-  access_key_id,
-  secret_access_key,
+  accessKeyId,
+  secretAccessKey,
   root
 }: UseS3RestoreModalProps) {
   const [isRestoreModalVisible, setIsRestoreModalVisible] = useState(false)
@@ -113,7 +113,7 @@ export function useS3RestoreModal({
   const { t } = useTranslation()
 
   const showRestoreModal = useCallback(async () => {
-    if (!endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error({ content: t('settings.data.s3.manager.config.incomplete'), key: 's3-error' })
       return
     }
@@ -125,9 +125,13 @@ export function useS3RestoreModal({
         endpoint,
         region,
         bucket,
-        access_key_id,
-        secret_access_key,
-        root
+        accessKeyId,
+        secretAccessKey,
+        root,
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 0,
+        skipBackupFile: false
       })
       setBackupFiles(files)
     } catch (error: any) {
@@ -138,10 +142,10 @@ export function useS3RestoreModal({
     } finally {
       setLoadingFiles(false)
     }
-  }, [endpoint, region, bucket, access_key_id, secret_access_key, root, t])
+  }, [endpoint, region, bucket, accessKeyId, secretAccessKey, root, t])
 
   const handleRestore = useCallback(async () => {
-    if (!selectedFile || !endpoint || !region || !bucket || !access_key_id || !secret_access_key) {
+    if (!selectedFile || !endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       window.message.error({
         content: !selectedFile
           ? t('settings.data.s3.restore.file.required')
@@ -153,24 +157,27 @@ export function useS3RestoreModal({
 
     window.modal.confirm({
       title: t('settings.data.s3.restore.confirm.title'),
-      content: t('settings.data.s3.restore.confirm.content'),
+      content: t('settings.data.s3.restore.confirm.content', { fileName: selectedFile }),
       okText: t('settings.data.s3.restore.confirm.ok'),
       cancelText: t('settings.data.s3.restore.confirm.cancel'),
       centered: true,
       onOk: async () => {
         setRestoring(true)
         try {
-          const data = await window.api.backup.restoreFromS3({
+          await window.api.backup.restoreFromS3({
             endpoint,
             region,
             bucket,
-            access_key_id,
-            secret_access_key,
+            accessKeyId,
+            secretAccessKey,
             root,
-            fileName: selectedFile
+            fileName: selectedFile,
+            autoSync: false,
+            syncInterval: 0,
+            maxBackups: 0,
+            skipBackupFile: false
           })
-          await handleData(JSON.parse(data))
-          window.message.success(t('settings.data.s3.restore.success'))
+          window.message.success({ content: t('message.restore.success'), key: 's3-restore' })
           setIsRestoreModalVisible(false)
         } catch (error: any) {
           window.message.error({
@@ -182,7 +189,7 @@ export function useS3RestoreModal({
         }
       }
     })
-  }, [selectedFile, endpoint, region, bucket, access_key_id, secret_access_key, root, t])
+  }, [selectedFile, endpoint, region, bucket, accessKeyId, secretAccessKey, root, t])
 
   const handleCancel = () => {
     setIsRestoreModalVisible(false)

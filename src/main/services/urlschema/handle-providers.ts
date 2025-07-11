@@ -1,37 +1,53 @@
-import { IpcChannel } from '@shared/IpcChannel'
+import { isMac } from '@main/constant'
 import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
 
-export function handleProvidersProtocolUrl(url: URL) {
-  const params = new URLSearchParams(url.search)
+export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
     case '/api-keys': {
       // jsonConfig example:
       // {
       //   "id": "tokenflux",
       //   "baseUrl": "https://tokenflux.ai/v1",
-      //   "apiKey": "sk-xxxx"
+      //   "apiKey": "sk-xxxx",
+      //   "name": "TokenFlux", // optional
+      //   "type": "openai" // optional
       // }
-      // cherrystudio://providers/api-keys?data={base64Encode(JSON.stringify(jsonConfig))}
+      // cherrystudio://providers/api-keys?v=1&data={base64Encode(JSON.stringify(jsonConfig))}
+
+      // replace + and / to _ and - because + and / are processed by URLSearchParams
+      const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
+      const params = new URLSearchParams(processedSearch)
       const data = params.get('data')
-      if (data) {
-        const stringify = Buffer.from(data, 'base64').toString('utf8')
-        Logger.info('get api keys from urlschema: ', stringify)
-        const jsonConfig = JSON.parse(stringify)
-        Logger.info('get api keys from urlschema: ', jsonConfig)
-        const mainWindow = windowService.getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannel.Provider_AddKey, jsonConfig)
-          mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?id=${jsonConfig.id}')`)
+      const mainWindow = windowService.getMainWindow()
+      const version = params.get('v')
+      if (version == '1') {
+        // TODO: handle different version
+        Logger.info('handleProvidersProtocolUrl', { data, version })
+      }
+
+      // add check there is window.navigate function in mainWindow
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
+      ) {
+        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+
+        if (isMac) {
+          windowService.showMainWindow()
         }
       } else {
-        Logger.error('No data found in URL')
+        setTimeout(() => {
+          Logger.info('handleProvidersProtocolUrl timeout', { data, version })
+          handleProvidersProtocolUrl(url)
+        }, 1000)
       }
       break
     }
     default:
-      console.error(`Unknown MCP protocol URL: ${url}`)
+      Logger.error(`Unknown MCP protocol URL: ${url}`)
       break
   }
 }

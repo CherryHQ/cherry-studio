@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MinAppIcon > should render correctly with various props 1`] = `
+.c0 {
+  border-radius: 16px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+<img
+  class="c0"
+  src="/test-logo-1.png"
+  style="border: 0.5px solid var(--color-border); width: 64px; height: 64px; background-color: rgb(240, 240, 240); opacity: 0.8; transform: scale(1.1); margin-top: 10px;"
+/>
+`;

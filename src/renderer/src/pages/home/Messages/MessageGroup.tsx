@@ -27,7 +27,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { isMultiSelectMode } = useChatContext(topic)
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
-    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+    // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
+    messages.length < 2 ? 'fold' : messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
 
   const messageLength = messages.length
@@ -265,7 +266,7 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
   gap: 16px;
   &.horizontal {
     padding-bottom: 4px;
-    grid-template-columns: repeat(${({ $count }) => $count}, minmax(480px, 1fr));
+    grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
     overflow-x: auto;
   }
   &.fold,
@@ -308,6 +309,7 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
+    padding-right: 1px;
     overflow-y: auto;
     .message {
       height: 100%;

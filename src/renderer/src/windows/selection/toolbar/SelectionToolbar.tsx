@@ -107,6 +107,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
 
   // listen to selectionService events
   useEffect(() => {
@@ -115,6 +117,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
+        isFullScreen.current = selectionData.isFullscreen ?? false
         setTimeout(() => {
           //make sure the animation is active
           setAnimateKey((prev) => prev + 1)
@@ -132,8 +135,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         }
       }
     )
-
-    if (!demo) updateWindowSize()
 
     return () => {
       textSelectionListenRemover()
@@ -234,7 +235,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }
 
   const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()
   }
 
@@ -259,7 +261,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 const Container = styled.div`
   display: inline-flex;
   flex-direction: row;
-  align-items: center;
+  align-items: stretch;
   height: var(--selection-toolbar-height);
   border-radius: var(--selection-toolbar-border-radius);
   border: var(--selection-toolbar-border);
@@ -269,6 +271,7 @@ const Container = styled.div`
   margin: var(--selection-toolbar-margin) !important;
   user-select: none;
   box-sizing: border-box;
+  overflow: hidden;
 `
 
 const LogoWrapper = styled.div<{ $draggable: boolean }>`
@@ -276,8 +279,13 @@ const LogoWrapper = styled.div<{ $draggable: boolean }>`
   align-items: center;
   justify-content: center;
   margin: var(--selection-toolbar-logo-margin);
-  background-color: transparent;
-  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'}
+  padding: var(--selection-toolbar-logo-padding);
+  background-color: var(--selection-toolbar-logo-background);
+  border-width: var(--selection-toolbar-logo-border-width);
+  border-style: var(--selection-toolbar-logo-border-style);
+  border-color: var(--selection-toolbar-logo-border-color);
+  border-radius: var(--selection-toolbar-border-radius) 0 0 var(--selection-toolbar-border-radius);
+  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'};
 `
 
 const Logo = styled(Avatar)`
@@ -307,14 +315,19 @@ const ActionWrapper = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-left: 3px;
   background-color: transparent;
+  border-width: var(--selection-toolbar-buttons-border-width);
+  border-style: var(--selection-toolbar-buttons-border-style);
+  border-color: var(--selection-toolbar-buttons-border-color);
+  border-radius: var(--selection-toolbar-buttons-border-radius);
 `
 const ActionButton = styled.div`
+  height: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   cursor: pointer !important;
   margin: var(--selection-toolbar-button-margin);
   padding: var(--selection-toolbar-button-padding);
@@ -324,6 +337,10 @@ const ActionButton = styled.div`
   box-shadow: var(--selection-toolbar-button-box-shadow);
   transition: all 0.1s ease-in-out;
   will-change: color, background-color;
+  &:last-child {
+    border-radius: 0 var(--selection-toolbar-border-radius) var(--selection-toolbar-border-radius) 0;
+    padding: var(--selection-toolbar-button-last-padding);
+  }
 
   .btn-icon {
     width: var(--selection-toolbar-button-icon-size);
@@ -337,6 +354,7 @@ const ActionButton = styled.div`
     color: var(--selection-toolbar-button-text-color);
     transition: color 0.1s ease-in-out;
     will-change: color;
+    line-height: 1.1;
   }
   &:hover {
     .btn-icon {
