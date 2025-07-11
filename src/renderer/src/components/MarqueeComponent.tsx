@@ -1,7 +1,8 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
+import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -14,31 +15,15 @@ interface Props {
 const MarqueeComponent: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
   const [messages, setMessages] = useState<string[]>([])
 
-  const previousContentRef = useRef<string>('')
-
   useEffect(() => {
-    const currentContent = content || ''
-    const previousContent = previousContentRef.current
+    const allLines = (content || '').split('\n')
+    const newMessages = isThinking ? allLines.slice(0, -1) : allLines
+    const validMessages = newMessages.filter((line) => line.trim() !== '')
 
-    if (currentContent !== previousContent) {
-      const allLines = currentContent.split('\n')
-      const completedLines = isThinking ? allLines.slice(0, -1) : allLines
-
-      const validCompletedLines = completedLines.filter((line) => line.trim() !== '')
-
-      const previousAllLines = previousContent.split('\n')
-      const previousCompletedLines = previousAllLines.slice(0, -1).filter((line) => line.trim() !== '')
-
-      if (validCompletedLines.length > previousCompletedLines.length) {
-        const newLines = validCompletedLines.slice(previousCompletedLines.length)
-        setMessages((prev) => [...prev, ...newLines])
-      } else if (validCompletedLines.length < previousCompletedLines.length) {
-        setMessages(validCompletedLines)
-      }
-
-      previousContentRef.current = currentContent
+    if (!isEqual(messages, validMessages)) {
+      setMessages(validMessages)
     }
-  }, [content, isThinking])
+  }, [content, isThinking, messages])
 
   const lineHeight = 16
   const containerHeight = useMemo(() => {

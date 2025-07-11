@@ -10,7 +10,6 @@ import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBloc
 import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
-import { useTypingOutput } from '@renderer/utils/typingOutput'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,14 +48,12 @@ const Markdown: FC<Props> = ({ block }) => {
     return plugins
   }, [mathEngine])
 
-  const rawContent = useMemo(() => {
+  const messageContent = useMemo(() => {
     const empty = isEmpty(block.content)
     const paused = block.status === 'paused'
     const content = empty && paused ? t('message.chat.completion.paused') : block.content
     return removeSvgEmptyLines(processLatexBrackets(content))
   }, [block, t])
-
-  const messageContent = useTypingOutput(rawContent)
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []
