@@ -2054,10 +2054,6 @@
       "models.provider_key_overridden": "{{provider}} の API キーを更新しました",
       "models.provider_key_override_confirm": "{{provider}} はすでに API キー ({{existingKey}}) を持っています。新しいキー ({{newKey}}) で上書きしますか？",
       "models.provider_name": "プロバイダー名",
-      "models.quick_assistant_default_tag": "デフォルト",
-      "models.quick_assistant_model": "クイックアシスタントモデル",
-      "models.quick_assistant_model_description": "クイックアシスタントで使用されるデフォルトモデル",
-      "models.quick_assistant_selection": "アシスタントを選択します",
       "models.topic_naming_model": "トピック命名モデル",
       "models.topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
       "models.topic_naming_model_setting_title": "トピック命名モデルの設定",
@@ -2227,7 +2223,14 @@
         "enable_quick_assistant": "クイックアシスタントを有効にする",
         "read_clipboard_at_startup": "起動時にクリップボードを読み取る",
         "title": "クイックアシスタント",
-        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます",
+        "use_existing_assistant": {
+          "title": "既存のアシスタントを使用",
+          "tooltip": "有効にすると、既存のアシスタントをクイックアシスタントとして選択できます。無効にすると、デフォルトの会話モデルのみが使用されます",
+          "select.placeholder": "既存のアシスタントを選択",
+          "select.default_tag": "デフォルト",
+          "select.default_tag.tooltip": "これはデフォルトのアシスタントです"
+        }
       },
       "quickPanel": {
         "back": "戻る",

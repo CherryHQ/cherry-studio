@@ -2054,10 +2054,6 @@
       "models.provider_key_overridden": "API ключ для {{provider}} успешно обновлен",
       "models.provider_key_override_confirm": "{{provider}} уже имеет API ключ ({{existingKey}}). Вы хотите заменить его новым ключом ({{newKey}})?",
       "models.provider_name": "Имя провайдера",
-      "models.quick_assistant_default_tag": "умолчанию",
-      "models.quick_assistant_model": "Модель быстрого помощника",
-      "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
-      "models.quick_assistant_selection": "Выберите помощника",
       "models.topic_naming_model": "Модель именования топика",
       "models.topic_naming_model_description": "Модель, используемая при автоматическом именовании нового топика",
       "models.topic_naming_model_setting_title": "Настройки модели именования топика",
@@ -2227,7 +2223,14 @@
         "enable_quick_assistant": "Включить быстрый помощник",
         "read_clipboard_at_startup": "Чтение буфера обмена при запуске",
         "title": "Быстрый помощник",
-        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
+        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска",
+        "use_existing_assistant": {
+          "title": "Использовать существующего помощника",
+          "tooltip": "При включении вы можете выбрать существующего помощника в качестве быстрого помощника, в противном случае будет использоваться только модель по умолчанию",
+          "select.placeholder": "Выберите существующего помощника",
+          "select.default_tag": "По умолчанию",
+          "select.default_tag.tooltip": "Этот помощник по умолчанию"
+        }
       },
       "quickPanel": {
         "back": "Назад",
