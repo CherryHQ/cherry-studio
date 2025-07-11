@@ -372,7 +372,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                   <Tooltip title={t('knowledge.dimensions_not_supported')}>
-                    <WarningOutlined style={{ marginLeft: 8 }} />
+                    <WarningOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
