@@ -5,7 +5,7 @@ import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/Loca
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { startLocalBackupAutoSync, stopLocalBackupAutoSync } from '@renderer/services/BackupService'
+import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setLocalBackupAutoSync,
@@ -17,12 +17,14 @@ import {
 import { AppInfo } from '@renderer/types'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
-const LocalBackupSettings: FC = () => {
+const LocalBackupSettings: React.FC = () => {
+  const dispatch = useAppDispatch()
+
   const {
     localBackupDir: localBackupDirSetting,
     localBackupSyncInterval: localBackupSyncIntervalSetting,
@@ -43,7 +45,6 @@ const LocalBackupSettings: FC = () => {
     window.api.getAppInfo().then(setAppInfo)
   }, [])
 
-  const dispatch = useAppDispatch()
   const { theme } = useTheme()
 
   const { t } = useTranslation()
@@ -55,10 +56,10 @@ const LocalBackupSettings: FC = () => {
     dispatch(_setLocalBackupSyncInterval(value))
     if (value === 0) {
       dispatch(setLocalBackupAutoSync(false))
-      stopLocalBackupAutoSync()
+      stopAutoSync('local')
     } else {
       dispatch(setLocalBackupAutoSync(true))
-      startLocalBackupAutoSync()
+      startAutoSync(false, 'local')
     }
   }
 
@@ -99,14 +100,14 @@ const LocalBackupSettings: FC = () => {
       await window.api.backup.setLocalBackupDir(value)
 
       dispatch(setLocalBackupAutoSync(true))
-      startLocalBackupAutoSync(true)
+      startAutoSync(true, 'local')
       return
     }
 
     setLocalBackupDir('')
     dispatch(_setLocalBackupDir(''))
     dispatch(setLocalBackupAutoSync(false))
-    stopLocalBackupAutoSync()
+    stopAutoSync('local')
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -140,7 +141,7 @@ const LocalBackupSettings: FC = () => {
     setLocalBackupDir('')
     dispatch(_setLocalBackupDir(''))
     dispatch(setLocalBackupAutoSync(false))
-    stopLocalBackupAutoSync()
+    stopAutoSync('local')
   }
 
   const renderSyncStatus = () => {

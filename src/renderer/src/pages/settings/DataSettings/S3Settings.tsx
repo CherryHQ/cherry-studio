@@ -54,9 +54,9 @@ const S3Settings: FC = () => {
     setSyncInterval(value)
     dispatch(setS3Partial({ syncInterval: value, autoSync: value !== 0 }))
     if (value === 0) {
-      stopAutoSync()
+      stopAutoSync('s3')
     } else {
-      startAutoSync()
+      startAutoSync(false, 's3')
     }
   }
 
