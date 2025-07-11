@@ -7,8 +7,8 @@ interface UseSmoothStreamOptions {
   minDelay?: number
   initialText?: string
 }
-
-const reg = /([\u4E00-\u9FFF])|\S+\s+/g
+// 如果不行还可以使用Array.from(chunk)分割
+const reg = /[\u4E00-\u9FFF]|[a-zA-Z0-9]+|\s+|[^\s\w]/g
 
 export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
   const [chunkQueue, setChunkQueue] = useState<string[]>([])
