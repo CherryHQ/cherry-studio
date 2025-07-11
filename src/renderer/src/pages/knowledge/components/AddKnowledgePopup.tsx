@@ -408,7 +408,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.chunk_size')}
                   <Tooltip title={t('knowledge.chunk_size_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -429,7 +429,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.chunk_overlap')}
                   <Tooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -451,7 +451,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.threshold')}
                   <Tooltip title={t('knowledge.threshold_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
