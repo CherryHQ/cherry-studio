@@ -1,21 +1,29 @@
 export const VOYAGE_SUPPORTED_DIM_MODELS = ['voyage-3-large', 'voyage-3.5', 'voyage-3.5-lite', 'voyage-code-3']
 
-// NOTE: 下面的暂时没用上，但先留着吧
 export const OPENAI_SUPPORTED_DIM_MODELS = ['text-embedding-3-small', 'text-embedding-3-large']
 
 export const DASHSCOPE_SUPPORTED_DIM_MODELS = ['text-embedding-v3', 'text-embedding-v4']
 
 export const OPENSOURCE_SUPPORTED_DIM_MODELS = ['qwen3-embedding-0.6B', 'qwen3-embedding-4B', 'qwen3-embedding-8B']
 
-export const GOOGLE_SUPPORTED_DIM_MODELS = ['gemini-embedding-exp-03-07', 'gemini-embedding-exp']
+// google ai embedding api 的 outputDimensionality 用于截断向量，可以认为所有 google 的嵌入模型都支持设置该参数
+export const GOOGLE_SUPPORTED_DIM_MODELS = ['gemini-embedding-exp-03-07', 'gemini-embedding-exp', 'text-embedding-004']
 
+/** 支持设置嵌入维度的嵌入模型 */
 export const SUPPORTED_DIM_MODELS = [
   ...VOYAGE_SUPPORTED_DIM_MODELS,
   ...OPENAI_SUPPORTED_DIM_MODELS,
   ...DASHSCOPE_SUPPORTED_DIM_MODELS,
   ...OPENSOURCE_SUPPORTED_DIM_MODELS,
   ...GOOGLE_SUPPORTED_DIM_MODELS
-]
+] as const
+
+// 对qwen3 embedding 做特别检查来避免vllm不支持qwen3 dimensions参数的问题
+export const EMBEDDING_MODEL_DEFAULT_DIMS: Record<string, number> = {
+  'qwen3-embedding-0.6B': 1024,
+  'qwen3-embedding-4B': 2560,
+  'qwen3-embedding-8B': 4096 // https://qwenlm.github.io/zh/blog/qwen3-embedding/
+} as const
 
 /**
  * 从模型 ID 中提取基础名称。
