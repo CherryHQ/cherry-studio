@@ -846,12 +846,36 @@ export async function backupToLocalDir({
 }
 
 export async function restoreFromLocalBackup(fileName: string) {
+  const notificationService = NotificationService.getInstance()
+  const { localBackupDir } = store.getState().settings
+
   try {
-    const { localBackupDir } = store.getState().settings
-    await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+    const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+    const data = JSON.parse(restoreData)
+    await handleData(data)
+
+    notificationService.send({
+      id: uuid(),
+      type: 'success',
+      title: i18n.t('common.success'),
+      message: i18n.t('message.restore.success'),
+      silent: false,
+      timestamp: Date.now(),
+      source: 'backup'
+    })
+
+    store.dispatch(
+      setLocalBackupSyncState({
+        lastSyncTime: Date.now(),
+        syncing: false,
+        lastSyncError: null
+      })
+    )
+
     return true
   } catch (error) {
     Logger.error('[LocalBackup] Restore failed:', error)
+    window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
     throw error
   }
 }

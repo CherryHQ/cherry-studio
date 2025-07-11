@@ -2,6 +2,7 @@ import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, Warning
 import { HStack } from '@renderer/components/Layout'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
+import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startLocalBackupAutoSync, stopLocalBackupAutoSync } from '@renderer/services/BackupService'
@@ -14,7 +15,7 @@ import {
   setLocalBackupSyncInterval as _setLocalBackupSyncInterval
 } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Input, Select, Switch, Tooltip } from 'antd'
+import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -213,39 +214,43 @@ const LocalBackupSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.autoSync')}</SettingRowTitle>
-        <Select
+        <Selector
+          size={14}
           value={syncInterval}
-          onChange={(value) => onSyncIntervalChange(value as number)}
+          onChange={onSyncIntervalChange}
           disabled={!localBackupDir}
-          style={{ minWidth: 120 }}>
-          <Select.Option value={0}>{t('settings.data.local.autoSync.off')}</Select.Option>
-          <Select.Option value={1}>{t('settings.data.local.minute_interval', { count: 1 })}</Select.Option>
-          <Select.Option value={5}>{t('settings.data.local.minute_interval', { count: 5 })}</Select.Option>
-          <Select.Option value={15}>{t('settings.data.local.minute_interval', { count: 15 })}</Select.Option>
-          <Select.Option value={30}>{t('settings.data.local.minute_interval', { count: 30 })}</Select.Option>
-          <Select.Option value={60}>{t('settings.data.local.hour_interval', { count: 1 })}</Select.Option>
-          <Select.Option value={120}>{t('settings.data.local.hour_interval', { count: 2 })}</Select.Option>
-          <Select.Option value={360}>{t('settings.data.local.hour_interval', { count: 6 })}</Select.Option>
-          <Select.Option value={720}>{t('settings.data.local.hour_interval', { count: 12 })}</Select.Option>
-          <Select.Option value={1440}>{t('settings.data.local.hour_interval', { count: 24 })}</Select.Option>
-        </Select>
+          options={[
+            { label: t('settings.data.local.autoSync.off'), value: 0 },
+            { label: t('settings.data.local.minute_interval', { count: 1 }), value: 1 },
+            { label: t('settings.data.local.minute_interval', { count: 5 }), value: 5 },
+            { label: t('settings.data.local.minute_interval', { count: 15 }), value: 15 },
+            { label: t('settings.data.local.minute_interval', { count: 30 }), value: 30 },
+            { label: t('settings.data.local.hour_interval', { count: 1 }), value: 60 },
+            { label: t('settings.data.local.hour_interval', { count: 2 }), value: 120 },
+            { label: t('settings.data.local.hour_interval', { count: 6 }), value: 360 },
+            { label: t('settings.data.local.hour_interval', { count: 12 }), value: 720 },
+            { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
+          ]}
+        />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.maxBackups')}</SettingRowTitle>
-        <Select
+        <Selector
+          size={14}
           value={maxBackups}
-          onChange={(value) => onMaxBackupsChange(value as number)}
+          onChange={onMaxBackupsChange}
           disabled={!localBackupDir}
-          style={{ minWidth: 120 }}>
-          <Select.Option value={0}>{t('settings.data.local.maxBackups.unlimited')}</Select.Option>
-          <Select.Option value={1}>1</Select.Option>
-          <Select.Option value={3}>3</Select.Option>
-          <Select.Option value={5}>5</Select.Option>
-          <Select.Option value={10}>10</Select.Option>
-          <Select.Option value={20}>20</Select.Option>
-          <Select.Option value={50}>50</Select.Option>
-        </Select>
+          options={[
+            { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+            { label: '1', value: 1 },
+            { label: '3', value: 3 },
+            { label: '5', value: 5 },
+            { label: '10', value: 10 },
+            { label: '20', value: 20 },
+            { label: '50', value: 50 }
+          ]}
+        />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
