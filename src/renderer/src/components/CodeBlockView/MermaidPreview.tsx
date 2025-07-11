@@ -142,7 +142,7 @@ const MermaidPreview: React.FC<BasicPreviewProps> = ({ children, setTools }) => 
     <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
       <Flex vertical style={{ minHeight: isLoading ? '2rem' : 'auto' }}>
         {(mermaidError || error) && <PreviewError>{mermaidError || error}</PreviewError>}
-        <StyledMermaid ref={mermaidRef} className="mermaid" />
+        <StyledMermaid ref={mermaidRef} className="mermaid  special-preview" />
       </Flex>
     </Spin>
   )

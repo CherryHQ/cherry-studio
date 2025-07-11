@@ -3,8 +3,6 @@
   line-height: 1.6;
   user-select: text;
   word-break: break-word;
-  letter-spacing: 0.02em;
-  word-spacing: 0.05em;
 
   h1:first-child,
   h2:first-child,
@@ -59,7 +57,7 @@
   p {
     margin: 1.3em 0;
     white-space: pre-wrap;
-    line-height: 2;
+    line-height: 1.6;
 
     &:last-child {
       margin-bottom: 5px;
@@ -87,7 +85,7 @@
   li {
     margin-bottom: 0.5em;
     pre {
-      margin: 1.5em 0;
+      margin: 1.5em 0 !important;
     }
     &::marker {
       color: var(--color-text-3);
@@ -201,6 +199,7 @@
   img {
     max-width: 100%;
     height: auto;
+    margin: 10px 0;
   }
 
   a,

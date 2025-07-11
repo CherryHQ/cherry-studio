@@ -188,12 +188,6 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
               <span>HTML</span>
             </TypeBadge>
           </TitleSection>
-          {isStreaming && (
-            <StreamingIndicator>
-              <ClipLoader size={16} color="currentColor" />
-              <StreamingText>{t('html_artifacts.generating')}</StreamingText>
-            </StreamingIndicator>
-          )}
         </Header>
         <Content>
           {isStreaming && !hasContent ? (
@@ -256,7 +250,7 @@ const Container = styled.div<{ $isStreaming: boolean }>`
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
-  margin: 16px 0;
+  margin: 10px 0;
 `
 
 const GeneratingContainer = styled.div`
@@ -336,40 +330,14 @@ const TypeBadge = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 3px 6px;
   background: var(--color-background-mute);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--color-text-secondary);
   width: fit-content;
-`
-
-const StreamingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--color-status-warning);
-  border: 1px solid var(--color-status-warning);
-  border-radius: 8px;
-  color: var(--color-text);
-  font-size: 12px;
-  opacity: 0.9;
-
-  [theme-mode='light'] & {
-    background: #fef3c7;
-    border-color: #fbbf24;
-    color: #92400e;
-  }
-`
-
-const StreamingText = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
 `
 
 const Content = styled.div`

@@ -955,7 +955,7 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 20px 18px 20px;
+  padding: 0 24px 18px 24px;
 `
 
 const InputBarContainer = styled.div`

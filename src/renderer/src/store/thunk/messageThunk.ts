@@ -344,13 +344,26 @@ const fetchAndProcessAssistantResponseImpl = async (
      * 智能更新策略：根据块类型连续性自动判断使用节流还是立即更新
      * - 连续同类块：使用节流（减少重渲染）
      * - 块类型切换：立即更新（确保状态正确）
+     * @param blockId 块ID
+     * @param changes 块更新内容
+     * @param blockType 块类型
+     * @param isComplete 是否完成，如果完成，则需要保存块更新到redux中
      */
-    const smartBlockUpdate = (blockId: string, changes: Partial<MessageBlock>, blockType: MessageBlockType) => {
+    const smartBlockUpdate = (
+      blockId: string,
+      changes: Partial<MessageBlock>,
+      blockType: MessageBlockType,
+      isComplete: boolean = false
+    ) => {
       const isBlockTypeChanged = currentActiveBlockType !== null && currentActiveBlockType !== blockType
-
-      if (isBlockTypeChanged) {
-        if (lastBlockId && lastBlockId !== blockId) {
+      if (isBlockTypeChanged || isComplete) {
+        // 如果块类型改变，则取消上一个块的节流更新，并保存块更新到redux中（尽管有可能被上一个块本身的oncomplete事件的取消节流已经取消了）
+        if (isBlockTypeChanged && lastBlockId) {
           cancelThrottledBlockUpdate(lastBlockId)
+        }
+        // 如果当前块完成，则取消当前块的节流更新，并保存块更新到redux中，避免streaming状态覆盖掉完成状态
+        if (isComplete) {
+          cancelThrottledBlockUpdate(blockId)
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
         saveUpdatedBlockToDB(blockId, assistantMsgId, topicId, getState)
@@ -464,7 +477,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             content: finalText,
             status: MessageBlockStatus.SUCCESS
           }
-          smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT)
+          smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
           mainTextBlockId = null
         } else {
           console.warn(
@@ -512,7 +525,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             status: MessageBlockStatus.SUCCESS,
             thinking_millsec: final_thinking_millsec
           }
-          smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING)
+          smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
         } else {
           console.warn(
             `[onThinkingComplete] Received thinking.complete but last block was not THINKING (was ${lastBlockType}) or lastBlockId  is null.`
@@ -591,7 +604,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           if (finalStatus === MessageBlockStatus.ERROR) {
             changes.error = { message: `Tool execution failed/error`, details: toolResponse.response }
           }
-          smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL)
+          smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
         } else {
           console.warn(
             `[onToolCallComplete] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
@@ -612,7 +625,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             knowledge: externalToolResult.knowledge,
             status: MessageBlockStatus.SUCCESS
           }
-          smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION)
+          smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
         } else {
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
@@ -652,7 +665,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const mainTextChanges = {
               citationReferences: [...currentRefs, { blockId, citationBlockSource: llmWebSearchResult.source }]
             }
-            smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT)
+            smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
           }
 
           if (initialPlaceholderBlockId) {
@@ -678,7 +691,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const mainTextChanges = {
               citationReferences: [...currentRefs, { citationBlockId, citationBlockSource: llmWebSearchResult.source }]
             }
-            smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT)
+            smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
           }
           await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
@@ -688,7 +701,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           lastBlockType = MessageBlockType.IMAGE
           const initialChanges: Partial<MessageBlock> = {
             type: MessageBlockType.IMAGE,
-            status: MessageBlockStatus.STREAMING
+            status: MessageBlockStatus.PENDING
           }
           lastBlockType = MessageBlockType.IMAGE
           imageBlockId = initialPlaceholderBlockId
@@ -696,7 +709,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           smartBlockUpdate(imageBlockId, initialChanges, MessageBlockType.IMAGE)
         } else if (!imageBlockId) {
           const imageBlock = createImageBlock(assistantMsgId, {
-            status: MessageBlockStatus.STREAMING
+            status: MessageBlockStatus.PENDING
           })
           imageBlockId = imageBlock.id
           await handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
@@ -710,7 +723,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             metadata: { generateImageResponse: imageData },
             status: MessageBlockStatus.STREAMING
           }
-          smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
+          smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
         }
       },
       onImageGenerated: (imageData) => {
@@ -727,7 +740,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               metadata: { generateImageResponse: imageData },
               status: MessageBlockStatus.SUCCESS
             }
-            smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
+            smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
           }
         } else {
           console.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
@@ -775,7 +788,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           const changes: Partial<MessageBlock> = {
             status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
           }
-          smartBlockUpdate(possibleBlockId, changes, MessageBlockType.MAIN_TEXT)
+          smartBlockUpdate(possibleBlockId, changes, lastBlockType!, true)
         }
 
         const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
@@ -817,7 +830,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const changes: Partial<MessageBlock> = {
               status: MessageBlockStatus.SUCCESS
             }
-            smartBlockUpdate(possibleBlockId, changes, lastBlockType!)
+            smartBlockUpdate(possibleBlockId, changes, lastBlockType!, true)
           }
 
           const endTime = Date.now()

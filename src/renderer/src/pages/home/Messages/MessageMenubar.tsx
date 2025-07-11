@@ -188,7 +188,7 @@ const MessageMenubar: FC<Props> = (props) => {
             {
               label: t('common.edit'),
               key: 'edit',
-              icon: <FilePenLine size={16} />,
+              icon: <FilePenLine size={15} />,
               onClick: onEdit
             }
           ]
@@ -196,13 +196,13 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
-        icon: <Split size={16} />,
+        icon: <Split size={15} />,
         onClick: onNewBranch
       },
       {
         label: t('chat.multiple.select'),
         key: 'multi-select',
-        icon: <ListChecks size={16} />,
+        icon: <ListChecks size={15} />,
         onClick: () => {
           toggleMultiSelectMode(true)
         }
@@ -210,7 +210,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.save'),
         key: 'save',
-        icon: <Save size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
           {
             label: t('chat.save.file.title'),
@@ -232,7 +232,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Share size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
           exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
@@ -413,13 +413,14 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-
-  const showMessageTokens = isBubbleStyle ? isAssistantMessage : true
+  const showMessageTokens = !isBubbleStyle
+  const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
   return (
     <>
       {showMessageTokens && <MessageTokens message={message} />}
-      <MenusBar className={classNames({ menubar: true, show: isLastMessage })}>
+      <MenusBar
+        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
         {message.role === 'user' && (
           <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
             <ActionButton
@@ -439,7 +440,7 @@ const MessageMenubar: FC<Props> = (props) => {
         )}
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
-            {!copied && <Copy size={16} />}
+            {!copied && <Copy size={15} />}
             {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
           </ActionButton>
         </Tooltip>
@@ -456,7 +457,7 @@ const MessageMenubar: FC<Props> = (props) => {
               open={showRegenerateTooltip}
               onOpenChange={setShowRegenerateTooltip}>
               <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-                <RefreshCw size={16} />
+                <RefreshCw size={15} />
               </ActionButton>
             </Tooltip>
           </Popconfirm>
@@ -464,7 +465,7 @@ const MessageMenubar: FC<Props> = (props) => {
         {isAssistantMessage && (
           <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
-              <AtSign size={16} />
+              <AtSign size={15} />
             </ActionButton>
           </Tooltip>
         )}
@@ -538,7 +539,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
                 $softHoverBg={softHoverBg}>
-                <Languages size={16} />
+                <Languages size={15} />
               </ActionButton>
             </Tooltip>
           </Dropdown>
@@ -549,7 +550,7 @@ const MessageMenubar: FC<Props> = (props) => {
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
               ) : (
-                <ThumbsUp size={16} />
+                <ThumbsUp size={15} />
               )}
             </ActionButton>
           </Tooltip>
@@ -569,7 +570,7 @@ const MessageMenubar: FC<Props> = (props) => {
               mouseEnterDelay={1}
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
-              <Trash size={16} />
+              <Trash size={15} />
             </Tooltip>
           </ActionButton>
         </Popconfirm>
@@ -597,7 +598,10 @@ const MenusBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  margin-top: 5px;
+
+  &.user-bubble-style {
+    margin-top: 5px;
+  }
 `
 
 const ActionButton = styled.div<{ $softHoverBg?: boolean }>`

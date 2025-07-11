@@ -188,7 +188,7 @@ const OpenButton = styled(Button)`
   display: flex;
   align-items: center;
   padding: 3px 8px;
-  margin: 8px 0;
+  margin-bottom: 8px;
   align-self: flex-start;
   font-size: 12px;
   background-color: var(--color-background-soft);
