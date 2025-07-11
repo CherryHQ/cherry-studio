@@ -679,9 +679,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 对于流式响应，使用 delta；对于非流式响应，使用 message。
             // 然而某些 OpenAI 兼容平台在非流式请求时会错误地返回一个空对象的 delta 字段。
-            // 如果 delta 为空对象，应当忽略它并回退到 message，避免造成内容缺失。
+            // 如果 delta 为空对象或content为空字符串，应当忽略它并回退到 message，避免造成内容缺失。
             let contentSource: OpenAISdkRawContentSource | null = null
-            if ('delta' in choice && choice.delta && Object.keys(choice.delta).length > 0) {
+            if (
+              'delta' in choice &&
+              choice.delta &&
+              Object.keys(choice.delta).length > 0 &&
+              choice.delta.content &&
+              choice.delta.content !== ''
+            ) {
               contentSource = choice.delta
             } else if ('message' in choice) {
               contentSource = choice.message
