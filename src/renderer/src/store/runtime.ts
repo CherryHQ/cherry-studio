@@ -11,6 +11,8 @@ export interface ChatState {
   renamingTopics: string[]
   /** topic ids that are newly renamed */
   newlyRenamedTopics: string[]
+  /** pending quote texts */
+  pendingQuoteTexts: string[]
 }
 
 export interface WebSearchState {
@@ -76,7 +78,8 @@ const initialState: RuntimeState = {
     selectedMessageIds: [],
     activeTopic: null,
     renamingTopics: [],
-    newlyRenamedTopics: []
+    newlyRenamedTopics: [],
+    pendingQuoteTexts: []
   },
   websearch: {
     activeSearches: {}
@@ -139,6 +142,19 @@ const runtimeSlice = createSlice({
     setNewlyRenamedTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.newlyRenamedTopics = action.payload
     },
+    addPendingQuoteText: (state, action: PayloadAction<string>) => {
+      const text = action.payload.trim()
+      if (!text || state.chat.pendingQuoteTexts.includes(text)) return
+
+      // 限制最多10条
+      if (state.chat.pendingQuoteTexts.length >= 10) {
+        state.chat.pendingQuoteTexts.shift()
+      }
+      state.chat.pendingQuoteTexts.push(text)
+    },
+    clearPendingQuoteTexts: (state) => {
+      state.chat.pendingQuoteTexts = []
+    },
     // WebSearch related actions
     setActiveSearches: (state, action: PayloadAction<Record<string, WebSearchStatus>>) => {
       state.websearch.activeSearches = action.payload
@@ -171,6 +187,8 @@ export const {
   setActiveTopic,
   setRenamingTopics,
   setNewlyRenamedTopics,
+  addPendingQuoteText,
+  clearPendingQuoteTexts,
   // WebSearch related actions
   setActiveSearches,
   setWebSearchStatus

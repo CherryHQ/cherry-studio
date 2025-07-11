@@ -14,6 +14,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
+import { reduxService } from './ReduxService'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
@@ -556,19 +557,13 @@ export class WindowService {
    * 引用文本到主窗口
    * @param text 原始文本（未格式化）
    */
-  public quoteToMainWindow(text: string): void {
-    try {
-      this.showMainWindow()
+  public quoteToMainWindow(text: string) {
+    this.showMainWindow()
 
-      const mainWindow = this.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
-        }, 100)
-      }
-    } catch (error) {
-      Logger.error('Failed to quote to main window:', error as Error)
-    }
+    reduxService.dispatch({
+      type: 'runtime/addPendingQuoteText',
+      payload: text
+    })
   }
 }
 
