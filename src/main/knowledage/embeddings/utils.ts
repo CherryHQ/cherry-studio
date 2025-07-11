@@ -34,7 +34,7 @@ export const EMBEDDING_MODEL_DEFAULT_DIMS: Record<string, number> = {
  * @param {string} [delimiter='/'] 分隔符，默认为 '/'
  * @returns {string} 基础名称
  */
-export const getBaseModelName = (id: string, delimiter: string = '/'): string => {
+const getBaseModelName = (id: string, delimiter: string = '/'): string => {
   const parts = id.split(delimiter)
   return parts[parts.length - 1]
 }
