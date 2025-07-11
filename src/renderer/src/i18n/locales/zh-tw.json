@@ -2378,7 +2378,9 @@
       "showOutline": "目錄",
       "zoomIn": "放大",
       "zoomOut": "縮小",
-      "move": "拖動"
+      "move": "拖動",
+      "enableDragMode": "啟用拖曳模式",
+      "enableTextSelection": "啟用文字選擇"
     }
   }
 }

@@ -1,7 +1,15 @@
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
-import { SelectOutlined, UnorderedListOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import {
+  DragOutlined,
+  FontSizeOutlined,
+  SelectOutlined,
+  UnorderedListOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined
+} from '@ant-design/icons'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { Checkbox, Empty, Flex, InputNumber, Space, Spin, Tooltip } from 'antd'
 import { debounce, find } from 'lodash'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -36,12 +44,15 @@ interface DocumentReaderProps {
   inputRef?: React.RefObject<HTMLDivElement | null>
   canDrag?: boolean
   isDragging?: boolean
+  isDarkMode?: boolean
 }
 
 const usePdfReader = (props: Props) => {
   const { selectedPages, pageWidth, pdfFile, onTriggerSelectPage } = props
 
   const { t } = useTranslation()
+  const { theme } = useTheme()
+  const isDarkMode = theme === 'dark'
 
   const documentRef = useRef<{
     linkService: React.RefObject<LinkService>
@@ -62,38 +73,87 @@ const usePdfReader = (props: Props) => {
   const [noOutline, setNoOutline] = useState(false)
 
   const [isDragging, setIsDragging] = useState(false)
+  const [isSelectingText, setIsSelectingText] = useState(false)
+  const scrollIntervalRef = useRef<number | null>(null)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [canDrag, setCanDrag] = useState(false)
+  const [textSelectionMode, setTextSelectionMode] = useState(true) // 新增：文字选择模式状态
 
   useEffect(() => {
-    setCanDrag(scale > 1)
+    setCanDrag(scale !== 1)
   }, [scale])
 
+  const startScrolling = (speed: number) => {
+    if (scrollIntervalRef.current) return
+    scrollIntervalRef.current = window.setInterval(() => {
+      if (docDivRef.current) {
+        docDivRef.current.scrollTop += speed
+      }
+    }, 16)
+  }
+
+  const stopScrolling = () => {
+    if (scrollIntervalRef.current) {
+      window.clearInterval(scrollIntervalRef.current)
+      scrollIntervalRef.current = null
+    }
+  }
+
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!canDrag || !docDivRef.current) return
-
-    setIsDragging(true)
-    setDragStart({ x: e.clientX, y: e.clientY })
-
-    document.body.style.cursor = 'grabbing'
+    if (textSelectionMode) {
+      setIsSelectingText(true)
+      // 在文本选择模式下，禁用滚动以便于选择
+      if (docDivRef.current) {
+        docDivRef.current.style.overflowY = 'hidden'
+      }
+      document.body.style.cursor = 'text'
+    } else if (canDrag && docDivRef.current) {
+      // 在拖拽模式下，启动拖拽
+      setIsDragging(true)
+      setDragStart({ x: e.clientX, y: e.clientY })
+      document.body.style.cursor = 'grabbing'
+    }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !docDivRef.current) return
+    if (isDragging && docDivRef.current) {
+      const dx = e.clientX - dragStart.x
+      const dy = e.clientY - dragStart.y
+      docDivRef.current.scrollLeft -= dx
+      docDivRef.current.scrollTop -= dy
+      setDragStart({ x: e.clientX, y: e.clientY })
+    } else if (isSelectingText && docDivRef.current) {
+      const rect = docDivRef.current.getBoundingClientRect()
+      const mouseY = e.clientY
+      const edgeSize = 50 // 50px threshold from the edge
 
-    const dx = e.clientX - dragStart.x
-    const dy = e.clientY - dragStart.y
-
-    docDivRef.current.scrollLeft -= dx
-    docDivRef.current.scrollTop -= dy
-
-    setDragStart({ x: e.clientX, y: e.clientY })
+      if (mouseY < rect.top + edgeSize) {
+        startScrolling(-10) // Scroll up
+      } else if (mouseY > rect.bottom - edgeSize) {
+        startScrolling(10) // Scroll down
+      } else {
+        stopScrolling()
+      }
+    }
   }
 
   const handleMouseUp = () => {
+    if (docDivRef.current) {
+      docDivRef.current.style.overflowY = 'auto'
+    }
+    stopScrolling()
+    setIsSelectingText(false)
+
     if (isDragging) {
       setIsDragging(false)
       document.body.style.cursor = 'auto'
+    }
+  }
+
+  const handleMouseLeave = () => {
+    stopScrolling()
+    if (isDragging) {
+      handleMouseUp()
     }
   }
 
@@ -177,6 +237,16 @@ const usePdfReader = (props: Props) => {
             }}
           />
         </Tooltip>
+        {/* 新增：文字选择模式切换按钮 */}
+        {canDrag && (
+          <Tooltip title={textSelectionMode ? t('reader.enableDragMode') : t('reader.enableTextSelection')}>
+            <OperateButton
+              icon={textSelectionMode ? <DragOutlined size={14} /> : <FontSizeOutlined size={14} />}
+              data-active={!textSelectionMode}
+              onClick={() => setTextSelectionMode((state) => !state)}
+            />
+          </Tooltip>
+        )}
       </Space>
       <Space>
         <Tooltip title={t('reader.zoomIn')}>
@@ -219,12 +289,13 @@ const usePdfReader = (props: Props) => {
       loading={PdfStatueRender.LOADING}
       error={PdfStatueRender.ERROR}
       noData={PdfStatueRender.NO_DATA}
-      canDrag={canDrag}
+      canDrag={canDrag && !textSelectionMode}
       isDragging={isDragging}
+      isDarkMode={isDarkMode}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}>
+      onMouseLeave={handleMouseLeave}>
       <OutlineWrapper className={showOutline ? 'visible' : ''}>
         <Outline
           className="outline"
@@ -263,6 +334,8 @@ const usePdfReader = (props: Props) => {
             error={null}
             noData={null}
             data-page-number={page}
+            renderTextLayer={true}
+            renderAnnotationLayer={true}
             onGetTextSuccess={({ items }) => {
               const text = items.reduce((acc, item: any) => {
                 if (item.str === '') {
@@ -297,7 +370,7 @@ const usePdfReader = (props: Props) => {
       pageContents
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedPages, pageWidth, pdfFile, pageContents]
+    [selectedPages, pageWidth, pdfFile, pageContents, isDarkMode]
   )
 }
 
@@ -307,6 +380,12 @@ const DocumentReader = styled(Document)<DocumentReaderProps>`
   width: 100%;
   height: 100%;
   cursor: ${(props) => (props.canDrag ? (props.isDragging ? 'grabbing' : 'grab') : 'auto')};
+
+  ${(props) =>
+    props.isDarkMode &&
+    `
+    filter: invert(80%) hue-rotate(180deg);
+  `}
 
   .document-loading {
     position: absolute;
@@ -325,6 +404,10 @@ const DocumentReader = styled(Document)<DocumentReaderProps>`
     &.checked {
       color: var(--color-primary);
     }
+  }
+
+  .react-pdf__Page__textContent {
+    user-select: ${(props) => (props.canDrag ? 'none' : 'text')};
   }
 `
 

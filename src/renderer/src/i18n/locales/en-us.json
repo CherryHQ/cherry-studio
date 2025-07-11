@@ -2378,7 +2378,9 @@
       "showOutline": "Table of Contents",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
-      "move": "Drag"
+      "move": "Drag",
+      "enableDragMode": "Enable Drag Mode",
+      "enableTextSelection": "Enable Text Selection"
     }
   }
 }

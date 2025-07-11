@@ -2378,7 +2378,9 @@
       "zoomOut": "缩小",
       "move": "拖动",
       "attaching": "正在关联",
-      "pageIndex": "第{{index}}页"
+      "pageIndex": "第{{index}}页",
+      "enableDragMode": "启用拖拽模式",
+      "enableTextSelection": "启用文字选择"
     }
   }
 }

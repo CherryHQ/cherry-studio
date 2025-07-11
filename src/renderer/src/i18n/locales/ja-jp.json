@@ -2378,7 +2378,9 @@
       "showOutline": "目次",
       "zoomIn": "拡大",
       "zoomOut": "縮小",
-      "move": "ドラッグ"
+      "move": "ドラッグ",
+      "enableDragMode": "ドラッグモードを有効にする",
+      "enableTextSelection": "テキスト選択を有効にする"
     }
   }
 }
