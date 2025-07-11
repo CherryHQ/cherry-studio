@@ -51,11 +51,8 @@ export default class EmbeddingsFactory {
     }
 
     let newDimensions: number | undefined = dimensions
-    const defaultDimensionModels = Object.keys(EMBEDDING_MODEL_DEFAULT_DIMS)
-    if (
-      defaultDimensionModels.includes(getBaseModelName(model)) &&
-      dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[getBaseModelName(model)]
-    ) {
+    const baseModelName = getBaseModelName(model)
+    if (dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[baseModelName]) {
       newDimensions = undefined
     }
 
