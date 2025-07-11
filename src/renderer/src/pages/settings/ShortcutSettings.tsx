@@ -114,6 +114,13 @@ const ShortcutSettings: FC = () => {
           case 'Shift':
             return isMac ? '⇧' : 'Shift'
 
+          // for backward compatibility with old data
+          case 'Command':
+          case 'Cmd':
+            return isMac ? '⌘' : 'Ctrl'
+          case 'Control':
+            return isMac ? '⌃' : 'Ctrl'
+
           case 'ArrowUp':
             return '↑'
           case 'ArrowDown':

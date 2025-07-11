@@ -90,6 +90,13 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
         case 'Shift':
           return 'Shift'
 
+        // For backward compatibility with old data
+        case 'Command':
+        case 'Cmd':
+          return 'CommandOrControl'
+        case 'Control':
+          return 'Ctrl'
+
         case 'ArrowUp':
           return 'Up'
         case 'ArrowDown':
