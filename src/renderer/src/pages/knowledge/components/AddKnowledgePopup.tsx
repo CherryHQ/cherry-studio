@@ -368,8 +368,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               <SettingsItem>
                 <div className="settings-label">
                   {t('knowledge.dimensions')}
-                  <Tooltip title={t('knowledge.dimensions_size_tooltip')} placement="right">
+                  <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
                     <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                  <Tooltip title={t('knowledge.dimensions_not_supported')}>
+                    <WarningOutlined style={{ marginLeft: 8 }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -381,6 +384,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     setDimensions(value === null ? undefined : value)
                   }}
                 />
+                <span></span>
               </SettingsItem>
             )}
           </SettingsPanel>
