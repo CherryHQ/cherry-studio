@@ -136,17 +136,16 @@
   }
 }
 
-.ant-collapse {
+.ant-collapse:not(.ant-collapse-ghost) {
   border: 1px solid var(--color-border);
   .ant-color-picker & {
     border: none;
   }
-}
-
-.ant-collapse-content {
-  border-top: 0.5px solid var(--color-border) !important;
-  .ant-color-picker & {
-    border-top: none !important;
+  .ant-collapse-content {
+    border-top: 0.5px solid var(--color-border) !important;
+    .ant-color-picker & {
+      border-top: none !important;
+    }
   }
 }
 
