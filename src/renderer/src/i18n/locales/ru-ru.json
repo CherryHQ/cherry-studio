@@ -1887,6 +1887,7 @@
         "tools": {
           "availableTools": "Доступные инструменты",
           "inputSchema": "Схема ввода",
+          "inputSchema.enum.allowedValues": "Допустимые значения",
           "loadError": "Ошибка получения инструментов",
           "noToolsAvailable": "Нет доступных инструментов",
           "enable": "Включить инструмент",

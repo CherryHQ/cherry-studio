@@ -1887,6 +1887,7 @@
         "tools": {
           "availableTools": "可用工具",
           "inputSchema": "輸入模式",
+          "inputSchema.enum.allowedValues": "允許的值",
           "loadError": "獲取工具失敗",
           "noToolsAvailable": "無可用工具",
           "enable": "啟用工具",
