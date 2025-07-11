@@ -11,7 +11,7 @@ import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
-import { isDev, isWin } from './constant'
+import { isDev, isWin, isLinux } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -44,6 +44,14 @@ if (disableHardwareAcceleration) {
  */
 if (isWin) {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
+}
+
+/**
+ * Enable GlobalShortcutsPortal for Linux Wayland Protocol
+ * see: https://www.electronjs.org/docs/latest/api/global-shortcut
+ */
+if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
+  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
 }
 
 // Enable features for unresponsive renderer js call stacks
