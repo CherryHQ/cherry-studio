@@ -11,11 +11,11 @@ const StatusBar: FC<Props> = ({ children }) => {
 }
 
 const Container = styled(Flex)`
-  margin: 10px;
+  background-color: var(--color-background-mute);
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 10px;
   overflow-y: auto;
   text-wrap: wrap;
 `

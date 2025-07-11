@@ -255,8 +255,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 })
 
 const ImageOutput = styled.div`
-  padding: 12px;
-  border-top: 1px solid var(--st-border-color);
   img {
     max-width: 100%;
     height: auto;

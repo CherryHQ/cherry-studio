@@ -210,7 +210,7 @@ class PyodideService {
     // 如果有错误信息，附加显示
     if (output.error) {
       if (displayText) displayText += '\n\n'
-      displayText += `Error: ${output.error.trim()}`
+      displayText += output.error.trim()
     }
 
     // 如果没有任何输出，提供清晰提示

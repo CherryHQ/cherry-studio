@@ -33,7 +33,7 @@ sequenceDiagram
 - **运行按钮**：当代码块语言为 `python` 且 `codeExecution.enabled` 设置为 true 时，`CodeToolbar` 中会条件性地渲染一个“运行”按钮。
 - **事件处理**：运行按钮的 `onClick` 事件会触发 `handleRunScript` 函数。
 - **服务调用**：`handleRunScript` 调用 `pyodideService.runScript(code)`，将代码块中的 Python 代码传递给服务。
-- **状态管理与输出显示**：使用 `executionResult` 来管理所有执行输出，只要有任何结果（文本或图像），`StatusBar` 组件就会被渲染以统一显示。
+- **状态管理与输出显示**：使用 `executionResult` 来管理所有执行输出，只要有任何结果（文本或图像），[StatusBar][statusbar-link] 组件就会被渲染以统一显示。
 
 ```typescript
 // src/renderer/src/components/CodeBlockView/view.tsx
@@ -100,20 +100,20 @@ const handleRunScript = useCallback(() => {
 
 最终的数据流如下：
 
-1.  **UI 层 (`CodeBlockView.tsx`)**: 用户点击“运行”按钮。
-2.  **服务层 (`PyodideService.ts`)**:
+1.  **UI 层 ([CodeBlockView][codeblock-view-link])**: 用户点击“运行”按钮。
+2.  **服务层 ([PyodideService][pyodide-service-link])**:
     - 接收到代码执行请求。
-    - 调用 Web Worker (`pyodide.worker.ts`)，传递用户代码。
-3.  **Worker 层 (`pyodide.worker.ts`)**:
+    - 调用 Web Worker ([pyodide.worker.ts][pyodide-worker-link])，传递用户代码。
+3.  **Worker 层 ([pyodide.worker.ts][pyodide-worker-link])**:
     - 加载 Pyodide 运行时。
     - 动态安装代码中 `import` 语句声明的依赖包。
     - **注入 Matplotlib 垫片**: 如果代码中包含 `matplotlib`，则在用户代码前拼接垫片代码，强制使用 `AGG` 后端。
     - **执行代码并捕获输出**: 在代码执行后，检查 `matplotlib.pyplot` 的所有 figure，如果存在图像，则将其保存到内存中的 `BytesIO` 对象，并编码为 Base64 字符串。
     - **结构化返回**: 将捕获的文本输出和 Base64 图像数据封装在一个 JSON 对象中 (`{ "text": "...", "image": "data:image/png;base64,..." }`) 返回给主线程。
-4.  **服务层 (`PyodideService.ts`)**:
+4.  **服务层 ([PyodideService][pyodide-service-link])**:
     - 接收来自 Worker 的结构化数据。
     - 将数据原样传递给 UI 层。
-5.  **UI 层 (`CodeBlockView.tsx`)**:
+5.  **UI 层 ([CodeBlockView][codeblock-view-link])**:
     - 接收包含文本和图像数据的对象。
     - 使用一个 `useState` 来管理执行结果 (`executionResult`)。
     - 在界面上分别渲染文本输出和图像（如果存在）。
@@ -124,3 +124,4 @@ const handleRunScript = useCallback(() => {
 [codeblock-view-link]: /src/renderer/src/components/CodeBlockView/view.tsx
 [pyodide-service-link]: /src/renderer/src/services/PyodideService.ts
 [pyodide-worker-link]: /src/renderer/src/workers/pyodide.worker.ts
+[statusbar-link]: /src/renderer/src/components/CodeBlockView/StatusBar.tsx
