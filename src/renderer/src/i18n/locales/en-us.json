@@ -1029,7 +1029,7 @@
         "turbo": "Turbo"
       },
       "req_error_no_balance": "Please check the validity of the token",
-      "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
       "req_error_token": "Please check the validity of the token",
       "required_field": "Required field",
       "seed": "Seed",

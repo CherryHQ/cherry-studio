@@ -1029,7 +1029,7 @@
         "turbo": "快速"
       },
       "req_error_no_balance": "请检查令牌有效性",
-      "req_error_text": "运行失败，请重试。提示词避免 \"版权词\" 和 \"敏感词\" 哦。",
+      "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
       "req_error_token": "请检查令牌有效性",
       "required_field": "必填项",
       "seed": "随机种子",

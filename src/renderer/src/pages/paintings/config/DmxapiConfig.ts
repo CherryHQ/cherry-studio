@@ -42,26 +42,63 @@ export const STYLE_TYPE_OPTIONS = [
 export const TEXT_TO_IMAGES_MODELS = [
   {
     id: 'seedream-3.0',
-    provider: 'DMXAPI',
+    provider: 'doubao',
     name: ' 即梦 seedream-3.0'
+  },
+  {
+    id: 'flux-kontext-pro',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-pro'
+  },
+  {
+    id: 'flux-kontext-max',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-max'
+  },
+  {
+    id: 'imagen4',
+    provider: 'Google',
+    name: 'imagen4'
   }
 ]
 
 export const IMAGE_EDIT_MODELS = [
   {
     id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
+    provider: 'OpenAI',
+    name: 'gpt-image-1'
+  },
+  {
+    id: 'flux-kontext-pro',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-pro'
+  },
+  {
+    id: 'flux-kontext-max',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-max'
   }
 ]
 
 export const IMAGE_MERGE_MODELS = [
   {
     id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
+    provider: 'OpenAI',
+    name: 'gpt-image-1'
+  },
+  {
+    id: 'flux-kontext-pro',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-pro'
+  },
+  {
+    id: 'flux-kontext-max',
+    provider: 'Black Forest Labs',
+    name: 'flux-kontext-max'
   }
 ]
+
+export const ALL_MODELS = [...TEXT_TO_IMAGES_MODELS, ...IMAGE_EDIT_MODELS, ...IMAGE_MERGE_MODELS]
 
 export const IMAGE_SIZES = [
   {
@@ -118,3 +155,25 @@ export const MODEOPTIONS = [
   { label: '改图', value: generationModeType.EDIT },
   { label: '合并图', value: generationModeType.MERGE }
 ]
+
+// 按品牌分组的模型配置
+export const MODEL_GROUPS = {
+  TEXT_TO_IMAGES: {
+    Doubao: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'doubao'),
+    OpenAI: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'OpenAI'),
+    'Black Forest Labs': IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
+    Google: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'Google')
+  },
+  IMAGE_EDIT: {
+    Doubao: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'doubao'),
+    OpenAI: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'OpenAI'),
+    'Black Forest Labs': IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
+    Google: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Google')
+  },
+  IMAGE_MERGE: {
+    Doubao: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'doubao'),
+    OpenAI: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'OpenAI'),
+    'Black Forest Labs': IMAGE_MERGE_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
+    Google: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'Google')
+  }
+}
