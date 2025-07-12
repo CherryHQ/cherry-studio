@@ -2,19 +2,14 @@ import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@a
 import { Center, VStack } from '@renderer/components/Layout'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
-import { Alert, Button } from 'antd'
+import { Alert, Button, Popover } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingDescription, SettingRow, SettingSubtitle } from '..'
 
-interface Props {
-  mini?: boolean
-}
-
-const InstallNpxUv: FC<Props> = ({ mini = false }) => {
+const InstallNpxUv: FC = () => {
   const dispatch = useAppDispatch()
   const isUvInstalled = useAppSelector((state) => state.mcp.isUvInstalled)
   const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
@@ -25,7 +20,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [bunPath, setBunPath] = useState<string | null>(null)
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const checkBinaries = useCallback(async () => {
     const uvExists = await window.api.isBinaryExist('uv')
     const bunExists = await window.api.isBinaryExist('bun')
@@ -42,8 +36,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     try {
       setIsInstallingUv(true)
       await window.api.installUVBinary()
-      setIsUvInstalled(true)
-      setIsInstallingUv(false)
+      dispatch(setIsUvInstalled(true))
     } catch (error: any) {
       window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
       setIsInstallingUv(false)
@@ -55,8 +48,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
-      setIsBunInstalled(true)
-      setIsInstallingBun(false)
+      dispatch(setIsBunInstalled(true))
     } catch (error: any) {
       window.message.error({
         content: `${t('settings.mcp.installError')}: ${error.message}`,
@@ -68,24 +60,20 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   }
 
   useEffect(() => {
+    if (isUvInstalled && isInstallingUv) {
+      setIsInstallingUv(false)
+    }
+  }, [isUvInstalled, isInstallingUv])
+
+  useEffect(() => {
+    if (isBunInstalled && isInstallingBun) {
+      setIsInstallingBun(false)
+    }
+  }, [isBunInstalled, isInstallingBun])
+
+  useEffect(() => {
     checkBinaries()
   }, [checkBinaries])
-
-  if (mini) {
-    const installed = isUvInstalled && isBunInstalled
-    return (
-      <Button
-        type="primary"
-        size="small"
-        variant="filled"
-        shape="circle"
-        icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
-        className="nodrag"
-        color={installed ? 'green' : 'danger'}
-        onClick={() => navigate('/settings/mcp/mcp-install')}
-      />
-    )
-  }
 
   const openBinariesDir = () => {
     if (binariesDir) {
@@ -97,7 +85,9 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     window.open('https://docs.cherry-ai.com/advanced-basic/mcp', '_blank')
   }
 
-  return (
+  const installed = isUvInstalled && isBunInstalled
+
+  const content = (
     <Container>
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
@@ -109,6 +99,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
+            </SettingRow>
+            <SettingRow style={{ width: '100%' }}>
+              <SettingDescription
+                onClick={openBinariesDir}
+                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
+                {uvPath}
+              </SettingDescription>
+            </SettingRow>
+            <SettingRow style={{ width: '100%', justifyContent: 'flex-end' }}>
               {!isUvInstalled && (
                 <Button
                   type="primary"
@@ -119,13 +118,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                   {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
-            </SettingRow>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingDescription
-                onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
-                {uvPath}
-              </SettingDescription>
             </SettingRow>
           </VStack>
         }
@@ -140,6 +132,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
+            </SettingRow>
+            <SettingRow style={{ width: '100%' }}>
+              <SettingDescription
+                onClick={openBinariesDir}
+                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
+                {bunPath}
+              </SettingDescription>
+            </SettingRow>
+            <SettingRow style={{ width: '100%', justifyContent: 'flex-end' }}>
               {!isBunInstalled && (
                 <Button
                   type="primary"
@@ -151,13 +152,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 </Button>
               )}
             </SettingRow>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingDescription
-                onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
-                {bunPath}
-              </SettingDescription>
-            </SettingRow>
           </VStack>
         }
       />
@@ -168,14 +162,26 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       </Center>
     </Container>
   )
+
+  return (
+    <Popover content={content} placement="bottomLeft" arrow={false}>
+      <Button
+        type="primary"
+        size="small"
+        variant="filled"
+        shape="circle"
+        icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+        className="nodrag"
+        color={installed ? 'green' : 'danger'}
+      />
+    </Popover>
+  )
 }
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  margin-bottom: 20px;
   gap: 12px;
-  padding-top: 50px;
 `
 
 export default InstallNpxUv
