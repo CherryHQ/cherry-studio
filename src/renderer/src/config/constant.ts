@@ -9,6 +9,8 @@ export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
 export const isWin = platform === 'win32' || platform === 'win64'
 export const isLinux = platform === 'linux'
+export const PLATFORM_PERSIST_SUFFIX_ARRAY = ['-mac', '-win', '-linux'] as const
+export const platformPersistSuffix = isMac ? '-mac' : isWin ? '-win' : '-linux'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 export const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
