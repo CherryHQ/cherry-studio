@@ -1,5 +1,6 @@
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { Assistant, MCPTool } from '@renderer/types'
+import { MCPTool } from '@renderer/types'
 
 export const SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
 You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -148,76 +149,94 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = async (
-  userSystemPrompt: string,
-  tools?: MCPTool[],
-  assistant?: Assistant
-): Promise<string> => {
+export const promptVariableReplacer = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+  const now = new Date()
+  if (userSystemPrompt.includes('{{date}}')) {
+    const date = now.toLocaleDateString()
+    userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
+  }
+
+  if (userSystemPrompt.includes('{{time}}')) {
+    const time = now.toLocaleTimeString()
+    userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
+  }
+
+  if (userSystemPrompt.includes('{{datetime}}')) {
+    const datetime = now.toLocaleString()
+    userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
+  }
+
+  if (userSystemPrompt.includes('{{username}}')) {
+    try {
+      const userName = (getStoreSetting('userName') as string) || 'User'
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
+    } catch (error) {
+      console.error('Failed to get username:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{system}}')) {
+    try {
+      const systemType = await window.api.system.getDeviceType()
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
+    } catch (error) {
+      console.error('Failed to get system type:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{language}}')) {
+    try {
+      const language = getStoreSetting('language') as string
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+    } catch (error) {
+      console.error('Failed to get language:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{arch}}')) {
+    try {
+      const appInfo = await window.api.getAppInfo()
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
+    } catch (error) {
+      console.error('Failed to get architecture:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{model_name}}')) {
+    try {
+      const name = modelName || store.getState().llm.defaultModel.name
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, name)
+    } catch (error) {
+      console.error('Failed to get model name:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
+    }
+  }
+
+  return userSystemPrompt
+}
+
+export const supportedVariables = [
+  '{{username}}',
+  '{{date}}',
+  '{{time}}',
+  '{{datetime}}',
+  '{{system}}',
+  '{{language}}',
+  '{{arch}}',
+  '{{model_name}}'
+]
+
+export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
+  return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+}
+
+export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPTool[]): Promise<string> => {
   if (typeof userSystemPrompt === 'string') {
-    const now = new Date()
-    if (userSystemPrompt.includes('{{date}}')) {
-      const date = now.toLocaleDateString()
-      userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
-    }
-
-    if (userSystemPrompt.includes('{{time}}')) {
-      const time = now.toLocaleTimeString()
-      userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
-    }
-
-    if (userSystemPrompt.includes('{{datetime}}')) {
-      const datetime = now.toLocaleString()
-      userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
-    }
-
-    if (userSystemPrompt.includes('{{system}}')) {
-      try {
-        const systemType = await window.api.system.getDeviceType()
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
-      } catch (error) {
-        console.error('Failed to get system type:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{language}}')) {
-      try {
-        const language = store.getState().settings.language
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
-      } catch (error) {
-        console.error('Failed to get language:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{arch}}')) {
-      try {
-        const appInfo = await window.api.getAppInfo()
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
-      } catch (error) {
-        console.error('Failed to get architecture:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{model_name}}')) {
-      try {
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, assistant?.model?.name || 'Unknown Model')
-      } catch (error) {
-        console.error('Failed to get model name:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{username}}')) {
-      try {
-        const username = store.getState().settings.userName || 'Unknown Username'
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
-      } catch (error) {
-        console.error('Failed to get username:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
-      }
-    }
+    userSystemPrompt = await promptVariableReplacer(userSystemPrompt)
   }
 
   if (tools && tools.length > 0) {
