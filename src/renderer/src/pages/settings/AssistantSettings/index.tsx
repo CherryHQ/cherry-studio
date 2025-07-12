@@ -12,6 +12,7 @@ import styled from 'styled-components'
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantModelSettings from './AssistantModelSettings'
+import AssistantPresetMessagesSettings from './AssistantPresetMessagesSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
 
@@ -20,7 +21,14 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
+type AssistantSettingPopupTab =
+  | 'prompt'
+  | 'model'
+  | 'messages'
+  | 'knowledge_base'
+  | 'mcp'
+  | 'regular_phrases'
+  | 'preset_messages'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -61,6 +69,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'model',
       label: t('assistants.settings.model')
+    },
+    {
+      key: 'preset_messages',
+      label: t('assistants.settings.preset_messages.title', 'Preset Messages')
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',
@@ -139,6 +151,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           )}
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
+          )}
+          {menu === 'preset_messages' && (
+            <AssistantPresetMessagesSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
         </Settings>
       </HStack>

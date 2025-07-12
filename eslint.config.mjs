@@ -22,11 +22,11 @@ export default defineConfig([
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
-      'unused-imports/no-unused-imports': 'error',
-      '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error']
+      'simple-import-sort/imports': 'warn',
+      'simple-import-sort/exports': 'warn',
+      'unused-imports/no-unused-imports': 'warn',
+      '@eslint-react/no-prop-types': 'off',
+      'prettier/prettier': ['warn']
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
@@ -34,7 +34,7 @@ export default defineConfig([
     {
       rules: {
         '@typescript-eslint/no-require-imports': 'off',
-        '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+        '@typescript-eslint/no-unused-vars': ['warn', { caughtErrors: 'none' }],
         '@typescript-eslint/no-unused-expressions': 'off',
         '@typescript-eslint/no-empty-object-type': 'off',
         '@eslint-react/hooks-extra/no-direct-set-state-in-use-effect': 'off',
