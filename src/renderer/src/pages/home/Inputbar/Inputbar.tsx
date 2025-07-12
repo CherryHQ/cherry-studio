@@ -14,6 +14,7 @@ import {
 } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useFileTokenManager } from '@renderer/hooks/useFileTokenManager'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -45,7 +46,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
 import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
-import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { CSSProperties, FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -157,20 +158,39 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputbarToolsRef = useRef<InputbarToolsRef>(null)
 
+  const onFilesChange = useCallback(
+    (updatedFiles: FileType[]) => {
+      setFiles(updatedFiles)
+    },
+    [setFiles]
+  )
+
+  useFileTokenManager({ files, onFilesChange })
+
+  const fileTokens = useMemo(
+    () => files.map((f) => (f.tokens ? f.tokens : 0)).reduce((sum, tokens) => sum + tokens, 0),
+    [files]
+  )
+
+  const [inputTokens, setInputTokens] = useState(0)
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
-    debounce((newText) => {
+    debounce(async (newText) => {
       if (showInputEstimatedTokens) {
-        const count = estimateTxtTokens(newText) || 0
-        setTokenCount(count)
+        setInputTokens(estimateTxtTokens(newText) || 0)
       }
     }, 500),
-    [showInputEstimatedTokens]
+    [showInputEstimatedTokens, files, setInputTokens]
   )
 
   useEffect(() => {
     debouncedEstimate(text)
   }, [text, debouncedEstimate])
+
+  useEffect(() => {
+    setTokenCount(inputTokens + fileTokens)
+  }, [inputTokens, fileTokens])
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
@@ -1066,4 +1086,4 @@ export const ToolbarButton = styled(Button)`
   }
 `
 
-export default Inputbar
+export default memo(Inputbar)
