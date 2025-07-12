@@ -46,7 +46,7 @@ import { getTopicQueue } from '@renderer/utils/queue'
 import { waitForTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
-import { isEmpty, throttle } from 'lodash'
+import { throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
 
 import type { AppDispatch, RootState } from '../index'
@@ -199,31 +199,55 @@ const cancelThrottledBlockUpdate = (id: string) => {
 }
 
 /**
- * 批量清理多个消息块。
+ * 批量清理多个消息块，包括redux状态与db。还会同时清理掉文件块的文件。
  */
-export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[]) => {
+export const cleanupMultipleBlocks = async (dispatch: AppDispatch, blockIds: string[]) => {
+  if (blockIds.length === 0) {
+    return
+  }
   blockIds.forEach((id) => {
     cancelThrottledBlockUpdate(id)
   })
 
-  const getBlocksFiles = async (blockIds: string[]) => {
-    const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-    const files = blocks
-      .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-      .map((block) => block.file)
-      .filter((file): file is FileMetadata => file !== undefined)
-    return isEmpty(files) ? [] : files
-  }
+  const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
 
-  const cleanupFiles = async (files: FileMetadata[]) => {
-    await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-  }
+  const files = blocks
+    .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+    .map((block) => block.file)
+    .filter((file): file is FileMetadata => file !== undefined)
 
-  getBlocksFiles(blockIds).then(cleanupFiles)
+  await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
 
-  if (blockIds.length > 0) {
-    dispatch(removeManyBlocks(blockIds))
-  }
+  await db.message_blocks.bulkDelete(blockIds)
+  dispatch(removeManyBlocks(blockIds))
+}
+
+/**
+ * 清理话题下所有消息，包括redux状态、db、相关文件
+ * @param dispatch
+ * @param getState
+ * @param topicId
+ */
+export const cleanupTopicMessages = async (dispatch: AppDispatch, getState: () => RootState, topicId: string) => {
+  const state = getState()
+  const messageIdsToDelete = state.messages.messageIdsByTopic[topicId] || []
+  const blockIdsToDeleteSet = new Set<string>()
+
+  messageIdsToDelete.forEach((messageId) => {
+    const message = state.messages.entities[messageId]
+    message?.blocks?.forEach((blockId) => blockIdsToDeleteSet.add(blockId))
+  })
+
+  const blockIdsToDelete = Array.from(blockIdsToDeleteSet)
+
+  // 必须先清理blocks
+  cleanupMultipleBlocks(dispatch, blockIdsToDelete)
+
+  await db.topics.update(topicId, { messages: [] })
+  dispatch(newMessagesActions.clearTopicMessages(topicId))
+
+  // 更新topic状态
+  dispatch(updateTopicUpdatedAt({ topicId }))
 }
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
@@ -1003,7 +1027,7 @@ export const deleteSingleMessageThunk =
     const currentState = getState()
     const messageToDelete = currentState.messages.entities[messageId]
     if (!messageToDelete || messageToDelete.topicId !== topicId) {
-      console.error(`[deleteSingleMessage] Message ${messageId} not found in topic ${topicId}.`)
+      console.error(`[deleteSingleMessageThunk] Message ${messageId} not found in topic ${topicId}.`)
       return
     }
 
@@ -1069,30 +1093,13 @@ export const deleteMessageGroupThunk =
   }
 
 /**
- * Thunk to clear all messages and associated blocks for a topic.
+ * Thunk to delete all messages and associated blocks for a topic.
+ * 会同时清理topic.messages的redux状态并在db删除messages及相关blocks，相关文件也会被一并清理。
  */
-export const clearTopicMessagesThunk =
+export const deleteTopicMessagesThunk =
   (topicId: string) => async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
-      const state = getState()
-      const messageIdsToClear = state.messages.messageIdsByTopic[topicId] || []
-      const blockIdsToDeleteSet = new Set<string>()
-
-      messageIdsToClear.forEach((messageId) => {
-        const message = state.messages.entities[messageId]
-        message?.blocks?.forEach((blockId) => blockIdsToDeleteSet.add(blockId))
-      })
-
-      const blockIdsToDelete = Array.from(blockIdsToDeleteSet)
-
-      dispatch(newMessagesActions.clearTopicMessages(topicId))
-      cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-
-      await db.topics.update(topicId, { messages: [] })
-      dispatch(updateTopicUpdatedAt({ topicId }))
-      if (blockIdsToDelete.length > 0) {
-        await db.message_blocks.bulkDelete(blockIdsToDelete)
-      }
+      cleanupTopicMessages(dispatch, getState, topicId)
     } catch (error) {
       console.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error)
     }

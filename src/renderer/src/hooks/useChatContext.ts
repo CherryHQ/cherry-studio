@@ -1,4 +1,4 @@
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useTopicMessageOperations } from '@renderer/hooks/useTopicMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
@@ -13,7 +13,7 @@ export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
   const dispatch = useDispatch()
   const store = useStore<RootState>()
-  const { deleteMessage } = useMessageOperations(activeTopic)
+  const { deleteMessage } = useTopicMessageOperations(activeTopic)
 
   const [messageRefs, setMessageRefs] = useState<Map<string, HTMLElement>>(new Map())
 

@@ -6,7 +6,7 @@ import {
   NumberOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useTopicMessageOperations } from '@renderer/hooks/useTopicMessageOperations'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -36,7 +36,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   topic
 }) => {
   const { t } = useTranslation()
-  const { deleteGroupMessages } = useMessageOperations(topic)
+  const { deleteGroupMessages } = useTopicMessageOperations(topic)
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
