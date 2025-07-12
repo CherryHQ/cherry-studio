@@ -8,6 +8,7 @@ import {
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import {
   Content,
   CreateChatParameters,
@@ -23,7 +24,7 @@ import { Stream } from 'openai/streaming'
 
 import { EndpointType } from './index'
 
-export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
+export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI
 export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
 export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
 export type SdkRawOutput = OpenAISdkRawOutput | OpenAIResponseSdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput

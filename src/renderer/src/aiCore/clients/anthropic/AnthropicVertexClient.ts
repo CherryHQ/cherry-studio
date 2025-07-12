@@ -1,42 +1,37 @@
-import { GoogleGenAI } from '@google/genai'
+import Anthropic from '@anthropic-ai/sdk'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
-import { Model, Provider } from '@renderer/types'
+import { Provider } from '@renderer/types'
 import { isEmpty } from 'lodash'
 
-import { AnthropicVertexClient } from '../anthropic/AnthropicVertexClient'
-import { GeminiAPIClient } from './GeminiAPIClient'
+import { AnthropicAPIClient } from './AnthropicAPIClient'
 
-export class VertexAPIClient extends GeminiAPIClient {
+export class AnthropicVertexClient extends AnthropicAPIClient {
+  sdkInstance: AnthropicVertex | undefined = undefined
   private authHeaders?: Record<string, string>
   private authHeadersExpiry?: number
-  private anthropicVertexClient: AnthropicVertexClient
 
   constructor(provider: Provider) {
     super(provider)
-    this.anthropicVertexClient = new AnthropicVertexClient(provider)
   }
 
-  public getClient(model: Model) {
-    if (model.id.includes('claude')) {
-      return this.anthropicVertexClient
+  private formatApiHost(host: string): string {
+    const forceUseOriginalHost = () => {
+      return host.endsWith('/')
     }
-    return this
-  }
 
-  private formatApiHost(baseUrl: string) {
-    if (baseUrl.endsWith('/v1/')) {
-      baseUrl = baseUrl.slice(0, -4)
-    } else if (baseUrl.endsWith('/v1')) {
-      baseUrl = baseUrl.slice(0, -3)
+    if (!host) {
+      return host
     }
-    return baseUrl
+
+    return forceUseOriginalHost() ? host : `${host}/v1/`
   }
 
   override getBaseURL() {
     return this.formatApiHost(this.provider.apiHost)
   }
 
-  override async getSdkInstance() {
+  override async getSdkInstance(): Promise<AnthropicVertex> {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
@@ -51,18 +46,21 @@ export class VertexAPIClient extends GeminiAPIClient {
 
     const authHeaders = await this.getServiceAccountAuthHeaders()
 
-    this.sdkInstance = new GoogleGenAI({
-      vertexai: true,
-      project: projectId,
-      location: location,
-      httpOptions: {
-        apiVersion: this.getApiVersion(),
-        headers: authHeaders,
-        baseUrl: isEmpty(this.getBaseURL()) ? undefined : this.getBaseURL()
-      }
+    console.log(this.getBaseURL())
+
+    this.sdkInstance = new AnthropicVertex({
+      projectId: projectId,
+      region: location,
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: authHeaders,
+      baseURL: isEmpty(this.getBaseURL()) ? undefined : this.getBaseURL()
     })
 
     return this.sdkInstance
+  }
+
+  override async listModels(): Promise<Anthropic.ModelInfo[]> {
+    throw new Error('Vertex AI does not support listModels method.')
   }
 
   /**
@@ -100,21 +98,6 @@ export class VertexAPIClient extends GeminiAPIClient {
     } catch (error: any) {
       console.error('Failed to get auth headers:', error)
       throw new Error(`Service Account authentication failed: ${error.message}`)
-    }
-  }
-
-  /**
-   * 清理认证缓存并重新初始化
-   */
-  clearAuthCache(): void {
-    this.authHeaders = undefined
-    this.authHeadersExpiry = undefined
-
-    const serviceAccount = getVertexAIServiceAccount()
-    const projectId = getVertexAIProjectId()
-
-    if (projectId && serviceAccount.clientEmail) {
-      window.api.vertexAI.clearAuthCache(projectId, serviceAccount.clientEmail)
     }
   }
 }

@@ -8,6 +8,7 @@ import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 import { OpenAIAPIClient } from './clients'
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
 import { AnthropicAPIClient } from './clients/anthropic/AnthropicAPIClient'
+import { VertexAPIClient } from './clients/gemini/VertexAPIClient'
 import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
@@ -56,6 +57,8 @@ export default class AiProvider {
       }
     } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
       // OpenAIResponseAPIClient: 根据模型特征选择API类型
+      client = this.apiClient.getClient(model) as BaseApiClient
+    } else if (this.apiClient instanceof VertexAPIClient) {
       client = this.apiClient.getClient(model) as BaseApiClient
     } else {
       // 其他client直接使用
