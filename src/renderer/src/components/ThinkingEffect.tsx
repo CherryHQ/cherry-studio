@@ -12,7 +12,7 @@ interface Props {
   expanded: boolean
 }
 
-const MarqueeComponent: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
+const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
   const [messages, setMessages] = useState<string[]>([])
 
   useEffect(() => {
@@ -32,7 +32,7 @@ const MarqueeComponent: React.FC<Props> = ({ isThinking, thinkingTimeText, conte
   }, [expanded, messages.length])
 
   return (
-    <MarqueeContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
+    <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
       <LoadingContainer className={expanded || !messages.length ? 'expanded' : ''}>
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
           <Lightbulb size={expanded || !messages.length ? 20 : 30} style={{ transition: 'width,height, 150ms' }} />
@@ -50,29 +50,32 @@ const MarqueeComponent: React.FC<Props> = ({ isThinking, thinkingTimeText, conte
 
                 if (index < messages.length - 5) return null
 
+                const opacity = (() => {
+                  const distanceFromLast = messages.length - 1 - index
+                  if (distanceFromLast === 0) return 1
+                  if (distanceFromLast === 1) return 0.6
+                  if (distanceFromLast === 2) return 0.4
+                  return 0
+                })()
+
                 return (
-                  <motion.div
+                  <ContentLineMotion
                     key={`${index}-${message}`}
-                    className="marquee-item"
                     initial={{
-                      opacity: index === messages.length - 1 ? 0 : 1,
-                      y: index === messages.length - 1 ? containerHeight : finalY + lineHeight
+                      opacity: 1,
+                      y: index === messages.length - 1 ? containerHeight : finalY + lineHeight,
+                      height: lineHeight
                     }}
                     animate={{
-                      opacity: 1,
+                      opacity,
                       y: finalY
                     }}
                     transition={{
-                      duration: 0.1,
-                      ease: 'easeOut'
-                    }}
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: lineHeight
+                      duration: 0.15,
+                      ease: 'linear'
                     }}>
                     {message}
-                  </motion.div>
+                  </ContentLineMotion>
                 )
               })}
             </AnimatePresence>
@@ -82,11 +85,11 @@ const MarqueeComponent: React.FC<Props> = ({ isThinking, thinkingTimeText, conte
       <ArrowContainer className={expanded ? 'expanded' : ''}>
         <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1.2} />
       </ArrowContainer>
-    </MarqueeContainer>
+    </ThinkingContainer>
   )
 }
 
-const MarqueeContainer = styled(motion.div)`
+const ThinkingContainer = styled(motion.div)`
   width: 100%;
   border-radius: 12px;
   overflow: hidden;
@@ -108,12 +111,12 @@ const Title = styled.div`
   font-size: 14px;
   font-weight: 500;
   padding: 4px 0 30px;
-  background: linear-gradient(
+  /* background: linear-gradient(
     to bottom,
     var(--color-background) 35%,
     var(--color-background) 40%,
     rgba(255, 255, 255, 0) 100%
-  );
+  ); */
   z-index: 99;
   transition: padding-top 150ms;
   &.expanded {
@@ -151,23 +154,17 @@ const TextContainer = styled.div`
 const Content = styled(motion.div)`
   width: 100%;
   height: 100%;
-  .marquee-item {
-    line-height: 16px;
-    font-size: 12px;
-    color: var(--color-text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  /* .marquee-item:last-child {
-    filter: blur(1.5px);
-  }
-  .marquee-item:nth-last-child(2) {
-    filter: blur(0.8px);
-  }
-  .marquee-item:first-child {
-    filter: none;
-  } */
+`
+
+const ContentLineMotion = styled(motion.div)`
+  width: 100%;
+  line-height: 16px;
+  font-size: 12px;
+  color: var(--color-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: absolute;
 `
 
 const ArrowContainer = styled.div`
@@ -185,4 +182,4 @@ const ArrowContainer = styled.div`
   }
 `
 
-export default MarqueeComponent
+export default ThinkingEffect

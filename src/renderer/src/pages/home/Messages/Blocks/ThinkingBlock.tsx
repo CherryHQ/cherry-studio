@@ -1,5 +1,5 @@
 import { CheckOutlined } from '@ant-design/icons'
-import MarqueeComponent from '@renderer/components/MarqueeComponent'
+import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
@@ -60,7 +60,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
         {
           key: 'thought',
           label: (
-            <MarqueeComponent
+            <ThinkingEffect
               expanded={activeKey === 'thought'}
               isThinking={isThinking}
               thinkingTimeText={
