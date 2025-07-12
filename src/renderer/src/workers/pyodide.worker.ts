@@ -5,7 +5,48 @@ interface PyodideOutput {
   result: any
   text: string | null
   error: string | null
+  image?: string
 }
+
+// 垫片代码，用于在 Worker 中捕获 Matplotlib 绘图
+const MATPLOTLIB_SHIM_CODE = `
+def __cherry_studio_matplotlib_setup():
+    import os
+    # 在导入 pyplot 前设置后端
+    os.environ["MPLBACKEND"] = "AGG"
+    import io
+    import base64
+    import matplotlib.pyplot as plt
+
+    # 保存原始的 show 函数
+    _original_show = plt.show
+
+    # 定义并替换为新的 show 函数
+    def _new_show(*args, **kwargs):
+        global pyodide_matplotlib_image
+        fig = plt.gcf()
+        
+        if not fig.canvas.get_renderer()._renderer:
+            return
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png')
+        buf.seek(0)
+        
+        img_str = base64.b64encode(buf.read()).decode('utf-8')
+
+        # 通过全局变量传递数据
+        pyodide_matplotlib_image = f"data:image/png;base64,{img_str}"
+        
+        plt.clf()
+        plt.close(fig)
+
+    # 替换全局的 show 函数
+    plt.show = _new_show
+
+__cherry_studio_matplotlib_setup()
+del __cherry_studio_matplotlib_setup
+`
 
 // 声明全局变量用于输出
 let output: PyodideOutput = {
@@ -95,7 +136,7 @@ pyodidePromise
 
 // 处理消息
 self.onmessage = async (event) => {
-  const { id, python, context } = event.data
+  const { id, python } = event.data
 
   // 重置输出变量
   output = {
@@ -107,12 +148,6 @@ self.onmessage = async (event) => {
   try {
     const pyodide = await pyodidePromise
 
-    // 将上下文变量设置为全局作用域变量
-    const globalContext: Record<string, any> = {}
-    for (const key of Object.keys(context || {})) {
-      globalContext[key] = context[key]
-    }
-
     // 载入需要的包
     try {
       await pyodide.loadPackagesFromImports(python)
@@ -121,14 +156,23 @@ self.onmessage = async (event) => {
       throw new Error(`Failed to load required packages: ${errorMessage}`)
     }
 
-    // 创建 Python 上下文
-    const globals = pyodide.globals.get('dict')(Object.entries(context || {}))
-
     // 执行代码
     try {
-      output.result = await pyodide.runPythonAsync(python, { globals })
+      // 注入 Matplotlib 垫片代码
+      if (python.includes('matplotlib')) {
+        await pyodide.runPythonAsync(MATPLOTLIB_SHIM_CODE)
+      }
+
+      output.result = await pyodide.runPythonAsync(python)
       // 处理结果，确保安全序列化
       output.result = processResult(output.result)
+
+      // 检查是否有 Matplotlib 图像输出
+      const image = pyodide.globals.get('pyodide_matplotlib_image')
+      if (image) {
+        output.image = image
+        pyodide.globals.delete('pyodide_matplotlib_image')
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 不设置 output.result，但设置错误信息
