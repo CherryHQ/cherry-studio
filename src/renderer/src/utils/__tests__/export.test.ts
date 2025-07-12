@@ -416,7 +416,7 @@ describe('export', () => {
     beforeEach(async () => {
       vi.clearAllMocks()
       vi.resetModules()
-      
+
       // Re-mock TopicManager for this test suite
       vi.doMock('@renderer/hooks/useTopic', () => ({
         TopicManager: {
@@ -516,7 +516,7 @@ describe('export', () => {
     beforeEach(async () => {
       vi.clearAllMocks() // Clear mocks before each test in this suite
       vi.resetModules() // Reset module cache
-      
+
       // Re-import and re-mock TopicManager to ensure clean state
       vi.doMock('@renderer/hooks/useTopic', () => ({
         TopicManager: {
