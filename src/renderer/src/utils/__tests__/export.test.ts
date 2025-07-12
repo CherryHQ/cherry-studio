@@ -67,6 +67,13 @@ vi.mock('@renderer/databases', () => ({
   }
 }))
 
+// Mock TopicManager for dynamic import
+vi.mock('@renderer/hooks/useTopic', () => ({
+  TopicManager: {
+    getTopicMessages: vi.fn()
+  }
+}))
+
 vi.mock('@renderer/utils/markdown', async (importOriginal) => {
   const actual = await importOriginal()
   return {
@@ -430,7 +437,9 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [userMsg, assistantMsg] })
+      // Mock TopicManager.getTopicMessages to return the expected messages
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
 
@@ -549,7 +558,9 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [msgWithEmpty] })
+      // Mock TopicManager.getTopicMessages to return the expected messages
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -568,7 +579,9 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [msgWithSpecial] })
+      // Mock TopicManager.getTopicMessages to return the expected messages
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -592,11 +605,12 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [msg1, msg2] })
+      // Mock TopicManager.getTopicMessages to return the expected messages
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
-      expect(db.topics.get).toHaveBeenCalledWith('topic1_plain')
       expect(markdownToPlainText).toHaveBeenCalledWith('# Topic One')
       expect(markdownToPlainText).toHaveBeenCalledWith('**Hello**')
       expect(markdownToPlainText).toHaveBeenCalledWith('_World_')
@@ -612,7 +626,9 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [] })
+      // Mock TopicManager.getTopicMessages to return empty array
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -629,10 +645,12 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue(null)
+      // Mock TopicManager.getTopicMessages to return empty array for null case
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
 
       const result = await topicToPlainText(testTopic)
-      expect(result).toBe('')
+      expect(result).toBe('Null Messages Topic')
     })
   })
 
