@@ -52,7 +52,7 @@ export const SettingRow = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   min-height: 24px;
 `
 
@@ -63,6 +63,8 @@ export const SettingRowTitle = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
+  padding-top: 4px;
+  width: 20%;
 `
 
 export const SettingHelpTextRow = styled.div`
