@@ -151,8 +151,15 @@ export async function backupToWebdav({
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups, webdavSkipBackupFile } =
-    store.getState().settings
+  const {
+    webdavHost,
+    webdavUser,
+    webdavPass,
+    webdavPath,
+    webdavMaxBackups,
+    webdavSkipBackupFile,
+    webdavDisableStream
+  } = store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -174,7 +181,8 @@ export async function backupToWebdav({
       webdavPass,
       webdavPath,
       fileName: finalFileName,
-      skipBackupFile: webdavSkipBackupFile
+      skipBackupFile: webdavSkipBackupFile,
+      disableStream: webdavDisableStream
     })
     if (success) {
       store.dispatch(

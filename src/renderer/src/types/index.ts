@@ -353,6 +353,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {
@@ -787,6 +788,7 @@ export type S3Config = {
   autoSync: boolean
   syncInterval: number
   maxBackups: number
+  s3Enabled?: boolean
 }
 
 export type { Message } from './newMessage'

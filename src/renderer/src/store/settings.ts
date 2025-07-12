@@ -112,6 +112,7 @@ export interface SettingsState {
   webdavSyncInterval: number
   webdavMaxBackups: number
   webdavSkipBackupFile: boolean
+  webdavDisableStream: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -270,9 +271,10 @@ export const initialState: SettingsState = {
   webdavPass: '',
   webdavPath: '/cherry-studio',
   webdavAutoSync: false,
-  webdavSyncInterval: 0,
-  webdavMaxBackups: 0,
+  webdavSyncInterval: 60,
+  webdavMaxBackups: 10,
   webdavSkipBackupFile: false,
+  webdavDisableStream: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -500,6 +502,9 @@ const settingsSlice = createSlice({
     },
     setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.webdavSkipBackupFile = action.payload
+    },
+    setWebdavDisableStream: (state, action: PayloadAction<boolean>) => {
+      state.webdavDisableStream = action.payload
     },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
@@ -801,6 +806,7 @@ export const {
   setWebdavSyncInterval,
   setWebdavMaxBackups,
   setWebdavSkipBackupFile,
+  setWebdavDisableStream,
   setCodeExecution,
   setCodeEditor,
   setCodePreview,
