@@ -1,5 +1,4 @@
 import { Client } from '@notionhq/client'
-import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
@@ -143,28 +142,32 @@ const messagesToPlainText = (messages: Message[]): string => {
 
 export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
-  const topicMessages = await db.topics.get(topic.id)
 
-  if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
+  // 使用TopicManager.getTopicMessages确保消息被正确加载
+  // 这样可以避免从未打开过的话题导出为空的问题
+  const { TopicManager } = await import('@renderer/hooks/useTopic')
+  const messages = await TopicManager.getTopicMessages(topic.id)
+
+  if (messages && messages.length > 0) {
+    return topicName + '\n\n' + messagesToMarkdown(messages, exportReasoning)
   }
 
-  return ''
+  return topicName
 }
 
 export const topicToPlainText = async (topic: Topic): Promise<string> => {
   const topicName = markdownToPlainText(topic.name).trim()
-  const topicMessages = await db.topics.get(topic.id)
 
-  if (topicMessages && topicMessages.messages.length > 0) {
-    return topicName + '\n\n' + messagesToPlainText(topicMessages.messages)
+  // 使用TopicManager.getTopicMessages确保消息被正确加载
+  // 这样可以避免从未打开过的话题导出为空的问题
+  const { TopicManager } = await import('@renderer/hooks/useTopic')
+  const messages = await TopicManager.getTopicMessages(topic.id)
+
+  if (messages && messages.length > 0) {
+    return topicName + '\n\n' + messagesToPlainText(messages)
   }
 
-  if (topicMessages && topicMessages.messages.length === 0) {
-    return topicName
-  }
-
-  return ''
+  return topicName
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
@@ -365,9 +368,10 @@ export const exportMessageToNotion = async (title: string, content: string, mess
 export const exportTopicToNotion = async (topic: Topic) => {
   const { notionExportReasoning } = store.getState().settings
 
-  // 获取话题消息
-  const topicRecord = await db.topics.get(topic.id)
-  const topicMessages = topicRecord?.messages || []
+  // 使用TopicManager.getTopicMessages确保消息被正确加载
+  // 这样可以避免从未打开过的话题导出为空的问题
+  const { TopicManager } = await import('@renderer/hooks/useTopic')
+  const topicMessages = await TopicManager.getTopicMessages(topic.id)
 
   // 创建话题标题块
   const titleBlocks = await convertMarkdownToNotionBlocks(`# ${topic.name}`)
