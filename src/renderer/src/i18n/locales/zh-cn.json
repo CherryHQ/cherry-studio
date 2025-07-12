@@ -2395,6 +2395,7 @@
         "content": "翻译后将覆盖原文，是否继续？",
         "title": "翻译确认"
       },
+      "success": "翻译完成",
       "copied": "翻译内容已复制",
       "detected.language": "自动检测",
       "empty": "翻译内容为空",
