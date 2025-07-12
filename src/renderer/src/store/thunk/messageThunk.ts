@@ -618,17 +618,30 @@ const fetchAndProcessAssistantResponseImpl = async (
         await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
       },
-      onExternalToolComplete: (externalToolResult: ExternalToolResult) => {
-        if (citationBlockId) {
-          const changes: Partial<CitationMessageBlock> = {
-            response: externalToolResult.webSearch,
-            knowledge: externalToolResult.knowledge,
-            status: MessageBlockStatus.SUCCESS
+      onExternalToolComplete: async (externalToolResult: ExternalToolResult) => {
+        // 如果没有正在进行的 citation block，且有数据需要显示，则创建一个
+        if (!citationBlockId) {
+          if (
+            !externalToolResult.webSearch &&
+            !externalToolResult.knowledge?.length &&
+            !externalToolResult.memories?.length
+          ) {
+            return // No data to show, no block needed.
           }
           smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
         } else {
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
+
+        // If a block already exists (from onExternalToolInProgress), update it.
+        const changes: Partial<CitationMessageBlock> = {
+          response: externalToolResult.webSearch,
+          knowledge: externalToolResult.knowledge,
+          memories: externalToolResult.memories,
+          status: MessageBlockStatus.SUCCESS
+        }
+        dispatch(updateOneBlock({ id: citationBlockId, changes }))
+        saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
       },
       onLLMWebSearchInProgress: async () => {
         if (initialPlaceholderBlockId) {

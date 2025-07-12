@@ -7189,6 +7189,7 @@ __metadata:
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
     iconv-lite: "npm:^0.6.3"
+    jaison: "npm:^2.0.2"
     jest-styled-components: "npm:^7.2.0"
     jschardet: "npm:^3.1.4"
     jsdom: "npm:26.1.0"
@@ -13009,6 +13010,13 @@ __metadata:
     "@pkgjs/parseargs":
       optional: true
   checksum: 10c0/6acc10d139eaefdbe04d2f679e6191b3abf073f111edf10b1de5302c97ec93fffeb2fdd8681ed17f16268aa9dd4f8c588ed9d1d3bffbbfa6e8bf897cbb3149b9
+  languageName: node
+  linkType: hard
+
+"jaison@npm:^2.0.2":
+  version: 2.0.2
+  resolution: "jaison@npm:2.0.2"
+  checksum: 10c0/0a94107b435a082faa38d0f8320c9901321a38e977cb95488aacc81fe71598c9e6680d593abbdc6734705e6742d407a2771948a8dad832e793e662078f2e683f
   languageName: node
   linkType: hard
 
