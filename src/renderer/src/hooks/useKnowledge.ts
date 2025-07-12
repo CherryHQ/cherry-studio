@@ -132,21 +132,63 @@ export const useKnowledge = (baseId: string) => {
     dispatch(updateItemAction({ baseId, item }))
   }
 
+  // 获取知识项目的显示名称
+  const getKnowledgeItemDisplayName = (item: KnowledgeItem): string => {
+    switch (item.type) {
+      case 'file':
+        return (item.content as FileMetadata).origin_name
+      case 'url':
+        return item.remark || (item.content as string)
+      case 'note':
+        return (item.content as string).slice(0, 50) + '...'
+      case 'directory':
+      case 'sitemap':
+        return item.content as string
+      default:
+        return item.content as string
+    }
+  }
+
   // 移除项目
   const removeItem = async (item: KnowledgeItem) => {
-    dispatch(removeItemAction({ baseId, item }))
-    if (base) {
-      if (item?.uniqueId && item?.uniqueIds) {
+    const itemName = getKnowledgeItemDisplayName(item)
+    
+    try {
+      // 显示加载状态
+      const loadingKey = `delete-${item.id}`
+      window.message.loading({
+        content: `正在删除${item.type === 'directory' ? '目录' : item.type === 'file' ? '文件' : '项目'} "${itemName}"...`,
+        key: loadingKey,
+        duration: 0 // 持续显示直到手动关闭
+      })
+
+      // 先执行后端删除操作
+      if (base && item?.uniqueId && item?.uniqueIds) {
         await window.api.knowledgeBase.remove({
           uniqueId: item.uniqueId,
           uniqueIds: item.uniqueIds,
           base: getKnowledgeBaseParams(base)
         })
       }
-    }
-    if (item.type === 'file' && typeof item.content === 'object') {
-      // name: eg. text.pdf
-      await window.api.file.delete(item.content.name)
+      
+      // 清理文件系统
+      if (item.type === 'file' && typeof item.content === 'object') {
+        await window.api.file.delete(item.content.name)
+      }
+
+      // 删除成功后，从界面状态中移除
+      dispatch(removeItemAction({ baseId, item }))
+
+      // 关闭加载提示并显示成功消息
+      window.message.destroy(loadingKey)
+      window.message.success(`${item.type === 'file' ? '文件' : item.type === 'directory' ? '目录' : '项目'} "${itemName}" 删除成功`)
+    } catch (error: any) {
+      // 删除失败，关闭加载提示并显示错误消息
+      window.message.destroy(`delete-${item.id}`)
+      window.message.error(`删除失败: ${error.message || '未知错误'}`)
+      console.error('Knowledge item removal failed:', error)
+      
+      // 删除失败时不从UI状态中移除项目，用户可以重试
     }
   }
   // 刷新项目
