@@ -319,6 +319,9 @@ const api = {
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
+  mainWindow: {
+    setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.MainWindow_SetPin, isPinned)
+  },
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable)
 }
