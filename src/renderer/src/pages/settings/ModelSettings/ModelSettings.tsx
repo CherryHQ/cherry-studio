@@ -14,8 +14,9 @@ import { useAppDispatch } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
+import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
 import { Button, Select, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,27 +40,10 @@ const ModelSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .flatMap((p) => {
-      const filteredModels = sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
-        .map((m) => ({
-          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-          value: getModelUniqId(m)
-        }))
-
-      if (filteredModels.length > 0) {
-        return [
-          {
-            label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-            title: p.name,
-            options: filteredModels
-          }
-        ]
-      }
-      return []
-    })
+  const selectOptions = useMemo(
+    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
+    [providers]
+  )
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
@@ -112,6 +96,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
@@ -133,6 +118,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTopicNamingModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
@@ -154,6 +140,7 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             options={selectOptions}
             showSearch
+            filterOption={modelSelectFilter}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />

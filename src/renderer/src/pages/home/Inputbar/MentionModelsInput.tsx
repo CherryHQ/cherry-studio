@@ -2,8 +2,8 @@ import CustomTag from '@renderer/components/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 import { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const MentionModelsInput: FC<{
@@ -11,11 +11,10 @@ const MentionModelsInput: FC<{
   onRemoveModel: (model: Model) => void
 }> = ({ selectedModels, onRemoveModel }) => {
   const { providers } = useProviders()
-  const { t } = useTranslation()
 
   const getProviderName = (model: Model) => {
     const provider = providers.find((p) => p.id === model?.provider)
-    return provider ? (provider.isSystem ? t(`provider.${provider.id}`) : provider.name) : ''
+    return provider ? getFancyProviderName(provider) : ''
   }
 
   return (

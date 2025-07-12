@@ -6,6 +6,7 @@ import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
@@ -62,7 +63,7 @@ const MentionModelsButton: FC<Props> = ({
           .map((m) => ({
             label: (
               <>
-                <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+                <ProviderName>{getFancyProviderName(p)}</ProviderName>
                 <span style={{ opacity: 0.8 }}> | {m.name}</span>
               </>
             ),
@@ -72,7 +73,7 @@ const MentionModelsButton: FC<Props> = ({
                 {first(m.name)}
               </Avatar>
             ),
-            filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
+            filterText: getFancyProviderName(p) + m.name,
             action: () => onMentionModel(m),
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
@@ -95,7 +96,7 @@ const MentionModelsButton: FC<Props> = ({
       const providerModelItems = providerModels.map((m) => ({
         label: (
           <>
-            <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+            <ProviderName>{getFancyProviderName(p)}</ProviderName>
             <span style={{ opacity: 0.8 }}> | {m.name}</span>
           </>
         ),
@@ -105,7 +106,7 @@ const MentionModelsButton: FC<Props> = ({
             {first(m.name)}
           </Avatar>
         ),
-        filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
+        filterText: getFancyProviderName(p) + m.name,
         action: () => onMentionModel(m),
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
       }))

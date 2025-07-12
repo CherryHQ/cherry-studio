@@ -8,8 +8,9 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
+import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
 import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,39 +38,15 @@ const RagSettings = () => {
   }, [providers])
 
   const embeddingSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isEmbeddingModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m),
-            providerId: p.id,
-            modelId: m.id
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
+    return getModelSelectOptions(providers, isEmbeddingModel)
+  }, [providers])
 
   const rerankSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isRerankModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m)
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
+    return getModelSelectOptions(
+      providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id)),
+      isRerankModel
+    )
+  }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
@@ -131,6 +108,7 @@ const RagSettings = () => {
           onChange={handleEmbeddingModelChange}
           allowClear={false}
           showSearch
+          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />
@@ -172,6 +150,7 @@ const RagSettings = () => {
           onChange={handleRerankModelChange}
           allowClear
           showSearch
+          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />

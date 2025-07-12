@@ -16,7 +16,7 @@ import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import { getModelSelectOptions, modelSelectFilter, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -28,7 +28,7 @@ import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { find, isEmpty, sortBy } from 'lodash'
+import { find, isEmpty } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -145,6 +145,7 @@ const TranslateSettings: FC<{
               }}
               options={selectOptions}
               showSearch
+              filterOption={modelSelectFilter}
             />
           </HStack>
           {!translateModel && (
@@ -309,28 +310,8 @@ const TranslatePage: FC = () => {
   _targetLanguage = targetLanguage
 
   const selectOptions = useMemo(
-    () =>
-      providers
-        .filter((p) => p.models.length > 0)
-        .flatMap((p) => {
-          const filteredModels = sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
-            .map((m) => ({
-              label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-              value: getModelUniqId(m)
-            }))
-          if (filteredModels.length > 0) {
-            return [
-              {
-                label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-                title: p.name,
-                options: filteredModels
-              }
-            ]
-          }
-          return []
-        }),
-    [providers, t]
+    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
+    [providers]
   )
 
   const handleModelChange = (model: Model) => {

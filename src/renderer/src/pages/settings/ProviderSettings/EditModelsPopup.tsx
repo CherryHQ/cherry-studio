@@ -20,7 +20,7 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewAp
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
+import { getDefaultGroupName, getFancyProviderName, isFreeModel, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -199,7 +199,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     return (
       <Flex>
         <ModelHeaderTitle>
-          {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
+          {getFancyProviderName(provider)}
           {i18n.language.startsWith('zh') ? '' : ' '}
           {t('common.models')}
         </ModelHeaderTitle>
