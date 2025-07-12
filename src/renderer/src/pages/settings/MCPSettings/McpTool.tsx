@@ -1,8 +1,9 @@
 import { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Flex, Spin, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -14,6 +15,29 @@ interface MCPToolsSectionProps {
 
 const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
+  const [tableKey, setTableKey] = useState(0)
+  const [loading, setLoading] = useState(false)
+
+  // 监听窗口resize事件，强制表格重新渲染
+  useEffect(() => {
+    let resizeTimer: NodeJS.Timeout
+
+    const handleResize = () => {
+      setLoading(true)
+      clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        setTableKey((prev) => prev + 1)
+        setLoading(false)
+      }, 200)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      clearTimeout(resizeTimer)
+    }
+  }, [])
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
@@ -84,7 +108,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               )}
               {prop.enum && (
                 <div style={{ marginTop: 4 }}>
-                  <Typography.Text type="secondary">Allowed values: </Typography.Text>
+                  <Typography.Text type="secondary">
+                    {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
+                  </Typography.Text>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                     {prop.enum.map((value: string, idx: number) => (
                       <Tag key={idx}>{value}</Tag>
@@ -113,14 +139,19 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       render: (_, tool) => (
         <Flex vertical align="flex-start">
           <Flex align="center" gap={4} style={{ width: '100%' }}>
-            <Typography.Text strong>{tool.name}</Typography.Text>
+            <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
+              {tool.name}
+            </Typography.Text>
             <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
               <Info size={14} />
             </Tooltip>
           </Flex>
           {tool.description && (
-            <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-              {tool.description.length > 100 ? `${tool.description.substring(0, 100)}...` : tool.description}
+            <Typography.Text
+              type="secondary"
+              ellipsis={{ tooltip: tool.description }}
+              style={{ fontSize: '13px', marginTop: 4 }}>
+              {tool.description}
             </Typography.Text>
           )}
         </Flex>
@@ -171,23 +202,24 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     }
   ]
 
-  return (
-    <>
-      {tools.length > 0 ? (
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={tools}
-          pagination={false}
-          sticky={{ offsetHeader: -55 }}
-          expandable={{
-            expandedRowRender: (tool) => renderToolProperties(tool)
-          }}
-        />
-      ) : (
-        <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-    </>
+  return loading ? (
+    <Flex justify="center" align="center" style={{ minHeight: 300 }}>
+      <Spin size="large" />
+    </Flex>
+  ) : tools.length > 0 ? (
+    <Table
+      key={tableKey}
+      rowKey="id"
+      columns={columns}
+      dataSource={tools}
+      pagination={false}
+      sticky={{ offsetHeader: -55 }}
+      expandable={{
+        expandedRowRender: (tool) => renderToolProperties(tool)
+      }}
+    />
+  ) : (
+    <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
   )
 }
 

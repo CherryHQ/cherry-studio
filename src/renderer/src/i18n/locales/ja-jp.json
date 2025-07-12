@@ -1887,6 +1887,7 @@
         "tools": {
           "availableTools": "利用可能なツール",
           "inputSchema": "入力スキーマ",
+          "inputSchema.enum.allowedValues": "許可された値",
           "loadError": "ツール取得エラー",
           "noToolsAvailable": "利用可能なツールなし",
           "enable": "ツールを有効にする",
