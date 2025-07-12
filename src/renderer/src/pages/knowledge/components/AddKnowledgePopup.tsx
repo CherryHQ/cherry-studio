@@ -368,8 +368,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               <SettingsItem>
                 <div className="settings-label">
                   {t('knowledge.dimensions')}
-                  <Tooltip title={t('knowledge.dimensions_size_tooltip')} placement="right">
+                  <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
                     <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                  <Tooltip title={t('knowledge.dimensions_not_supported')}>
+                    <WarningOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -381,6 +384,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     setDimensions(value === null ? undefined : value)
                   }}
                 />
+                <span></span>
               </SettingsItem>
             )}
           </SettingsPanel>
@@ -404,7 +408,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.chunk_size')}
                   <Tooltip title={t('knowledge.chunk_size_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -425,7 +429,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.chunk_overlap')}
                   <Tooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
@@ -447,7 +451,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                 <div className="settings-label">
                   {t('knowledge.threshold')}
                   <Tooltip title={t('knowledge.threshold_tooltip')} placement="right">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
                 </div>
                 <InputNumber
