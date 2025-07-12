@@ -114,7 +114,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
-        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+        if (
+          isSupportedThinkingTokenGeminiModel(model) &&
+          !GEMINI_FLASH_MODEL_REGEX.test(model.id) &&
+          model.id.includes('grok-4')
+        ) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
