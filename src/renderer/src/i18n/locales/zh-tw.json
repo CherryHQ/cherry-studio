@@ -764,7 +764,8 @@
         "invoking": "調用中",
         "pending": "等待中",
         "preview": "預覽",
-        "autoApproveEnabled": "此工具已啟用自動批准"
+        "autoApproveEnabled": "此工具已啟用自動批准",
+        "raw": "原始碼"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
