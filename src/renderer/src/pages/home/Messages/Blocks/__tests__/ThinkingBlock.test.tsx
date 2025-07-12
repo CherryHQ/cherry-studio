@@ -63,12 +63,15 @@ vi.mock('lucide-react', () => ({
     <span data-testid="lightbulb-icon" data-size={size}>
       💡
     </span>
-  )
+  ),
+  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />
 }))
 
 // Mock motion
 vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: any) => <div data-testid="animate-presence">{children}</div>,
   motion: {
+    div: (props: any) => <div {...props} />,
     span: ({ children, variants, animate, initial, style }: any) => (
       <span
         data-testid="motion-span"
@@ -100,8 +103,8 @@ vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   )
 }))
 
-// Mock MarqueeComponent
-vi.mock('@renderer/components/MarqueeComponent', () => ({
+// Mock ThinkingEffect component
+vi.mock('@renderer/components/ThinkingEffect', () => ({
   __esModule: true,
   default: ({ isThinking, thinkingTimeText, content, expanded }: any) => (
     <div
