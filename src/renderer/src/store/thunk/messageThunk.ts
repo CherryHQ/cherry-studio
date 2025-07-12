@@ -446,7 +446,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             content: accumulatedContent,
             status: MessageBlockStatus.STREAMING
           }
-          smartBlockUpdate(initialPlaceholderBlockId, changes, MessageBlockType.MAIN_TEXT)
+          smartBlockUpdate(initialPlaceholderBlockId, changes, MessageBlockType.MAIN_TEXT, true)
           mainTextBlockId = initialPlaceholderBlockId
           initialPlaceholderBlockId = null
         } else if (!mainTextBlockId) {
@@ -496,7 +496,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
           thinkingBlockId = initialPlaceholderBlockId
           initialPlaceholderBlockId = null
-          smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING)
+          smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
         } else if (!thinkingBlockId) {
           const newBlock = createThinkingBlock(assistantMsgId, accumulatedThinking, {
             status: MessageBlockStatus.STREAMING,
