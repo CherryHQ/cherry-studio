@@ -63,12 +63,15 @@ vi.mock('lucide-react', () => ({
     <span data-testid="lightbulb-icon" data-size={size}>
       💡
     </span>
-  )
+  ),
+  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />
 }))
 
 // Mock motion
 vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: any) => <div data-testid="animate-presence">{children}</div>,
   motion: {
+    div: (props: any) => <div {...props} />,
     span: ({ children, variants, animate, initial, style }: any) => (
       <span
         data-testid="motion-span"
@@ -96,6 +99,20 @@ vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   default: ({ block }: any) => (
     <div data-testid="mock-markdown" data-block-id={block.id}>
       Markdown: {block.content}
+    </div>
+  )
+}))
+
+// Mock ThinkingEffect component
+vi.mock('@renderer/components/ThinkingEffect', () => ({
+  __esModule: true,
+  default: ({ isThinking, thinkingTimeText, content, expanded }: any) => (
+    <div
+      data-testid="mock-marquee-component"
+      data-is-thinking={isThinking}
+      data-expanded={expanded}
+      data-content={content}>
+      <div data-testid="thinking-time-text">{thinkingTimeText}</div>
     </div>
   )
 }))
@@ -153,7 +170,7 @@ describe('ThinkingBlock', () => {
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
   const getCopyButton = () => screen.queryByRole('button', { name: /copy/i })
-  const getThinkingTimeText = () => screen.getByText(/thinking|thought/i)
+  const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
 
   describe('basic rendering', () => {
     it('should render thinking content when provided', () => {
@@ -162,7 +179,7 @@ describe('ThinkingBlock', () => {
 
       // User should see the thinking content
       expect(screen.getByText('Markdown: Deep thoughts about AI')).toBeInTheDocument()
-      expect(screen.getByTestId('lightbulb-icon')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-marquee-component')).toBeInTheDocument()
     })
 
     it('should not render when content is empty', () => {
@@ -332,14 +349,14 @@ describe('ThinkingBlock', () => {
       const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
       const { rerender } = renderThinkingBlock(streamingBlock)
 
-      // Should be expanded while thinking
-      expect(getThinkingContent()).toBeInTheDocument()
+      // With thoughtAutoCollapse enabled, it should be collapsed even while thinking
+      expect(getThinkingContent()).not.toBeInTheDocument()
 
       // Stop thinking
       const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
       rerender(<ThinkingBlock block={completedBlock} />)
 
-      // Should be collapsed after thinking completes
+      // Should remain collapsed after thinking completes
       expect(getThinkingContent()).not.toBeInTheDocument()
     })
   })
