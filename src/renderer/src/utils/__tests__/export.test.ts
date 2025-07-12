@@ -59,14 +59,6 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   })
 }))
 
-vi.mock('@renderer/databases', () => ({
-  default: {
-    topics: {
-      get: vi.fn()
-    }
-  }
-}))
-
 // Mock TopicManager for dynamic import
 vi.mock('@renderer/hooks/useTopic', () => ({
   TopicManager: {
@@ -83,7 +75,6 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 })
 
 // Import the functions to test AFTER setting up mocks
-import db from '@renderer/databases'
 import { Topic } from '@renderer/types'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
@@ -422,6 +413,18 @@ describe('export', () => {
   })
 
   describe('formatMessageAsPlainText (via topicToPlainText)', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      vi.resetModules()
+      
+      // Re-mock TopicManager for this test suite
+      vi.doMock('@renderer/hooks/useTopic', () => ({
+        TopicManager: {
+          getTopicMessages: vi.fn()
+        }
+      }))
+    })
+
     it('should format user and assistant messages correctly to plain text with roles', async () => {
       const userMsg = createMessage({ role: 'user', id: 'u_plain_formatted' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '# User Content Formatted' }
@@ -510,6 +513,18 @@ describe('export', () => {
   })
 
   describe('messagesToPlainText (via topicToPlainText)', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks() // Clear mocks before each test in this suite
+      vi.resetModules() // Reset module cache
+      
+      // Re-import and re-mock TopicManager to ensure clean state
+      vi.doMock('@renderer/hooks/useTopic', () => ({
+        TopicManager: {
+          getTopicMessages: vi.fn()
+        }
+      }))
+    })
+
     it('should join multiple formatted plain text messages with double newlines', async () => {
       const msg1 = createMessage({ role: 'user', id: 'm_plain1_formatted' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Msg1 Formatted' }
@@ -525,7 +540,9 @@ describe('export', () => {
         createdAt: '',
         updatedAt: ''
       }
-      ;(db.topics.get as any).mockResolvedValue({ messages: [msg1, msg2] })
+      // Mock TopicManager.getTopicMessages to return the expected messages
+      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
 
       const plainText = await topicToPlainText(testTopic)
