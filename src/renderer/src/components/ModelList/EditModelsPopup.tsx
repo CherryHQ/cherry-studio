@@ -3,6 +3,9 @@ import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
+import { TopView } from '@renderer/components/TopView'
 import {
   getModelLogo,
   groupQwenModels,
@@ -16,8 +19,6 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
-import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
@@ -29,8 +30,6 @@ import { Search } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { TopView } from '../../../components/TopView'
 
 interface ShowParams {
   provider: Provider
@@ -215,7 +214,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         title={
           isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
         }
-        mouseEnterDelay={0.5}
+        mouseLeaveDelay={0}
         placement="top">
         <Button
           type={isAllFilteredInProvider ? 'default' : 'primary'}
@@ -242,11 +241,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               }
             }
           }}
-          disabled={list.length === 0}
+          disabled={loading || list.length === 0}
         />
       </Tooltip>
     )
-  }, [list, t, provider, onRemoveModel, models, onAddModel])
+  }, [list, t, loading, provider, onRemoveModel, models, onAddModel])
 
   const renderGroupTools = useCallback(
     (group: string) => {
@@ -259,7 +258,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               ? t(`settings.models.manage.remove_whole_group`)
               : t(`settings.models.manage.add_whole_group`)
           }
-          mouseEnterDelay={0.5}
+          mouseLeaveDelay={0}
           placement="top">
           <Button
             type="text"
@@ -437,7 +436,6 @@ const TopToolsWrapper = styled.div`
 
 const ListContainer = styled.div`
   height: calc(100vh - 300px);
-  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 16px;
