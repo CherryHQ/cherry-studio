@@ -66,6 +66,7 @@ export function getDefaultTopic(assistantId: string): Topic {
   }
 }
 
+// FIXME: getProviderByModel和getDefaultProvider会互相调用彼此，有无限循环的风险
 export function getDefaultProvider() {
   return getProviderByModel(getDefaultModel())
 }
@@ -88,6 +89,7 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
+// FIXME: getProviderByModel和getDefaultProvider会互相调用彼此，有无限循环的风险
 export function getProviderByModel(model?: Model): Provider {
   const providers = store.getState().llm.providers
   const providerId = model ? model.provider : getDefaultProvider().id
