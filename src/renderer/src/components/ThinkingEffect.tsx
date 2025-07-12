@@ -111,12 +111,6 @@ const Title = styled.div`
   font-size: 14px;
   font-weight: 500;
   padding: 4px 0 30px;
-  /* background: linear-gradient(
-    to bottom,
-    var(--color-background) 35%,
-    var(--color-background) 40%,
-    rgba(255, 255, 255, 0) 100%
-  ); */
   z-index: 99;
   transition: padding-top 150ms;
   &.expanded {
