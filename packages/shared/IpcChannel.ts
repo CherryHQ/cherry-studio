@@ -160,6 +160,9 @@ export enum IpcChannel {
 
   Shortcuts_Update = 'shortcuts:update',
 
+  ExternalControl_SetServerType = 'external-control:set-server-type',
+  ExternalControl_SetHttpPort = 'external-control:set-http-port',
+
   // backup
   Backup_Backup = 'backup:backup',
   Backup_Restore = 'backup:restore',

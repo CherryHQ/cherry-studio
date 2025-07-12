@@ -2280,6 +2280,15 @@
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット"
       },
+      "externalControl": {
+        "title": "外部コントロール",
+        "server_type": "サーバータイプ",
+        "server_type.disable": "無効",
+        "server_type.http": "HTTP",
+        "server_type.unix_domain_socket": "Unixドメインソケット",
+        "http.port": "HTTPポート",
+        "http.port.invalid_error": "無効なHTTPポートです，1から65535の間の整数である必要があります"
+      },
       "theme.color_primary": "テーマ色",
       "theme.dark": "ダーク",
       "theme.light": "ライト",

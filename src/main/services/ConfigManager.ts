@@ -1,5 +1,5 @@
 import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
-import { LanguageVarious, Shortcut, ThemeMode } from '@types'
+import { ExternalControlServerType, LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
 
@@ -19,6 +19,8 @@ export enum ConfigKeys {
   TestPlan = 'testPlan',
   TestChannel = 'testChannel',
   EnableDataCollection = 'enableDataCollection',
+  ExternalControlServerType = 'externalControlServerType',
+  ExternalControlHttpPort = 'externalControlHttpPort',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
   SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
@@ -166,6 +168,23 @@ export class ConfigManager {
 
   setEnableDataCollection(value: boolean) {
     this.set(ConfigKeys.EnableDataCollection, value)
+  }
+
+  getExternalControlServerType(): ExternalControlServerType {
+    return this.get<ExternalControlServerType>(ConfigKeys.ExternalControlServerType, ExternalControlServerType.DISABLE)
+  }
+
+  setExternalControlServerType(value: ExternalControlServerType) {
+    this.setAndNotify(ConfigKeys.ExternalControlServerType, value)
+  }
+
+  getExternalControlHttpPort(): number | undefined {
+    const port = this.get<number | null>(ConfigKeys.ExternalControlHttpPort, undefined)
+    return port === null ? undefined : port
+  }
+
+  setExternalControlHttpPort(value: number | undefined) {
+    this.setAndNotify(ConfigKeys.ExternalControlHttpPort, value === undefined ? null : value)
   }
 
   // Selection Assistant: is enabled the selection assistant

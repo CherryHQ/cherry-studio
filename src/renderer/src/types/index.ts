@@ -772,6 +772,12 @@ export interface StoreSyncAction {
   }
 }
 
+export enum ExternalControlServerType {
+  DISABLE = 'disable',
+  HTTP = 'http',
+  UNIX_DOMAIN_SOCKET = 'unix-domain-socket'
+}
+
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
 

@@ -2280,6 +2280,15 @@
         "zoom_out": "缩小界面",
         "zoom_reset": "重置缩放"
       },
+      "externalControl": {
+        "title": "外部控制",
+        "server_type": "服务器类型",
+        "server_type.disable": "禁用",
+        "server_type.http": "HTTP",
+        "server_type.unix_domain_socket": "Unix 域套接字",
+        "http.port": "HTTP 端口",
+        "http.port.invalid_error": "无效的 HTTP 端口，必须是 1 到 65535 之间的整数"
+      },
       "theme.color_primary": "主题颜色",
       "theme.dark": "深色",
       "theme.light": "浅色",

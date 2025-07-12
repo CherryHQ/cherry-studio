@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
+  ExternalControlServerType,
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
@@ -159,6 +160,11 @@ const api = {
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
   shortcuts: {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
+  },
+  externalControl: {
+    setServerType: (serverType: ExternalControlServerType) =>
+      ipcRenderer.invoke(IpcChannel.ExternalControl_SetServerType, serverType),
+    setHttpPort: (httpPort: number | undefined) => ipcRenderer.invoke(IpcChannel.ExternalControl_SetHttpPort, httpPort)
   },
   knowledgeBase: {
     create: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Create, base),

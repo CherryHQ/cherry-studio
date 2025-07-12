@@ -2280,6 +2280,15 @@
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"
       },
+      "externalControl": {
+        "title": "Внешний контроль",
+        "server_type": "Тип сервера",
+        "server_type.disable": "Отключить",
+        "server_type.http": "HTTP",
+        "server_type.unix_domain_socket": "Unix Domain Socket",
+        "http.port": "HTTP Порт",
+        "http.port.invalid_error": "Неверный HTTP порт, должен быть целым числом от 1 до 65535"
+      },
       "theme.color_primary": "Цвет темы",
       "theme.dark": "Темная",
       "theme.light": "Светлая",

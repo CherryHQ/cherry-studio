@@ -7,7 +7,7 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
+import { ExternalControlServerType, FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
@@ -441,6 +441,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       unregisterAllShortcuts()
       registerShortcuts(mainWindow)
     }
+  })
+
+  ipcMain.handle(IpcChannel.ExternalControl_SetServerType, (_, serverType: ExternalControlServerType) => {
+    configManager.setExternalControlServerType(serverType)
+  })
+  ipcMain.handle(IpcChannel.ExternalControl_SetHttpPort, (_, port: number | undefined) => {
+    configManager.setExternalControlHttpPort(port)
   })
 
   // knowledge base

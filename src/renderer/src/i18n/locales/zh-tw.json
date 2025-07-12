@@ -2280,6 +2280,15 @@
         "zoom_out": "縮小介面",
         "zoom_reset": "重設縮放"
       },
+      "externalControl": {
+        "title": "外部控制",
+        "server_type": "伺服器類型",
+        "server_type.disable": "禁用",
+        "server_type.http": "HTTP",
+        "server_type.unix_domain_socket": "Unix 域通訊端",
+        "http.port": "HTTP 連接埠",
+        "http.port.invalid_error": "HTTP 連接埠無效，必須是 1 至 65535 之間的整數"
+      },
       "theme.color_primary": "主題顏色",
       "theme.dark": "深色",
       "theme.light": "淺色",

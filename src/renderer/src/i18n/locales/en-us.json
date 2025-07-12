@@ -2280,6 +2280,15 @@
         "zoom_out": "Zoom Out",
         "zoom_reset": "Reset Zoom"
       },
+      "externalControl": {
+        "title": "External Control",
+        "server_type": "Server Type",
+        "server_type.disable": "Disable",
+        "server_type.http": "HTTP",
+        "server_type.unix_domain_socket": "Unix Domain Socket",
+        "http.port": "HTTP Port",
+        "http.port.invalid_error": "Invalid HTTP port, must be an integer between 1 and 65535"
+      },
       "theme.color_primary": "Primary Color",
       "theme.dark": "Dark",
       "theme.light": "Light",
