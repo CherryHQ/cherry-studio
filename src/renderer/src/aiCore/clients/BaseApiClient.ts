@@ -59,12 +59,10 @@ export abstract class BaseApiClient<
   TSdkSpecificTool extends SdkTool = SdkTool
 > implements ApiClient<TSdkInstance, TSdkParams, TRawOutput, TRawChunk, TMessageParam, TToolCall, TSdkSpecificTool>
 {
-  private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
   public provider: Provider
   protected host: string
   protected apiKey: string
   protected sdkInstance?: TSdkInstance
-  public useSystemPromptForTools: boolean = true
 
   constructor(provider: Provider) {
     this.provider = provider
@@ -386,16 +384,9 @@ export abstract class BaseApiClient<
       return { tools }
     }
 
-    // If the number of tools exceeds the threshold, use the system prompt
-    if (mcpTools.length > BaseApiClient.SYSTEM_PROMPT_THRESHOLD) {
-      this.useSystemPromptForTools = true
-      return { tools }
-    }
-
     // If the model supports function calling and tool usage is enabled
     if (isFunctionCallingModel(model) && enableToolUse) {
       tools = this.convertMcpToolsToSdkTools(mcpTools)
-      this.useSystemPromptForTools = false
     }
 
     return { tools }

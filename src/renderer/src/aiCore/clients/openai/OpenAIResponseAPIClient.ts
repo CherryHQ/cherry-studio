@@ -36,7 +36,6 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -345,9 +344,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           enableToolUse: isEnabledToolUse(assistant)
         })
 
-        if (this.useSystemPromptForTools) {
-          systemMessageInput.text = await buildSystemPrompt(systemMessageInput.text || '', mcpTools, assistant)
-        }
         systemMessageContent.push(systemMessageInput)
         systemMessage.content = systemMessageContent
 
