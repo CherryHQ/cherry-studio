@@ -55,6 +55,7 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
           isStreaming: params.streamOutput || false,
           isEnabledToolCalling: (params.mcpTools && params.mcpTools.length > 0) || false,
           isEnabledWebSearch: params.enableWebSearch || false,
+          isEnabledUrlContext: params.enableUrlContext || false,
           isEnabledReasoning: params.enableReasoning || false,
           mcpTools: params.mcpTools || [],
           provider: ctx.apiClientInstance?.provider

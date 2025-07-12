@@ -211,6 +211,7 @@
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
+      "input.url_context": "URL Context",
       "input.web_search.no_web_search": "Disable Web Search",
       "input.web_search.no_web_search.description": "Do not enable web search",
       "input.web_search.settings": "Web Search Settings",

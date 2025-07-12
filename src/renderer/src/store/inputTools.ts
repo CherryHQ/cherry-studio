@@ -11,6 +11,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
     'attachment',
     'thinking',
     'web_search',
+    'url_context',
     'knowledge_base',
     'mcp_tools',
     'generate_image',

@@ -354,6 +354,8 @@ export async function fetchChatCompletion({
     model.id.includes('sonar') ||
     false
 
+  const enableUrlContext = assistant.enableUrlContext || false
+
   const enableGenerateImage =
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
@@ -370,6 +372,7 @@ export async function fetchChatCompletion({
       streamOutput: assistant.settings?.streamOutput || false,
       enableReasoning,
       enableWebSearch,
+      enableUrlContext,
       enableGenerateImage
     },
     {
