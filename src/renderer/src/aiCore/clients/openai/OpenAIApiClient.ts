@@ -686,8 +686,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               choice.delta &&
               Object.keys(choice.delta).length > 0 &&
               (!('content' in choice.delta) ||
-                (typeof choice.delta.content === 'string' && choice.delta.content !== '')
-              )) {
+                (typeof choice.delta.content === 'string' && choice.delta.content !== ''))
+            ) {
               contentSource = choice.delta
             } else if ('message' in choice) {
               contentSource = choice.message
