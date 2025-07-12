@@ -248,7 +248,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 export function checkRateLimit(assistant: Assistant): boolean {
   const provider = getAssistantProvider(assistant)
 
-  if (!provider.rateLimit) {
+  if (!provider?.rateLimit) {
     return false
   }
 

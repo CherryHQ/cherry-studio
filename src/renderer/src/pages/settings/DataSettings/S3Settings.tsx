@@ -2,6 +2,7 @@ import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, War
 import { HStack } from '@renderer/components/Layout'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
+import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -9,7 +10,7 @@ import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setS3Partial } from '@renderer/store/settings'
 import { S3Config } from '@renderer/types'
-import { Button, Input, Select, Switch, Tooltip } from 'antd'
+import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,9 +55,9 @@ const S3Settings: FC = () => {
     setSyncInterval(value)
     dispatch(setS3Partial({ syncInterval: value, autoSync: value !== 0 }))
     if (value === 0) {
-      stopAutoSync()
+      stopAutoSync('s3')
     } else {
-      startAutoSync()
+      startAutoSync(false, 's3')
     }
   }
 
@@ -211,39 +212,43 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.autoSync')}</SettingRowTitle>
-        <Select
+        <Selector
+          size={14}
           value={syncInterval}
           onChange={onSyncIntervalChange}
           disabled={!endpoint || !accessKeyId || !secretAccessKey}
-          style={{ width: 120 }}>
-          <Select.Option value={0}>{t('settings.data.s3.autoSync.off')}</Select.Option>
-          <Select.Option value={1}>{t('settings.data.s3.autoSync.minute', { count: 1 })}</Select.Option>
-          <Select.Option value={5}>{t('settings.data.s3.autoSync.minute', { count: 5 })}</Select.Option>
-          <Select.Option value={15}>{t('settings.data.s3.autoSync.minute', { count: 15 })}</Select.Option>
-          <Select.Option value={30}>{t('settings.data.s3.autoSync.minute', { count: 30 })}</Select.Option>
-          <Select.Option value={60}>{t('settings.data.s3.autoSync.hour', { count: 1 })}</Select.Option>
-          <Select.Option value={120}>{t('settings.data.s3.autoSync.hour', { count: 2 })}</Select.Option>
-          <Select.Option value={360}>{t('settings.data.s3.autoSync.hour', { count: 6 })}</Select.Option>
-          <Select.Option value={720}>{t('settings.data.s3.autoSync.hour', { count: 12 })}</Select.Option>
-          <Select.Option value={1440}>{t('settings.data.s3.autoSync.hour', { count: 24 })}</Select.Option>
-        </Select>
+          options={[
+            { label: t('settings.data.s3.autoSync.off'), value: 0 },
+            { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: 1 },
+            { label: t('settings.data.s3.autoSync.minute', { count: 5 }), value: 5 },
+            { label: t('settings.data.s3.autoSync.minute', { count: 15 }), value: 15 },
+            { label: t('settings.data.s3.autoSync.minute', { count: 30 }), value: 30 },
+            { label: t('settings.data.s3.autoSync.hour', { count: 1 }), value: 60 },
+            { label: t('settings.data.s3.autoSync.hour', { count: 2 }), value: 120 },
+            { label: t('settings.data.s3.autoSync.hour', { count: 6 }), value: 360 },
+            { label: t('settings.data.s3.autoSync.hour', { count: 12 }), value: 720 },
+            { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: 1440 }
+          ]}
+        />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.maxBackups')}</SettingRowTitle>
-        <Select
+        <Selector
+          size={14}
           value={maxBackups}
           onChange={onMaxBackupsChange}
           disabled={!endpoint || !accessKeyId || !secretAccessKey}
-          style={{ width: 120 }}>
-          <Select.Option value={0}>{t('settings.data.s3.maxBackups.unlimited')}</Select.Option>
-          <Select.Option value={1}>1</Select.Option>
-          <Select.Option value={3}>3</Select.Option>
-          <Select.Option value={5}>5</Select.Option>
-          <Select.Option value={10}>10</Select.Option>
-          <Select.Option value={20}>20</Select.Option>
-          <Select.Option value={50}>50</Select.Option>
-        </Select>
+          options={[
+            { label: t('settings.data.s3.maxBackups.unlimited'), value: 0 },
+            { label: '1', value: 1 },
+            { label: '3', value: 3 },
+            { label: '5', value: 5 },
+            { label: '10', value: 10 },
+            { label: '20', value: 20 },
+            { label: '50', value: 50 }
+          ]}
+        />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
