@@ -658,7 +658,8 @@
       "thai": "タイ語",
       "turkish": "トルコ語",
       "urdu": "ウルドゥー語",
-      "vietnamese": "ベトナム語"
+      "vietnamese": "ベトナム語",
+      "other": "その他"
     },
     "lmstudio": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -2428,7 +2429,16 @@
       },
       "target_language": "目標言語",
       "title": "翻訳",
-      "tooltip.newline": "改行"
+      "tooltip.newline": "改行",
+      "detect.method": "自動検出方法",
+      "detect.method.tip": "入力言語を自動検出する際に使用する方法",
+      "detect.method.placeholder": "自動検出方法を選択",
+      "detect.method.algo": "アルゴリズム",
+      "detect.method.algo.tip": "Francアルゴリズムを使用して言語を検出",
+      "detect.method.llm": "LLM",
+      "detect.method.llm.tip": "翻訳モデルを使用して言語を検出（少量のトークンを消費）",
+      "detect.method.auto": "スマート選択",
+      "detect.method.auto.tip": "適切な検出方法を自動的に選択"
     },
     "tray": {
       "quit": "終了",

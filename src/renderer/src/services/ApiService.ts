@@ -11,10 +11,12 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import {
+  LANG_DETECT_PROMPT,
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { translateLanguageOptions } from '@renderer/config/translate'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import {
@@ -416,6 +418,61 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
     assistant: { ...assistant, model },
     streamOutput: stream,
     enableReasoning,
+    onResponse
+  }
+
+  const AI = new AiProvider(provider)
+
+  try {
+    return (await AI.completions(params)).getText() || ''
+  } catch (error: any) {
+    return ''
+  }
+}
+
+interface FetchLanguageDetectionProps {
+  text: string
+  onResponse?: (text: string, isComplete: boolean) => void
+}
+
+export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
+  const listLang = translateLanguageOptions.map((item) => item.langCode)
+  const listLangText = JSON.stringify(listLang)
+
+  const model = getTranslateModel() || getDefaultModel()
+  if (!model) {
+    throw new Error(i18n.t('error.provider_disabled'))
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    throw new Error(i18n.t('error.no_api_key'))
+  }
+
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.model = model
+  assistant.settings = {
+    temperature: 0.7
+  }
+  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+
+  const isSupportedStreamOutput = () => {
+    if (!onResponse) {
+      return false
+    }
+    return true
+  }
+
+  const stream = isSupportedStreamOutput()
+
+  const params: CompletionsParams = {
+    callType: 'lang-detect',
+    messages: 'follow system prompt',
+    assistant,
+    streamOutput: stream,
+    enableReasoning: false,
     onResponse
   }
 

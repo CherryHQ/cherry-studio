@@ -366,7 +366,7 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "save.file.title": "[to be translated]:Save to Local File"
+      "save.file.title": "儲存到本地檔案"
     },
     "html_artifacts": {
       "code": "程式碼",
@@ -658,7 +658,8 @@
       "thai": "泰文",
       "turkish": "土耳其文",
       "urdu": "烏爾都文",
-      "vietnamese": "越南文"
+      "vietnamese": "越南文",
+      "other": "其他"
     },
     "lmstudio": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
@@ -2428,7 +2429,16 @@
       },
       "target_language": "目標語言",
       "title": "翻譯",
-      "tooltip.newline": "換行"
+      "tooltip.newline": "換行",
+      "detect.method": "自動檢測方法",
+      "detect.method.tip": "自動檢測輸入語言時使用的方法",
+      "detect.method.placeholder": "選擇自動檢測方法",
+      "detect.method.algo": "演算法",
+      "detect.method.algo.tip": "使用franc演算法進行語言檢測",
+      "detect.method.llm": "LLM",
+      "detect.method.llm.tip": "使用翻譯模型進行語言檢測，消耗少量token",
+      "detect.method.auto": "智慧選擇",
+      "detect.method.auto.tip": "自動選擇合適的檢測方法"
     },
     "tray": {
       "quit": "結束",

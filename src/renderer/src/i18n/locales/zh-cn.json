@@ -467,8 +467,7 @@
       "swap": "交换",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户",
-      "llm": "大语言模型"
+      "you": "用户"
     },
     "docs": {
       "title": "帮助文档"
@@ -641,6 +640,7 @@
       "urls": "网址"
     },
     "languages": {
+      "other": "其他",
       "arabic": "阿拉伯文",
       "chinese": "简体中文",
       "chinese-traditional": "繁体中文",
@@ -2431,10 +2431,14 @@
       "title": "翻译",
       "tooltip.newline": "换行",
       "detect.method": "自动检测方法",
+      "detect.method.tip": "自动检测输入语言时使用的方法",
       "detect.method.placeholder": "选择自动检测方法",
-      "detect.method.algo": "自动检测算法",
-      "detect.method.llm": "大语言模型",
-      "detect.method.llm.tip": "将使用选择的翻译模型截取短文本片段进行语言检测"
+      "detect.method.algo": "算法",
+      "detect.method.algo.tip": "使用franc算法进行语言检测",
+      "detect.method.llm": "LLM",
+      "detect.method.llm.tip": "使用翻译模型进行语言检测，消耗少量token",
+      "detect.method.auto": "智能选择",
+      "detect.method.auto.tip": "自动选择合适的检测方法"
     },
     "tray": {
       "quit": "退出",
