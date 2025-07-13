@@ -1,8 +1,6 @@
 import { BrowserWindow, Notification as ElectronNotification } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
-import icon from '../../../build/icon.png?asset'
-
 class NotificationService {
   private window: BrowserWindow
 
@@ -15,8 +13,7 @@ class NotificationService {
     // 使用 Electron Notification API
     const electronNotification = new ElectronNotification({
       title: notification.title,
-      body: notification.message,
-      icon: icon
+      body: notification.message
     })
 
     electronNotification.on('click', () => {

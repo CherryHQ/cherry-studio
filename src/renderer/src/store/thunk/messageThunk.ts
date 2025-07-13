@@ -42,9 +42,8 @@ import {
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { getTopicQueue } from '@renderer/utils/queue'
-import { waitForTopicQueue } from '@renderer/utils/queue'
-import { isOnHomePage } from '@renderer/utils/window'
+import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { isFocused, isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -771,7 +770,8 @@ const fetchAndProcessAssistantResponseImpl = async (
             message: serializableError.message,
             silent: false,
             timestamp: Date.now(),
-            source: 'assistant'
+            source: 'assistant',
+            channel: 'system'
           })
         }
         const possibleBlockId =
@@ -833,10 +833,8 @@ const fetchAndProcessAssistantResponseImpl = async (
             smartBlockUpdate(possibleBlockId, changes, lastBlockType!, true)
           }
 
-          const endTime = Date.now()
-          const duration = endTime - startTime
           const content = getMainTextContent(finalAssistantMsg)
-          if (!isOnHomePage() && duration > 60 * 1000) {
+          if (!isFocused()) {
             await notificationService.send({
               id: uuid(),
               type: 'success',
@@ -844,7 +842,8 @@ const fetchAndProcessAssistantResponseImpl = async (
               message: content.length > 50 ? content.slice(0, 47) + '...' : content,
               silent: false,
               timestamp: Date.now(),
-              source: 'assistant'
+              source: 'assistant',
+              channel: 'system'
             })
           }
 
@@ -857,8 +856,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               response?.usage?.prompt_tokens === 0 ||
               response?.usage?.completion_tokens === 0)
           ) {
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-            response.usage = usage
+            response.usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
           }
           // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
         }
@@ -890,7 +888,6 @@ const fetchAndProcessAssistantResponseImpl = async (
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
-    const startTime = Date.now()
     await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
