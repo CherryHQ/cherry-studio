@@ -27,7 +27,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '../aiCore/middleware/schemas'
-import { requestToolConfirmation } from './userConfirmation'
+import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from './userConfirmation'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -391,7 +391,7 @@ export function geminiFunctionCallToMcpTool(
 ): MCPTool | undefined {
   if (!toolCall) return undefined
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolCall.name)
+  const tool = mcpTools.find((tool) => tool.id === toolCall.name || tool.name === toolCall.name)
   if (!tool) {
     return undefined
   }
@@ -459,6 +459,11 @@ export function filterMCPTools(
 export function getMcpServerByTool(tool: MCPTool) {
   const servers = store.getState().mcp.servers
   return servers.find((s) => s.id === tool.serverId)
+}
+
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  const effectiveServer = server ?? getMcpServerByTool(tool)
+  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
 }
 
 export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
@@ -576,7 +581,22 @@ export async function parseAndCallTools<R>(
   const pendingPromises: Promise<void>[] = []
 
   curToolResponses.forEach((toolResponse) => {
-    const confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal)
+    const server = getMcpServerByTool(toolResponse.tool)
+    const isAutoApproveEnabled = isToolAutoApproved(toolResponse.tool, server)
+    let confirmationPromise: Promise<boolean>
+    if (isAutoApproveEnabled) {
+      confirmationPromise = Promise.resolve(true)
+    } else {
+      setToolIdToNameMapping(toolResponse.id, toolResponse.tool.name)
+
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal).then((confirmed) => {
+        if (confirmed && server) {
+          // 自动确认其他同名的待确认工具
+          confirmSameNameTools(toolResponse.tool.name)
+        }
+        return confirmed
+      })
+    }
 
     const processingPromise = confirmationPromise
       .then(async (confirmed) => {
@@ -700,15 +720,8 @@ export async function parseAndCallTools<R>(
     pendingPromises.push(processingPromise)
   })
 
-  Logger.info(
-    `🔧 [MCP] Waiting for tool confirmations:`,
-    curToolResponses.map((t) => t.id)
-  )
-
   // 等待所有工具处理完成（但每个工具的状态已经实时更新）
   await Promise.all(pendingPromises)
-
-  Logger.info(`🔧 [MCP] All tools processed. Confirmed tools: ${confirmedTools.length}`)
 
   return { toolResults, confirmedToolResponses: confirmedTools }
 }

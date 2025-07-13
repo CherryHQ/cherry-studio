@@ -3412,7 +3412,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.0.2, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1":
+"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.0.2, @lezer/common@npm:^1.0.3, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1":
   version: 1.2.3
   resolution: "@lezer/common@npm:1.2.3"
   checksum: 10c0/fe9f8e111080ef94037a34ca2af1221c8d01c1763ba5ecf708a286185c76119509a5d19d924c8842172716716ddce22d7834394670c4a9432f0ba9f3b7c0f50d
@@ -3515,7 +3515,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/lr@npm:^1.0.0, @lezer/lr@npm:^1.1.0, @lezer/lr@npm:^1.3.0, @lezer/lr@npm:^1.3.1, @lezer/lr@npm:^1.3.10, @lezer/lr@npm:^1.3.3, @lezer/lr@npm:^1.4.0":
+"@lezer/lr@npm:^1.0.0, @lezer/lr@npm:^1.1.0, @lezer/lr@npm:^1.3.0, @lezer/lr@npm:^1.3.1, @lezer/lr@npm:^1.3.10, @lezer/lr@npm:^1.3.3, @lezer/lr@npm:^1.4.0, @lezer/lr@npm:^1.4.2":
   version: 1.4.2
   resolution: "@lezer/lr@npm:1.4.2"
   dependencies:
@@ -3578,7 +3578,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/xml@npm:^1.0.0":
+"@lezer/xml@npm:^1.0.0, @lezer/xml@npm:^1.0.2":
   version: 1.0.6
   resolution: "@lezer/xml@npm:1.0.6"
   dependencies:
@@ -6962,6 +6962,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@viz-js/lang-dot@npm:^1.0.5":
+  version: 1.0.5
+  resolution: "@viz-js/lang-dot@npm:1.0.5"
+  dependencies:
+    "@codemirror/language": "npm:^6.8.0"
+    "@lezer/common": "npm:^1.0.3"
+    "@lezer/highlight": "npm:^1.1.6"
+    "@lezer/lr": "npm:^1.4.2"
+    "@lezer/xml": "npm:^1.0.2"
+  checksum: 10c0/86e81bf077e0a6f418fe2d5cfd8d7f7a7c032bdec13e5dfe3d21620c548e674832f6c9b300eeaad7b0842a3c4044d4ce33d5af9e359ae1efeda0a84d772b77a4
+  languageName: node
+  linkType: hard
+
+"@viz-js/viz@npm:^3.14.0":
+  version: 3.14.0
+  resolution: "@viz-js/viz@npm:3.14.0"
+  checksum: 10c0/901afa2d99e8f33cc4abf352f1559e0c16958e01f0750a65a33799aebfe175a18d74f6945f1ff93f64b53b69976dc3d07d39d65c58dda955abd0979dacc4294c
+  languageName: node
+  linkType: hard
+
 "@vue/compiler-core@npm:3.5.17":
   version: 3.5.17
   resolution: "@vue/compiler-core@npm:3.5.17"
@@ -7075,6 +7095,7 @@ __metadata:
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/mac-system-ocr": "npm:^0.2.2"
     "@cherrystudio/pdf-to-img-napi": "npm:^0.0.1"
+    "@codemirror/view": "npm:^6.0.0"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"
@@ -7127,6 +7148,8 @@ __metadata:
     "@vitest/coverage-v8": "npm:^3.1.4"
     "@vitest/ui": "npm:^3.1.4"
     "@vitest/web-worker": "npm:^3.1.4"
+    "@viz-js/lang-dot": "npm:^1.0.5"
+    "@viz-js/viz": "npm:^3.14.0"
     "@xyflow/react": "npm:^12.4.4"
     antd: "patch:antd@npm%3A5.24.7#~/.yarn/patches/antd-npm-5.24.7-356a553ae5.patch"
     archiver: "npm:^7.0.1"
@@ -7212,7 +7235,7 @@ __metadata:
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^1.0.5"
+    selection-hook: "npm:^1.0.6"
     shiki: "npm:^3.7.0"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -7221,6 +7244,7 @@ __metadata:
     tokenx: "npm:^1.1.0"
     turndown: "npm:7.2.0"
     typescript: "npm:^5.6.2"
+    unified: "npm:^11.0.5"
     uuid: "npm:^10.0.0"
     vite: "npm:6.2.6"
     vitest: "npm:^3.1.4"
@@ -18205,14 +18229,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^1.0.5":
-  version: 1.0.5
-  resolution: "selection-hook@npm:1.0.5"
+"selection-hook@npm:^1.0.6":
+  version: 1.0.6
+  resolution: "selection-hook@npm:1.0.6"
   dependencies:
     node-addon-api: "npm:^8.4.0"
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/d188e2bafa6d820779e57a721bd2480dc1fde3f9daa2e3f92f1b69712637079e5fd9443575bc8624c98a057608f867d82fb2abf2d0796777db1f18ea50ea0028
+  checksum: 10c0/c7d28db51fc16b5648530344cbe1d5b72a7469cfb7edbb9c56d7be4bea2d93ddd01993fb27b344e44865f9eb0f3211b1be638caaacd0f9165b2bc03bada7c360
   languageName: node
   linkType: hard
 
@@ -19565,7 +19589,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"unified@npm:^11.0.0":
+"unified@npm:^11.0.0, unified@npm:^11.0.5":
   version: 11.0.5
   resolution: "unified@npm:11.0.5"
   dependencies:

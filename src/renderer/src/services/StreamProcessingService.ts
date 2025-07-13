@@ -8,10 +8,14 @@ import { AssistantMessageStatus } from '@renderer/types/newMessage'
 export interface StreamProcessorCallbacks {
   // LLM response created
   onLLMResponseCreated?: () => void
+  // Text content start
+  onTextStart?: () => void
   // Text content chunk received
   onTextChunk?: (text: string) => void
   // Full text content received
   onTextComplete?: (text: string) => void
+  // thinking content start
+  onThinkingStart?: () => void
   // Thinking/reasoning content chunk received (e.g., from Claude)
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
@@ -54,12 +58,20 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           if (callbacks.onLLMResponseCreated) callbacks.onLLMResponseCreated()
           break
         }
+        case ChunkType.TEXT_START: {
+          if (callbacks.onTextStart) callbacks.onTextStart()
+          break
+        }
         case ChunkType.TEXT_DELTA: {
           if (callbacks.onTextChunk) callbacks.onTextChunk(data.text)
           break
         }
         case ChunkType.TEXT_COMPLETE: {
           if (callbacks.onTextComplete) callbacks.onTextComplete(data.text)
+          break
+        }
+        case ChunkType.THINKING_START: {
+          if (callbacks.onThinkingStart) callbacks.onThinkingStart()
           break
         }
         case ChunkType.THINKING_DELTA: {

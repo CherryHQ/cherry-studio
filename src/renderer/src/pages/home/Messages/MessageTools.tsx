@@ -1,13 +1,15 @@
 import { CheckOutlined, CloseOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Tooltip } from 'antd'
 import { message } from 'antd'
 import Logger from 'electron-log/renderer'
-import { PauseCircle } from 'lucide-react'
-import { FC, memo, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
+import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -15,11 +17,15 @@ interface Props {
   block: ToolMessageBlock
 }
 
+const COUNTDOWN_TIME = 30
+
 const MessageTools: FC<Props> = ({ block }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
+  const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
+  const { mcpServers, updateMCPServer } = useMCPServers()
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -28,6 +34,32 @@ const MessageTools: FC<Props> = ({ block }) => {
   const isPending = status === 'pending'
   const isInvoking = status === 'invoking'
   const isDone = status === 'done'
+
+  const timer = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (!isPending) return
+
+    if (countdown > 0) {
+      timer.current = setTimeout(() => {
+        console.log('countdown', countdown)
+        setCountdown((prev) => prev - 1)
+      }, 1000)
+    } else if (countdown === 0) {
+      confirmToolAction(id)
+    }
+
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current)
+      }
+    }
+  }, [countdown, id, isPending])
+
+  const cancelCountdown = () => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+    }
+  }
 
   const argsString = useMemo(() => {
     if (toolResponse?.arguments) {
@@ -67,10 +99,12 @@ const MessageTools: FC<Props> = ({ block }) => {
   }
 
   const handleConfirmTool = () => {
+    cancelCountdown()
     confirmToolAction(id)
   }
 
   const handleCancelTool = () => {
+    cancelCountdown()
     cancelToolAction(id)
   }
 
@@ -90,6 +124,76 @@ const MessageTools: FC<Props> = ({ block }) => {
     }
   }
 
+  const handleAutoApprove = async () => {
+    cancelCountdown()
+
+    if (!tool || !tool.name) {
+      return
+    }
+
+    const server = mcpServers.find((s) => s.id === tool.serverId)
+    if (!server) {
+      return
+    }
+
+    let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+
+    // Remove tool from disabledAutoApproveTools to enable auto-approve
+    disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== tool.name)
+
+    const updatedServer = {
+      ...server,
+      disabledAutoApproveTools
+    }
+
+    updateMCPServer(updatedServer)
+
+    // Also confirm the current tool
+    confirmToolAction(id)
+
+    message.success({
+      content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
+      key: 'auto-approve'
+    })
+  }
+
+  const renderStatusIndicator = (status: string, hasError: boolean) => {
+    let label = ''
+    let icon: React.ReactNode | null = null
+    switch (status) {
+      case 'pending':
+        label = t('message.tools.pending', 'Awaiting Approval')
+        icon = <LoadingOutlined spin style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
+        break
+      case 'invoking':
+        label = t('message.tools.invoking')
+        icon = <LoadingOutlined spin style={{ marginLeft: 6 }} />
+        break
+      case 'cancelled':
+        label = t('message.tools.cancelled')
+        icon = <CloseOutlined style={{ marginLeft: 6 }} />
+        break
+      case 'done':
+        if (hasError) {
+          label = t('message.tools.error')
+          icon = <WarningOutlined style={{ marginLeft: 6 }} />
+        } else {
+          label = t('message.tools.completed')
+          icon = <CheckOutlined style={{ marginLeft: 6 }} />
+        }
+        break
+      default:
+        label = ''
+        icon = null
+    }
+    return (
+      <StatusIndicator status={status} hasError={hasError}>
+        {label}
+        {icon}
+      </StatusIndicator>
+    )
+  }
+
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
@@ -104,107 +208,32 @@ const MessageTools: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName>{tool.name}</ToolName>
-            <StatusIndicator status={status} hasError={hasError}>
-              {(() => {
-                switch (status) {
-                  case 'pending':
-                    return (
-                      <>
-                        {t('message.tools.pending')}
-                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
-                      </>
-                    )
-                  case 'invoking':
-                    return (
-                      <>
-                        {t('message.tools.invoking')}
-                        <LoadingOutlined spin style={{ marginLeft: 6 }} />
-                      </>
-                    )
-                  case 'cancelled':
-                    return (
-                      <>
-                        {t('message.tools.cancelled')}
-                        <CloseOutlined style={{ marginLeft: 6 }} />
-                      </>
-                    )
-                  case 'done':
-                    if (hasError) {
-                      return (
-                        <>
-                          {t('message.tools.error')}
-                          <WarningOutlined style={{ marginLeft: 6 }} />
-                        </>
-                      )
-                    } else {
-                      return (
-                        <>
-                          {t('message.tools.completed')}
-                          <CheckOutlined style={{ marginLeft: 6 }} />
-                        </>
-                      )
-                    }
-                  default:
-                    return ''
-                }
-              })()}
-            </StatusIndicator>
+            <ToolName align="center" gap={4}>
+              {tool.serverName} : {tool.name}
+              {isToolAutoApproved(tool) && (
+                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                  <ShieldCheck size={14} color="var(--status-color-success)" />
+                </Tooltip>
+              )}
+            </ToolName>
           </TitleContent>
           <ActionButtonsContainer>
-            {isPending && (
-              <>
-                <Tooltip title={t('common.cancel')} mouseEnterDelay={0.3}>
-                  <ActionButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleCancelTool()
-                    }}
-                    aria-label={t('common.cancel')}>
-                    <CloseOutlined style={{ fontSize: '14px' }} />
-                  </ActionButton>
-                </Tooltip>
-                <Tooltip title={t('common.confirm')} mouseEnterDelay={0.3}>
-                  <ActionButton
-                    className="confirm-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleConfirmTool()
-                    }}
-                    aria-label={t('common.confirm')}>
-                    <CheckOutlined style={{ fontSize: '14px' }} />
-                  </ActionButton>
-                </Tooltip>
-              </>
-            )}
-            {isInvoking && toolResponse?.id && (
-              <Tooltip title={t('chat.input.pause')} mouseEnterDelay={0.3}>
+            <StatusIndicator status={status} hasError={hasError}>
+              {renderStatusIndicator(status, hasError)}
+            </StatusIndicator>
+            {!isPending && !isInvoking && (
+              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
                 <ActionButton
-                  className="abort-button"
+                  className="message-action-button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleAbortTool()
+                    copyContent(JSON.stringify(result, null, 2), id)
                   }}
-                  aria-label={t('chat.input.pause')}>
-                  <PauseCircle color="var(--color-error)" size={14} />
+                  aria-label={t('common.copy')}>
+                  {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
+                  {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
                 </ActionButton>
               </Tooltip>
-            )}
-            {isDone && response && (
-              <>
-                <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
-                  <ActionButton
-                    className="message-action-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyContent(JSON.stringify(result, null, 2), id)
-                    }}
-                    aria-label={t('common.copy')}>
-                    {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
-                    {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-                  </ActionButton>
-                </Tooltip>
-              </>
             )}
           </ActionButtonsContainer>
         </MessageTitleLabel>
@@ -231,16 +260,91 @@ const MessageTools: FC<Props> = ({ block }) => {
   }
 
   return (
-    <ToolContainer>
-      <CollapseContainer
-        activeKey={activeKeys}
-        size="small"
-        onChange={handleCollapseChange}
-        className="message-tools-container"
-        items={getCollapseItems()}
-        expandIconPosition="end"
-      />
-    </ToolContainer>
+    <ConfigProvider
+      theme={{
+        components: {
+          Button: {
+            borderRadiusSM: 6
+          }
+        }
+      }}>
+      <ToolContainer>
+        <ToolContentWrapper className={status}>
+          <CollapseContainer
+            ghost
+            activeKey={activeKeys}
+            size="small"
+            onChange={handleCollapseChange}
+            className="message-tools-container"
+            items={getCollapseItems()}
+            expandIconPosition="end"
+            expandIcon={({ isActive }) => (
+              <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
+            )}
+          />
+          {(isPending || isInvoking) && (
+            <ActionsBar>
+              <ActionLabel>
+                {isPending ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
+              </ActionLabel>
+
+              <ActionButtonsGroup>
+                {isPending && (
+                  <Button
+                    color="danger"
+                    variant="filled"
+                    size="small"
+                    onClick={() => {
+                      handleCancelTool()
+                    }}>
+                    <CircleX size={15} className="lucide-custom" />
+                    {t('common.cancel')}
+                  </Button>
+                )}
+                {isInvoking && toolResponse?.id ? (
+                  <Button
+                    size="small"
+                    color="danger"
+                    variant="solid"
+                    className="abort-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAbortTool()
+                    }}>
+                    <PauseCircle className="lucide-custom" size={14} />
+                    {t('chat.input.pause')}
+                  </Button>
+                ) : (
+                  <StyledDropdownButton
+                    size="small"
+                    type="primary"
+                    icon={<ChevronDown size={14} />}
+                    onClick={() => {
+                      handleConfirmTool()
+                    }}
+                    menu={{
+                      items: [
+                        {
+                          key: 'autoApprove',
+                          label: t('settings.mcp.tools.autoApprove'),
+                          onClick: () => {
+                            handleAutoApprove()
+                          }
+                        }
+                      ]
+                    }}>
+                    <CirclePlay size={15} className="lucide-custom" />
+                    <CountdownText>
+                      {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
+                    </CountdownText>
+                  </StyledDropdownButton>
+                )}
+              </ActionButtonsGroup>
+            </ActionsBar>
+          )}
+        </ToolContentWrapper>
+      </ToolContainer>
+    </ConfigProvider>
   )
 }
 
@@ -265,29 +369,75 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
   return <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
 }
 
-const CollapseContainer = styled(Collapse)`
+const ToolContentWrapper = styled.div`
+  padding: 1px;
   border-radius: 8px;
+  overflow: hidden;
+
+  .ant-collapse {
+    border: 1px solid var(--color-border);
+  }
+
+  &.pending,
+  &.invoking {
+    background-color: var(--color-background-soft);
+    .ant-collapse {
+      border: none;
+    }
+  }
+`
+
+const ActionsBar = styled.div`
+  padding: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+`
+
+const ActionLabel = styled.div`
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const ActionButtonsGroup = styled.div`
+  display: flex;
+  gap: 10px;
+`
+
+const CountdownText = styled.span`
+  width: 65px;
+  text-align: left;
+`
+
+const StyledDropdownButton = styled(Dropdown.Button)`
+  .ant-btn-group {
+    border-radius: 6px;
+  }
+`
+
+const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
+  transition: transform 0.2s;
+  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
+`
+
+const CollapseContainer = styled(Collapse)`
+  --status-color-warning: var(--color-warning, #faad14);
+  --status-color-invoking: var(--color-primary);
+  --status-color-error: var(--color-error, #ff4d4f);
+  --status-color-success: var(--color-success, green);
+  border-radius: 7px;
   border: none;
+  background-color: var(--color-background);
   overflow: hidden;
 
   .ant-collapse-header {
-    background-color: var(--color-bg-2);
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    .ant-collapse-expand-icon {
-      height: 100% !important;
-    }
-    .ant-collapse-arrow {
-      height: 28px !important;
-      svg {
-        width: 14px;
-        height: 14px;
-      }
-    }
-    &:hover {
-      background-color: var(--color-bg-3);
-    }
+    padding: 8px 10px !important;
+    align-items: center !important;
   }
 
   .ant-collapse-content-box {
@@ -297,11 +447,7 @@ const CollapseContainer = styled(Collapse)`
 
 const ToolContainer = styled.div`
   margin-top: 10px;
-  margin-bottom: 12px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-bg-2);
-  border-radius: 8px;
-  overflow: hidden;
+  margin-bottom: 10px;
 `
 
 const MarkdownContainer = styled.div`
@@ -319,7 +465,6 @@ const MessageTitleLabel = styled.div`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 26px;
   gap: 10px;
   padding: 0;
   margin-left: 4px;
@@ -332,7 +477,7 @@ const TitleContent = styled.div`
   gap: 8px;
 `
 
-const ToolName = styled.span`
+const ToolName = styled(Flex)`
   color: var(--color-text);
   font-weight: 500;
   font-size: 13px;
@@ -342,29 +487,30 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
   color: ${(props) => {
     switch (props.status) {
       case 'pending':
-        return 'var(--color-text-2)'
+        return 'var(--status-color-warning)'
       case 'invoking':
-        return 'var(--color-primary)'
+        return 'var(--status-color-invoking)'
       case 'cancelled':
-        return 'var(--color-error, #ff4d4f)' // Assuming cancelled should also be an error color
+        return 'var(--status-color-error)'
       case 'done':
-        return props.hasError ? 'var(--color-error, #ff4d4f)' : 'var(--color-success, #52c41a)'
+        return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
       default:
         return 'var(--color-text)'
     }
   }};
   font-size: 11px;
+  font-weight: ${(props) => (props.status === 'pending' ? '600' : '400')};
   display: flex;
   align-items: center;
-  opacity: 0.85;
-  border-left: 1px solid var(--color-border);
+  opacity: ${(props) => (props.status === 'pending' ? '1' : '0.85')};
   padding-left: 12px;
 `
 
 const ActionButtonsContainer = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
+  align-items: center;
 `
 
 const ActionButton = styled.button`

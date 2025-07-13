@@ -88,6 +88,7 @@ class McpService {
     this.stopServer = this.stopServer.bind(this)
     this.abortTool = this.abortTool.bind(this)
     this.cleanup = this.cleanup.bind(this)
+    this.getServerVersion = this.getServerVersion.bind(this)
   }
 
   private getServerKey(server: MCPServer): string {
@@ -690,6 +691,31 @@ class McpService {
     } else {
       Logger.warn(`[MCP] No active tool call found for callId: ${callId}`)
       return false
+    }
+  }
+
+  /**
+   * Get the server version information
+   */
+  public async getServerVersion(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<string | null> {
+    try {
+      Logger.info(`[MCP] Getting server version for: ${server.name}`)
+      const client = await this.initClient(server)
+
+      // Try to get server information which may include version
+      const serverInfo = client.getServerVersion()
+      Logger.info(`[MCP] Server info for ${server.name}:`, serverInfo)
+
+      if (serverInfo && serverInfo.version) {
+        Logger.info(`[MCP] Server version for ${server.name}: ${serverInfo.version}`)
+        return serverInfo.version
+      }
+
+      Logger.warn(`[MCP] No version information available for server: ${server.name}`)
+      return null
+    } catch (error: any) {
+      Logger.error(`[MCP] Failed to get server version for ${server.name}:`, error?.message)
+      return null
     }
   }
 }

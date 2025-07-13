@@ -13,6 +13,7 @@
         "title": "Доступные переменные"
       },
       "add.title": "Создать агента",
+      "add.unsaved_changes_warning": "У вас есть несохраненные изменения. Вы уверены, что хотите закрыть?",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.model.select.title": "Выбрать модель",
       "edit.title": "Редактировать агента",
@@ -233,6 +234,34 @@
       },
       "resend": "Переотправить",
       "save": "Сохранить",
+      "save.knowledge": {
+        "title": "Сохранить в базу знаний",
+        "content.maintext.title": "Основной текст",
+        "content.maintext.description": "Включает основное текстовое содержимое",
+        "content.code.title": "Блоки кода",
+        "content.code.description": "Включает отдельные блоки кода",
+        "content.thinking.title": "Размышления",
+        "content.thinking.description": "Включает содержимое рассуждений модели",
+        "content.tool_use.title": "Использование инструментов",
+        "content.tool_use.description": "Включает параметры вызова инструментов и результаты выполнения",
+        "content.citation.title": "Цитаты",
+        "content.citation.description": "Включает информацию веб-поиска и ссылки на базу знаний",
+        "content.translation.title": "Переводы",
+        "content.translation.description": "Включает переводное содержимое",
+        "content.error.title": "Ошибки",
+        "content.error.description": "Включает сообщения об ошибках во время выполнения",
+        "content.file.title": "Файлы",
+        "content.file.description": "Включает прикрепленные файлы",
+        "empty.no_content": "Это сообщение не содержит сохраняемого контента",
+        "empty.no_knowledge_base": "Нет доступных баз знаний, сначала создайте одну",
+        "error.save_failed": "Сохранение не удалось, проверьте конфигурацию базы знаний",
+        "error.invalid_base": "Выбранная база знаний настроена неправильно",
+        "error.no_content_selected": "Выберите хотя бы один тип контента",
+        "select.base.title": "Выберите базу знаний",
+        "select.base.placeholder": "Пожалуйста, выберите базу знаний",
+        "select.content.title": "Выберите типы контента для сохранения",
+        "select.content.tip": "Выбрано {{count}} элементов, текстовые типы будут объединены и сохранены как одна заметка"
+      },
       "settings.code.title": "Настройки кода",
       "settings.code_cache_max_size": "Максимальный размер кэша",
       "settings.code_cache_max_size.tip": "Максимальное количество символов, которое может быть кэшировано (тысяч символов), рассчитывается по кэшированному коду. Длина кэшированного кода значительно превышает длину чистого текста.",
@@ -336,7 +365,8 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "translate": "Перевести",
+      "save.file.title": "Сохранить в локальный файл"
     },
     "html_artifacts": {
       "code": "Код",
@@ -734,7 +764,7 @@
         "invoking": "Вызов",
         "pending": "Ожидание",
         "preview": "Предпросмотр",
-        "raw": "Исходный"
+        "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -1858,7 +1888,14 @@
           "availableTools": "Доступные инструменты",
           "inputSchema": "Схема ввода",
           "loadError": "Ошибка получения инструментов",
-          "noToolsAvailable": "Нет доступных инструментов"
+          "noToolsAvailable": "Нет доступных инструментов",
+          "enable": "Включить инструмент",
+          "autoApprove": "Автоматическое одобрение",
+          "autoApprove.tooltip.howToEnable": "Включите инструмент, чтобы использовать автоматическое одобрение",
+          "autoApprove.tooltip.enabled": "Инструмент будет автоматически выполняться без подтверждения",
+          "autoApprove.tooltip.disabled": "Инструмент будет требовать ручное одобрение перед выполнением",
+          "autoApprove.tooltip.confirm": "Вы уверены, что хотите выполнить этот инструмент MCP?",
+          "run": "Выполнить"
         },
         "type": "Тип",
         "types": {
@@ -1870,7 +1907,20 @@
         "updateError": "Ошибка обновления сервера",
         "updateSuccess": "Сервер успешно обновлен",
         "url": "URL",
-        "user": "Пользователь"
+        "user": "Пользователь",
+        "requiresConfig": "Требуется настройка",
+        "builtinServers": "Встроенные серверы",
+        "more": {
+          "modelscope": "Сервер MCP сообщества ModelScope",
+          "higress": "Сервер Higress MCP",
+          "mcpso": "Платформа поиска серверов MCP",
+          "smithery": "Инструменты Smithery MCP",
+          "glama": "Каталог серверов Glama MCP",
+          "pulsemcp": "Сервер Pulse MCP",
+          "composio": "Инструменты разработки Composio MCP",
+          "official": "Официальная коллекция серверов MCP",
+          "awesome": "Кураторский список серверов MCP"
+        }
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.divider.tooltip": "Не применимо к сообщениям в стиле пузырей",
@@ -2288,8 +2338,8 @@
             "method.cutoff": "Обрезка",
             "method.none": "Не сжимать",
             "method.rag": "RAG",
-            "rag.document_count": "Количество документов",
-            "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
+            "rag.document_count": "Количество фрагментов документов",
+            "rag.document_count.tooltip": "Ожидаемое количество фрагментов документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных фрагментов документов равно этому значению, умноженному на количество результатов поиска.",
             "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
             "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
             "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",

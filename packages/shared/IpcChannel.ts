@@ -76,6 +76,7 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_SetProgress = 'mcp:set-progress',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_GetServerVersion = 'mcp:get-server-version',
 
   // Python
   Python_Execute = 'python:execute',
@@ -147,6 +148,7 @@ export enum IpcChannel {
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+  File_OpenWithRelativePath = 'file:openWithRelativePath',
 
   // file service
   FileService_Upload = 'file-service:upload',

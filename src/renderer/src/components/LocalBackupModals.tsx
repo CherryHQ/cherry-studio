@@ -1,4 +1,4 @@
-import { backupToLocalDir } from '@renderer/services/BackupService'
+import { backupToLocal } from '@renderer/services/BackupService'
 import { Button, Input, Modal } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -74,9 +74,9 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
     setBackuping(true)
     try {
-      await backupToLocalDir({
+      await backupToLocal({
         showMessage: true,
-        customFileName
+        customFileName: customFileName || undefined
       })
       setIsModalVisible(false)
     } catch (error) {

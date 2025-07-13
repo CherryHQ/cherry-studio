@@ -1,3 +1,5 @@
+import i18n from '@renderer/i18n'
+
 export const download = (url: string, filename?: string) => {
   // 处理可直接通过 <a> 标签下载的 URL:
   // - 本地文件 ( file:// )
@@ -75,6 +77,15 @@ export const download = (url: string, filename?: string) => {
       link.click()
       URL.revokeObjectURL(blobUrl)
       link.remove()
+    })
+    .catch((error) => {
+      console.error('Download failed:', error)
+      // 显示用户友好的错误提示
+      if (error.message) {
+        window.message?.error(`${i18n.t('message.download.failed')}：${error.message}`)
+      } else {
+        window.message?.error(i18n.t('message.download.failed.network'))
+      }
     })
 }
 

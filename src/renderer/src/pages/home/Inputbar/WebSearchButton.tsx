@@ -127,7 +127,11 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   }))
 
   return (
-    <Tooltip placement="top" title={enableWebSearch ? t('common.close') : t('chat.input.web_search')} arrow>
+    <Tooltip
+      placement="top"
+      title={enableWebSearch ? t('common.close') : t('chat.input.web_search')}
+      mouseLeaveDelay={0}
+      arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <Globe
           size={18}
