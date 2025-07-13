@@ -18,7 +18,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import {
-  AutoDetectMethod,
+  AutoDetectionMethod,
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
@@ -54,8 +54,8 @@ const TranslateSettings: FC<{
   onModelChange: (model: Model) => void
   allModels: Model[]
   selectOptions: any[]
-  autoDetectMethod: AutoDetectMethod
-  setAutoDetectMethod: (value: AutoDetectMethod) => void
+  autoDetectionMethod: AutoDetectionMethod
+  setAutoDetectionMethod: (value: AutoDetectionMethod) => void
 }> = ({
   visible,
   onClose,
@@ -71,8 +71,8 @@ const TranslateSettings: FC<{
   onModelChange,
   allModels,
   selectOptions,
-  autoDetectMethod,
-  setAutoDetectMethod
+  autoDetectionMethod,
+  setAutoDetectionMethod: setAutoDetectionMethod
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -80,7 +80,7 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
-  const [detectMethod, setDetectMethod] = useState<AutoDetectMethod>(autoDetectMethod)
+  const [detectionMethod, setDetectMethod] = useState<AutoDetectionMethod>(autoDetectionMethod)
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -90,8 +90,8 @@ const TranslateSettings: FC<{
   useEffect(() => {
     setLocalPair(bidirectionalPair)
     setLocalPrompt(translateModelPrompt)
-    setDetectMethod(autoDetectMethod)
-  }, [autoDetectMethod, bidirectionalPair, translateModelPrompt, visible])
+    setDetectMethod(autoDetectionMethod)
+  }, [autoDetectionMethod, bidirectionalPair, translateModelPrompt, visible])
 
   const handleSave = () => {
     if (localPair[0] === localPair[1]) {
@@ -107,8 +107,8 @@ const TranslateSettings: FC<{
     db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
     db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
     dispatch(setTranslateModelPrompt(localPrompt))
-    setAutoDetectMethod(detectMethod)
-    db.settings.put({ id: 'translate:detect:method', value: detectMethod })
+    setAutoDetectionMethod(detectionMethod)
+    db.settings.put({ id: 'translate:detect:method', value: detectionMethod })
     window.message.success({
       content: t('message.save.success.title'),
       key: 'translate-settings-save'
@@ -246,7 +246,7 @@ const TranslateSettings: FC<{
           </div>
           <HStack alignItems="center" gap={5}>
             <Radio.Group
-              defaultValue={detectMethod}
+              defaultValue={detectionMethod}
               optionType="button"
               buttonStyle="solid"
               onChange={(e) => {
@@ -333,7 +333,7 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
   const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
-  const [autoDetectMethod, setAutoDetectMethod] = useState<AutoDetectMethod>('franc')
+  const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
 
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
@@ -559,12 +559,12 @@ const TranslatePage: FC = () => {
       const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
       setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
 
-      const autoDetectMethodSetting = await db.settings.get({ id: 'translate:detect:method' })
+      const autoDetectionMethodSetting = await db.settings.get({ id: 'translate:detect:method' })
 
-      if (autoDetectMethodSetting) {
-        setAutoDetectMethod(autoDetectMethodSetting.value)
+      if (autoDetectionMethodSetting) {
+        setAutoDetectionMethod(autoDetectionMethodSetting.value)
       } else {
-        setAutoDetectMethod('franc')
+        setAutoDetectionMethod('franc')
         db.settings.put({ id: 'translate:detect:method', value: 'franc' })
       }
     })
@@ -813,8 +813,8 @@ const TranslatePage: FC = () => {
         onModelChange={handleModelChange}
         allModels={allModels}
         selectOptions={selectOptions}
-        autoDetectMethod={autoDetectMethod}
-        setAutoDetectMethod={setAutoDetectMethod}
+        autoDetectionMethod={autoDetectionMethod}
+        setAutoDetectionMethod={setAutoDetectionMethod}
       />
     </Container>
   )

@@ -5,7 +5,7 @@ import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { MutableRefObject } from 'react'
 
-export type AutoDetectMethod = 'franc' | 'llm' | 'auto'
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
 /**
  * 检测输入文本的语言
@@ -27,7 +27,7 @@ export const detectLanguage = async (inputText: string): Promise<Language> => {
     case 'llm':
       return await detectLanguageByLLM(text)
     default:
-      throw new Error('Invalid detect method.')
+      throw new Error('Invalid detection method.')
   }
 }
 
