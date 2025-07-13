@@ -36,6 +36,7 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+  App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -73,6 +74,9 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+  Mcp_SetProgress = 'mcp:set-progress',
+  Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_GetServerVersion = 'mcp:get-server-version',
 
   // Python
   Python_Execute = 'python:execute',
@@ -144,6 +148,7 @@ export enum IpcChannel {
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+  File_OpenWithRelativePath = 'file:openWithRelativePath',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -164,6 +169,16 @@ export enum IpcChannel {
   Backup_CheckConnection = 'backup:checkConnection',
   Backup_CreateDirectory = 'backup:createDirectory',
   Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
+  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
+  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
+  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
+  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
+  Backup_SetLocalBackupDir = 'backup:setLocalBackupDir',
+  Backup_BackupToS3 = 'backup:backupToS3',
+  Backup_RestoreFromS3 = 'backup:restoreFromS3',
+  Backup_ListS3Files = 'backup:listS3Files',
+  Backup_DeleteS3File = 'backup:deleteS3File',
+  Backup_CheckS3Connection = 'backup:checkS3Connection',
 
   // zip
   Zip_Compress = 'zip:compress',

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cleanLinkCommas,
   completeLinks,
+  completionPerplexityLinks,
   convertLinks,
   convertLinksToHunyuan,
   convertLinksToOpenRouter,
@@ -88,6 +89,13 @@ describe('linkConverter', () => {
   })
 
   describe('convertLinks', () => {
+    it('should convert number links to numbered links', () => {
+      const input = '参考 [1](https://example.com/1) 和 [2](https://example.com/2)'
+      const result = convertLinks(input, true)
+      expect(result.text).toBe('参考 [<sup>1</sup>](https://example.com/1) 和 [<sup>2</sup>](https://example.com/2)')
+      expect(result.hasBufferedContent).toBe(false)
+    })
+
     it('should convert links with domain-like text to numbered links', () => {
       const input = '查看这个网站 [example.com](https://example.com)'
       const result = convertLinks(input, true)
@@ -373,6 +381,15 @@ describe('linkConverter', () => {
       const input = '[链接1](https://example.com) , [链接2](https://other.com)'
       const result = cleanLinkCommas(input)
       expect(result).toBe('[链接1](https://example.com)[链接2](https://other.com)')
+    })
+  })
+
+  describe('completionPerplexityLinks', () => {
+    it('should complete links with webSearch data', () => {
+      const webSearch = [{ url: 'https://example.com/1' }, { url: 'https://example.com/2' }]
+      const input = '参考 [1] 和 [2]'
+      const result = completionPerplexityLinks(input, webSearch)
+      expect(result).toBe('参考 [1](https://example.com/1) 和 [2](https://example.com/2)')
     })
   })
 })

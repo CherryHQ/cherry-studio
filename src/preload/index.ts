@@ -10,6 +10,7 @@ import {
   KnowledgeItem,
   MCPServer,
   Provider,
+  S3Config,
   Shortcut,
   ThemeMode,
   WebDavConfig
@@ -72,9 +73,9 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
-    restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
+    backup: (filename: string, content: string, path: string, skipBackupFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, filename, content, path, skipBackupFile),
+    restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
@@ -86,14 +87,36 @@ const api = {
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
+    backupToLocalDir: (
+      data: string,
+      fileName: string,
+      localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
+    ) => ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, data, fileName, localConfig),
+    restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
+    listLocalBackupFiles: (localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_ListLocalBackupFiles, localBackupDir),
+    deleteLocalBackupFile: (fileName: string, localBackupDir?: string) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
+    setLocalBackupDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.Backup_SetLocalBackupDir, dirPath),
+    checkWebdavConnection: (webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
+
+    backupToS3: (data: string, s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, data, s3Config),
+    restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
+    listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
+    deleteS3File: (fileName: string, s3Config: S3Config) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
+    checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
-    read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
+    read: (fileId: string, detectEncoding?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     /**
@@ -124,7 +147,8 @@ const api = {
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
-    getPathForFile: (file: File) => webUtils.getPathForFile(file)
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
+    openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding)
@@ -206,8 +230,8 @@ const api = {
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
     listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
+    callTool: ({ server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args, callId }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
@@ -215,7 +239,10 @@ const api = {
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
-    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
+    abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
+    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress),
+    getServerVersion: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server)
   },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>
@@ -285,12 +312,15 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
     setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
     setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
-    processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),
+    processAction: (actionItem: ActionItem, isFullScreen: boolean = false) =>
+      ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
-  quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text)
+  quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
+  setDisableHardwareAcceleration: (isDisable: boolean) =>
+    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

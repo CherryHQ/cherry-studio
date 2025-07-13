@@ -24,18 +24,18 @@ const AgentsSubscribeUrlSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>
         {t('agents.tag.agent')}
-        {t('settings.websearch.subscribe_add')}
+        {t('settings.tool.websearch.subscribe_add')}
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.websearch.subscribe_url')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={agentssubscribeUrl || ''}
             onChange={handleAgentChange}
             style={{ width: 315 }}
-            placeholder={t('settings.websearch.subscribe_name.placeholder')}
+            placeholder={t('settings.tool.websearch.subscribe_name.placeholder')}
           />
         </HStack>
       </SettingRow>

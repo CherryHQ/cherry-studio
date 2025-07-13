@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CopyIcon > should match snapshot with props and className 1`] = `
+<i
+  class="iconfont icon-copy custom-class"
+  data-testid="copy-icon"
+  title="Copy to clipboard"
+/>
+`;

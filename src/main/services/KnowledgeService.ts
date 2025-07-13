@@ -24,9 +24,9 @@ import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import Embeddings from '@main/knowledage/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledage/loader'
 import { NoteLoader } from '@main/knowledage/loader/noteLoader'
+import OcrProvider from '@main/knowledage/ocr/OcrProvider'
+import PreprocessProvider from '@main/knowledage/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledage/reranker/Reranker'
-import OcrProvider from '@main/ocr/OcrProvider'
-import PreprocessProvider from '@main/preprocess/PreprocessProvider'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
@@ -125,7 +125,8 @@ class KnowledgeService {
     apiKey,
     apiVersion,
     baseURL,
-    dimensions
+    dimensions,
+    documentCount
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
@@ -141,6 +142,7 @@ class KnowledgeService {
         .setModel('NO_MODEL')
         .setEmbeddingModel(embeddings)
         .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
+        .setSearchResultCount(documentCount || 30)
         .build()
     } catch (e) {
       Logger.error(e)

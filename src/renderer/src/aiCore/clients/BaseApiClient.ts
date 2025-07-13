@@ -254,7 +254,7 @@ export abstract class BaseApiClient<
 
         for (const fileBlock of textFileBlocks) {
           const file = fileBlock.file
-          const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
+          const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
           const fileNameRow = 'file: ' + file.origin_name + '\n\n'
           text = text + fileNameRow + fileContent + divider
         }

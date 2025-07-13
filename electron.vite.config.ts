@@ -8,6 +8,9 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
 
+const isDev = process.env.NODE_ENV === 'development'
+const isProd = process.env.NODE_ENV === 'production'
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
@@ -21,17 +24,21 @@ export default defineConfig({
     build: {
       rollupOptions: {
         external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
-        output: {
-          // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          manualChunks: undefined,
-          // 内联所有动态导入，这是关键配置
-          inlineDynamicImports: true
-        }
+        output: isProd
+          ? {
+              manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
+              inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+            }
+          : {}
       },
-      sourcemap: process.env.NODE_ENV === 'development'
+      sourcemap: isDev
+    },
+    esbuild: {
+      drop: ['console', 'debugger'],
+      legalComments: 'none'
     },
     optimizeDeps: {
-      noDiscovery: process.env.NODE_ENV === 'development'
+      noDiscovery: isDev
     }
   },
   preload: {
@@ -42,7 +49,7 @@ export default defineConfig({
       }
     },
     build: {
-      sourcemap: process.env.NODE_ENV === 'development'
+      sourcemap: isDev
     }
   },
   renderer: {
@@ -60,14 +67,7 @@ export default defineConfig({
           ]
         ]
       }),
-      // 只在开发环境下启用 CodeInspectorPlugin
-      ...(process.env.NODE_ENV === 'development'
-        ? [
-            CodeInspectorPlugin({
-              bundler: 'vite'
-            })
-          ]
-        : []),
+      ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer')
     ],
     resolve: {
@@ -95,6 +95,12 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
         }
       }
-    }
+    },
+    esbuild: isProd
+      ? {
+          drop: ['console', 'debugger'],
+          legalComments: 'none'
+        }
+      : {}
   }
 })

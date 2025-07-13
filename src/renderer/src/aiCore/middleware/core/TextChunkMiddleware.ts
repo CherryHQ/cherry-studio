@@ -38,7 +38,6 @@ export const TextChunkMiddleware: CompletionsMiddleware =
 
         // 用于跨chunk的状态管理
         let accumulatedTextContent = ''
-        let hasEnqueue = false
         const enhancedTextStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
@@ -53,30 +52,32 @@ export const TextChunkMiddleware: CompletionsMiddleware =
 
                 // 创建新的chunk，包含处理后的文本
                 controller.enqueue(chunk)
-              } else if (accumulatedTextContent) {
-                if (chunk.type !== ChunkType.LLM_RESPONSE_COMPLETE) {
+              } else if (accumulatedTextContent && chunk.type !== ChunkType.TEXT_START) {
+                if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
+                  const finalText = accumulatedTextContent
+                  ctx._internal.customState!.accumulatedText = finalText
+                  if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
+                    ctx._internal.toolProcessingState.output = finalText
+                  }
+
+                  // 处理 onResponse 回调 - 发送最终完整文本
+                  if (params.onResponse) {
+                    params.onResponse(finalText, true)
+                  }
+
+                  controller.enqueue({
+                    type: ChunkType.TEXT_COMPLETE,
+                    text: finalText
+                  })
                   controller.enqueue(chunk)
-                  hasEnqueue = true
+                } else {
+                  controller.enqueue({
+                    type: ChunkType.TEXT_COMPLETE,
+                    text: accumulatedTextContent
+                  })
+                  controller.enqueue(chunk)
                 }
-                const finalText = accumulatedTextContent
-                ctx._internal.customState!.accumulatedText = finalText
-                if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
-                  ctx._internal.toolProcessingState.output = finalText
-                }
-
-                // 处理 onResponse 回调 - 发送最终完整文本
-                if (params.onResponse) {
-                  params.onResponse(finalText, true)
-                }
-
-                controller.enqueue({
-                  type: ChunkType.TEXT_COMPLETE,
-                  text: finalText
-                })
                 accumulatedTextContent = ''
-                if (!hasEnqueue) {
-                  controller.enqueue(chunk)
-                }
               } else {
                 // 其他类型的chunk直接传递
                 controller.enqueue(chunk)

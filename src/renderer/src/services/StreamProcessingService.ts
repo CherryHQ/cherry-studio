@@ -8,14 +8,19 @@ import { AssistantMessageStatus } from '@renderer/types/newMessage'
 export interface StreamProcessorCallbacks {
   // LLM response created
   onLLMResponseCreated?: () => void
+  // Text content start
+  onTextStart?: () => void
   // Text content chunk received
   onTextChunk?: (text: string) => void
   // Full text content received
   onTextComplete?: (text: string) => void
+  // thinking content start
+  onThinkingStart?: () => void
   // Thinking/reasoning content chunk received (e.g., from Claude)
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
   // A tool call response chunk (from MCP)
+  onToolCallPending?: (toolResponse: MCPToolResponse) => void
   onToolCallInProgress?: (toolResponse: MCPToolResponse) => void
   onToolCallComplete?: (toolResponse: MCPToolResponse) => void
   // External tool call in progress
@@ -43,6 +48,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   return (chunk: Chunk) => {
     try {
       const data = chunk
+      // console.log('data: ', chunk)
       switch (data.type) {
         case ChunkType.BLOCK_COMPLETE: {
           if (callbacks.onComplete) callbacks.onComplete(AssistantMessageStatus.SUCCESS, data?.response)
@@ -50,6 +56,10 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.LLM_RESPONSE_CREATED: {
           if (callbacks.onLLMResponseCreated) callbacks.onLLMResponseCreated()
+          break
+        }
+        case ChunkType.TEXT_START: {
+          if (callbacks.onTextStart) callbacks.onTextStart()
           break
         }
         case ChunkType.TEXT_DELTA: {
@@ -60,12 +70,20 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           if (callbacks.onTextComplete) callbacks.onTextComplete(data.text)
           break
         }
+        case ChunkType.THINKING_START: {
+          if (callbacks.onThinkingStart) callbacks.onThinkingStart()
+          break
+        }
         case ChunkType.THINKING_DELTA: {
           if (callbacks.onThinkingChunk) callbacks.onThinkingChunk(data.text, data.thinking_millsec)
           break
         }
         case ChunkType.THINKING_COMPLETE: {
           if (callbacks.onThinkingComplete) callbacks.onThinkingComplete(data.text, data.thinking_millsec)
+          break
+        }
+        case ChunkType.MCP_TOOL_PENDING: {
+          if (callbacks.onToolCallPending) data.responses.forEach((toolResp) => callbacks.onToolCallPending!(toolResp))
           break
         }
         case ChunkType.MCP_TOOL_IN_PROGRESS: {

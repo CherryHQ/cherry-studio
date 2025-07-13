@@ -1,7 +1,7 @@
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import Logger from 'electron-log'
 import { join } from 'path'
 import type {
@@ -141,7 +141,7 @@ export class SelectionService {
    * Initialize zoom factor from config and subscribe to changes
    * Ensures UI elements scale properly with system DPI settings
    */
-  private initZoomFactor() {
+  private initZoomFactor(): void {
     const zoomFactor = configManager.getZoomFactor()
     if (zoomFactor) {
       this.setZoomFactor(zoomFactor)
@@ -154,7 +154,7 @@ export class SelectionService {
     this.zoomFactor = zoomFactor
   }
 
-  private initConfig() {
+  private initConfig(): void {
     this.triggerMode = configManager.getSelectionAssistantTriggerMode() as TriggerMode
     this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
     this.isRemeberWinSize = configManager.getSelectionAssistantRemeberWinSize()
@@ -207,7 +207,7 @@ export class SelectionService {
    * @param mode - The mode to set, either 'default', 'whitelist', or 'blacklist'
    * @param list - An array of strings representing the list of items to include or exclude
    */
-  private setHookGlobalFilterMode(mode: string, list: string[]) {
+  private setHookGlobalFilterMode(mode: string, list: string[]): void {
     if (!this.selectionHook) return
 
     const modeMap = {
@@ -245,7 +245,7 @@ export class SelectionService {
     }
   }
 
-  private setHookFineTunedList() {
+  private setHookFineTunedList(): void {
     if (!this.selectionHook) return
 
     const excludeClipboardCursorDetectList = isWin
@@ -271,6 +271,11 @@ export class SelectionService {
    * @returns {boolean} Success status of service start
    */
   public start(): boolean {
+    if (!isSupportedOS) {
+      this.logError(new Error('SelectionService start(): not supported on this OS'))
+      return false
+    }
+
     if (!this.selectionHook) {
       this.logError(new Error('SelectionService start(): instance is null'))
       return false
@@ -373,7 +378,7 @@ export class SelectionService {
    * Toggle the enabled state of the selection service
    * Will sync the new enabled store to all renderer windows
    */
-  public toggleEnabled(enabled: boolean | undefined = undefined) {
+  public toggleEnabled(enabled: boolean | undefined = undefined): void {
     if (!this.selectionHook) return
 
     const newEnabled = enabled === undefined ? !configManager.getSelectionAssistantEnabled() : enabled
@@ -389,7 +394,7 @@ export class SelectionService {
    * Sets up window properties, event handlers, and loads the toolbar UI
    * @param readyCallback Optional callback when window is ready to show
    */
-  private createToolbarWindow(readyCallback?: () => void) {
+  private createToolbarWindow(readyCallback?: () => void): void {
     if (this.isToolbarAlive()) return
 
     const { toolbarWidth, toolbarHeight } = this.getToolbarRealSize()
@@ -414,9 +419,11 @@ export class SelectionService {
       backgroundMaterial: 'none',
 
       // Platform specific settings
-      //   [macOS] DO NOT set type to 'panel', it will not work because it conflicts with other settings
       //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
-      ...(isWin ? { type: 'toolbar', focusable: false } : {}),
+      //   [macOS] `panel` conflicts with other settings ,
+      //           and log will show `NSWindow does not support nonactivating panel styleMask 0x80`
+      //           but it seems still work on fullscreen apps, so we set this anyway
+      ...(isWin ? { type: 'toolbar', focusable: false } : { type: 'panel' }),
       hiddenInMissionControl: true, // [macOS only]
       acceptFirstMouse: true, // [macOS only]
 
@@ -447,13 +454,6 @@ export class SelectionService {
     // Add show/hide event listeners
     this.toolbarWindow.on('show', () => {
       this.toolbarWindow?.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
-
-      // [macOS] force the toolbar window to be visible on current desktop
-      // but it will make docker icon flash. And we found that it's not necessary now.
-      // will remove after testing
-      // if (isMac) {
-      //   this.toolbarWindow!.setVisibleOnAllWorkspaces(false)
-      // }
     })
 
     this.toolbarWindow.on('hide', () => {
@@ -485,10 +485,10 @@ export class SelectionService {
    * @param point Reference point for positioning, logical coordinates
    * @param orientation Preferred position relative to reference point
    */
-  private showToolbarAtPosition(point: Point, orientation: RelativeOrientation) {
+  private showToolbarAtPosition(point: Point, orientation: RelativeOrientation, programName: string): void {
     if (!this.isToolbarAlive()) {
       this.createToolbarWindow(() => {
-        this.showToolbarAtPosition(point, orientation)
+        this.showToolbarAtPosition(point, orientation, programName)
       })
       return
     }
@@ -509,25 +509,55 @@ export class SelectionService {
     //should set every time the window is shown
     this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
 
-    // [macOS] force the toolbar window to be visible on current desktop
-    // but it will make docker icon flash. And we found that it's not necessary now.
-    // will remove after testing
-    // if (isMac) {
-    //   this.toolbarWindow!.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    // }
+    if (!isMac) {
+      this.toolbarWindow!.show()
+      /**
+       * [Windows]
+       *   In Windows 10, setOpacity(1) will make the window completely transparent
+       *   It's a strange behavior, so we don't use it for compatibility
+       */
+      // this.toolbarWindow!.setOpacity(1)
+      this.startHideByMouseKeyListener()
+      return
+    }
+
+    /************************************************
+     * [macOS] the following code is only for macOS
+     *
+     * WARNING:
+     *   DO NOT MODIFY THESE CODES, UNLESS YOU REALLY KNOW WHAT YOU ARE DOING!!!!
+     *************************************************/
+
+    // [macOS] a hacky way
+    // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
+    // so we just don't set `skipTransformProcessType: true` when in self app
+    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
+
+    if (!isSelf) {
+      // [macOS] an ugly hacky way
+      // `focusable: true` will make mainWindow disappeared when `setVisibleOnAllWorkspaces`
+      // so we set `focusable: true` before showing, and then set false after showing
+      this.toolbarWindow!.setFocusable(false)
+
+      // [macOS]
+      // force `setVisibleOnAllWorkspaces: true` to let toolbar show in all workspaces. And we MUST not set it to false again
+      // set `skipTransformProcessType: true` to avoid dock icon spinning when `setVisibleOnAllWorkspaces`
+      this.toolbarWindow!.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
+    }
 
     // [macOS] MUST use `showInactive()` to prevent other windows bring to front together
     // [Windows] is OK for both `show()` and `showInactive()` because of `focusable: false`
     this.toolbarWindow!.showInactive()
 
-    /**
-     * [Windows]
-     *   In Windows 10, setOpacity(1) will make the window completely transparent
-     *   It's a strange behavior, so we don't use it for compatibility
-     */
-    // this.toolbarWindow!.setOpacity(1)
+    // [macOS] restore the focusable status
+    this.toolbarWindow!.setFocusable(true)
 
     this.startHideByMouseKeyListener()
+
+    return
   }
 
   /**
@@ -588,8 +618,8 @@ export class SelectionService {
    * Check if toolbar window exists and is not destroyed
    * @returns {boolean} Toolbar window status
    */
-  private isToolbarAlive() {
-    return this.toolbarWindow && !this.toolbarWindow.isDestroyed()
+  private isToolbarAlive(): boolean {
+    return !!(this.toolbarWindow && !this.toolbarWindow.isDestroyed())
   }
 
   /**
@@ -598,7 +628,7 @@ export class SelectionService {
    * @param width New toolbar width
    * @param height New toolbar height
    */
-  public determineToolbarSize(width: number, height: number) {
+  public determineToolbarSize(width: number, height: number): void {
     const toolbarWidth = Math.ceil(width)
 
     // only update toolbar width if it's changed
@@ -611,7 +641,7 @@ export class SelectionService {
    * Get actual toolbar dimensions accounting for zoom factor
    * @returns Object containing toolbar width and height
    */
-  private getToolbarRealSize() {
+  private getToolbarRealSize(): { toolbarWidth: number; toolbarHeight: number } {
     return {
       toolbarWidth: this.TOOLBAR_WIDTH * this.zoomFactor,
       toolbarHeight: this.TOOLBAR_HEIGHT * this.zoomFactor
@@ -882,8 +912,9 @@ export class SelectionService {
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
     }
 
-    this.showToolbarAtPosition(refPoint, refOrientation)
-    this.toolbarWindow?.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
+    // [macOS] isFullscreen is only available on macOS
+    this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
+    this.toolbarWindow!.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
   }
 
   /**
@@ -891,7 +922,7 @@ export class SelectionService {
    */
 
   // Start monitoring global mouse clicks
-  private startHideByMouseKeyListener() {
+  private startHideByMouseKeyListener(): void {
     try {
       // Register event handlers
       this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
@@ -904,7 +935,7 @@ export class SelectionService {
   }
 
   // Stop monitoring global mouse clicks
-  private stopHideByMouseKeyListener() {
+  private stopHideByMouseKeyListener(): void {
     if (!this.isHideByMouseKeyListenerActive) return
 
     try {
@@ -1098,7 +1129,7 @@ export class SelectionService {
    * Initialize preloaded action windows
    * Creates a pool of windows at startup for faster response
    */
-  private async initPreloadedActionWindows() {
+  private async initPreloadedActionWindows(): Promise<void> {
     try {
       // Create initial pool of preloaded windows
       for (let i = 0; i < this.PRELOAD_ACTION_WINDOW_COUNT; i++) {
@@ -1112,7 +1143,7 @@ export class SelectionService {
   /**
    * Close all preloaded action windows
    */
-  private closePreloadedActionWindows() {
+  private closePreloadedActionWindows(): void {
     for (const actionWindow of this.preloadedActionWindows) {
       if (!actionWindow.isDestroyed()) {
         actionWindow.destroy()
@@ -1124,7 +1155,7 @@ export class SelectionService {
    * Preload a new action window asynchronously
    * This method is called after popping a window to ensure we always have windows ready
    */
-  private async pushNewActionWindow() {
+  private async pushNewActionWindow(): Promise<void> {
     try {
       const actionWindow = this.createPreloadedActionWindow()
       this.preloadedActionWindows.push(actionWindow)
@@ -1138,7 +1169,7 @@ export class SelectionService {
    * Immediately returns a window and asynchronously creates a new one
    * @returns {BrowserWindow} The action window
    */
-  private popActionWindow() {
+  private popActionWindow(): BrowserWindow {
     // Get a window from the preloaded queue or create a new one if empty
     const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
 
@@ -1189,20 +1220,26 @@ export class SelectionService {
     return actionWindow
   }
 
-  public processAction(actionItem: ActionItem): void {
+  /**
+   * Process action item
+   * @param actionItem Action item to process
+   * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
+   */
+  public processAction(actionItem: ActionItem, isFullScreen: boolean = false): void {
     const actionWindow = this.popActionWindow()
 
     actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
 
-    this.showActionWindow(actionWindow)
+    this.showActionWindow(actionWindow, isFullScreen)
   }
 
   /**
    * Show action window with proper positioning relative to toolbar
    * Ensures window stays within screen boundaries
    * @param actionWindow Window to position and show
+   * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
-  private showActionWindow(actionWindow: BrowserWindow) {
+  private showActionWindow(actionWindow: BrowserWindow, isFullScreen: boolean = false): void {
     let actionWindowWidth = this.ACTION_WINDOW_WIDTH
     let actionWindowHeight = this.ACTION_WINDOW_HEIGHT
 
@@ -1212,11 +1249,14 @@ export class SelectionService {
       actionWindowHeight = this.lastActionWindowSize.height
     }
 
-    //center way
-    if (!this.isFollowToolbar || !this.toolbarWindow) {
-      const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-      const workArea = display.workArea
+    /********************************************
+     * Setting the position of the action window
+     ********************************************/
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const workArea = display.workArea
 
+    // Center of the screen
+    if (!this.isFollowToolbar || !this.toolbarWindow) {
       const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
       const centerY = workArea.y + (workArea.height - actionWindowHeight) / 2
 
@@ -1226,53 +1266,107 @@ export class SelectionService {
         x: Math.round(centerX),
         y: Math.round(centerY)
       })
+    } else {
+      // Follow toolbar position
+      const toolbarBounds = this.toolbarWindow!.getBounds()
+      const GAP = 6 // 6px gap from screen edges
 
+      //make sure action window is inside screen
+      if (actionWindowWidth > workArea.width - 2 * GAP) {
+        actionWindowWidth = workArea.width - 2 * GAP
+      }
+
+      if (actionWindowHeight > workArea.height - 2 * GAP) {
+        actionWindowHeight = workArea.height - 2 * GAP
+      }
+
+      // Calculate initial position to center action window horizontally below toolbar
+      let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - actionWindowWidth) / 2)
+      let posY = Math.round(toolbarBounds.y)
+
+      // Ensure action window stays within screen boundaries with a small gap
+      if (posX + actionWindowWidth > workArea.x + workArea.width) {
+        posX = workArea.x + workArea.width - actionWindowWidth - GAP
+      } else if (posX < workArea.x) {
+        posX = workArea.x + GAP
+      }
+      if (posY + actionWindowHeight > workArea.y + workArea.height) {
+        // If window would go below screen, try to position it above toolbar
+        posY = workArea.y + workArea.height - actionWindowHeight - GAP
+      } else if (posY < workArea.y) {
+        posY = workArea.y + GAP
+      }
+
+      actionWindow.setPosition(posX, posY, false)
+      //KEY to make window not resize
+      actionWindow.setBounds({
+        width: actionWindowWidth,
+        height: actionWindowHeight,
+        x: posX,
+        y: posY
+      })
+    }
+
+    if (!isMac) {
       actionWindow.show()
       return
     }
 
-    //follow toolbar
-    const toolbarBounds = this.toolbarWindow!.getBounds()
-    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const workArea = display.workArea
-    const GAP = 6 // 6px gap from screen edges
+    /************************************************
+     * [macOS] the following code is only for macOS
+     *
+     * WARNING:
+     *   DO NOT MODIFY THESE CODES, UNLESS YOU REALLY KNOW WHAT YOU ARE DOING!!!!
+     *************************************************/
 
-    //make sure action window is inside screen
-    if (actionWindowWidth > workArea.width - 2 * GAP) {
-      actionWindowWidth = workArea.width - 2 * GAP
+    // act normally when the app is not in fullscreen mode
+    if (!isFullScreen) {
+      actionWindow.show()
+      return
     }
 
-    if (actionWindowHeight > workArea.height - 2 * GAP) {
-      actionWindowHeight = workArea.height - 2 * GAP
-    }
+    // [macOS] an UGLY HACKY way for fullscreen override settings
 
-    // Calculate initial position to center action window horizontally below toolbar
-    let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - actionWindowWidth) / 2)
-    let posY = Math.round(toolbarBounds.y)
+    // FIXME sometimes the dock will be shown when the action window is shown
+    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
+    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
+    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
 
-    // Ensure action window stays within screen boundaries with a small gap
-    if (posX + actionWindowWidth > workArea.x + workArea.width) {
-      posX = workArea.x + workArea.width - actionWindowWidth - GAP
-    } else if (posX < workArea.x) {
-      posX = workArea.x + GAP
-    }
-    if (posY + actionWindowHeight > workArea.y + workArea.height) {
-      // If window would go below screen, try to position it above toolbar
-      posY = workArea.y + workArea.height - actionWindowHeight - GAP
-    } else if (posY < workArea.y) {
-      posY = workArea.y + GAP
-    }
+    // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
+    actionWindow.setFocusable(false)
+    actionWindow.setAlwaysOnTop(true, 'floating')
 
-    actionWindow.setPosition(posX, posY, false)
-    //KEY to make window not resize
-    actionWindow.setBounds({
-      width: actionWindowWidth,
-      height: actionWindowHeight,
-      x: posX,
-      y: posY
+    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
+    // just store the dock icon status, and show it again
+    const isDockShown = app.dock?.isVisible()
+
+    // DO NOT set `skipTransformProcessType: true`,
+    // it will cause the action window to be shown on other space
+    actionWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true
     })
 
-    actionWindow.show()
+    actionWindow.showInactive()
+
+    // show the dock again if last time it was shown
+    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
+    if (!app.dock?.isVisible() && isDockShown) {
+      app.dock?.show()
+    }
+
+    // unset everything
+    setTimeout(() => {
+      actionWindow.setVisibleOnAllWorkspaces(false, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
+      actionWindow.setAlwaysOnTop(false)
+
+      actionWindow.setFocusable(true)
+
+      // regain the focus when all the works done
+      actionWindow.focus()
+    }, 50)
   }
 
   public closeActionWindow(actionWindow: BrowserWindow): void {
@@ -1292,38 +1386,40 @@ export class SelectionService {
    * Switches between selection-based and alt-key based triggering
    * Manages appropriate event listeners for each mode
    */
-  private processTriggerMode() {
+  private processTriggerMode(): void {
+    if (!this.selectionHook) return
+
     switch (this.triggerMode) {
       case TriggerMode.Selected:
         if (this.isCtrlkeyListenerActive) {
-          this.selectionHook!.off('key-down', this.handleKeyDownCtrlkeyMode)
-          this.selectionHook!.off('key-up', this.handleKeyUpCtrlkeyMode)
+          this.selectionHook.off('key-down', this.handleKeyDownCtrlkeyMode)
+          this.selectionHook.off('key-up', this.handleKeyUpCtrlkeyMode)
 
           this.isCtrlkeyListenerActive = false
         }
 
-        this.selectionHook!.setSelectionPassiveMode(false)
+        this.selectionHook.setSelectionPassiveMode(false)
         break
       case TriggerMode.Ctrlkey:
         if (!this.isCtrlkeyListenerActive) {
-          this.selectionHook!.on('key-down', this.handleKeyDownCtrlkeyMode)
-          this.selectionHook!.on('key-up', this.handleKeyUpCtrlkeyMode)
+          this.selectionHook.on('key-down', this.handleKeyDownCtrlkeyMode)
+          this.selectionHook.on('key-up', this.handleKeyUpCtrlkeyMode)
 
           this.isCtrlkeyListenerActive = true
         }
 
-        this.selectionHook!.setSelectionPassiveMode(true)
+        this.selectionHook.setSelectionPassiveMode(true)
         break
       case TriggerMode.Shortcut:
         //remove the ctrlkey listener, don't need any key listener for shortcut mode
         if (this.isCtrlkeyListenerActive) {
-          this.selectionHook!.off('key-down', this.handleKeyDownCtrlkeyMode)
-          this.selectionHook!.off('key-up', this.handleKeyUpCtrlkeyMode)
+          this.selectionHook.off('key-down', this.handleKeyDownCtrlkeyMode)
+          this.selectionHook.off('key-up', this.handleKeyUpCtrlkeyMode)
 
           this.isCtrlkeyListenerActive = false
         }
 
-        this.selectionHook!.setSelectionPassiveMode(true)
+        this.selectionHook.setSelectionPassiveMode(true)
         break
     }
   }
@@ -1376,8 +1472,9 @@ export class SelectionService {
       configManager.setSelectionAssistantFilterList(filterList)
     })
 
-    ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem) => {
-      selectionService?.processAction(actionItem)
+    // [macOS] only macOS has the available isFullscreen mode
+    ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem, isFullScreen: boolean = false) => {
+      selectionService?.processAction(actionItem, isFullScreen)
     })
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
@@ -1404,13 +1501,13 @@ export class SelectionService {
     this.isIpcHandlerRegistered = true
   }
 
-  private logInfo(message: string, forceShow: boolean = false) {
+  private logInfo(message: string, forceShow: boolean = false): void {
     if (isDev || forceShow) {
       Logger.info('[SelectionService] Info: ', message)
     }
   }
 
-  private logError(...args: [...string[], Error]) {
+  private logError(...args: [...string[], Error]): void {
     Logger.error('[SelectionService] Error: ', ...args)
   }
 }
@@ -1423,7 +1520,7 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   if (!isSupportedOS) return false
 
-  configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean) => {
+  configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean): void => {
     //avoid closure
     const ss = SelectionService.getInstance()
     if (!ss) {

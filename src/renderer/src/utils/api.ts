@@ -1,4 +1,14 @@
 /**
+ * 格式化 API key 字符串。
+ *
+ * @param {string} value - 需要格式化的 API key 字符串。
+ * @returns {string} 格式化后的 API key 字符串。
+ */
+export function formatApiKeys(value: string): string {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll('\n', ',')
+}
+
+/**
  * 格式化 API 主机地址。
  *
  * 根据传入的 host 判断是否需要在其末尾加 `/v1/`。

@@ -4,7 +4,7 @@ import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/compon
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
-import { getExtensionByLanguage, isValidPlantUML } from '@renderer/utils/markdown'
+import { getExtensionByLanguage, isHtmlCode, isValidPlantUML } from '@renderer/utils/markdown'
 import dayjs from 'dayjs'
 import { CirclePlay, CodeXml, Copy, Download, Eye, Square, SquarePen, SquareSplitHorizontal } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -12,13 +12,10 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CodePreview from './CodePreview'
-import HtmlArtifacts from './HtmlArtifacts'
-import MermaidPreview from './MermaidPreview'
-import PlantUmlPreview from './PlantUmlPreview'
+import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
-import SvgPreview from './SvgPreview'
-
-type ViewMode = 'source' | 'special' | 'split'
+import { ViewMode } from './types'
 
 interface Props {
   children: string
@@ -42,9 +39,10 @@ interface Props {
  * - quick 工具
  * - core 工具
  */
-const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
+export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
   const { codeEditor, codeExecution } = useSettings()
+
   const [viewMode, setViewMode] = useState<ViewMode>('special')
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState('')
@@ -56,7 +54,7 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     return codeExecution.enabled && language === 'python'
   }, [codeExecution.enabled, language])
 
-  const hasSpecialView = useMemo(() => ['mermaid', 'plantuml', 'svg'].includes(language), [language])
+  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
 
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
@@ -200,14 +198,16 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
-    if (language === 'mermaid') {
-      return <MermaidPreview setTools={setTools}>{children}</MermaidPreview>
-    } else if (language === 'plantuml' && isValidPlantUML(children)) {
-      return <PlantUmlPreview setTools={setTools}>{children}</PlantUmlPreview>
-    } else if (language === 'svg') {
-      return <SvgPreview setTools={setTools}>{children}</SvgPreview>
+    const SpecialView = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
+
+    if (!SpecialView) return null
+
+    // PlantUML 语法验证
+    if (language === 'plantuml' && !isValidPlantUML(children)) {
+      return null
     }
-    return null
+
+    return <SpecialView setTools={setTools}>{children}</SpecialView>
   }, [children, language])
 
   const renderHeader = useMemo(() => {
@@ -228,27 +228,29 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     )
   }, [specialView, sourceView, viewMode])
 
-  const renderArtifacts = useMemo(() => {
-    if (language === 'html') {
-      return <HtmlArtifacts html={children} />
-    }
-    return null
-  }, [children, language])
+  // HTML 代码块特殊处理 - 在所有 hooks 调用之后
+  if (language === 'html' && isHtmlCode(children)) {
+    return <HtmlArtifactsCard html={children} />
+  }
 
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
-      {renderArtifacts}
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
     </CodeBlockWrapper>
   )
-}
+})
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
   width: 100%;
+  /* FIXME: 最小宽度用于解决两个问题。
+   * 一是 CodePreview 在气泡样式下的用户消息中无法撑开气泡，
+   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
+   */
+  min-width: 45ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
@@ -292,7 +294,6 @@ const SplitViewWrapper = styled.div`
 
   &:not(:has(+ [class*='Container'])) {
     border-radius: 0 0 8px 8px;
+    overflow: hidden;
   }
 `
-
-export default memo(CodeBlockView)
