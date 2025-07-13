@@ -477,7 +477,7 @@ const TranslatePage: FC = () => {
       setLoading(false)
       return
     }
-  }, [autoDetectMethod, bidirectionalPair, isBidirectional, sourceLanguage, t, targetLanguage, text, translateModel])
+  }, [bidirectionalPair, isBidirectional, sourceLanguage, t, targetLanguage, text, translateModel])
 
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
