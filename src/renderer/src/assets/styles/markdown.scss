@@ -19,12 +19,14 @@
   h4,
   h5,
   h6 {
-    margin: 1em 0 1em 0;
+    margin: 1.5em 0 1em 0;
+    line-height: 1.3;
     font-weight: bold;
     font-family: var(--font-family);
   }
 
   h1 {
+    margin-top: 0;
     font-size: 2em;
     border-bottom: 0.5px solid var(--color-border);
     padding-bottom: 0.3em;
@@ -53,8 +55,9 @@
   }
 
   p {
-    margin: 1em 0;
+    margin: 1.3em 0;
     white-space: pre-wrap;
+    line-height: 1.6;
 
     &:last-child {
       margin-bottom: 5px;
@@ -82,7 +85,7 @@
   li {
     margin-bottom: 0.5em;
     pre {
-      margin: 1.5em 0;
+      margin: 1.5em 0 !important;
     }
     &::marker {
       color: var(--color-text-3);
@@ -108,6 +111,7 @@
   li code {
     background: var(--color-background-mute);
     padding: 3px 5px;
+    margin: 0 2px;
     border-radius: 5px;
     word-break: keep-all;
     white-space: pre;
@@ -122,9 +126,7 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
-    &:has(.mermaid),
-    &:has(.plantuml-preview),
-    &:has(.svg-preview) {
+    &:has(.special-preview) {
       background-color: transparent;
     }
     &:not(pre pre) {
@@ -148,16 +150,19 @@
   }
 
   blockquote {
-    margin: 1em 0;
-    padding-left: 1em;
-    color: var(--color-text-light);
-    border-left: 4px solid var(--color-border);
-    font-family: var(--font-family);
+    margin: 1.5em 0;
+    padding: 1em 1.5em;
+    background-color: var(--color-background-soft);
+    border-left: 4px solid var(--color-primary);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    position: relative;
   }
 
   table {
     --table-border-radius: 8px;
-    margin: 1em 0;
+    margin: 2em 0;
+    font-size: 0.9em;
     width: 100%;
     border-radius: var(--table-border-radius);
     overflow: hidden;
@@ -182,13 +187,19 @@
 
   th {
     background-color: var(--color-background-mute);
-    font-weight: bold;
+    font-weight: 600;
     font-family: var(--font-family);
+    text-align: left;
+  }
+
+  tr:hover {
+    background-color: var(--color-background-soft);
   }
 
   img {
     max-width: 100%;
     height: auto;
+    margin: 10px 0;
   }
 
   a,

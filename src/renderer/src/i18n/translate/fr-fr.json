@@ -289,6 +289,12 @@
       "topics.unpinned": "Annuler le fixage",
       "translate": "Traduire"
     },
+    "html_artifacts": {
+      "code": "Code",
+      "generating": "Génération",
+      "preview": "Aperçu",
+      "split": "Diviser"
+    },
     "code_block": {
       "collapse": "Réduire",
       "disable_wrap": "Désactiver le retour à la ligne",

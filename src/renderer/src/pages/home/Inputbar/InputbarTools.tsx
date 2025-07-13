@@ -290,7 +290,11 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
+          <Tooltip
+            placement="top"
+            title={t('chat.input.new_topic', { Command: newTopicShortcut })}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
             </ToolbarButton>
@@ -395,7 +399,11 @@ const InputbarTools = ({
         key: 'clear_topic',
         label: t('chat.input.clear', { Command: '' }),
         component: (
-          <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
+          <Tooltip
+            placement="top"
+            title={t('chat.input.clear', { Command: cleanTopicShortcut })}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={clearTopic}>
               <PaintbrushVertical size={18} />
             </ToolbarButton>
@@ -406,7 +414,11 @@ const InputbarTools = ({
         key: 'toggle_expand',
         label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
         component: (
-          <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
+          <Tooltip
+            placement="top"
+            title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
             </ToolbarButton>

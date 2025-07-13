@@ -33,3 +33,6 @@ export const THEME_COLOR_PRESETS = [
   '#0EA5E9', // Sky Blue
   '#0284C7' // Light Blue
 ]
+
+export const MAX_CONTEXT_COUNT = 100
+export const UNLIMITED_CONTEXT_COUNT = 100000

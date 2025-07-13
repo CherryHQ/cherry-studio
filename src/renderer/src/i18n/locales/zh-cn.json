@@ -13,6 +13,7 @@
         "title": "可用的变量"
       },
       "add.title": "创建智能体",
+      "add.unsaved_changes_warning": "你有未保存的内容，确定要关闭吗？",
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.model.select.title": "选择模型",
       "edit.title": "编辑智能体",
@@ -233,6 +234,35 @@
       },
       "resend": "重新发送",
       "save": "保存",
+      "save.file.title": "保存到本地文件",
+      "save.knowledge": {
+        "title": "保存到知识库",
+        "content.maintext.title": "主文本",
+        "content.maintext.description": "包括主要的文本内容",
+        "content.code.title": "代码块",
+        "content.code.description": "包括独立的代码块",
+        "content.thinking.title": "思考",
+        "content.thinking.description": "包括模型思考内容",
+        "content.tool_use.title": "工具调用",
+        "content.tool_use.description": "包括工具调用参数和执行结果",
+        "content.citation.title": "引用",
+        "content.citation.description": "包括网络搜索和知识库引用信息",
+        "content.translation.title": "翻译",
+        "content.translation.description": "包括翻译内容",
+        "content.error.title": "错误",
+        "content.error.description": "包括执行过程中的错误信息",
+        "content.file.title": "文件",
+        "content.file.description": "包括作为附件的文件",
+        "empty.no_content": "此消息没有可保存的内容",
+        "empty.no_knowledge_base": "暂无可用知识库，请先创建知识库",
+        "error.save_failed": "保存失败，请检查知识库配置",
+        "error.invalid_base": "所选知识库未正确配置",
+        "error.no_content_selected": "请至少选择一种内容",
+        "select.base.title": "选择知识库",
+        "select.base.placeholder": "请选择知识库",
+        "select.content.title": "选择要保存的内容类型",
+        "select.content.tip": "已选择 {{count}} 项内容，文本类型将合并保存为一个笔记"
+      },
       "settings.code.title": "代码块设置",
       "settings.code_cache_max_size": "缓存上限",
       "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多",
@@ -337,6 +367,12 @@
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
       "translate": "翻译"
+    },
+    "html_artifacts": {
+      "code": "代码",
+      "generating": "生成中",
+      "preview": "预览",
+      "split": "分屏"
     },
     "code_block": {
       "collapse": "收起",
@@ -728,7 +764,7 @@
         "invoking": "调用中",
         "pending": "等待中",
         "preview": "预览",
-        "raw": "原始"
+        "autoApproveEnabled": "此工具已启用自动批准"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -1852,7 +1888,14 @@
           "availableTools": "可用工具",
           "inputSchema": "输入模式",
           "loadError": "获取工具失败",
-          "noToolsAvailable": "无可用工具"
+          "noToolsAvailable": "无可用工具",
+          "enable": "启用工具",
+          "autoApprove": "自动批准",
+          "autoApprove.tooltip.howToEnable": "启用工具后才能使用自动批准",
+          "autoApprove.tooltip.enabled": "工具将自动运行而无需批准",
+          "autoApprove.tooltip.disabled": "工具运行前需要手动批准",
+          "autoApprove.tooltip.confirm": "是否运行该MCP工具？",
+          "run": "运行"
         },
         "type": "类型",
         "types": {
@@ -1864,7 +1907,20 @@
         "updateError": "更新服务器失败",
         "updateSuccess": "服务器更新成功",
         "url": "URL",
-        "user": "用户"
+        "user": "用户",
+        "requiresConfig": "需要配置",
+        "builtinServers": "内置服务器",
+        "more": {
+          "modelscope": "魔搭社区 MCP 服务器",
+          "higress": "Higress MCP 服务器",
+          "mcpso": "MCP 服务器发现平台",
+          "smithery": "Smithery MCP 工具",
+          "glama": "Glama MCP 服务器目录",
+          "pulsemcp": "Pulse MCP 服务器",
+          "composio": "Composio MCP 开发工具",
+          "official": "官方 MCP 服务器集合",
+          "awesome": "精选的 MCP 服务器列表"
+        }
       },
       "messages.divider": "消息分割线",
       "messages.divider.tooltip": "不适用于气泡样式消息",
@@ -1890,7 +1946,6 @@
       "messages.navigation.none": "不显示",
       "messages.prompt": "显示提示词",
       "messages.title": "消息设置",
-      "messages.tokens": "显示 Token 用量",
       "messages.use_serif_font": "使用衬线字体",
       "mineru.api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。",
       "miniapps": {
@@ -2282,8 +2337,8 @@
             "method.cutoff": "截断",
             "method.none": "不压缩",
             "method.rag": "RAG",
-            "rag.document_count": "文档数量",
-            "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
+            "rag.document_count": "文档片段数量",
+            "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档片段数量，实际提取的总数量是这个值乘以搜索结果数量。",
             "rag.embedding_dimensions.auto_get": "自动获取维度",
             "rag.embedding_dimensions.placeholder": "不设置维度",
             "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",

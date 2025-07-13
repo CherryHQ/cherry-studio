@@ -13,6 +13,7 @@
         "title": "可用的變數"
       },
       "add.title": "建立智慧代理人",
+      "add.unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？",
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.model.select.title": "選擇模型",
       "edit.title": "編輯智慧代理人",
@@ -233,6 +234,34 @@
       },
       "resend": "重新傳送",
       "save": "儲存",
+      "save.knowledge": {
+        "title": "儲存到知識庫",
+        "content.maintext.title": "主文本",
+        "content.maintext.description": "包括主要的文本內容",
+        "content.code.title": "程式碼區塊",
+        "content.code.description": "包括獨立的程式碼區塊",
+        "content.thinking.title": "思考過程",
+        "content.thinking.description": "包括模型思考內容",
+        "content.tool_use.title": "工具使用",
+        "content.tool_use.description": "包括工具呼叫參數和執行結果",
+        "content.citation.title": "引用",
+        "content.citation.description": "包括網路搜尋和知識庫引用資訊",
+        "content.translation.title": "翻譯",
+        "content.translation.description": "包括翻譯內容",
+        "content.error.title": "錯誤",
+        "content.error.description": "包括執行過程中的錯誤資訊",
+        "content.file.title": "檔案",
+        "content.file.description": "包括作為附件的檔案",
+        "empty.no_content": "此訊息沒有可儲存的內容",
+        "empty.no_knowledge_base": "暫無可用知識庫，請先建立知識庫",
+        "error.save_failed": "儲存失敗，請檢查知識庫設定",
+        "error.invalid_base": "所選知識庫未正確設定",
+        "error.no_content_selected": "請至少選擇一種內容類型",
+        "select.base.title": "選擇知識庫",
+        "select.base.placeholder": "請選擇知識庫",
+        "select.content.title": "選擇要儲存的內容類型",
+        "select.content.tip": "已選擇 {{count}} 項內容，文本類型將合併儲存為一個筆記"
+      },
       "settings.code.title": "程式碼區塊",
       "settings.code_cache_max_size": "快取上限",
       "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多",
@@ -336,7 +365,14 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "save.file.title": "[to be translated]:Save to Local File"
+    },
+    "html_artifacts": {
+      "code": "程式碼",
+      "generating": "生成中",
+      "preview": "預覽",
+      "split": "分屏"
     },
     "code_block": {
       "collapse": "折疊",
@@ -728,7 +764,7 @@
         "invoking": "調用中",
         "pending": "等待中",
         "preview": "預覽",
-        "raw": "原始碼"
+        "autoApproveEnabled": "此工具已啟用自動批准"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -1852,7 +1888,14 @@
           "availableTools": "可用工具",
           "inputSchema": "輸入模式",
           "loadError": "獲取工具失敗",
-          "noToolsAvailable": "無可用工具"
+          "noToolsAvailable": "無可用工具",
+          "enable": "啟用工具",
+          "autoApprove": "自動批准",
+          "autoApprove.tooltip.howToEnable": "啟用工具後才能使用自動批准",
+          "autoApprove.tooltip.enabled": "工具將自動運行而無需批准",
+          "autoApprove.tooltip.disabled": "工具運行前需要手動批准",
+          "autoApprove.tooltip.confirm": "是否運行該MCP工具？",
+          "run": "運行"
         },
         "type": "類型",
         "types": {
@@ -1864,7 +1907,20 @@
         "updateError": "更新伺服器失敗",
         "updateSuccess": "伺服器更新成功",
         "url": "URL",
-        "user": "用戶"
+        "user": "用戶",
+        "requiresConfig": "需要配置",
+        "builtinServers": "內置伺服器",
+        "more": {
+          "modelscope": "魔搭社區 MCP 伺服器",
+          "higress": "Higress MCP 伺服器",
+          "mcpso": "MCP 伺服器發現平台",
+          "smithery": "Smithery MCP 工具",
+          "glama": "Glama MCP 伺服器目錄",
+          "pulsemcp": "Pulse MCP 伺服器",
+          "composio": "Composio MCP 開發工具",
+          "official": "官方 MCP 伺服器集合",
+          "awesome": "精選的 MCP 伺服器清單"
+        }
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.divider.tooltip": "不適用於氣泡樣式消息",
@@ -1890,7 +1946,6 @@
       "messages.navigation.none": "不顯示",
       "messages.prompt": "提示詞顯示",
       "messages.title": "訊息設定",
-      "messages.tokens": "Token 用量顯示",
       "messages.use_serif_font": "使用襯線字型",
       "mineru.api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。",
       "miniapps": {
@@ -2282,8 +2337,8 @@
             "method.cutoff": "截斷",
             "method.none": "不壓縮",
             "method.rag": "RAG",
-            "rag.document_count": "文檔數量",
-            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
+            "rag.document_count": "文檔片段數量",
+            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔片段數量，實際提取的總數量是這個值乘以搜尋結果數量。",
             "rag.embedding_dimensions.auto_get": "自動獲取維度",
             "rag.embedding_dimensions.placeholder": "不設置維度",
             "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",

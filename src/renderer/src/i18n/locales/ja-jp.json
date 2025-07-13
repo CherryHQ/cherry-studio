@@ -13,6 +13,7 @@
         "title": "利用可能な変数"
       },
       "add.title": "エージェントを作成",
+      "add.unsaved_changes_warning": "未保存の変更があります。続行しますか？",
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.model.select.title": "モデルを選択",
       "edit.title": "エージェントを編集",
@@ -233,6 +234,34 @@
       },
       "resend": "再送信",
       "save": "保存",
+      "save.knowledge": {
+        "title": "ナレッジベースに保存",
+        "content.maintext.title": "メインテキスト",
+        "content.maintext.description": "主要なテキストコンテンツを含む",
+        "content.code.title": "コードブロック",
+        "content.code.description": "独立したコードブロックを含む",
+        "content.thinking.title": "思考プロセス",
+        "content.thinking.description": "モデルの推論内容を含む",
+        "content.tool_use.title": "ツール使用",
+        "content.tool_use.description": "ツール呼び出しパラメーターと実行結果を含む",
+        "content.citation.title": "引用",
+        "content.citation.description": "ウェブ検索とナレッジベース参照情報を含む",
+        "content.translation.title": "翻訳",
+        "content.translation.description": "翻訳コンテンツを含む",
+        "content.error.title": "エラー",
+        "content.error.description": "実行中のエラーメッセージを含む",
+        "content.file.title": "ファイル",
+        "content.file.description": "添付ファイルを含む",
+        "empty.no_content": "このメッセージには保存可能なコンテンツがありません",
+        "empty.no_knowledge_base": "利用可能なナレッジベースがありません。まず作成してください",
+        "error.save_failed": "保存に失敗しました。ナレッジベースの設定を確認してください",
+        "error.invalid_base": "選択されたナレッジベースが正しく設定されていません",
+        "error.no_content_selected": "少なくとも1つのコンテンツタイプを選択してください",
+        "select.base.title": "ナレッジベースを選択",
+        "select.base.placeholder": "ナレッジベースを選択してください",
+        "select.content.title": "保存するコンテンツタイプを選択",
+        "select.content.tip": "{{count}}項目が選択されました。テキストタイプは統合されて1つのノートとして保存されます"
+      },
       "settings.code.title": "コード設定",
       "settings.code_cache_max_size": "キャッシュ上限",
       "settings.code_cache_max_size.tip": "キャッシュできる文字数の上限（千字符）。ハイライトされたコードの長さは純粋なテキストよりもはるかに長くなります。",
@@ -336,7 +365,14 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
-      "translate": "翻訳"
+      "translate": "翻訳",
+      "save.file.title": "ローカルファイルに保存"
+    },
+    "html_artifacts": {
+      "code": "コード",
+      "generating": "生成中",
+      "preview": "プレビュー",
+      "split": "分割"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -728,7 +764,7 @@
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "raw": "生データ"
+        "autoApproveEnabled": "このツールは自動承認が有効になっています"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -1852,7 +1888,14 @@
           "availableTools": "利用可能なツール",
           "inputSchema": "入力スキーマ",
           "loadError": "ツール取得エラー",
-          "noToolsAvailable": "利用可能なツールなし"
+          "noToolsAvailable": "利用可能なツールなし",
+          "enable": "ツールを有効にする",
+          "autoApprove": "自動承認",
+          "autoApprove.tooltip.howToEnable": "ツールを有効にしてから自動承認を使用できます",
+          "autoApprove.tooltip.enabled": "ツールは承認なしで自動実行されます",
+          "autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です",
+          "autoApprove.tooltip.confirm": "このMCPツールを実行してもよろしいですか？",
+          "run": "実行"
         },
         "type": "タイプ",
         "types": {
@@ -1864,7 +1907,20 @@
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
         "url": "URL",
-        "user": "ユーザー"
+        "user": "ユーザー",
+        "requiresConfig": "設定が必要",
+        "builtinServers": "組み込みサーバー",
+        "more": {
+          "modelscope": "魔搭コミュニティ MCP サーバー",
+          "higress": "Higress MCP サーバー",
+          "mcpso": "MCP サーバー発見プラットフォーム",
+          "smithery": "Smithery MCP ツール",
+          "glama": "Glama MCP サーバーディレクトリ",
+          "pulsemcp": "Pulse MCP サーバー",
+          "composio": "Composio MCP 開発ツール",
+          "official": "公式 MCP サーバーコレクション",
+          "awesome": "厳選された MCP サーバーリスト"
+        }
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
@@ -1890,7 +1946,6 @@
       "messages.navigation.none": "表示しない",
       "messages.prompt": "プロンプト表示",
       "messages.title": "メッセージ設定",
-      "messages.tokens": "トークン使用量を表示",
       "messages.use_serif_font": "セリフフォントを使用",
       "mineru.api_key": "Mineruでは現在、1日500ページの無料クォータを提供しており、キーを入力する必要はありません。",
       "miniapps": {
@@ -2282,8 +2337,8 @@
             "method.cutoff": "切り捨て",
             "method.none": "圧縮しない",
             "method.rag": "RAG",
-            "rag.document_count": "文書数",
-            "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+            "rag.document_count": "文書チャンク数",
+            "rag.document_count.tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。",
             "rag.embedding_dimensions.auto_get": "次元を自動取得",
             "rag.embedding_dimensions.placeholder": "次元を設定しない",
             "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",

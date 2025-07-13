@@ -36,10 +36,6 @@ const SelectionActionApp: FC = () => {
   const lastScrollHeight = useRef(0)
 
   useEffect(() => {
-    if (isAutoPin) {
-      window.api.selection.pinActionWindow(true)
-    }
-
     const actionListenRemover = window.electron?.ipcRenderer.on(
       IpcChannel.Selection_UpdateActionData,
       (_, actionItem: ActionItem) => {
@@ -59,6 +55,20 @@ const SelectionActionApp: FC = () => {
     // don't need any dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (isAutoPin) {
+      window.api.selection.pinActionWindow(true)
+      setIsPinned(true)
+    } else if (!isActionLoaded.current) {
+      window.api.selection.pinActionWindow(false)
+      setIsPinned(false)
+    }
+  }, [isAutoPin])
+
+  useEffect(() => {
+    shouldCloseWhenBlur.current = isAutoClose && !isPinned
+  }, [isAutoClose, isPinned])
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -99,10 +109,6 @@ const SelectionActionApp: FC = () => {
       document.title = `${action.isBuiltIn ? t(action.name) : action.name} - ${t('selection.name')}`
     }
   }, [action, t])
-
-  useEffect(() => {
-    shouldCloseWhenBlur.current = isAutoClose && !isPinned
-  }, [isAutoClose, isPinned])
 
   useEffect(() => {
     //if the action is loaded, we should not set the opacity update from settings

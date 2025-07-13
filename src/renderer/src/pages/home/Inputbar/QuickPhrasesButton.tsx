@@ -148,7 +148,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
 
   return (
     <>
-      <Tooltip placement="top" title={t('settings.quickPhrase.title')} arrow>
+      <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
         <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
           <Zap size={18} />
         </ToolbarButton>
