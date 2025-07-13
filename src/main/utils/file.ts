@@ -1,14 +1,15 @@
 import * as fs from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isPortable } from '@main/constant'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
+import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import iconv from 'iconv-lite'
-import { detect as detectEncoding_, detectAll as detectEncodingAll } from 'jschardet'
+import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 export function initAppDataDir() {
@@ -207,55 +208,47 @@ export function getAppConfigDir(name: string) {
 }
 
 /**
- * 使用 jschardet 库检测文件编码格式
- * @param filePath - 文件路径
- * @returns 返回文件的编码格式，如 UTF-8, ascii, GB2312 等
- */
-export function detectEncoding(filePath: string): string {
-  // 读取文件前1KB来检测编码
-  const buffer = Buffer.alloc(1024)
-  const fd = fs.openSync(filePath, 'r')
-  fs.readSync(fd, buffer, 0, 1024, 0)
-  fs.closeSync(fd)
-  const { encoding } = detectEncoding_(buffer)
-  return encoding
-}
-
-/**
  * 读取文件内容并自动检测编码格式进行解码
  * @param filePath - 文件路径
  * @returns 解码后的文件内容
  */
-export function readTextFileWithAutoEncoding(filePath: string) {
-  const encoding = detectEncoding(filePath)
-  const data = fs.readFileSync(filePath)
-  const content = iconv.decode(data, encoding)
+export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
+  // 读取前1MB以检测编码
+  const buffer = Buffer.alloc(1 * MB)
+  const fh = await open(filePath, 'r')
+  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  await fh.close()
 
-  if (content.includes('\uFFFD') && encoding !== 'UTF-8') {
-    Logger.error(`文件 ${filePath} 自动识别编码为 ${encoding}，但包含错误字符。尝试其他编码`)
-    const buffer = Buffer.alloc(1024)
-    const fd = fs.openSync(filePath, 'r')
-    fs.readSync(fd, buffer, 0, 1024, 0)
-    fs.closeSync(fd)
-    const encodings = detectEncodingAll(buffer)
-    if (encodings.length > 0) {
-      for (const item of encodings) {
-        if (item.encoding === encoding) {
-          continue
-        }
-        Logger.log(`尝试使用 ${item.encoding} 解码文件 ${filePath}`)
-        const content = iconv.decode(buffer, item.encoding)
-        if (!content.includes('\uFFFD')) {
-          Logger.log(`文件 ${filePath} 解码成功，编码为 ${item.encoding}`)
-          return content
-        } else {
-          Logger.error(`文件 ${filePath} 使用 ${item.encoding} 解码失败，尝试下一个编码`)
-        }
-      }
-    }
-    Logger.error(`文件 ${filePath} 所有可能的编码均解码失败，尝试使用 UTF-8 解码`)
-    return iconv.decode(buffer, 'UTF-8')
+  // 获取文件编码格式，最多取前两个可能的编码
+  const encodings = jschardet
+    .detectAll(bufferRead)
+    .map((item) => ({
+      ...item,
+      encoding: item.encoding === 'ascii' ? 'UTF-8' : item.encoding
+    }))
+    .filter((item, index, array) => array.findIndex((prevItem) => prevItem.encoding === item.encoding) === index)
+    .slice(0, 2)
+
+  if (encodings.length === 0) {
+    Logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    const data = await readFile(filePath)
+    return iconv.decode(data, 'UTF-8')
   }
 
-  return content
+  const data = await readFile(filePath)
+
+  for (const item of encodings) {
+    const encoding = item.encoding
+    const content = iconv.decode(data, encoding)
+    if (content.includes('\uFFFD')) {
+      Logger.error(
+        `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
+      )
+    } else {
+      return content
+    }
+  }
+
+  Logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  return iconv.decode(data, 'UTF-8')
 }

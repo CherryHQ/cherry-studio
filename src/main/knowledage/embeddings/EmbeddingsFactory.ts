@@ -5,26 +5,19 @@ import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-op
 import { getInstanceName } from '@main/utils'
 import { KnowledgeBaseParams } from '@types'
 
-import { SUPPORTED_DIM_MODELS as VOYAGE_SUPPORTED_DIM_MODELS, VoyageEmbeddings } from './VoyageEmbeddings'
+import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
+import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
   static create({ model, provider, apiKey, apiVersion, baseURL, dimensions }: KnowledgeBaseParams): BaseEmbeddings {
     const batchSize = 10
     if (provider === 'voyageai') {
-      if (VOYAGE_SUPPORTED_DIM_MODELS.includes(model)) {
-        return new VoyageEmbeddings({
-          modelName: model,
-          apiKey,
-          outputDimension: dimensions,
-          batchSize: 8
-        })
-      } else {
-        return new VoyageEmbeddings({
-          modelName: model,
-          apiKey,
-          batchSize: 8
-        })
-      }
+      return new VoyageEmbeddings({
+        modelName: model,
+        apiKey,
+        outputDimension: VOYAGE_SUPPORTED_DIM_MODELS.includes(model) ? dimensions : undefined,
+        batchSize: 8
+      })
     }
     if (provider === 'ollama') {
       if (baseURL.includes('v1/')) {

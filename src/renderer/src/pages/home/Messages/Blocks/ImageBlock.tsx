@@ -9,9 +9,8 @@ interface Props {
 }
 
 const ImageBlock: React.FC<Props> = ({ block }) => {
-  if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.PROCESSING)
-    return <Skeleton.Image active style={{ width: 200, height: 200 }} />
-  if (block.status === MessageBlockStatus.SUCCESS) {
+  if (block.status === MessageBlockStatus.PENDING) return <Skeleton.Image active style={{ width: 200, height: 200 }} />
+  if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.SUCCESS) {
     const images = block.metadata?.generateImageResponse?.images?.length
       ? block.metadata?.generateImageResponse?.images
       : block?.file?.path

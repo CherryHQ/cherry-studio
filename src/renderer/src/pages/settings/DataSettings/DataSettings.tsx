@@ -39,6 +39,7 @@ import {
 import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
+import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
 import NutstoreSettings from './NutstoreSettings'
@@ -88,6 +89,7 @@ const DataSettings: FC = () => {
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: 'settings.data.data.title', icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
+    { key: 'local_backup', title: 'settings.data.local.title', icon: <FolderCog size={16} /> },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
     { key: 's3', title: 'settings.data.s3.title', icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
@@ -593,15 +595,6 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-                <HStack gap="5px">
-                  <Button onClick={reset} danger>
-                    {t('settings.general.reset.button')}
-                  </Button>
-                </HStack>
-              </SettingRow>
-              <SettingDivider />
-              <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
                 <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
               </SettingRow>
@@ -626,17 +619,22 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
                 <PathRow>
-                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</PathText>
+                  <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                    {appInfo?.logsPath}
+                  </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
+                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                    <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                      {t('settings.data.app_logs.button')}
+                    </Button>
+                  </HStack>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
-                  <Button onClick={handleRemoveAllFiles} danger>
-                    {t('settings.data.app_knowledge.button.delete')}
-                  </Button>
+                  <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </HStack>
               </SettingRow>
               <SettingDivider />
@@ -646,8 +644,15 @@ const DataSettings: FC = () => {
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <HStack gap="5px">
-                  <Button onClick={handleClearCache} danger>
-                    {t('settings.data.clear_cache.button')}
+                  <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
+                </HStack>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+                <HStack gap="5px">
+                  <Button onClick={reset} danger>
+                    {t('settings.general.reset.title')}
                   </Button>
                 </HStack>
               </SettingRow>
@@ -665,6 +670,7 @@ const DataSettings: FC = () => {
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
         {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
+        {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>
   )
@@ -722,6 +728,7 @@ const PathText = styled(Typography.Text)`
   vertical-align: middle;
   text-align: right;
   margin-left: 5px;
+  cursor: pointer;
 `
 
 const PathRow = styled(HStack)`
