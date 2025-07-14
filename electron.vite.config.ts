@@ -33,10 +33,7 @@ export default defineConfig({
       },
       sourcemap: isDev
     },
-    esbuild: {
-      drop: ['console', 'debugger'],
-      legalComments: 'none'
-    },
+    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
     }
@@ -96,11 +93,6 @@ export default defineConfig({
         }
       }
     },
-    esbuild: isProd
-      ? {
-          drop: ['console', 'debugger'],
-          legalComments: 'none'
-        }
-      : {}
+    esbuild: isProd ? { legalComments: 'none' } : {}
   }
 })
