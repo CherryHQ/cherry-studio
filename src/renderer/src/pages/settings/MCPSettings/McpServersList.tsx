@@ -24,6 +24,7 @@ const McpServersList: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
+  const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
   const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
   const [serverVersions, setServerVersions] = useState<Record<string, string | null>>({})
 
@@ -128,9 +129,20 @@ const McpServersList: FC = () => {
                   }
                 },
                 {
-                  key: 'quick',
+                  key: 'json',
                   label: t('settings.mcp.addServer.importFrom'),
-                  onClick: () => setIsAddModalVisible(true)
+                  onClick: () => {
+                    setModalType('json')
+                    setIsAddModalVisible(true)
+                  }
+                },
+                {
+                  key: 'dxt',
+                  label: t('settings.mcp.addServer.importFrom.dxt'),
+                  onClick: () => {
+                    setModalType('dxt')
+                    setIsAddModalVisible(true)
+                  }
                 }
               ]
             }}
@@ -216,6 +228,7 @@ const McpServersList: FC = () => {
         onClose={() => setIsAddModalVisible(false)}
         onSuccess={handleAddServerSuccess}
         existingServers={mcpServers} // 傳遞現有的伺服器列表
+        initialImportMethod={modalType}
       />
     </Container>
   )

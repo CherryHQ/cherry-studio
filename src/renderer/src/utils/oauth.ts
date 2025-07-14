@@ -60,7 +60,7 @@ export const oauthWithAihubmix = async (setKey) => {
 
 export const oauthWithPPIO = async (setKey) => {
   const redirectUri = 'cherrystudio://'
-  const authUrl = `https://ppio.cn/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
+  const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
   window.open(
     authUrl,
@@ -100,7 +100,7 @@ export const oauthWithPPIO = async (setKey) => {
           grant_type: 'authorization_code',
           redirect_uri: redirectUri
         })
-        const tokenResponse = await fetch('https://ppio.cn/oauth/token', {
+        const tokenResponse = await fetch('https://ppio.com/oauth/token', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -167,7 +167,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     ppio: {
-      url: 'https://ppio.cn/billing?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
       width: 900,
       height: 700
     }
@@ -200,7 +200,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     ppio: {
-      url: 'https://ppio.cn/billing/billing-details?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details',
       width: 900,
       height: 700
     }

@@ -1,5 +1,6 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
@@ -43,7 +44,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   if (!count) return null
 
   const popoverContent = (
-    <div>
+    <PopoverContentContainer>
       {citations.map((citation) => (
         <PopoverContentItem key={citation.url || citation.number}>
           {citation.type === 'websearch' ? (
@@ -57,7 +58,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           )}
         </PopoverContentItem>
       ))}
-    </div>
+    </PopoverContentContainer>
   )
 
   return (
@@ -309,9 +310,12 @@ const WebSearchCardContent = styled.div`
   }
 `
 
+const PopoverContentContainer = styled(Scrollbar)`
+  max-height: 70vh;
+`
+
 const PopoverContent = styled.div`
   max-width: min(400px, 60vw);
-  max-height: 60vh;
   padding: 0 12px;
 `
 
