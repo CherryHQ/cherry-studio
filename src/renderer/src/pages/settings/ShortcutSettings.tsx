@@ -4,7 +4,7 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { useAppDispatch } from '@renderer/store'
-import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
+import { initialState, resetShortcuts, shortcutsSlice, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import { Shortcut } from '@renderer/types'
 import { Button, Input, InputRef, Switch, Table as AntTable, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -47,12 +47,18 @@ const ShortcutSettings: FC = () => {
   }
 
   const isShortcutModified = (record: Shortcut) => {
-    const defaultShortcut = initialState.shortcuts.find((s) => s.key === record.key)
+    const defaultShortcut = shortcutsSlice
+      .getSelectors()
+      .selectShortcuts(initialState)
+      .find((s) => s.key === record.key)
     return defaultShortcut?.shortcut.join('+') !== record.shortcut.join('+')
   }
 
   const handleResetShortcut = (record: Shortcut) => {
-    const defaultShortcut = initialState.shortcuts.find((s) => s.key === record.key)
+    const defaultShortcut = shortcutsSlice
+      .getSelectors()
+      .selectShortcuts(initialState)
+      .find((s) => s.key === record.key)
     if (defaultShortcut) {
       dispatch(
         updateShortcut({

@@ -17,7 +17,7 @@ import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
-import { initialState as shortcutsInitialState } from './shortcuts'
+import { initialState as shortcutsInitialState, selectShortcuts, shortcutsSlice } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
@@ -105,19 +105,20 @@ function addSelectionAction(state: RootState, id: string) {
  * if afterId is 'first', add to the first
  * if afterId is 'last', add to the last
  */
-function addShortcuts(state: RootState, ids: string[], afterId: string) {
-  const defaultShortcuts = shortcutsInitialState.shortcuts
+function addShortcuts(state: RootState, ids: string[], afterId: string, legacy = false) {
+  const defaultShortcuts = shortcutsSlice.getSelectors().selectShortcuts(shortcutsInitialState)
 
   // 确保 state.shortcuts 存在
   if (!state.shortcuts) {
     return
   }
+  const shortcuts = legacy ? state.shortcuts.shortcuts! : selectShortcuts(state)
 
   // 从 defaultShortcuts 中找到要添加的快捷键
   const shortcutsToAdd = defaultShortcuts.filter((shortcut) => ids.includes(shortcut.key))
 
   // 过滤掉已经存在的快捷键
-  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key)
+  const existingKeys = shortcuts.map((s) => s.key)
   const newShortcuts = shortcutsToAdd.filter((shortcut) => !existingKeys.includes(shortcut.key))
 
   if (newShortcuts.length === 0) {
@@ -126,18 +127,18 @@ function addShortcuts(state: RootState, ids: string[], afterId: string) {
 
   if (afterId === 'first') {
     // 添加到最前面
-    state.shortcuts.shortcuts.unshift(...newShortcuts)
+    shortcuts.unshift(...newShortcuts)
   } else if (afterId === 'last') {
     // 添加到最后面
-    state.shortcuts.shortcuts.push(...newShortcuts)
+    shortcuts.push(...newShortcuts)
   } else {
     // 添加到指定快捷键后面
-    const afterIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === afterId)
+    const afterIndex = shortcuts.findIndex((shortcut) => shortcut.key === afterId)
     if (afterIndex !== -1) {
-      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
+      shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
     } else {
       // 如果找不到指定的快捷键，则添加到最后
-      state.shortcuts.shortcuts.push(...newShortcuts)
+      shortcuts.push(...newShortcuts)
     }
   }
 }
@@ -697,7 +698,7 @@ const migrateConfig = {
   },
   '48': (state: RootState) => {
     try {
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts.forEach((shortcut) => {
           shortcut.system = shortcut.key !== 'new_topic'
         })
@@ -724,7 +725,7 @@ const migrateConfig = {
   '49': (state: RootState) => {
     try {
       state.settings.pasteLongTextThreshold = 1500
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts = [
           ...state.shortcuts.shortcuts,
           {
@@ -755,7 +756,7 @@ const migrateConfig = {
   },
   '54': (state: RootState) => {
     try {
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts.push({
           key: 'search_message',
           shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
@@ -788,7 +789,7 @@ const migrateConfig = {
   },
   '57': (state: RootState) => {
     try {
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts.push({
           key: 'mini_window',
           shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
@@ -814,7 +815,7 @@ const migrateConfig = {
   },
   '58': (state: RootState) => {
     try {
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts.push(
           {
             key: 'clear_topic',
@@ -1401,7 +1402,7 @@ const migrateConfig = {
           }
         }
       })
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         state.shortcuts.shortcuts.push({
           key: 'exit_fullscreen',
           shortcut: ['Escape'],
@@ -1451,7 +1452,7 @@ const migrateConfig = {
   },
   '103': (state: RootState) => {
     try {
-      if (state.shortcuts) {
+      if (state.shortcuts?.shortcuts) {
         if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
           state.shortcuts.shortcuts.push({
             key: 'search_message_in_chat',
@@ -1560,7 +1561,7 @@ const migrateConfig = {
       }
 
       // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window
-      addShortcuts(state, ['selection_assistant_toggle', 'selection_assistant_select_text'], 'mini_window')
+      addShortcuts(state, ['selection_assistant_toggle', 'selection_assistant_select_text'], 'mini_window', true)
 
       return state
     } catch (error) {
@@ -1781,6 +1782,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '122': (state: RootState) => {
+    try {
+      if (state.shortcuts?.shortcuts) {
+        const shortcuts = selectShortcuts(state)
+        shortcuts.splice(0, shortcuts.length, ...state.shortcuts.shortcuts)
+        delete state.shortcuts.shortcuts
+      }
+    } catch {
+      // ignore
+    }
+    return state
   }
 }
 
