@@ -4,7 +4,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
-import { CircleX, Plus, SquareTerminal } from 'lucide-react'
+import { Plus, SquareTerminal } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -157,7 +157,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       setTimeout(() => {
         updateAssistant({
           ...assistant,
-          mcpServers: enabled ? assistant.mcpServers || [] : []
+          mcpServers: enabled ? (assistant.mcpServers?.length ? assistant.mcpServers : []) : []
         })
       }, 200)
     },
@@ -179,21 +179,14 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       action: () => navigate('/settings/mcp')
     })
 
-    newList.unshift({
-      label: t('common.close'),
-      description: t('settings.mcp.disable.description'),
-      icon: <CircleX />,
-      isSelected: false,
-      action: () => {
-        updateMcpEnabled(false)
-        quickPanel.close()
-      }
-    })
-
     return newList
-  }, [activedMcpServers, t, assistantMcpServers, navigate, updateMcpEnabled, quickPanel])
+  }, [activedMcpServers, t, assistantMcpServers, navigate])
 
   const openQuickPanel = useCallback(() => {
+    if (assistant.mcpServers && assistant.mcpServers.length > 0) {
+      return updateMcpEnabled(false)
+    }
+
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: menuItems,
@@ -203,7 +196,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
         item.isSelected = !item.isSelected
       }
     })
-  }, [menuItems, quickPanel, t])
+  }, [menuItems, quickPanel, t, assistant.mcpServers, updateMcpEnabled])
 
   // 使用 useCallback 优化 insertPromptIntoTextArea
   const insertPromptIntoTextArea = useCallback(
