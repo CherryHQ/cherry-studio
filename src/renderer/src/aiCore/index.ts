@@ -99,6 +99,10 @@ export default class AiProvider {
       if (params.callType !== 'chat') {
         builder.remove(AbortHandlerMiddlewareName)
       }
+      if (params.callType === 'test') {
+        builder.remove(ErrorHandlerMiddlewareName)
+        builder.remove(FinalChunkConsumerMiddlewareName)
+      }
     }
 
     const middlewares = builder.build()

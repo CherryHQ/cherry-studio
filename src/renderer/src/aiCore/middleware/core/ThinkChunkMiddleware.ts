@@ -62,6 +62,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
                 // 更新思考时间并传递
                 const enhancedChunk: ThinkingDeltaChunk = {
                   ...thinkingChunk,
+                  text: accumulatedThinkingContent,
                   thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                 }
                 controller.enqueue(enhancedChunk)

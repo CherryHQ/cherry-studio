@@ -20,7 +20,7 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
-const messageBlocksSlice = createSlice({
+export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,
   reducers: {
