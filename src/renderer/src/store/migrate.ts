@@ -1764,6 +1764,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '121': (state: RootState) => {
+    try {
+      if (state.shortcuts?.shortcuts) {
+        const shortcuts = selectShortcuts(state)
+        shortcuts.splice(0, shortcuts.length, ...state.shortcuts.shortcuts)
+        delete state.shortcuts.shortcuts
+      }
+    } catch {
+      // ignore
+    }
+    return state
   }
 }
 
