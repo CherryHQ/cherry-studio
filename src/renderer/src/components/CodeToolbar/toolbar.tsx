@@ -68,10 +68,6 @@ export const CodeToolbar: React.FC<{
   )
 })
 
-const FakeCodeToolButton: React.FC<CodeToolButtonProps> = memo(({ tool }) => {
-  return <ToolWrapper>{tool.icon}</ToolWrapper>
-})
-
 export const FakeCodeToolbar: React.FC<{
   tools: CodeTool[]
   showQuickTools: boolean
@@ -83,32 +79,21 @@ export const FakeCodeToolbar: React.FC<{
   const coreTools = visibleTools.filter((tool) => tool.type === 'core')
   const quickTools = visibleTools.filter((tool) => tool.type === 'quick')
 
-  // 点击了 more 按钮或者只有一个快捷工具时
-  const quickToolButtons = useMemo(() => {
-    if (quickTools.length === 1 || (quickTools.length > 1 && showQuickTools)) {
-      return quickTools.map((tool) => <FakeCodeToolButton key={tool.id} tool={tool} />)
-    }
-
-    return null
-  }, [quickTools, showQuickTools])
+  // 计算需要显示的工具数目
+  const numToolButtons = useMemo(() => {
+    const numQuickToolButtons =
+      quickTools.length === 1 || (quickTools.length > 1 && showQuickTools) ? quickTools.length : 0
+    return numQuickToolButtons + coreTools.length
+  }, [coreTools.length, quickTools.length, showQuickTools])
 
   if (visibleTools.length === 0) {
     return null
   }
 
   return (
-    <ToolbarWrapper className="code-toolbar" style={{ opacity: 0, pointerEvents: 'none' }}>
-      {/* 有多个快捷工具时通过 more 按钮展示 */}
-      {quickToolButtons}
-      {quickTools.length > 1 && (
-        <ToolWrapper className={showQuickTools ? 'active' : ''}>
-          <EllipsisVertical className="icon" />
-        </ToolWrapper>
-      )}
-
-      {/* 始终显示核心工具 */}
-      {coreTools.map((tool) => (
-        <FakeCodeToolButton key={tool.id} tool={tool} />
+    <ToolbarWrapper className="code-toolbar" style={{}}>
+      {Array.from({ length: numToolButtons }, (_, i) => (
+        <FakeTool key={i} />
       ))}
     </ToolbarWrapper>
   )
@@ -121,12 +106,13 @@ const StickyWrapper = styled.div`
 `
 
 const ToolbarWrapper = styled(HStack)`
-  // position: absolute;
   align-items: center;
-  // bottom: 0.3rem;
-  // right: 0.5rem;
   height: 24px;
   gap: 4px;
+`
+const FakeTool = styled.div`
+  width: 24px;
+  height: 24px;
 `
 
 const ToolWrapper = styled.div`
