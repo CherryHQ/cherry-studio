@@ -410,7 +410,7 @@ export const streamCallback = (
           content: '',
           status: MessageBlockStatus.STREAMING
         }
-        smartBlockUpdate(initialPlaceholderBlockId, changes, MessageBlockType.MAIN_TEXT)
+        smartBlockUpdate(initialPlaceholderBlockId, changes, MessageBlockType.MAIN_TEXT, true)
         mainTextBlockId = initialPlaceholderBlockId
         initialPlaceholderBlockId = null
       } else if (!mainTextBlockId) {
@@ -458,7 +458,7 @@ export const streamCallback = (
         }
         thinkingBlockId = initialPlaceholderBlockId
         initialPlaceholderBlockId = null
-        smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING)
+        smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,

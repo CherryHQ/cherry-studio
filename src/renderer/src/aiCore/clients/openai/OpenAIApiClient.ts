@@ -5,6 +5,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
+  isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
@@ -114,7 +115,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
-        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+        if (
+          isSupportedThinkingTokenGeminiModel(model) &&
+          !GEMINI_FLASH_MODEL_REGEX.test(model.id) &&
+          model.id.includes('grok-4')
+        ) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -166,10 +171,17 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     // Qwen models
     if (isSupportedThinkingTokenQwenModel(model)) {
-      return {
+      const thinkConfig = {
         enable_thinking: true,
         thinking_budget: budgetTokens
       }
+      if (this.provider.id === 'dashscope') {
+        return {
+          ...thinkConfig,
+          incremental_output: true
+        }
+      }
+      return thinkConfig
     }
 
     // Grok models
@@ -436,7 +448,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         messages: OpenAISdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        let { streamOutput } = coreRequest
+
+        // Qwen3商业版（思考模式）、Qwen3开源版、QwQ、QVQ只支持流式输出。
+        if (isQwenReasoningModel(model)) {
+          streamOutput = true
+        }
+
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
