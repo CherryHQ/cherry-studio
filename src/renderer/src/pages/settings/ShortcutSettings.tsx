@@ -1,18 +1,22 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import Selector from '@renderer/components/Selector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setHttpPort as _setHttpPort, setServerType } from '@renderer/store/externalControl'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
-import { Shortcut } from '@renderer/types'
+import { ExternalControlServerType, Shortcut } from '@renderer/types'
 import { Button, Input, InputRef, Switch, Table as AntTable, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { CircleHelp } from 'lucide-react'
 import React, { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
@@ -21,6 +25,8 @@ const ShortcutSettings: FC = () => {
   const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
+  const externalControl = useAppSelector((state) => state.externalControl)
+  const [httpPort, setHttpPort] = useState(externalControl.httpPort?.toString())
 
   //if shortcut is not available on all the platforms, block the shortcut here
   let shortcuts = originalShortcuts
@@ -268,6 +274,31 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  const onSetServerType = (serverType: ExternalControlServerType) => {
+    dispatch(setServerType(serverType))
+    window.api.externalControl.setServerType(serverType)
+  }
+
+  const onSetHttpPort = () => {
+    if (!httpPort) {
+      dispatch(_setHttpPort(undefined))
+      window.api.externalControl.setHttpPort(undefined)
+      return
+    }
+
+    const port = Number(httpPort)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      window.message.error({
+        key: 'external-control-http-port-error',
+        content: t('settings.externalControl.http.port.invalid_error')
+      })
+      return
+    }
+
+    dispatch(_setHttpPort(port))
+    window.api.externalControl.setHttpPort(port)
+  }
+
   const columns: ColumnsType<Shortcut> = [
     {
       title: t('settings.shortcuts.action'),
@@ -370,6 +401,58 @@ const ShortcutSettings: FC = () => {
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </HStack>
       </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ justifyContent: 'start' }}>
+          {t('settings.externalControl.title')}
+          {/* TODO: update this link to documentation */}
+          <Link to="https://github.com/CherryHQ/cherry-studio" style={{ display: 'flex', marginLeft: 6 }}>
+            <QuestionIcon size={16} />
+          </Link>
+        </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.externalControl.server_type')}</SettingRowTitle>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Selector
+              size={14}
+              value={externalControl.serverType}
+              onChange={onSetServerType}
+              options={[
+                {
+                  value: ExternalControlServerType.DISABLE,
+                  label: t('settings.externalControl.server_type.disable')
+                },
+                {
+                  value: ExternalControlServerType.HTTP,
+                  label: t('settings.externalControl.server_type.http')
+                },
+                {
+                  value: ExternalControlServerType.UNIX_DOMAIN_SOCKET,
+                  label: t('settings.externalControl.server_type.unix_domain_socket'),
+                  disabled: isWin
+                }
+              ]}
+            />
+          </div>
+        </SettingRow>
+
+        {externalControl.serverType === ExternalControlServerType.HTTP && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.externalControl.http.port')}</SettingRowTitle>
+              <Input
+                type="number"
+                placeholder="9090"
+                value={httpPort}
+                onChange={(e) => setHttpPort(e.target.value)}
+                style={{ width: 80 }}
+                onBlur={() => onSetHttpPort()}
+              />
+            </SettingRow>
+          </>
+        )}
+      </SettingGroup>
     </SettingContainer>
   )
 }
@@ -398,6 +481,11 @@ const ShortcutText = styled.span<{ isEditable: boolean }>`
   cursor: ${({ isEditable }) => (isEditable ? 'pointer' : 'not-allowed')};
   padding: 4px 11px;
   opacity: ${({ isEditable }) => (isEditable ? 1 : 0.5)};
+`
+
+const QuestionIcon = styled(CircleHelp)`
+  cursor: pointer;
+  color: var(--color-icon);
 `
 
 export default ShortcutSettings

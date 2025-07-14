@@ -25,6 +25,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import { externalControlService } from './services/ExternalControlService'
 
 Logger.initialize()
 
@@ -119,6 +120,7 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     registerShortcuts(mainWindow)
+    externalControlService.start()
 
     registerIpc(mainWindow, app)
 
@@ -178,6 +180,9 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('will-quit', async () => {
     // event.preventDefault()
+
+    await externalControlService.stop()
+
     try {
       await mcpService.cleanup()
     } catch (error) {

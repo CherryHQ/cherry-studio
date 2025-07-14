@@ -8,6 +8,7 @@ import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
+import externalControl from './externalControl'
 import inputToolsReducer from './inputTools'
 import knowledge from './knowledge'
 import llm from './llm'
@@ -37,6 +38,7 @@ const rootReducer = combineReducers({
   runtime,
   ocr,
   shortcuts,
+  externalControl,
   knowledge,
   minapps,
   websearch,
