@@ -1,5 +1,6 @@
 import { isMac, isWin } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
+import { selectShortcuts } from '@renderer/store/shortcuts'
 import { orderBy } from 'lodash'
 import { useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -22,7 +23,7 @@ export const useShortcut = (
   callback: (e: KeyboardEvent) => void,
   options: UseShortcutOptions = defaultOptions
 ) => {
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const shortcuts = useAppSelector(selectShortcuts)
 
   const formatShortcut = useCallback((shortcut: string[]) => {
     return shortcut
@@ -58,7 +59,7 @@ export const useShortcut = (
 }
 
 export function useShortcuts() {
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const shortcuts = useAppSelector(selectShortcuts)
   return { shortcuts: orderBy(shortcuts, 'system', 'desc') }
 }
 
@@ -85,7 +86,7 @@ export function useShortcutDisplay(key: string) {
       })
       .join('+')
   }, [])
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const shortcuts = useAppSelector(selectShortcuts)
   const shortcutConfig = shortcuts.find((s) => s.key === key)
   return shortcutConfig?.enabled ? formatShortcut(shortcutConfig.shortcut) : ''
 }

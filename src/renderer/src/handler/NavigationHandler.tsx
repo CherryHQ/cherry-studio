@@ -1,4 +1,5 @@
 import { useAppSelector } from '@renderer/store'
+import { selectShortcuts } from '@renderer/store/shortcuts'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -6,7 +7,7 @@ const NavigationHandler: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const showSettingsShortcutEnabled = useAppSelector(
-    (state) => state.shortcuts.shortcuts.find((s) => s.key === 'show_settings')?.enabled
+    (state) => selectShortcuts(state).find((s) => s.key === 'show_settings')?.enabled
   )
 
   useHotkeys(
