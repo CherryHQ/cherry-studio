@@ -13,6 +13,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
@@ -201,6 +202,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     }
   }, [showAdvanced])
 
+  // NOTE: 用于临时警告，vllm支持qwen3后可移除
+  const isQwen3 = useMemo(() => {
+    const qwen3EmbeddingModels = ['qwen3-embedding-0.6b', 'qwen3-embedding-4b', 'qwen3-embedding-8b']
+    return qwen3EmbeddingModels.includes(getLowerBaseModelName(newBase.model?.id ?? ''))
+  }, [newBase.model])
+
   return (
     <SettingsModal
       title={title}
@@ -371,9 +378,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
                     <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                   </Tooltip>
-                  <Tooltip title={t('knowledge.dimensions_not_supported')}>
-                    <WarningOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
-                  </Tooltip>
                 </div>
                 <InputNumber
                   min={1}
@@ -384,7 +388,16 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     setDimensions(value === null ? undefined : value)
                   }}
                 />
-                <span></span>
+                {/* 临时警告，vllm支持qwen3后可移除 */}
+                {isQwen3 && (
+                  <Alert
+                    style={{ marginTop: '8px' }}
+                    message={t('knowledge.dimensions_not_supported')}
+                    type="warning"
+                    showIcon
+                    icon={<WarningOutlined />}
+                  />
+                )}
               </SettingsItem>
             )}
           </SettingsPanel>
