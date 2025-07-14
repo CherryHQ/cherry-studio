@@ -633,6 +633,8 @@ export interface MCPServer {
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
+  dxtVersion?: string // Version of the DXT package
+  dxtPath?: string // Path where the DXT package was extracted
 }
 
 export interface MCPToolInputSchema {

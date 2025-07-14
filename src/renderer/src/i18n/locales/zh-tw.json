@@ -764,7 +764,8 @@
         "invoking": "調用中",
         "pending": "等待中",
         "preview": "預覽",
-        "autoApproveEnabled": "此工具已啟用自動批准"
+        "autoApproveEnabled": "此工具已啟用自動批准",
+        "raw": "原始碼"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -2211,7 +2212,8 @@
             "private_key_placeholder": "輸入服務帳戶私密金鑰",
             "title": "服務帳戶設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
       },
       "proxy": {
         "mode": {

@@ -764,7 +764,8 @@
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "autoApproveEnabled": "このツールは自動承認が有効になっています"
+        "autoApproveEnabled": "このツールは自動承認が有効になっています",
+        "raw": "生データ"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -2211,7 +2212,8 @@
             "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
             "title": "サービスアカウント設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
       },
       "proxy": {
         "mode": {
