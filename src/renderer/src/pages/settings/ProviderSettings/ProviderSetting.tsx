@@ -7,7 +7,6 @@ import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useCenteredBackTop } from '@renderer/hooks/useCenteredBackTop'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
@@ -15,11 +14,11 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, FloatButton, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -49,12 +48,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const buttonStyle = useCenteredBackTop(containerRef)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -226,7 +223,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [provider.apiHost, provider.id])
 
   return (
-    <SettingContainer theme={theme} ref={containerRef} style={{ background: 'var(--color-background)' }}>
+    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={5}>
           <ProviderName>{fancyProviderName}</ProviderName>
@@ -369,7 +366,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'vertexai' && <VertexAISettings />}
       <ModelList providerId={provider.id} />
-      <FloatButton.BackTop target={() => containerRef.current || window} duration={1000} style={buttonStyle} />
     </SettingContainer>
   )
 }
