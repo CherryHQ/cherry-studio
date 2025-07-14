@@ -403,6 +403,7 @@ export interface KnowledgeBase {
   name: string
   model: Model
   dimensions?: number
+  autoDims: boolean
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -426,6 +427,7 @@ export type KnowledgeBaseParams = {
   model: string
   provider: string
   dimensions?: number
+  autoDims: boolean
   apiKey: string
   apiVersion?: string
   baseURL: string

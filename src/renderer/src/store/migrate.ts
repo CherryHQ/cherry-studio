@@ -1763,6 +1763,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '121': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => (base.autoDims = false))
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

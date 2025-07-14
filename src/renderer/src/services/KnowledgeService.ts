@@ -40,6 +40,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     model: base.model.id,
     provider: base.model.provider,
     dimensions: base.dimensions,
+    autoDims: base.autoDims,
     apiKey: aiProvider.getApiKey() || 'secret',
     apiVersion: provider.apiVersion,
     baseURL: host,
