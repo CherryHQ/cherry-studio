@@ -1763,6 +1763,24 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '121': (state: RootState) => {
+    try {
+      const { toolOrder } = state.inputTools
+      const urlContextKey = 'url_context'
+      const webSearchIndex = toolOrder.visible.indexOf('web_search')
+      const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
+      if (webSearchIndex !== -1) {
+        toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
+      } else if (knowledgeBaseIndex !== -1) {
+        toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
+      } else {
+        toolOrder.visible.push(urlContextKey)
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

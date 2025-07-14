@@ -31,6 +31,7 @@ import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
+import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import getLoginShellEnvironment from './mcp/shell-env'
@@ -72,6 +73,7 @@ function withCache<T extends unknown[], R>(
 class McpService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
 
   constructor() {
@@ -88,6 +90,8 @@ class McpService {
     this.stopServer = this.stopServer.bind(this)
     this.abortTool = this.abortTool.bind(this)
     this.cleanup = this.cleanup.bind(this)
+    this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
+    this.getServerVersion = this.getServerVersion.bind(this)
   }
 
   private getServerKey(server: MCPServer): string {
@@ -136,7 +140,7 @@ class McpService {
         // Create new client instance for each connection
         const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
-        const args = [...(server.args || [])]
+        let args = [...(server.args || [])]
 
         // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         const authProvider = new McpOAuthClientProvider({
@@ -206,6 +210,23 @@ class McpService {
           } else if (server.command) {
             let cmd = server.command
 
+            // For DXT servers, use resolved configuration with platform overrides and variable substitution
+            if (server.dxtPath) {
+              const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
+              if (resolvedConfig) {
+                cmd = resolvedConfig.command
+                args = resolvedConfig.args
+                // Merge resolved environment variables with existing ones
+                server.env = {
+                  ...server.env,
+                  ...resolvedConfig.env
+                }
+                Logger.info(`[MCP] Using resolved DXT config - command: ${cmd}, args: ${args?.join(' ')}`)
+              } else {
+                Logger.warn(`[MCP] Failed to resolve DXT config for ${server.name}, falling back to manifest values`)
+              }
+            }
+
             if (server.command === 'npx') {
               cmd = await getBinaryPath('bun')
               Logger.info(`[MCP] Using command: ${cmd}`)
@@ -252,7 +273,7 @@ class McpService {
               this.removeProxyEnv(loginShellEnv)
             }
 
-            const stdioTransport = new StdioClientTransport({
+            const transportOptions: any = {
               command: cmd,
               args,
               env: {
@@ -260,7 +281,15 @@ class McpService {
                 ...server.env
               },
               stderr: 'pipe'
-            })
+            }
+
+            // For DXT servers, set the working directory to the extracted path
+            if (server.dxtPath) {
+              transportOptions.cwd = server.dxtPath
+              Logger.info(`[MCP] Setting working directory for DXT server: ${server.dxtPath}`)
+            }
+
+            const stdioTransport = new StdioClientTransport(transportOptions)
             stdioTransport.stderr?.on('data', (data) =>
               Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
             )
@@ -378,6 +407,18 @@ class McpService {
     if (existingClient) {
       await this.closeClient(serverKey)
     }
+
+    // If this is a DXT server, cleanup its directory
+    if (server.dxtPath) {
+      try {
+        const cleaned = this.dxtService.cleanupDxtServer(server.name)
+        if (cleaned) {
+          Logger.info(`[MCP] Cleaned up DXT server directory for: ${server.name}`)
+        }
+      } catch (error) {
+        Logger.error(`[MCP] Failed to cleanup DXT server: ${server.name}`, error)
+      }
+    }
   }
 
   async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
@@ -403,6 +444,12 @@ class McpService {
   public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
     Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
     try {
+      Logger.info(`[MCP] About to call initClient for server: ${server.name}`, { hasInitClient: !!this.initClient })
+
+      if (!this.initClient) {
+        throw new Error('initClient method is not available')
+      }
+
       const client = await this.initClient(server)
       // Attempt to list tools as a way to check connectivity
       await client.listTools()
@@ -690,6 +737,31 @@ class McpService {
     } else {
       Logger.warn(`[MCP] No active tool call found for callId: ${callId}`)
       return false
+    }
+  }
+
+  /**
+   * Get the server version information
+   */
+  public async getServerVersion(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<string | null> {
+    try {
+      Logger.info(`[MCP] Getting server version for: ${server.name}`)
+      const client = await this.initClient(server)
+
+      // Try to get server information which may include version
+      const serverInfo = client.getServerVersion()
+      Logger.info(`[MCP] Server info for ${server.name}:`, serverInfo)
+
+      if (serverInfo && serverInfo.version) {
+        Logger.info(`[MCP] Server version for ${server.name}: ${serverInfo.version}`)
+        return serverInfo.version
+      }
+
+      Logger.warn(`[MCP] No version information available for server: ${server.name}`)
+      return null
+    } catch (error: any) {
+      Logger.error(`[MCP] Failed to get server version for ${server.name}:`, error?.message)
+      return null
     }
   }
 }

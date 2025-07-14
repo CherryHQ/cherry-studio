@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "Отключить веб-поиск",
       "input.web_search.no_web_search.description": "Отключить веб-поиск",
       "input.web_search.settings": "Настройки веб-поиска",
+      "input.url_context": "Контекст страницы",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -764,7 +765,8 @@
         "invoking": "Вызов",
         "pending": "Ожидание",
         "preview": "Предпросмотр",
-        "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен"
+        "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
+        "raw": "Исходный"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -1029,7 +1031,7 @@
         "turbo": "Быстро"
       },
       "req_error_no_balance": "Пожалуйста, проверьте действительность токена",
-      "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "req_error_text": "Сервер перегружен или в запросе обнаружены «авторские» либо «чувствительные» слова. Пожалуйста, повторите попытку.",
       "req_error_token": "Пожалуйста, проверьте действительность токена",
       "required_field": "Обязательное поле",
       "seed": "Ключ генерации",
@@ -1887,6 +1889,7 @@
         "tools": {
           "availableTools": "Доступные инструменты",
           "inputSchema": "Схема ввода",
+          "inputSchema.enum.allowedValues": "Допустимые значения",
           "loadError": "Ошибка получения инструментов",
           "noToolsAvailable": "Нет доступных инструментов",
           "enable": "Включить инструмент",
@@ -2210,7 +2213,8 @@
             "private_key_placeholder": "Введите приватный ключ Service Account",
             "title": "Конфигурация Service Account"
           }
-        }
+        },
+        "azure.apiversion.tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview"
       },
       "proxy": {
         "mode": {

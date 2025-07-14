@@ -4,7 +4,7 @@ import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -93,6 +93,7 @@ const McpSettings: React.FC = () => {
   const [selectedRegistryType, setSelectedRegistryType] = useState<string>('')
 
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [serverVersion, setServerVersion] = useState<string | null>(null)
 
   const { theme } = useTheme()
 
@@ -227,11 +228,23 @@ const McpSettings: React.FC = () => {
     }
   }
 
+  const fetchServerVersion = async () => {
+    if (server.isActive) {
+      try {
+        const version = await window.api.mcp.getServerVersion(server)
+        setServerVersion(version)
+      } catch (error) {
+        setServerVersion(null)
+      }
+    }
+  }
+
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
       fetchPrompts()
       fetchResources()
+      fetchServerVersion()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -398,8 +411,12 @@ const McpSettings: React.FC = () => {
 
         const localResources = await window.api.mcp.listResources(server)
         setResources(localResources)
+
+        const version = await window.api.mcp.getServerVersion(server)
+        setServerVersion(version)
       } else {
         await window.api.mcp.stopServer(server)
+        setServerVersion(null)
       }
       updateMCPServer({ ...server, isActive: active })
     } catch (error: any) {
@@ -703,7 +720,10 @@ const McpSettings: React.FC = () => {
       <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <ServerName className="text-nowrap">{server?.name}</ServerName>
+            <Flex align="center" gap={8}>
+              <ServerName className="text-nowrap">{server?.name}</ServerName>
+              {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+            </Flex>
             <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
           </Flex>
           <Flex align="center" gap={16}>
@@ -748,6 +768,21 @@ const AdvancedSettingsButton = styled.div`
   color: var(--color-primary);
   display: flex;
   align-items: center;
+`
+
+const VersionBadge = styled(Badge)`
+  .ant-badge-count {
+    background-color: var(--color-primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 6px;
+    height: 18px;
+    line-height: 18px;
+    border-radius: 9px;
+    min-width: 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
 `
 
 export default McpSettings

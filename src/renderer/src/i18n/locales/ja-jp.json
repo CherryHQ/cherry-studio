@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "ウェブ検索を無効にする",
       "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
       "input.web_search.settings": "ウェブ検索設定",
+      "input.url_context": "URLコンテキスト",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -764,7 +765,8 @@
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "autoApproveEnabled": "このツールは自動承認が有効になっています"
+        "autoApproveEnabled": "このツールは自動承認が有効になっています",
+        "raw": "生データ"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -1029,7 +1031,7 @@
         "turbo": "高速"
       },
       "req_error_no_balance": "トークンの有効性を確認してください",
-      "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
       "req_error_token": "トークンの有効性を確認してください",
       "required_field": "必須項目",
       "seed": "シード",
@@ -1887,6 +1889,7 @@
         "tools": {
           "availableTools": "利用可能なツール",
           "inputSchema": "入力スキーマ",
+          "inputSchema.enum.allowedValues": "許可された値",
           "loadError": "ツール取得エラー",
           "noToolsAvailable": "利用可能なツールなし",
           "enable": "ツールを有効にする",
@@ -2210,7 +2213,8 @@
             "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
             "title": "サービスアカウント設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
       },
       "proxy": {
         "mode": {
