@@ -95,12 +95,17 @@ const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
   }
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 class KnowledgeService {
   private storageDir = path.join(getDataPath(), 'KnowledgeBase')
   // Byte based
   private workload = 0
   private processingItemCount = 0
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
+  private ragApplications: Map<string, RAGApplication> = new Map()
+  // 存储数据库实例，用于后续关闭
+  private dbInstances: Map<string, LibSqlDb> = new Map()
   private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
   private static ERROR_LOADER_RETURN: LoaderReturn = {
@@ -127,18 +132,27 @@ class KnowledgeService {
     dimensions,
     documentCount
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
+    if (this.ragApplications.has(id)) {
+      return this.ragApplications.get(id)!
+    }
+
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
       embedApiClient,
       dimensions
     })
     try {
+      const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, id) })
+      // 保存数据库实例以便后续关闭
+      this.dbInstances.set(id, libSqlDb)
+
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')
         .setEmbeddingModel(embeddings)
-        .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
+        .setVectorDatabase(libSqlDb)
         .setSearchResultCount(documentCount || 30)
         .build()
+      this.ragApplications.set(id, ragApplication)
     } catch (e) {
       logger.error('Failed to create RAGApplication:', e)
       throw new Error(`Failed to create RAGApplication: ${e}`)
@@ -148,7 +162,7 @@ class KnowledgeService {
   }
 
   public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
-    this.getRagApplication(base)
+    await this.getRagApplication(base)
   }
 
   public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
@@ -158,9 +172,55 @@ class KnowledgeService {
 
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
     logger.debug('delete id', id)
+
+    // 1. 关闭 RAG 应用实例
+    if (this.ragApplications.has(id)) {
+      this.ragApplications.delete(id)
+    }
+
+    const db = this.dbInstances.get(id)
+    if (db) {
+      try {
+        if ((db as any).client && typeof (db as any).client.close === 'function') {
+          await (db as any).client.close()
+          logger.info(`Successfully closed database connection for knowledge base: ${id}`)
+        }
+      } catch (e) {
+        logger.error(`Failed to close database connection for knowledge base ${id}: ${e}`)
+      }
+      this.dbInstances.delete(id)
+    }
+
+    await sleep(300)
+
     const dbPath = path.join(this.storageDir, id)
+
+    const maxRetries = 10
+    const retryDelayMs = 500
+
     if (fs.existsSync(dbPath)) {
-      fs.rmSync(dbPath, { recursive: true })
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          if (fs.statSync(dbPath).isDirectory()) {
+            fs.rmSync(dbPath, { recursive: true, force: true })
+          } else {
+            fs.unlinkSync(dbPath)
+          }
+          logger.info(`Successfully deleted: ${dbPath}`)
+          break // 删除成功，跳出重试循环
+        } catch (e: any) {
+          if (e.code === 'EBUSY' && i < maxRetries - 1) {
+            logger.warn(`File busy, retrying (${i + 1}/${maxRetries}): ${dbPath}`)
+            await sleep(retryDelayMs * (i + 1))
+          } else if (e.code !== 'ENOENT') {
+            // 忽略文件不存在的错误
+            logger.error(`Failed to delete file after ${i + 1} attempts: ${dbPath}`, e)
+            break
+          } else {
+            break // 文件不存在，不需要继续尝试
+          }
+        }
+      }
     }
   }
 
