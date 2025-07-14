@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "Отключить веб-поиск",
       "input.web_search.no_web_search.description": "Отключить веб-поиск",
       "input.web_search.settings": "Настройки веб-поиска",
+      "input.url_context": "Контекст страницы",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",

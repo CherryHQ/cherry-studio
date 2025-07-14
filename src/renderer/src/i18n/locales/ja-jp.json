@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "ウェブ検索を無効にする",
       "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
       "input.web_search.settings": "ウェブ検索設定",
+      "input.url_context": "URLコンテキスト",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",

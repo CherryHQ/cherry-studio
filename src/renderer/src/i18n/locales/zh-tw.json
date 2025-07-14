@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "關閉網路搜尋",
       "input.web_search.no_web_search.description": "關閉網路搜尋",
       "input.web_search.settings": "網路搜尋設定",
+      "input.url_context": "網頁上下文",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",

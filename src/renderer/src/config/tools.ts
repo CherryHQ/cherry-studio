@@ -39,3 +39,18 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
   }
   return []
 }
+
+export function getUrlContextTools(model: Model): ChatCompletionTool[] {
+  if (model.id.includes('gemini')) {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'urlContext'
+        }
+      }
+    ]
+  }
+
+  return []
+}
