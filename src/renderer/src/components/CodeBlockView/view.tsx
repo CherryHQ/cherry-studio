@@ -11,6 +11,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import ImageViewer from '../ImageViewer'
 import CodePreview from './CodePreview'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import HtmlArtifactsCard from './HtmlArtifactsCard'
@@ -244,22 +245,13 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         <StatusBar>
           {executionResult.text}
           {executionResult.image && (
-            <ImageOutput>
-              <img src={executionResult.image} alt="Matplotlib plot" />
-            </ImageOutput>
+            <ImageViewer src={executionResult.image} alt="Matplotlib plot" style={{ cursor: 'pointer' }} />
           )}
         </StatusBar>
       )}
     </CodeBlockWrapper>
   )
 })
-
-const ImageOutput = styled.div`
-  img {
-    max-width: 100%;
-    height: auto;
-  }
-`
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
