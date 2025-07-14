@@ -281,13 +281,19 @@ const MessageTools: FC<Props> = ({ block }) => {
       const parsedResult = JSON.parse(content)
       switch (parsedResult.content[0]?.type) {
         case 'text':
-          return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
+          return (
+            <CollapsedContent
+              isExpanded={true}
+              resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
+            />
+          )
+
         default:
-          return <PreviewBlock>{content}</PreviewBlock>
+          return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
       console.error('failed to render the preview of mcp results:', e)
-      return <PreviewBlock>{content}</PreviewBlock>
+      return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
     }
   }
 
@@ -674,14 +680,6 @@ const ExpandedResponseContainer = styled.div`
     word-break: break-word;
     color: var(--color-text);
   }
-`
-
-const PreviewBlock = styled.div`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  user-select: text;
 `
 
 export default memo(MessageTools)
