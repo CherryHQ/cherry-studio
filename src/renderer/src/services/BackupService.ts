@@ -1,4 +1,3 @@
-import { PLATFORM_PERSIST_SUFFIX_ARRAY } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
@@ -826,9 +825,6 @@ export async function handleData(data: Record<string, any>) {
 
   if (data.version >= 2) {
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-    PLATFORM_PERSIST_SUFFIX_ARRAY.forEach((suffix) => {
-      localStorage.setItem(`persist:shortcuts${suffix}`, data.localStorage[`persist:shortcuts${suffix}`])
-    })
     await restoreDatabase(data.indexedDB)
 
     if (data.version === 3) {
