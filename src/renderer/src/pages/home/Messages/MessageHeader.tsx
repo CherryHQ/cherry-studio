@@ -57,6 +57,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => 
   }, [message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
+  const isUserMessage = message.role === 'user'
   const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
@@ -67,6 +68,12 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => 
     // because don't need openMinappById to be a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.provider, showMinappIcon])
+
+  const hideHeader = isBubbleStyle ? isUserMessage && !isMultiSelectMode : false
+
+  if (hideHeader) {
+    return null
+  }
 
   return (
     <Container className="message-header">
@@ -126,7 +133,7 @@ const Container = styled.div`
   align-items: center;
   gap: 10px;
   position: relative;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
 `
 
 const UserWrap = styled.div`

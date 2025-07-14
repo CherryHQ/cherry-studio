@@ -286,6 +286,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (provider.type === 'openai') {
       return formatApiHost(apiHost) + 'chat/completions'
     }
+
+    if (provider.type === 'azure-openai') {
+      return formatApiHost(apiHost) + 'openai/v1'
+    }
     return formatApiHost(apiHost) + 'responses'
   }
 
@@ -446,6 +450,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               onBlur={onUpdateApiVersion}
             />
           </Space.Compact>
+          <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <SettingHelpText style={{ minWidth: 'fit-content' }}>
+              {t('settings.provider.azure.apiversion.tip')}
+            </SettingHelpText>
+          </SettingHelpTextRow>
         </>
       )}
       {provider.id === 'lmstudio' && <LMStudioSettings />}

@@ -1029,7 +1029,7 @@
         "turbo": "快速"
       },
       "req_error_no_balance": "請檢查令牌的有效性",
-      "req_error_text": "运行失败，请重试。提示词避免 “版权词” 和” 敏感词” 哦。",
+      "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
       "req_error_token": "請檢查令牌的有效性",
       "required_field": "必填欄位",
       "seed": "隨機種子",
@@ -1887,6 +1887,7 @@
         "tools": {
           "availableTools": "可用工具",
           "inputSchema": "輸入模式",
+          "inputSchema.enum.allowedValues": "允許的值",
           "loadError": "獲取工具失敗",
           "noToolsAvailable": "無可用工具",
           "enable": "啟用工具",
@@ -2210,7 +2211,8 @@
             "private_key_placeholder": "輸入服務帳戶私密金鑰",
             "title": "服務帳戶設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
       },
       "proxy": {
         "mode": {
@@ -2337,8 +2339,8 @@
             "method.cutoff": "截斷",
             "method.none": "不壓縮",
             "method.rag": "RAG",
-            "rag.document_count": "文檔數量",
-            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
+            "rag.document_count": "文檔片段數量",
+            "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔片段數量，實際提取的總數量是這個值乘以搜尋結果數量。",
             "rag.embedding_dimensions.auto_get": "自動獲取維度",
             "rag.embedding_dimensions.placeholder": "不設置維度",
             "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",

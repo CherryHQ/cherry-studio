@@ -209,7 +209,7 @@ const MessageTools: FC<Props> = ({ block }) => {
         <MessageTitleLabel>
           <TitleContent>
             <ToolName align="center" gap={4}>
-              {tool.serverName}: {tool.name}
+              {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
                 <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
@@ -269,7 +269,7 @@ const MessageTools: FC<Props> = ({ block }) => {
         }
       }}>
       <ToolContainer>
-        <ToolContentWrapper>
+        <ToolContentWrapper className={status}>
           <CollapseContainer
             ghost
             activeKey={activeKeys}
@@ -371,9 +371,20 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
 
 const ToolContentWrapper = styled.div`
   padding: 1px;
-  background-color: var(--color-background-soft);
   border-radius: 8px;
   overflow: hidden;
+
+  .ant-collapse {
+    border: 1px solid var(--color-border);
+  }
+
+  &.pending,
+  &.invoking {
+    background-color: var(--color-background-soft);
+    .ant-collapse {
+      border: none;
+    }
+  }
 `
 
 const ActionsBar = styled.div`

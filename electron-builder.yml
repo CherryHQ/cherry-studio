@@ -117,9 +117,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    服务商：新增 NewAPI 服务商支持
-    绘图：新增 NewAPI 绘图服务商支持
-    备份：支持 s3 兼容存储备份
-    服务商：支持多个密钥管理，支持配置自定义请求头
-    设置：支持禁用硬件加速
-    其他：性能优化和错误改进
+    • [新增] MCP 工具调用自动审批流程
+    • [优化] 输入框快捷弹窗多选交互支持
+    • [新增] 网页内容生成实时预览功能
+    • [支持] Grok-4 大语言模型接入
+    • [修复] Anthropic 模型输出截断缺陷

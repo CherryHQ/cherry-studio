@@ -36,7 +36,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   let providerWebsite =
     PROVIDER_CONFIG[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
   if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.cn'
+    providerWebsite = 'ppio.com'
   }
 
   return (

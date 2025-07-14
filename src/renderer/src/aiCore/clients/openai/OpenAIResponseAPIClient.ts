@@ -61,13 +61,31 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     this.client = new OpenAIAPIClient(provider)
   }
 
+  private formatApiHost() {
+    const host = this.provider.apiHost
+    if (host.endsWith('/openai/v1')) {
+      return host
+    } else {
+      if (host.endsWith('/')) {
+        return host + 'openai/v1'
+      } else {
+        return host + '/openai/v1'
+      }
+    }
+  }
+
   /**
    * 根据模型特征选择合适的客户端
    */
   public getClient(model: Model) {
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
-        this.provider = { ...this.provider, apiVersion: 'preview' }
+        this.provider = { ...this.provider, apiHost: this.formatApiHost() }
+        if (this.provider.apiVersion === 'preview') {
+          return this
+        } else {
+          return this.client
+        }
       }
       return this
     } else {
@@ -81,7 +99,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
-      this.provider = { ...this.provider, apiHost: `${this.provider.apiHost}/openai/v1` }
       return new AzureOpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
@@ -367,16 +384,15 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             (m) => (m as OpenAI.Responses.EasyInputMessage).role === 'assistant'
           ) as OpenAI.Responses.EasyInputMessage
           const finalUserMessage = userMessage.pop() as OpenAI.Responses.EasyInputMessage
-          if (
-            finalAssistantMessage &&
-            Array.isArray(finalAssistantMessage.content) &&
-            finalUserMessage &&
-            Array.isArray(finalUserMessage.content)
-          ) {
-            finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
+          if (finalUserMessage && Array.isArray(finalUserMessage.content)) {
+            if (finalAssistantMessage && Array.isArray(finalAssistantMessage.content)) {
+              finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
+              // 这里是故意将上条助手消息的内容（包含图片和文件）作为用户消息发送
+              userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
+            } else {
+              userMessage.push(finalUserMessage)
+            }
           }
-          // 这里是故意将上条助手消息的内容（包含图片和文件）作为用户消息发送
-          userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
         }
 
         // 4. 最终请求消息

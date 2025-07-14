@@ -1029,7 +1029,7 @@
         "turbo": "高速"
       },
       "req_error_no_balance": "トークンの有効性を確認してください",
-      "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
       "req_error_token": "トークンの有効性を確認してください",
       "required_field": "必須項目",
       "seed": "シード",
@@ -1887,6 +1887,7 @@
         "tools": {
           "availableTools": "利用可能なツール",
           "inputSchema": "入力スキーマ",
+          "inputSchema.enum.allowedValues": "許可された値",
           "loadError": "ツール取得エラー",
           "noToolsAvailable": "利用可能なツールなし",
           "enable": "ツールを有効にする",
@@ -2210,7 +2211,8 @@
             "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
             "title": "サービスアカウント設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
       },
       "proxy": {
         "mode": {
@@ -2337,8 +2339,8 @@
             "method.cutoff": "切り捨て",
             "method.none": "圧縮しない",
             "method.rag": "RAG",
-            "rag.document_count": "文書数",
-            "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+            "rag.document_count": "文書チャンク数",
+            "rag.document_count.tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。",
             "rag.embedding_dimensions.auto_get": "次元を自動取得",
             "rag.embedding_dimensions.placeholder": "次元を設定しない",
             "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",

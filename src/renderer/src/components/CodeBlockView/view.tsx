@@ -4,7 +4,7 @@ import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/compon
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
-import { getExtensionByLanguage, isValidPlantUML } from '@renderer/utils/markdown'
+import { getExtensionByLanguage, isHtmlCode, isValidPlantUML } from '@renderer/utils/markdown'
 import dayjs from 'dayjs'
 import { CirclePlay, CodeXml, Copy, Download, Eye, Square, SquarePen, SquareSplitHorizontal } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -229,7 +229,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [specialView, sourceView, viewMode])
 
   // HTML 代码块特殊处理 - 在所有 hooks 调用之后
-  if (language === 'html') {
+  if (language === 'html' && isHtmlCode(children)) {
     return <HtmlArtifactsCard html={children} />
   }
 
@@ -246,6 +246,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
   width: 100%;
+  /* FIXME: 最小宽度用于解决两个问题。
+   * 一是 CodePreview 在气泡样式下的用户消息中无法撑开气泡，
+   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
+   */
+  min-width: 45ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};

@@ -41,13 +41,57 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
-  const isVision = useMemo(() => isVisionModel(model), [model])
-  const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const isUserMessage = message.role === 'user'
+
+  const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
+
+  const couldAddImageFile = useMemo(() => {
+    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
+    if (relatedAssistantMessages.length === 0) {
+      // 无关联消息时fallback到助手模型
+      return isVisionModel(model)
+    }
+    return relatedAssistantMessages.every((m) => {
+      if (m.model) {
+        return isVisionModel(m.model) || isGenerateImageModel(m.model)
+      } else {
+        // 若消息关联不存在的模型，视为其支持视觉
+        return true
+      }
+    })
+  }, [message.id, model, topicMessages])
+
+  const couldAddTextFile = useMemo(() => {
+    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
+    if (relatedAssistantMessages.length === 0) {
+      // 无关联消息时fallback到助手模型
+      return isVisionModel(model) || (!isVisionModel(model) && !isGenerateImageModel(model))
+    }
+    return relatedAssistantMessages.every((m) => {
+      if (m.model) {
+        return isVisionModel(m.model) || (!isVisionModel(m.model) && !isGenerateImageModel(m.model))
+      } else {
+        // 若消息关联不存在的模型，视为其支持文本
+        return true
+      }
+    })
+  }, [message.id, model, topicMessages])
+
+  const extensions = useMemo(() => {
+    if (couldAddImageFile && couldAddTextFile) {
+      return [...imageExts, ...documentExts, ...textExts]
+    } else if (couldAddImageFile) {
+      return [...imageExts]
+    } else if (couldAddTextFile) {
+      return [...documentExts, ...textExts]
+    } else {
+      return []
+    }
+  }, [couldAddImageFile, couldAddTextFile])
 
   const resizeTextArea = useCallback(() => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -70,9 +114,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     async (event: ClipboardEvent) => {
       return await PasteService.handlePaste(
         event,
-        isVisionModel(model),
-        isGenerateImageModel(model),
-        supportExts,
+        extensions,
         setFiles,
         undefined, // 不需要setText
         false, // 不需要 pasteLongTextAsFile
@@ -82,7 +124,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         t
       )
     },
-    [model, pasteLongTextThreshold, resizeTextArea, supportExts, t]
+    [extensions, pasteLongTextThreshold, resizeTextArea, t]
   )
 
   // 添加全局粘贴事件处理
@@ -125,7 +167,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files) {
       let supportedFiles = 0
       files.forEach((file) => {
-        if (supportExts.includes(getFileExtension(file.path))) {
+        if (extensions.includes(getFileExtension(file.path))) {
           setFiles((prevFiles) => [...prevFiles, file])
           supportedFiles++
         }
@@ -208,52 +250,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       }
     }
   }
-
-  const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-
-  const couldAddImageFile = useMemo(() => {
-    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
-    if (relatedAssistantMessages.length === 0) {
-      // 无关联消息时fallback到助手模型
-      return isVisionModel(model)
-    }
-    return relatedAssistantMessages.every((m) => {
-      if (m.model) {
-        return isVisionModel(m.model)
-      } else {
-        // 若消息关联不存在的模型，视为其支持视觉
-        return true
-      }
-    })
-  }, [message.id, model, topicMessages])
-
-  const couldAddTextFile = useMemo(() => {
-    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
-    if (relatedAssistantMessages.length === 0) {
-      // 无关联消息时fallback到助手模型
-      return isVisionModel(model) || (!isVisionModel(model) && !isGenerateImageModel(model))
-    }
-    return relatedAssistantMessages.every((m) => {
-      if (m.model) {
-        return isVisionModel(m.model) || (!isVisionModel(m.model) && !isGenerateImageModel(m.model))
-      } else {
-        // 若消息关联不存在的模型，视为其支持文本
-        return true
-      }
-    })
-  }, [message.id, model, topicMessages])
-
-  const extensions = useMemo(() => {
-    if (couldAddImageFile && couldAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    } else if (couldAddImageFile) {
-      return [...imageExts]
-    } else if (couldAddTextFile) {
-      return [...documentExts, ...textExts]
-    } else {
-      return []
-    }
-  }, [couldAddImageFile, couldAddTextFile])
 
   return (
     <>

@@ -8,6 +8,7 @@ import {
   findCitationInChildren,
   getCodeBlockId,
   getExtensionByLanguage,
+  isHtmlCode,
   markdownToPlainText,
   processLatexBrackets,
   removeTrailingDoubleSpaces,
@@ -696,6 +697,33 @@ $$
 
         expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
       })
+    })
+  })
+
+  describe('isHtmlCode', () => {
+    it('should detect HTML with DOCTYPE', () => {
+      expect(isHtmlCode('<!DOCTYPE html>')).toBe(true)
+      expect(isHtmlCode('<!doctype html>')).toBe(true)
+    })
+
+    it('should detect HTML with html/head/body tags', () => {
+      expect(isHtmlCode('<html>')).toBe(true)
+      expect(isHtmlCode('</html>')).toBe(true)
+      expect(isHtmlCode('<head>')).toBe(true)
+      expect(isHtmlCode('<body>')).toBe(true)
+    })
+
+    it('should detect complete HTML structure', () => {
+      const html = '<html><head><title>Test</title></head><body>Hello</body></html>'
+      expect(isHtmlCode(html)).toBe(true)
+    })
+
+    it('should return false for non-HTML content', () => {
+      expect(isHtmlCode(null)).toBe(false)
+      expect(isHtmlCode('')).toBe(false)
+      expect(isHtmlCode('Hello world')).toBe(false)
+      expect(isHtmlCode('a < b')).toBe(false)
+      expect(isHtmlCode('<div>')).toBe(false)
     })
   })
 })

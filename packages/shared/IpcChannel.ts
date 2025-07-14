@@ -77,6 +77,7 @@ export enum IpcChannel {
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_SetProgress = 'mcp:set-progress',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_GetServerVersion = 'mcp:get-server-version',
 
   // Python
   Python_Execute = 'python:execute',
