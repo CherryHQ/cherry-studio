@@ -8,7 +8,7 @@ interface UseSmoothStreamOptions {
   initialText?: string
 }
 // 如果不行还可以使用Array.from(chunk)分割
-const reg = /[\u4E00-\u9FFF]|[a-zA-Z0-9]+|\s+|[^\s\w]/g
+// const reg = /[\u4E00-\u9FFF]|[a-zA-Z0-9]+|\s+|[^\s\w]/g
 
 export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
   const [chunkQueue, setChunkQueue] = useState<string[]>([])
@@ -19,7 +19,7 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
   const addChunk = useCallback((chunk: string) => {
     // 英文按照word拆分, 中文按照字拆分,使用正则表达式
     // const words = chunk.match(/[\w\d]+/g)
-    const chars = chunk.match(reg)
+    const chars = Array.from(chunk)
     setChunkQueue((prev) => [...prev, ...(chars || [])])
   }, [])
 
