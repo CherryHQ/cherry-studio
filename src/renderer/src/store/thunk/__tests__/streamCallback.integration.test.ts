@@ -109,7 +109,7 @@ vi.mock('@renderer/databases', () => ({
         })
       })
     },
-    transaction: vi.fn((mode, stores, callback) => {
+    transaction: vi.fn((callback) => {
       if (typeof callback === 'function') {
         return callback()
       }
