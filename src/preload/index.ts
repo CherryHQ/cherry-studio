@@ -241,7 +241,8 @@ const api = {
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress)
+    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress),
+    getServerVersion: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server)
   },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>

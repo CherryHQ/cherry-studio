@@ -503,6 +503,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
     mainWindow.webContents.send('mcp-progress', progress)
   })

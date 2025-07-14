@@ -11,9 +11,99 @@ import styled, { keyframes } from 'styled-components'
 
 import HtmlArtifactsPopup from './HtmlArtifactsPopup'
 
+const HTML_VOID_ELEMENTS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr'
+])
+
+const HTML_COMPLETION_PATTERNS = [
+  /<\/html\s*>/i,
+  /<!DOCTYPE\s+html/i,
+  /<\/body\s*>/i,
+  /<\/div\s*>/i,
+  /<\/script\s*>/i,
+  /<\/style\s*>/i
+]
+
 interface Props {
   html: string
 }
+
+function hasUnmatchedTags(html: string): boolean {
+  const stack: string[] = []
+  const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
+  let match
+
+  while ((match = tagRegex.exec(html)) !== null) {
+    const [fullTag, tagName] = match
+    const isClosing = fullTag.startsWith('</')
+    const isSelfClosing = fullTag.endsWith('/>') || HTML_VOID_ELEMENTS.has(tagName.toLowerCase())
+
+    if (isSelfClosing) continue
+
+    if (isClosing) {
+      if (stack.length === 0 || stack.pop() !== tagName.toLowerCase()) {
+        return true
+      }
+    } else {
+      stack.push(tagName.toLowerCase())
+    }
+  }
+
+  return stack.length > 0
+}
+
+function checkIsStreaming(html: string): boolean {
+  if (!html?.trim()) return false
+
+  const trimmed = html.trim()
+
+  // 快速检查：如果有明显的完成标志，直接返回false
+  for (const pattern of HTML_COMPLETION_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      // 特殊情况：同时有DOCTYPE和</body>
+      if (trimmed.includes('<!DOCTYPE') && /<\/body\s*>/i.test(trimmed)) {
+        return false
+      }
+      // 如果只是以</html>结尾，也认为是完成的
+      if (/<\/html\s*>$/i.test(trimmed)) {
+        return false
+      }
+    }
+  }
+
+  // 检查未完成的标志
+  const hasIncompleteTag = /<[^>]*$/.test(trimmed)
+  const hasUnmatched = hasUnmatchedTags(trimmed)
+
+  if (hasIncompleteTag || hasUnmatched) return true
+
+  // 对于简单片段，如果长度较短且没有明显结束标志，可能还在生成
+  const hasStructureTags = /<(html|body|head)[^>]*>/i.test(trimmed)
+  if (!hasStructureTags && trimmed.length < 500) {
+    return !HTML_COMPLETION_PATTERNS.some((pattern) => pattern.test(trimmed))
+  }
+
+  return false
+}
+
+const getTerminalStyles = (theme: ThemeMode) => ({
+  background: theme === 'dark' ? '#1e1e1e' : '#f0f0f0',
+  color: theme === 'dark' ? '#cccccc' : '#333333',
+  promptColor: theme === 'dark' ? '#00ff00' : '#007700'
+})
 
 const HtmlArtifactsCard: FC<Props> = ({ html }) => {
   const { t } = useTranslation()
@@ -23,151 +113,20 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
 
   const htmlContent = html || ''
   const hasContent = htmlContent.trim().length > 0
+  const isStreaming = useMemo(() => checkIsStreaming(htmlContent), [htmlContent])
 
-  // 判断是否正在流式生成的逻辑
-  const isStreaming = useMemo(() => {
-    if (!hasContent) return false
-
-    const trimmedHtml = htmlContent.trim()
-
-    // 提前检查：如果包含关键的结束标签，直接判断为完整文档
-    if (/<\/html\s*>/i.test(trimmedHtml)) {
-      return false
-    }
-
-    // 如果同时包含 DOCTYPE 和 </body>，通常也是完整文档
-    if (/<!DOCTYPE\s+html/i.test(trimmedHtml) && /<\/body\s*>/i.test(trimmedHtml)) {
-      return false
-    }
-
-    // 检查 HTML 是否看起来是完整的
-    const indicators = {
-      // 1. 检查常见的 HTML 结构完整性
-      hasHtmlTag: /<html[^>]*>/i.test(trimmedHtml),
-      hasClosingHtmlTag: /<\/html\s*>$/i.test(trimmedHtml),
-
-      // 2. 检查 body 标签完整性
-      hasBodyTag: /<body[^>]*>/i.test(trimmedHtml),
-      hasClosingBodyTag: /<\/body\s*>/i.test(trimmedHtml),
-
-      // 3. 检查是否以未闭合的标签结尾
-      endsWithIncompleteTag: /<[^>]*$/.test(trimmedHtml),
-
-      // 4. 检查是否有未配对的标签
-      hasUnmatchedTags: checkUnmatchedTags(trimmedHtml),
-
-      // 5. 检查是否以常见的"流式结束"模式结尾
-      endsWithTypicalCompletion: /(<\/html>\s*|<\/body>\s*|<\/div>\s*|<\/script>\s*|<\/style>\s*)$/i.test(trimmedHtml)
-    }
-
-    // 如果有明显的未完成标志，则认为正在生成
-    if (indicators.endsWithIncompleteTag || indicators.hasUnmatchedTags) {
-      return true
-    }
-
-    // 如果有 HTML 结构但不完整
-    if (indicators.hasHtmlTag && !indicators.hasClosingHtmlTag) {
-      return true
-    }
-
-    // 如果有 body 结构但不完整
-    if (indicators.hasBodyTag && !indicators.hasClosingBodyTag) {
-      return true
-    }
-
-    // 对于简单的 HTML 片段，检查是否看起来是完整的
-    if (!indicators.hasHtmlTag && !indicators.hasBodyTag) {
-      // 如果是简单片段且没有明显的结束标志，可能还在生成
-      return !indicators.endsWithTypicalCompletion && trimmedHtml.length < 500
-    }
-
-    return false
-  }, [htmlContent, hasContent])
-
-  // 检查未配对标签的辅助函数
-  function checkUnmatchedTags(html: string): boolean {
-    const stack: string[] = []
-    const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
-
-    // HTML5 void 元素（自闭合元素）的完整列表
-    const voidElements = [
-      'area',
-      'base',
-      'br',
-      'col',
-      'embed',
-      'hr',
-      'img',
-      'input',
-      'link',
-      'meta',
-      'param',
-      'source',
-      'track',
-      'wbr'
-    ]
-
-    let match
-
-    while ((match = tagRegex.exec(html)) !== null) {
-      const [fullTag, tagName] = match
-      const isClosing = fullTag.startsWith('</')
-      const isSelfClosing = fullTag.endsWith('/>') || voidElements.includes(tagName.toLowerCase())
-
-      if (isSelfClosing) continue
-
-      if (isClosing) {
-        if (stack.length === 0 || stack.pop() !== tagName.toLowerCase()) {
-          return true // 找到不匹配的闭合标签
-        }
-      } else {
-        stack.push(tagName.toLowerCase())
-      }
-    }
-
-    return stack.length > 0 // 还有未闭合的标签
-  }
-
-  // 获取格式化的代码预览
-  function getFormattedCodePreview(html: string): string {
-    const trimmed = html.trim()
-    const lines = trimmed.split('\n')
-    const lastFewLines = lines.slice(-3) // 显示最后3行
-    return lastFewLines.join('\n')
-  }
-
-  /**
-   * 在编辑器中打开
-   */
-  const handleOpenInEditor = () => {
-    setIsPopupOpen(true)
-  }
-
-  /**
-   * 关闭弹窗
-   */
-  const handleClosePopup = () => {
-    setIsPopupOpen(false)
-  }
-
-  /**
-   * 外部链接打开
-   */
   const handleOpenExternal = async () => {
     const path = await window.api.file.createTempFile('artifacts-preview.html')
     await window.api.file.write(path, htmlContent)
     const filePath = `file://${path}`
 
-    if (window.api.shell && window.api.shell.openExternal) {
+    if (window.api.shell?.openExternal) {
       window.api.shell.openExternal(filePath)
     } else {
       console.error(t('artifacts.preview.openExternal.error.content'))
     }
   }
 
-  /**
-   * 下载到本地
-   */
   const handleDownload = async () => {
     const fileName = `${title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-') || 'html-artifact'}.html`
     await window.api.file.save(fileName, htmlContent)
@@ -202,27 +161,27 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
                   <TerminalLine>
                     <TerminalPrompt $theme={theme}>$</TerminalPrompt>
                     <TerminalCodeLine $theme={theme}>
-                      {getFormattedCodePreview(htmlContent)}
+                      {htmlContent.trim().split('\n').slice(-3).join('\n')}
                       <TerminalCursor $theme={theme} />
                     </TerminalCodeLine>
                   </TerminalLine>
                 </TerminalContent>
               </TerminalPreview>
               <ButtonContainer>
-                <Button icon={<CodeOutlined />} onClick={handleOpenInEditor} type="primary">
+                <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="primary">
                   {t('chat.artifacts.button.preview')}
                 </Button>
               </ButtonContainer>
             </>
           ) : (
             <ButtonContainer>
-              <Button icon={<CodeOutlined />} onClick={handleOpenInEditor} type="primary" disabled={!hasContent}>
+              <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button icon={<LinkOutlined />} onClick={handleOpenExternal} disabled={!hasContent}>
+              <Button icon={<LinkOutlined />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button icon={<Download size={16} />} onClick={handleDownload} disabled={!hasContent}>
+              <Button icon={<Download size={16} />} onClick={handleDownload} type="text" disabled={!hasContent}>
                 {t('code_block.download')}
               </Button>
             </ButtonContainer>
@@ -230,20 +189,10 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
         </Content>
       </Container>
 
-      {/* 弹窗组件 */}
-      <HtmlArtifactsPopup open={isPopupOpen} title={title} html={htmlContent} onClose={handleClosePopup} />
+      <HtmlArtifactsPopup open={isPopupOpen} title={title} html={htmlContent} onClose={() => setIsPopupOpen(false)} />
     </>
   )
 }
-
-const shimmer = keyframes`
-  0% {
-    background-position: -200px 0;
-  }
-  100% {
-    background-position: calc(200px + 100%) 0;
-  }
-`
 
 const Container = styled.div<{ $isStreaming: boolean }>`
   background: var(--color-background);
@@ -274,21 +223,7 @@ const Header = styled.div`
   padding: 20px 24px 16px;
   background: var(--color-background-soft);
   border-bottom: 1px solid var(--color-border);
-  position: relative;
   border-radius: 8px 8px 0 0;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
-    background-size: 200% 100%;
-    animation: ${shimmer} 3s ease-in-out infinite;
-    border-radius: 8px 8px 0 0;
-  }
 `
 
 const IconWrapper = styled.div<{ $isStreaming: boolean }>`
@@ -297,18 +232,15 @@ const IconWrapper = styled.div<{ $isStreaming: boolean }>`
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: ${(props) =>
+    props.$isStreaming
+      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+      : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'};
   border-radius: 12px;
   color: white;
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+  box-shadow: ${(props) =>
+    props.$isStreaming ? '0 4px 6px -1px rgba(245, 158, 11, 0.3)' : '0 4px 6px -1px rgba(59, 130, 246, 0.3)'};
   transition: background 0.3s ease;
-
-  ${(props) =>
-    props.$isStreaming &&
-    `
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); /* Darker orange for loading */
-    box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.3);
-  `}
 `
 
 const TitleSection = styled.div`
@@ -346,7 +278,7 @@ const Content = styled.div`
 `
 
 const ButtonContainer = styled.div`
-  margin: 16px !important;
+  margin: 10px 16px !important;
   display: flex;
   flex-direction: row;
   gap: 8px;
@@ -354,7 +286,7 @@ const ButtonContainer = styled.div`
 
 const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
   margin: 16px;
-  background: ${(props) => (props.$theme === 'dark' ? '#1e1e1e' : '#f0f0f0')};
+  background: ${(props) => getTerminalStyles(props.$theme).background};
   border-radius: 8px;
   overflow: hidden;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
@@ -362,8 +294,8 @@ const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
 
 const TerminalContent = styled.div<{ $theme: ThemeMode }>`
   padding: 12px;
-  background: ${(props) => (props.$theme === 'dark' ? '#1e1e1e' : '#f0f0f0')};
-  color: ${(props) => (props.$theme === 'dark' ? '#cccccc' : '#333333')};
+  background: ${(props) => getTerminalStyles(props.$theme).background};
+  color: ${(props) => getTerminalStyles(props.$theme).color};
   font-size: 13px;
   line-height: 1.4;
   min-height: 80px;
@@ -379,25 +311,27 @@ const TerminalCodeLine = styled.span<{ $theme: ThemeMode }>`
   flex: 1;
   white-space: pre-wrap;
   word-break: break-word;
-  color: ${(props) => (props.$theme === 'dark' ? '#cccccc' : '#333333')};
+  color: ${(props) => getTerminalStyles(props.$theme).color};
   background-color: transparent !important;
 `
 
 const TerminalPrompt = styled.span<{ $theme: ThemeMode }>`
-  color: ${(props) => (props.$theme === 'dark' ? '#00ff00' : '#007700')};
+  color: ${(props) => getTerminalStyles(props.$theme).promptColor};
   font-weight: bold;
   flex-shrink: 0;
+`
+
+const blinkAnimation = keyframes`
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 `
 
 const TerminalCursor = styled.span<{ $theme: ThemeMode }>`
   display: inline-block;
   width: 2px;
   height: 16px;
-  background: ${(props) => (props.$theme === 'dark' ? '#00ff00' : '#007700')};
-  animation: ${keyframes`
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  `} 1s infinite;
+  background: ${(props) => getTerminalStyles(props.$theme).promptColor};
+  animation: ${blinkAnimation} 1s infinite;
   margin-left: 2px;
 `
 
