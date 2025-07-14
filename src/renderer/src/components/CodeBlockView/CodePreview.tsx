@@ -130,8 +130,8 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   })
 
   const width = useMemo(() => {
-    return (max(rawLines.map((line) => line.length * 8)) ?? 0) + 4
-  }, [rawLines])
+    return `calc(${max(rawLines.map((line) => line.length)) ?? 0}ch + ${codeShowLineNumbers ? 4 : 0}ch)`
+  }, [rawLines, codeShowLineNumbers])
 
   // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
   const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
