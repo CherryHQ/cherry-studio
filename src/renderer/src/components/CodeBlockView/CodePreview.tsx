@@ -129,6 +129,10 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     callerId
   })
 
+  const width = useMemo(() => {
+    return (max(rawLines.map((line) => line.length * 8)) ?? 0) + 4
+  }, [rawLines])
+
   // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
   const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
 
@@ -159,7 +163,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
           className="shiki-list"
           style={{
             height: `${virtualizer.getTotalSize()}px`,
-            width: (max(rawLines.map((line) => line.length * 8)) ?? 0) + 4,
+            width,
             position: 'relative'
           }}>
           <div
