@@ -112,8 +112,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           }
         })
         .filter(({ ext }) => fileTypes.includes(ext))
-      // const uploadedFiles = await FileManager.uploadFiles(_files)
-      addFiles(_files)
+      const uploadedFiles = await FileManager.uploadFiles(_files)
+      console.log('uploadedFiles', uploadedFiles)
+      addFiles(uploadedFiles)
     }
   }
 
@@ -173,7 +174,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                     key={item.id}
                     fileInfo={{
                       name: (
-                        <ClickableSpan onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
+                        <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
                             <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>

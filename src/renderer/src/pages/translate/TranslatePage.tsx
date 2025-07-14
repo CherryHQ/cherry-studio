@@ -2,9 +2,9 @@ import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutli
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { translateLanguageOptions } from '@renderer/config/translate'
+import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -15,13 +15,14 @@ import { getDefaultTranslateAssistant } from '@renderer/services/AssistantServic
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
-import type { Model, TranslateHistory } from '@renderer/types'
+import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
-  determineTargetLanguage
+  determineTargetLanguage,
+  getLanguageByLangcode
 } from '@renderer/utils/translate'
 import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
@@ -35,7 +36,7 @@ import styled from 'styled-components'
 
 let _text = ''
 let _result = ''
-let _targetLanguage = 'english'
+let _targetLanguage = LanguagesEnum.enUS
 
 const TranslateSettings: FC<{
   visible: boolean
@@ -46,8 +47,8 @@ const TranslateSettings: FC<{
   setIsBidirectional: (value: boolean) => void
   enableMarkdown: boolean
   setEnableMarkdown: (value: boolean) => void
-  bidirectionalPair: [string, string]
-  setBidirectionalPair: (value: [string, string]) => void
+  bidirectionalPair: [Language, Language]
+  setBidirectionalPair: (value: [Language, Language]) => void
   translateModel: Model | undefined
   onModelChange: (model: Model) => void
   allModels: Model[]
@@ -71,7 +72,7 @@ const TranslateSettings: FC<{
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
   const dispatch = useAppDispatch()
-  const [localPair, setLocalPair] = useState<[string, string]>(bidirectionalPair)
+  const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
 
@@ -94,7 +95,7 @@ const TranslateSettings: FC<{
       return
     }
     setBidirectionalPair(localPair)
-    db.settings.put({ id: 'translate:bidirectional:pair', value: localPair })
+    db.settings.put({ id: 'translate:bidirectional:pair', value: [localPair[0].langCode, localPair[1].langCode] })
     db.settings.put({ id: 'translate:scroll:sync', value: isScrollSyncEnabled })
     db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
     db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
@@ -189,16 +190,16 @@ const TranslateSettings: FC<{
               <Flex align="center" justify="space-between" gap={10}>
                 <Select
                   style={{ flex: 1 }}
-                  value={localPair[0]}
-                  onChange={(value) => setLocalPair([value, localPair[1]])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
+                  value={localPair[0].langCode}
+                  onChange={(value) => setLocalPair([getLanguageByLangcode(value), localPair[1]])}
+                  options={translateLanguageOptions.map((lang) => ({
+                    value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>
                         <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
+                        <Space.Compact block>{lang.label()}</Space.Compact>
                       </Space.Compact>
                     )
                   }))}
@@ -206,16 +207,16 @@ const TranslateSettings: FC<{
                 <span>⇆</span>
                 <Select
                   style={{ flex: 1 }}
-                  value={localPair[1]}
-                  onChange={(value) => setLocalPair([localPair[0], value])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
+                  value={localPair[1].langCode}
+                  onChange={(value) => setLocalPair([localPair[0], getLanguageByLangcode(value)])}
+                  options={translateLanguageOptions.map((lang) => ({
+                    value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>
                         <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
-                        <div style={{ textAlign: 'left', flex: 1 }}>{lang.label}</div>
+                        <div style={{ textAlign: 'left', flex: 1 }}>{lang.label()}</div>
                       </Space.Compact>
                     )
                   }))}
@@ -275,7 +276,6 @@ const TranslateSettings: FC<{
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const { shikiMarkdownIt } = useCodeStyle()
-  const [targetLanguage, setTargetLanguage] = useState(_targetLanguage)
   const [text, setText] = useState(_text)
   const [result, setResult] = useState(_result)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
@@ -286,10 +286,14 @@ const TranslatePage: FC = () => {
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
   const [enableMarkdown, setEnableMarkdown] = useState(false)
-  const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
+  const [bidirectionalPair, setBidirectionalPair] = useState<[Language, Language]>([
+    LanguagesEnum.enUS,
+    LanguagesEnum.zhCN
+  ])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<string>('auto')
+  const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
+  const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
+  const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -298,7 +302,15 @@ const TranslatePage: FC = () => {
   const { providers } = useProviders()
   const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
 
-  const translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+
+  const translateHistory = useMemo(() => {
+    return _translateHistory?.map((item) => ({
+      ...item,
+      _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
+      _targetLanguage: getLanguageByLangcode(item.targetLanguage)
+    }))
+  }, [_translateHistory])
 
   _text = text
   _result = result
@@ -308,16 +320,24 @@ const TranslatePage: FC = () => {
     () =>
       providers
         .filter((p) => p.models.length > 0)
-        .map((p) => ({
-          label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-          title: p.name,
-          options: sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m))
+        .flatMap((p) => {
+          const filteredModels = sortBy(p.models, 'name')
+            .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
             .map((m) => ({
               label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
               value: getModelUniqId(m)
             }))
-        })),
+          if (filteredModels.length > 0) {
+            return [
+              {
+                label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+                title: p.name,
+                options: filteredModels
+              }
+            ]
+          }
+          return []
+        }),
     [providers, t]
   )
 
@@ -329,8 +349,8 @@ const TranslatePage: FC = () => {
   const saveTranslateHistory = async (
     sourceText: string,
     targetText: string,
-    sourceLanguage: string,
-    targetLanguage: string
+    sourceLanguage: LanguageCode,
+    targetLanguage: LanguageCode
   ) => {
     const history: TranslateHistory = {
       id: uuid(),
@@ -364,7 +384,7 @@ const TranslatePage: FC = () => {
     setLoading(true)
     try {
       // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
-      let actualSourceLanguage: string
+      let actualSourceLanguage: Language
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = await detectLanguage(text)
         setDetectedLanguage(actualSourceLanguage)
@@ -389,7 +409,7 @@ const TranslatePage: FC = () => {
         return
       }
 
-      const actualTargetLanguage = result.language as string
+      const actualTargetLanguage = result.language as Language
       if (isBidirectional) {
         setTargetLanguage(actualTargetLanguage)
       }
@@ -405,7 +425,7 @@ const TranslatePage: FC = () => {
         }
       })
 
-      await saveTranslateHistory(text, translatedText, actualSourceLanguage, actualTargetLanguage)
+      await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
       setLoading(false)
     } catch (error) {
       console.error('Translation error:', error)
@@ -429,10 +449,11 @@ const TranslatePage: FC = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = (history: TranslateHistory) => {
+  const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setResult(history.targetText)
-    setTargetLanguage(history.targetLanguage)
+    setSourceLanguage(history._sourceLanguage)
+    setTargetLanguage(history._targetLanguage)
   }
 
   useEffect(() => {
@@ -460,20 +481,32 @@ const TranslatePage: FC = () => {
   useEffect(() => {
     runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(targetLang.value)
+      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
 
       const sourceLang = await db.settings.get({ id: 'translate:source:language' })
-      sourceLang && setSourceLanguage(sourceLang.value)
+      sourceLang &&
+        setSourceLanguage(sourceLang.value === 'auto' ? sourceLang.value : getLanguageByLangcode(sourceLang.value))
 
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
         const langPair = bidirectionalPairSetting.value
+        let source: undefined | Language
+        let target: undefined | Language
+
         if (Array.isArray(langPair) && langPair.length === 2 && langPair[0] !== langPair[1]) {
-          setBidirectionalPair(langPair as [string, string])
+          source = getLanguageByLangcode(langPair[0])
+          target = getLanguageByLangcode(langPair[1])
+        }
+
+        if (source && target) {
+          setBidirectionalPair([source, target])
         } else {
-          const defaultPair: [string, string] = ['english', 'chinese']
+          const defaultPair: [Language, Language] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
           setBidirectionalPair(defaultPair)
-          db.settings.put({ id: 'translate:bidirectional:pair', value: defaultPair })
+          db.settings.put({
+            id: 'translate:bidirectional:pair',
+            value: [defaultPair[0].langCode, defaultPair[1].langCode]
+          })
         }
       }
 
@@ -489,8 +522,8 @@ const TranslatePage: FC = () => {
   }, [])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = e.keyCode == 13
-    if (isEnterPressed && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    const isEnterPressed = e.key === 'Enter'
+    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
       onTranslate()
     }
@@ -501,32 +534,37 @@ const TranslatePage: FC = () => {
 
   // 获取当前语言状态显示
   const getLanguageDisplay = () => {
-    if (isBidirectional) {
-      return (
-        <Flex align="center" style={{ width: 160 }}>
-          <BidirectionalLanguageDisplay>
-            {`${t(`languages.${bidirectionalPair[0]}`)} ⇆ ${t(`languages.${bidirectionalPair[1]}`)}`}
-          </BidirectionalLanguageDisplay>
-        </Flex>
-      )
+    try {
+      if (isBidirectional) {
+        return (
+          <Flex align="center" style={{ width: 160 }}>
+            <BidirectionalLanguageDisplay>
+              {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
+            </BidirectionalLanguageDisplay>
+          </Flex>
+        )
+      }
+    } catch (error) {
+      console.error('Error getting language display:', error)
+      setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
     return (
       <Select
         style={{ width: 160 }}
-        value={targetLanguage}
+        value={targetLanguage.langCode}
         onChange={(value) => {
-          setTargetLanguage(value)
+          setTargetLanguage(getLanguageByLangcode(value))
           db.settings.put({ id: 'translate:target:language', value })
         }}
-        options={translateLanguageOptions().map((lang) => ({
-          value: lang.value,
+        options={translateLanguageOptions.map((lang) => ({
+          value: lang.langCode,
           label: (
             <Space.Compact direction="horizontal" block>
               <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
                 {lang.emoji}
               </span>
-              <Space.Compact block>{lang.label}</Space.Compact>
+              <Space.Compact block>{lang.label()}</Space.Compact>
             </Space.Compact>
           )
         }))}
@@ -550,7 +588,7 @@ const TranslatePage: FC = () => {
         </NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
+        <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
@@ -583,9 +621,22 @@ const TranslatePage: FC = () => {
                   }}>
                   <HistoryListItem onClick={() => onHistoryItemClick(item)}>
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                      <Flex align="center" justify="space-between" style={{ flex: 1 }}>
+                        <Flex align="center" gap={6}>
+                          <span>
+                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
+                          </span>
+                          →
+                          <span>
+                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
+                          </span>
+                        </Flex>
+                        <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                      </Flex>
                       <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                      <HistoryListItemTitle>{item.targetText}</HistoryListItemTitle>
-                      <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                      <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                        {item.targetText}
+                      </HistoryListItemTitle>
                     </Flex>
                   </HistoryListItem>
                 </Dropdown>
@@ -596,35 +647,36 @@ const TranslatePage: FC = () => {
               <Empty description={t('translate.history.empty')} />
             </Flex>
           )}
-        </HistoryContainner>
+        </HistoryContainer>
 
         <InputContainer>
           <OperationBar>
             <Flex align="center" gap={20}>
               <Select
                 showSearch
-                value={sourceLanguage}
+                value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
                 style={{ width: 180 }}
                 optionFilterProp="label"
-                onChange={(value) => {
-                  setSourceLanguage(value)
+                onChange={(value: LanguageCode | 'auto') => {
+                  if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
+                  else setSourceLanguage('auto')
                   db.settings.put({ id: 'translate:source:language', value })
                 }}
                 options={[
                   {
                     value: 'auto',
                     label: detectedLanguage
-                      ? `${t('translate.detected.language')} (${t(`languages.${detectedLanguage.toLowerCase()}`)})`
+                      ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
                       : t('translate.detected.language')
                   },
-                  ...translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
+                  ...translateLanguageOptions.map((lang) => ({
+                    value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>
                         <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
+                        <Space.Compact block>{lang.label()}</Space.Compact>
                       </Space.Compact>
                     )
                   }))
@@ -810,7 +862,7 @@ const BidirectionalLanguageDisplay = styled.div`
   text-align: center;
 `
 
-const HistoryContainner = styled.div<{ $historyDrawerVisible: boolean }>`
+const HistoryContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   width: ${({ $historyDrawerVisible }) => ($historyDrawerVisible ? '300px' : '0')};
   height: calc(100vh - var(--navbar-height) - 40px);
   transition:
@@ -838,15 +890,12 @@ const HistoryList = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   overflow-y: auto;
-  padding: 0 5px;
 `
 
 const HistoryListItem = styled.div`
   width: 100%;
   padding: 5px 10px;
-  border-radius: var(--list-item-border-radius);
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
@@ -863,15 +912,10 @@ const HistoryListItem = styled.div`
     }
   }
 
-  &:not(:last-child)::after {
-    content: '';
-    display: block;
-    width: 100%;
-    height: 1px;
+  border-top: 1px dashed var(--color-border-soft);
+
+  &:last-child {
     border-bottom: 1px dashed var(--color-border-soft);
-    position: absolute;
-    bottom: -8px;
-    left: 0;
   }
 `
 

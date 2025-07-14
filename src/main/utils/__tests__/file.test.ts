@@ -1,14 +1,19 @@
 import * as fs from 'node:fs'
+import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { FileTypes } from '@types'
+import iconv from 'iconv-lite'
+import { detectAll as detectEncodingAll } from 'jschardet'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir } from '../file'
 
 // Mock dependencies
 vi.mock('node:fs')
+vi.mock('node:fs/promises')
 vi.mock('node:os')
 vi.mock('node:path')
 vi.mock('uuid', () => ({
@@ -239,6 +244,56 @@ describe('file', () => {
     it('should handle empty app name', () => {
       const appConfigDir = getAppConfigDir('')
       expect(appConfigDir).toBe('/mock/home/.cherrystudio/config/')
+    })
+  })
+
+  describe('readTextFileWithAutoEncoding', () => {
+    const mockFilePath = '/path/to/mock/file.txt'
+
+    it('should read file with auto encoding', async () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+
+      // 创建模拟的 FileHandle 对象
+      const mockFileHandle = {
+        read: vi.fn().mockResolvedValue({
+          bytesRead: buffer.byteLength,
+          buffer: buffer
+        }),
+        close: vi.fn().mockResolvedValue(undefined)
+      }
+
+      // 模拟 open 方法
+      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+
+      const result = await readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
+    })
+
+    it('should try to fix bad detected encoding', async () => {
+      const content = '这是一段GB2312编码的测试内容'
+      const buffer = iconv.encode(content, 'GB2312')
+
+      // 创建模拟的 FileHandle 对象
+      const mockFileHandle = {
+        read: vi.fn().mockResolvedValue({
+          bytesRead: buffer.byteLength,
+          buffer: buffer
+        }),
+        close: vi.fn().mockResolvedValue(undefined)
+      }
+
+      // 模拟 fs.open 方法
+      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.mocked(vi.fn(detectEncodingAll)).mockReturnValue([
+        { encoding: 'UTF-8', confidence: 0.9 },
+        { encoding: 'GB2312', confidence: 0.8 }
+      ])
+
+      const result = await readTextFileWithAutoEncoding(mockFilePath)
+      expect(result).toBe(content)
     })
   })
 })

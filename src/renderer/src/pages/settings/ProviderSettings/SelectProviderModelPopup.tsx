@@ -52,8 +52,10 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       centered>
       <Select
         value={model?.id}
+        placeholder={i18n.t('settings.models.empty')}
         options={models.map((m) => ({ label: m.name, value: m.id }))}
         style={{ width: '100%' }}
+        showSearch
         onChange={(value) => {
           setModel(provider.models.find((m) => m.id === value)!)
         }}

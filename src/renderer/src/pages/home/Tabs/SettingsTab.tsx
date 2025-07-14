@@ -8,6 +8,7 @@ import {
   isSupportedFlexServiceTier,
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
+import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -40,18 +41,10 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowPrompt,
-  setShowTokens,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import {
-  Assistant,
-  AssistantSettings,
-  CodeStyleVarious,
-  MathEngine,
-  ThemeMode,
-  TranslateLanguageVarious
-} from '@renderer/types'
+import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { Button, Col, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
@@ -108,8 +101,7 @@ const SettingsTab: FC<Props> = (props) => {
     messageNavigation,
     enableQuickPanelTriggers,
     enableBackspaceDeleteModel,
-    showTranslateConfirm,
-    showTokens
+    showTranslateConfirm
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -304,11 +296,6 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
             <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.tokens')}</SettingRowTitleSmall>
-            <Switch size="small" checked={showTokens} onChange={(checked) => dispatch(setShowTokens(checked))} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -625,14 +612,10 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
             <Selector
               value={targetLanguage}
-              onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
-              options={[
-                { value: 'chinese', label: t('settings.input.target_language.chinese') },
-                { value: 'chinese-traditional', label: t('settings.input.target_language.chinese-traditional') },
-                { value: 'english', label: t('settings.input.target_language.english') },
-                { value: 'japanese', label: t('settings.input.target_language.japanese') },
-                { value: 'russian', label: t('settings.input.target_language.russian') }
-              ]}
+              onChange={(value) => setTargetLanguage(value)}
+              options={translateLanguageOptions.map((item) => {
+                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
+              })}
             />
           </SettingRow>
           <SettingDivider />

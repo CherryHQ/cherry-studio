@@ -1,4 +1,4 @@
-import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
@@ -188,6 +188,8 @@ class FileStorage {
       count: 1
     }
 
+    logger.info('[FileStorage] File uploaded:', fileMetadata)
+
     return fileMetadata
   }
 
@@ -229,7 +231,11 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
+  public readFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    id: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
     const fileExtension = path.extname(filePath)
@@ -256,7 +262,16 @@ class FileStorage {
       }
     }
 
-    return fs.readFileSync(filePath, 'utf8')
+    try {
+      if (detectEncoding) {
+        return readTextFileWithAutoEncoding(filePath)
+      } else {
+        return fs.readFileSync(filePath, 'utf-8')
+      }
+    } catch (error) {
+      logger.error(error)
+      return 'failed to read file'
+    }
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
@@ -407,6 +422,19 @@ class FileStorage {
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+  }
+
+  /**
+   * 通过相对路径打开文件，跨设备时使用
+   * @param file
+   */
+  public openFileWithRelativePath = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<void> => {
+    const filePath = path.join(this.storageDir, file.name)
+    if (fs.existsSync(filePath)) {
+      shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+    } else {
+      logger.warn('[IPC - Warning] File does not exist:', filePath)
+    }
   }
 
   public save = async (

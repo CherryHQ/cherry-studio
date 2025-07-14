@@ -24,8 +24,6 @@ let isInitialized = false
  */
 export const handlePaste = async (
   event: ClipboardEvent,
-  isVisionModel: boolean,
-  isGenerateImageModel: boolean,
   supportExts: string[],
   setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
   setText?: (text: string) => void,
@@ -57,7 +55,6 @@ export const handlePaste = async (
       // 短文本走默认粘贴行为，直接返回
       return false
     }
-
     // 2. 文件/图片粘贴（仅在无文本时处理）
     if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
       event.preventDefault()
@@ -69,7 +66,7 @@ export const handlePaste = async (
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && (isVisionModel || isGenerateImageModel)) {
+            if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)

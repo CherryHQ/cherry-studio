@@ -5,6 +5,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
+  isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
@@ -31,7 +32,7 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
+import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   OpenAISdkMessageParam,
@@ -114,7 +115,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
-        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+        if (
+          isSupportedThinkingTokenGeminiModel(model) &&
+          !GEMINI_FLASH_MODEL_REGEX.test(model.id) &&
+          model.id.includes('grok-4')
+        ) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -166,10 +171,17 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     // Qwen models
     if (isSupportedThinkingTokenQwenModel(model)) {
-      return {
+      const thinkConfig = {
         enable_thinking: true,
         thinking_budget: budgetTokens
       }
+      if (this.provider.id === 'dashscope') {
+        return {
+          ...thinkConfig,
+          incremental_output: true
+        }
+      }
+      return thinkConfig
     }
 
     // Grok models
@@ -307,7 +319,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'text',
           text: file.origin_name + '\n' + fileContent
@@ -436,7 +448,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         messages: OpenAISdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        let { streamOutput } = coreRequest
+
+        // Qwen3商业版（思考模式）、Qwen3开源版、QwQ、QVQ只支持流式输出。
+        if (isQwenReasoningModel(model)) {
+          streamOutput = true
+        }
+
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
@@ -659,6 +678,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       isFinished = true
     }
 
+    let isFirstThinkingChunk = true
+    let isFirstTextChunk = true
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 持续更新usage信息
@@ -699,6 +720,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
+              if (isFirstThinkingChunk) {
+                controller.enqueue({
+                  type: ChunkType.THINKING_START
+                } as ThinkingStartChunk)
+                isFirstThinkingChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
@@ -707,6 +734,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 处理文本内容
             if (contentSource.content) {
+              if (isFirstTextChunk) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_START
+                } as TextStartChunk)
+                isFirstTextChunk = false
+              }
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: contentSource.content

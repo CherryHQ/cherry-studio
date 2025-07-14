@@ -217,7 +217,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @param filePath 文件路径
    */
   private async convertFile(uid: string, filePath: string): Promise<void> {
-    const fileName = path.basename(filePath).split('.')[0]
+    const fileName = path.parse(filePath).name
     const config = {
       ...this.createAuthConfig(),
       headers: {

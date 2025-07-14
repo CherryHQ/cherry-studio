@@ -43,7 +43,7 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
   if (!packageName) {
     console.error(`No binary available for ${platformKey}`)
-    return false
+    return 101
   }
 
   // Create output directory structure
@@ -86,7 +86,7 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
             fs.chmodSync(outputPath, 0o755)
           } catch (chmodError) {
             console.error(`Warning: Failed to set executable permissions on ${filename}`)
-            return false
+            return 102
           }
         }
         console.log(`Extracted ${entry.name} -> ${outputPath}`)
@@ -97,8 +97,10 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
     // Clean up
     fs.unlinkSync(tempFilename)
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
-    return true
+    return 0
   } catch (error) {
+    let retCode = 103
+
     console.error(`Error installing bun for ${platformKey}: ${error.message}`)
     // Clean up temporary file if it exists
     if (fs.existsSync(tempFilename)) {
@@ -114,9 +116,10 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
       }
     } catch (cleanupError) {
       console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+      retCode = 104
     }
 
-    return false
+    return retCode
   }
 }
 
@@ -159,16 +162,21 @@ async function installBun() {
     `Installing bun ${version} for ${platform}-${arch}${isMusl ? ' (MUSL)' : ''}${isBaseline ? ' (baseline)' : ''}...`
   )
 
-  await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
+  return await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
 }
 
 // Run the installation
 installBun()
-  .then(() => {
-    console.log('Installation successful')
-    process.exit(0)
+  .then((retCode) => {
+    if (retCode === 0) {
+      console.log('Installation successful')
+      process.exit(0)
+    } else {
+      console.error('Installation failed')
+      process.exit(retCode)
+    }
   })
   .catch((error) => {
     console.error('Installation failed:', error)
-    process.exit(1)
+    process.exit(100)
   })

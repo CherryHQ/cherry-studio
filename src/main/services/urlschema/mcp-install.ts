@@ -44,7 +44,9 @@ export function handleMcpProtocolUrl(url: URL) {
       //   }
       // }
       // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
+
       const data = params.get('servers')
+
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
         Logger.info('install MCP servers from urlschema: ', stringify)
@@ -63,10 +65,8 @@ export function handleMcpProtocolUrl(url: URL) {
         }
       }
 
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript("window.navigate('/settings/mcp')")
-      }
+      windowService.getMainWindow()?.show()
+
       break
     }
     default:
