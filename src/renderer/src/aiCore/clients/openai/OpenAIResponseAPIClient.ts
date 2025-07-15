@@ -61,13 +61,34 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     this.client = new OpenAIAPIClient(provider)
   }
 
+  private formatApiHost() {
+    const host = this.provider.apiHost
+    if (host.endsWith('/openai/v1')) {
+      return host
+    } else {
+      if (host.endsWith('/')) {
+        return host + 'openai/v1'
+      } else {
+        return host + '/openai/v1'
+      }
+    }
+  }
+
   /**
    * 根据模型特征选择合适的客户端
    */
   public getClient(model: Model) {
+    if (this.provider.type === 'openai-response') {
+      return this
+    }
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
-        this.provider = { ...this.provider, apiVersion: 'preview' }
+        this.provider = { ...this.provider, apiHost: this.formatApiHost() }
+        if (this.provider.apiVersion === 'preview') {
+          return this
+        } else {
+          return this.client
+        }
       }
       return this
     } else {
@@ -81,7 +102,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
-      this.provider = { ...this.provider, apiHost: `${this.provider.apiHost}/openai/v1` }
       return new AzureOpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,

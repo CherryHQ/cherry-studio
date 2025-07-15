@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "ウェブ検索を無効にする",
       "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
       "input.web_search.settings": "ウェブ検索設定",
+      "input.url_context": "URLコンテキスト",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -765,7 +766,8 @@
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "autoApproveEnabled": "このツールは自動承認が有効になっています"
+        "autoApproveEnabled": "このツールは自動承認が有効になっています",
+        "raw": "生データ"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -2212,7 +2214,8 @@
             "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
             "title": "サービスアカウント設定"
           }
-        }
+        },
+        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
       },
       "proxy": {
         "mode": {
@@ -2457,6 +2460,304 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "update": {
+      "title": "更新",
+      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
+      "later": "後で",
+      "install": "今すぐインストール",
+      "noReleaseNotes": "暫無更新日誌"
+    },
+    "selection": {
+      "name": "テキスト選択ツール",
+      "action": {
+        "builtin": {
+          "translate": "翻訳",
+          "explain": "解説",
+          "summary": "要約",
+          "search": "検索",
+          "refine": "最適化",
+          "copy": "コピー",
+          "quote": "引用"
+        },
+        "window": {
+          "pin": "最前面に固定",
+          "pinned": "固定中",
+          "opacity": "ウィンドウの透過度",
+          "original_show": "原文を表示",
+          "original_hide": "原文を非表示",
+          "original_copy": "原文をコピー",
+          "esc_close": "Escで閉じる",
+          "esc_stop": "Escで停止",
+          "c_copy": "Cでコピー",
+          "r_regenerate": "Rで再生成"
+        },
+        "translate": {
+          "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
+        }
+      },
+      "settings": {
+        "experimental": "実験的機能",
+        "enable": {
+          "title": "有効化",
+          "description": "現在Windows & macOSのみ対応",
+          "mac_process_trust_hint": {
+            "title": "アクセシビリティー権限",
+            "description": [
+              "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
+              "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
+              "設定が完了したら、テキスト選択ツールを再起動してください。"
+            ],
+            "button": {
+              "open_accessibility_settings": "アクセシビリティー設定を開く",
+              "go_to_settings": "設定に移動"
+            }
+          }
+        },
+        "toolbar": {
+          "title": "ツールバー",
+          "trigger_mode": {
+            "title": "単語の取り出し方",
+            "description": "テキスト選択後、取詞ツールバーを表示する方法",
+            "description_note": {
+              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
+            },
+            "selected": "選択時",
+            "selected_note": "テキスト選択時に即時表示",
+            "ctrlkey": "Ctrlキー",
+            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
+            "shortcut": "ショートカットキー",
+            "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
+            "shortcut_link": "ショートカット設定ページに移動"
+          },
+          "compact_mode": {
+            "title": "コンパクトモード",
+            "description": "アイコンのみ表示（テキスト非表示）"
+          }
+        },
+        "window": {
+          "title": "機能ウィンドウ",
+          "follow_toolbar": {
+            "title": "ツールバーに追従",
+            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
+          },
+          "remember_size": {
+            "title": "サイズを記憶",
+            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
+          },
+          "auto_close": {
+            "title": "自動閉じる",
+            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
+          },
+          "auto_pin": {
+            "title": "自動で最前面に固定",
+            "description": "デフォルトで最前面表示"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "デフォルトの透明度を設定（100%は完全不透明）"
+          }
+        },
+        "actions": {
+          "title": "機能設定",
+          "custom": "カスタム機能",
+          "reset": {
+            "button": "リセット",
+            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
+            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
+          },
+          "add_tooltip": {
+            "enabled": "カスタム機能を追加",
+            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
+          },
+          "delete_confirm": "このカスタム機能を削除しますか？",
+          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
+        },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "カスタム機能追加",
+            "edit": "カスタム機能編集"
+          },
+          "name": {
+            "label": "機能名",
+            "hint": "機能名を入力"
+          },
+          "icon": {
+            "label": "アイコン",
+            "placeholder": "Lucideアイコン名を入力",
+            "error": "無効なアイコン名です",
+            "tooltip": "例: arrow-right（小文字で入力）",
+            "view_all": "全アイコンを表示",
+            "random": "ランダム選択"
+          },
+          "model": {
+            "label": "モデル",
+            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
+            "default": "デフォルトモデル",
+            "assistant": "アシスタントを使用"
+          },
+          "assistant": {
+            "label": "アシスタント選択",
+            "default": "デフォルト"
+          },
+          "prompt": {
+            "label": "ユーザープロンプト",
+            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
+            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
+            "placeholder_text": "プレースホルダー",
+            "copy_placeholder": "プレースホルダーをコピー"
+          }
+        },
+        "search_modal": {
+          "title": "検索エンジン設定",
+          "engine": {
+            "label": "検索エンジン",
+            "custom": "カスタム"
+          },
+          "custom": {
+            "name": {
+              "label": "表示名",
+              "hint": "検索エンジン名（16文字以内）",
+              "max_length": "16文字以内で入力"
+            },
+            "url": {
+              "label": "検索URL",
+              "hint": "{{queryString}}で検索語を表す",
+              "required": "URLを入力してください",
+              "invalid_format": "http:// または https:// で始まるURLを入力",
+              "missing_placeholder": "{{queryString}}を含めてください"
+            },
+            "test": "テスト"
+          }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": {
+            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
+            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
+          }
+        }
+      }
+    },
+    "memory": {
+      "add_memory": "メモリーを追加",
+      "edit_memory": "メモリーを編集",
+      "memory_content": "メモリー内容",
+      "please_enter_memory": "メモリー内容を入力してください",
+      "memory_placeholder": "メモリー内容を入力...",
+      "user_id": "ユーザーID",
+      "user_id_placeholder": "ユーザーIDを入力（オプション）",
+      "load_failed": "メモリーの読み込みに失敗しました",
+      "add_success": "メモリーが正常に追加されました",
+      "add_failed": "メモリーの追加に失敗しました",
+      "update_success": "メモリーが正常に更新されました",
+      "update_failed": "メモリーの更新に失敗しました",
+      "delete_success": "メモリーが正常に削除されました",
+      "delete_failed": "メモリーの削除に失敗しました",
+      "delete_confirm_title": "メモリーを削除",
+      "delete_confirm_content": "{{count}}件のメモリーを削除してもよろしいですか？",
+      "delete_confirm": "このメモリーを削除してもよろしいですか？",
+      "time": "時間",
+      "user": "ユーザー",
+      "content": "内容",
+      "score": "スコア",
+      "title": "メモリー",
+      "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
+      "search_placeholder": "メモリーを検索...",
+      "start_date": "開始日",
+      "end_date": "終了日",
+      "all_users": "すべてのユーザー",
+      "users": "ユーザー",
+      "delete_selected": "選択したものを削除",
+      "reset_filters": "フィルターをリセット",
+      "pagination_total": "{{total}}件中{{start}}-{{end}}件",
+      "current_user": "現在のユーザー",
+      "select_user": "ユーザーを選択",
+      "default_user": "デフォルトユーザー",
+      "switch_user": "ユーザーを切り替え",
+      "user_switched": "ユーザーコンテキストが{{user}}に切り替わりました",
+      "switch_user_confirm": "ユーザーコンテキストを{{user}}に切り替えますか？",
+      "add_user": "ユーザーを追加",
+      "add_new_user": "新しいユーザーを追加",
+      "new_user_id": "新しいユーザーID",
+      "new_user_id_placeholder": "一意のユーザーIDを入力",
+      "user_id_required": "ユーザーIDは必須です",
+      "user_id_reserved": "'default-user'は予約済みです。別のIDを使用してください",
+      "user_id_exists": "このユーザーIDはすでに存在します",
+      "user_id_too_long": "ユーザーIDは50文字を超えられません",
+      "user_id_invalid_chars": "ユーザーIDには文字、数字、ハイフン、アンダースコアのみ使用できます",
+      "user_id_rules": "ユーザーIDは一意であり、文字、数字、ハイフン(-)、アンダースコア(_)のみ含む必要があります",
+      "user_created": "ユーザー{{user}}が作成され、切り替えが成功しました",
+      "add_user_failed": "ユーザーの追加に失敗しました",
+      "memory": "個のメモリ",
+      "reset_user_memories": "ユーザーメモリをリセット",
+      "reset_memories": "メモリをリセット",
+      "delete_user": "ユーザーを削除",
+      "loading_memories": "メモリを読み込み中...",
+      "no_memories": "メモリがありません",
+      "no_matching_memories": "一致するメモリが見つかりません",
+      "no_memories_description": "最初のメモリを追加してください",
+      "try_different_filters": "検索条件を調整してください",
+      "add_first_memory": "最初のメモリを追加",
+      "user_switch_failed": "ユーザーの切り替えに失敗しました",
+      "cannot_delete_default_user": "デフォルトユーザーは削除できません",
+      "delete_user_confirm_title": "ユーザーを削除",
+      "delete_user_confirm_content": "ユーザー{{user}}とそのすべてのメモリを削除してもよろしいですか？",
+      "user_deleted": "ユーザー{{user}}が正常に削除されました",
+      "delete_user_failed": "ユーザーの削除に失敗しました",
+      "reset_user_memories_confirm_title": "ユーザーメモリをリセット",
+      "reset_user_memories_confirm_content": "{{user}}のすべてのメモリをリセットしてもよろしいですか？",
+      "user_memories_reset": "{{user}}のすべてのメモリがリセットされました",
+      "reset_user_memories_failed": "ユーザーメモリのリセットに失敗しました",
+      "reset_memories_confirm_title": "すべてのメモリをリセット",
+      "reset_memories_confirm_content": "{{user}}のすべてのメモリを完全に削除してもよろしいですか？この操作は元に戻せません。",
+      "memories_reset_success": "{{user}}のすべてのメモリが正常にリセットされました",
+      "reset_memories_failed": "メモリのリセットに失敗しました",
+      "delete_confirm_single": "このメモリを削除してもよろしいですか？",
+      "total_memories": "個のメモリ",
+      "default": "デフォルト",
+      "custom": "カスタム",
+      "description": "メモリは、アシスタントとのやりとりに関する情報を保存・管理する機能です。メモリの追加、編集、削除のほか、フィルタリングや検索を行うことができます。",
+      "global_memory_enabled": "グローバルメモリが有効化されました",
+      "global_memory": "グローバルメモリ",
+      "enable_global_memory_first": "最初にグローバルメモリを有効にしてください",
+      "configure_memory_first": "最初にメモリ設定を構成してください",
+      "global_memory_disabled_title": "グローバルメモリが無効です",
+      "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
+      "not_configured_title": "メモリが設定されていません",
+      "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
+      "go_to_memory_page": "メモリページに移動",
+      "settings": "設定",
+      "statistics": "統計",
+      "search": "検索",
+      "actions": "アクション",
+      "user_management": "ユーザー管理",
+      "initial_memory_content": "ようこそ！これはあなたの最初の記憶です。",
+      "loading": "思い出を読み込み中...",
+      "settings_title": "メモリ設定",
+      "llm_model": "LLMモデル",
+      "please_select_llm_model": "LLMモデルを選択してください",
+      "select_llm_model_placeholder": "LLMモデルを選択",
+      "embedding_model": "埋め込みモデル",
+      "please_select_embedding_model": "埋め込みモデルを選択してください",
+      "select_embedding_model_placeholder": "埋め込みモデルを選択",
+      "embedding_dimensions": "埋め込み次元",
+      "stored_memories": "保存された記憶"
     }
   }
 }
