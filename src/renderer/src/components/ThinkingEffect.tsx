@@ -50,24 +50,14 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
 
                 if (index < messages.length - 5) return null
 
-                const opacity = (() => {
-                  const distanceFromLast = messages.length - 1 - index
-                  if (distanceFromLast === 0) return 1
-                  if (distanceFromLast === 1) return 0.6
-                  if (distanceFromLast === 2) return 0.4
-                  return 0
-                })()
-
                 return (
                   <ContentLineMotion
-                    key={`${index}-${message}`}
+                    key={index}
                     initial={{
-                      opacity: 1,
                       y: index === messages.length - 1 ? containerHeight : finalY + lineHeight,
                       height: lineHeight
                     }}
                     animate={{
-                      opacity,
                       y: finalY
                     }}
                     transition={{
@@ -148,6 +138,14 @@ const TextContainer = styled.div`
 const Content = styled(motion.div)`
   width: 100%;
   height: 100%;
+  mask: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0%) 0%,
+    rgb(0 0 0 / 0%) 35%,
+    rgb(0 0 0 / 25%) 40%,
+    rgb(0 0 0 / 100%) 90%,
+    rgb(0 0 0 / 100%) 100%
+  );
 `
 
 const ContentLineMotion = styled(motion.div)`

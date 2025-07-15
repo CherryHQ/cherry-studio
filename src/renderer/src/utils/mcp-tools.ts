@@ -729,14 +729,42 @@ export async function parseAndCallTools<R>(
 export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
-  isVisionModel: boolean = false
+  isVisionModel: boolean = false,
+  isCompatibleMode: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
-
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
+  } else if (isCompatibleMode) {
+    let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content += (item.text || 'no content') + '\n'
+            break
+          case 'image':
+            // NOTE: 假设兼容模式下支持解析base64图片，虽然我觉得应该不支持
+            content += `Here is a image result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          case 'audio':
+            // NOTE: 假设兼容模式下支持解析base64音频，虽然我觉得应该不支持
+            content += `Here is a audio result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          default:
+            content += `Here is a unsupported result type: ${item.type}\n`
+            break
+        }
+      }
+    } else {
+      content += JSON.stringify(resp.content)
+      content += '\n'
+    }
+
+    message.content = content
   } else {
     const content: ChatCompletionContentPart[] = [
       {
