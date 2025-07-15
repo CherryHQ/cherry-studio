@@ -157,7 +157,7 @@ const PreviewSectionComponent: React.FC<PreviewSectionProps> = ({ html, visible 
         clearInterval(intervalRef.current)
       }
     }
-  }, [htmlContent]) // 只在组件挂载时执行一次
+  }, []) // 只在组件挂载时执行一次
 
   if (!visible) return null
   const isHtmlEmpty = !debouncedHtml.trim()
