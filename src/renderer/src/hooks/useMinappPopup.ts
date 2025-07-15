@@ -11,6 +11,26 @@ import {
 import { MinAppType } from '@renderer/types'
 import { useCallback } from 'react'
 
+const updateLRUCache = <T extends { id: string }>(apps: T[], app: T, limitation: number): T[] => {
+  const existingIndex = apps.findIndex((item) => item.id === app.id)
+
+  if (existingIndex !== -1) {
+    // 找到已存在的 app，将其移动到最前面
+    const updatedApps = [...apps]
+    updatedApps.splice(existingIndex, 1)
+    updatedApps.unshift(app)
+    return updatedApps
+  }
+
+  const updatedApps = [app, ...apps]
+
+  if (updatedApps.length > limitation) {
+    return updatedApps.slice(0, limitation)
+  }
+
+  return updatedApps
+}
+
 /**
  * Usage:
  *
@@ -34,21 +54,8 @@ export const useMinappPopup = () => {
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
-        // 如果小程序已经打开，只切换显示
-        if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
-          dispatch(setCurrentMinappId(app.id))
-          dispatch(setMinappShow(true))
-          return
-        }
-
-        // 如果缓存数量未达上限，添加到缓存列表
-        if (openedKeepAliveMinapps.length < maxKeepAliveMinapps) {
-          dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps]))
-        } else {
-          // 缓存数量达到上限，移除最后一个，添加新的
-          dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps.slice(0, maxKeepAliveMinapps - 1)]))
-        }
-
+        const updatedApps = updateLRUCache(openedKeepAliveMinapps, app, maxKeepAliveMinapps)
+        dispatch(setOpenedKeepAliveMinapps(updatedApps))
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
