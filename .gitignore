@@ -49,6 +49,7 @@ local
 .claude/*
 .gemini/*
 .trae/*
+.claude-code-router/*
 
 # vitest
 coverage

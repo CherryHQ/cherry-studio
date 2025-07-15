@@ -26,7 +26,7 @@ export interface StreamProcessorCallbacks {
   // External tool call in progress
   onExternalToolInProgress?: () => void
   // Citation data received (e.g., from Internet and  Knowledge Base)
-  onExternalToolComplete?: (externalToolResult: ExternalToolResult) => void
+  onExternalToolComplete?: (externalToolResult: ExternalToolResult) => void | Promise<void>
   // LLM Web search in progress
   onLLMWebSearchInProgress?: () => void
   // LLM Web search complete

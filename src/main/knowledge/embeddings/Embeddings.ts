@@ -1,19 +1,15 @@
 import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
-import { KnowledgeBaseParams } from '@types'
+import { ApiClient } from '@types'
 
 import EmbeddingsFactory from './EmbeddingsFactory'
 
 export default class Embeddings {
   private sdk: BaseEmbeddings
-  constructor({ model, provider, apiKey, apiVersion, baseURL, dimensions }: KnowledgeBaseParams) {
+  constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
     this.sdk = EmbeddingsFactory.create({
-      model,
-      provider,
-      apiKey,
-      apiVersion,
-      baseURL,
+      embedApiClient,
       dimensions
-    } as KnowledgeBaseParams)
+    })
   }
   public async init(): Promise<void> {
     return this.sdk.init()
