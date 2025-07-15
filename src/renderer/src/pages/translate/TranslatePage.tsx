@@ -493,7 +493,6 @@ const TranslatePage: FC = () => {
   const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setResult(history.targetText)
-    setSourceLanguage(history._sourceLanguage)
     setTargetLanguage(history._targetLanguage)
   }
 
