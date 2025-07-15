@@ -1,6 +1,6 @@
 import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
-import { app, ProxyConfig } from 'electron'
+import { app } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
