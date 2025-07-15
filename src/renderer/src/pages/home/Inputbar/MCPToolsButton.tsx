@@ -454,7 +454,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }))
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
+    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <SquareTerminal
           size={18}

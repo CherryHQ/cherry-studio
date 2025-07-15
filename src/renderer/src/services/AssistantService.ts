@@ -1,4 +1,10 @@
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT,
+  UNLIMITED_CONTEXT_COUNT
+} from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
@@ -108,7 +114,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 
   return {
-    contextCount: contextCount === 100 ? 100000 : contextCount,
+    contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     topP: assistant?.settings?.topP ?? 1,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,

@@ -95,7 +95,7 @@ const MessageItem: FC<Props> = ({
     stopEditing()
   }, [stopEditing])
 
-  const isLastMessage = index === 0
+  const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
@@ -127,8 +127,6 @@ const MessageItem: FC<Props> = ({
     )
   }
 
-  const showHeader = messageStyle === 'plain' || isAssistantMessage
-
   return (
     <MessageContainer
       key={message.id}
@@ -138,15 +136,7 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}>
-      {showHeader && (
-        <MessageHeader
-          message={message}
-          assistant={assistant}
-          model={model}
-          key={getModelUniqId(model)}
-          topic={topic}
-        />
-      )}
+      <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} topic={topic} />
       {isEditing && (
         <MessageEditor
           message={message}
@@ -170,7 +160,7 @@ const MessageItem: FC<Props> = ({
             </MessageErrorBoundary>
           </MessageContentContainer>
           {showMenubar && (
-            <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage}>
+            <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
               <MessageMenubar
                 message={message}
                 assistant={assistant}
@@ -199,7 +189,8 @@ const MessageContainer = styled.div`
   transition: background-color 0.3s ease;
   transform: translateZ(0);
   will-change: transform;
-  padding: 10px 10px 0 10px;
+  padding: 10px;
+  padding-bottom: 0;
   border-radius: 10px;
   &.message-highlight {
     background-color: var(--color-primary-mute);
@@ -227,14 +218,15 @@ const MessageContentContainer = styled(Scrollbar)`
   overflow-y: auto;
 `
 
-const MessageFooter = styled.div<{ $isLastMessage: boolean }>`
+const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plain' | 'bubble' }>`
   display: flex;
-  flex-direction: ${({ $isLastMessage }) => ($isLastMessage ? 'row-reverse' : 'row')};
+  flex-direction: ${({ $isLastMessage, $messageStyle }) =>
+    $isLastMessage && $messageStyle === 'plain' ? 'row-reverse' : 'row'};
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-left: 46px;
-  margin-top: 2px;
+  margin-top: 8px;
 `
 
 const NewContextMessage = styled.div`

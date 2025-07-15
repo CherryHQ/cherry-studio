@@ -84,3 +84,24 @@ export function getPendingToolIds(): string[] {
 export function isToolPending(toolId: string): boolean {
   return toolConfirmResolvers.has(toolId)
 }
+
+const toolIdToNameMap = new Map<string, string>()
+
+export function setToolIdToNameMapping(toolId: string, toolName: string): void {
+  toolIdToNameMap.set(toolId, toolName)
+}
+
+export function confirmSameNameTools(confirmedToolName: string): void {
+  const toolIdsToConfirm: string[] = []
+
+  for (const [toolId, toolName] of toolIdToNameMap.entries()) {
+    if (toolName === confirmedToolName && toolConfirmResolvers.has(toolId)) {
+      toolIdsToConfirm.push(toolId)
+    }
+  }
+
+  toolIdsToConfirm.forEach((toolId) => {
+    confirmToolAction(toolId)
+    toolIdToNameMap.delete(toolId)
+  })
+}

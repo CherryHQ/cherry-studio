@@ -1,6 +1,6 @@
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
-import { startAutoSync, startLocalBackupAutoSync } from './services/BackupService'
+import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
 import storeSyncService from './services/StoreSyncService'
 import store from './store'
@@ -14,14 +14,11 @@ function initAutoSync() {
   setTimeout(() => {
     const { webdavAutoSync, localBackupAutoSync, s3 } = store.getState().settings
     const { nutstoreAutoSync } = store.getState().nutstore
-    if (webdavAutoSync || (s3 && s3.autoSync)) {
+    if (webdavAutoSync || (s3 && s3.autoSync) || localBackupAutoSync) {
       startAutoSync()
     }
     if (nutstoreAutoSync) {
       startNutstoreAutoSync()
-    }
-    if (localBackupAutoSync) {
-      startLocalBackupAutoSync()
     }
   }, 8000)
 }

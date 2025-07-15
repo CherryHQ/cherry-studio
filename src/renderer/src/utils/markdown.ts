@@ -268,6 +268,47 @@ export function isValidPlantUML(code: string | null): boolean {
 }
 
 /**
+ * 检查代码是否具有HTML特征
+ * @param code 输入的代码字符串
+ * @returns 是HTML代码 true，否则 false
+ */
+export function isHtmlCode(code: string | null): boolean {
+  if (!code || !code.trim()) {
+    return false
+  }
+
+  const trimmedCode = code.trim()
+
+  // 检查是否包含HTML文档类型声明
+  if (trimmedCode.includes('<!DOCTYPE html>') || trimmedCode.includes('<!doctype html>')) {
+    return true
+  }
+
+  // 检查是否包含html标签
+  if (trimmedCode.includes('<html') || trimmedCode.includes('</html>')) {
+    return true
+  }
+
+  // 检查是否包含head标签
+  if (trimmedCode.includes('<head>') || trimmedCode.includes('</head>')) {
+    return true
+  }
+
+  // 检查是否包含body标签
+  if (trimmedCode.includes('<body') || trimmedCode.includes('</body>')) {
+    return true
+  }
+
+  // 检查是否以HTML标签开头和结尾的完整HTML结构
+  const htmlTagPattern = /^\s*<html[^>]*>[\s\S]*<\/html>\s*$/i
+  if (htmlTagPattern.test(trimmedCode)) {
+    return true
+  }
+
+  return false
+}
+
+/**
  * 将 Markdown 字符串转换为纯文本。
  * @param markdown Markdown 字符串。
  * @returns 纯文本字符串。

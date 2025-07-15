@@ -14,6 +14,7 @@ import {
   FileSearch,
   Globe,
   Languages,
+  Link,
   LucideSquareTerminal,
   Maximize,
   MessageSquareDiff,
@@ -36,6 +37,7 @@ import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButt
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
+import UrlContextButton, { UrlContextButtonRef } from './UrlContextbutton'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
 export interface InputbarToolsRef {
@@ -128,6 +130,7 @@ const InputbarTools = ({
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
   const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
+  const urlContextButtonRef = useRef<UrlContextButtonRef | null>(null)
 
   const toolOrder = useAppSelector((state) => state.inputTools.toolOrder)
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
@@ -231,6 +234,15 @@ const InputbarTools = ({
         }
       },
       {
+        label: t('chat.input.url_context'),
+        description: '',
+        icon: <Link />,
+        isMenu: true,
+        action: () => {
+          urlContextButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
         label: couldAddImageFile ? t('chat.input.upload') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
@@ -290,7 +302,11 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
+          <Tooltip
+            placement="top"
+            title={t('chat.input.new_topic', { Command: newTopicShortcut })}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
             </ToolbarButton>
@@ -323,6 +339,12 @@ const InputbarTools = ({
         key: 'web_search',
         label: t('chat.input.web_search'),
         component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
+      },
+      {
+        key: 'url_context',
+        label: t('chat.input.url_context'),
+        component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        condition: model.id.toLowerCase().includes('gemini')
       },
       {
         key: 'knowledge_base',
@@ -395,7 +417,11 @@ const InputbarTools = ({
         key: 'clear_topic',
         label: t('chat.input.clear', { Command: '' }),
         component: (
-          <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
+          <Tooltip
+            placement="top"
+            title={t('chat.input.clear', { Command: cleanTopicShortcut })}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={clearTopic}>
               <PaintbrushVertical size={18} />
             </ToolbarButton>
@@ -406,7 +432,11 @@ const InputbarTools = ({
         key: 'toggle_expand',
         label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
         component: (
-          <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
+          <Tooltip
+            placement="top"
+            title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
+            mouseLeaveDelay={0}
+            arrow>
             <ToolbarButton type="text" onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
             </ToolbarButton>
