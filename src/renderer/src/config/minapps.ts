@@ -61,10 +61,11 @@ import { MinAppType } from '@renderer/types'
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
     let content: string
-    try {
+    const fileExists = await window.api.file.exists?.('custom-minapps.json') || false
+
+    if (fileExists) {
       content = await window.api.file.read('custom-minapps.json')
-    } catch (error) {
-      // 如果文件不存在，创建一个空的 JSON 数组
+    } else {
       content = '[]'
       await window.api.file.writeWithId('custom-minapps.json', content)
     }
