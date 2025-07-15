@@ -1,6 +1,6 @@
 import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
-import { app } from 'electron'
+import { app, ProxyConfig } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
@@ -25,7 +25,8 @@ export enum ConfigKeys {
   SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
-  DisableHardwareAcceleration = 'disableHardwareAcceleration'
+  DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  Proxy = 'proxy'
 }
 
 export class ConfigManager {
@@ -229,6 +230,14 @@ export class ConfigManager {
 
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)
+  }
+
+  setProxy(value: ProxyConfig) {
+    this.set(ConfigKeys.Proxy, value)
+  }
+
+  getProxy(): ProxyConfig {
+    return this.get<ProxyConfig>(ConfigKeys.Proxy, { mode: 'direct' })
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {
