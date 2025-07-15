@@ -906,7 +906,8 @@
     "notification": {
       "assistant": "助手回應",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました"
+      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
+      "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",

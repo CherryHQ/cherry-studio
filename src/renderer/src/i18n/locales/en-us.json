@@ -906,7 +906,8 @@
     "notification": {
       "assistant": "Assistant Response",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "Successfully added {{type}} to the knowledge base"
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",

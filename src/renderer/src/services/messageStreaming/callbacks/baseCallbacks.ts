@@ -17,7 +17,7 @@ import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isOnHomePage } from '@renderer/utils/window'
+import { isFocused, isOnHomePage } from '@renderer/utils/window'
 
 import { BlockManager } from '../BlockManager'
 
@@ -84,17 +84,21 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         requestId: error.request_id
       }
 
+      const duration = Date.now() - startTime
       // 发送错误通知（除了中止错误）
-      if (!isErrorTypeAbort && !isOnHomePage()) {
-        await notificationService.send({
-          id: uuid(),
-          type: 'error',
-          title: i18n.t('notification.assistant'),
-          message: serializableError.message,
-          silent: false,
-          timestamp: Date.now(),
-          source: 'assistant'
-        })
+      if (!isErrorTypeAbort) {
+        const timeOut = duration > 30 * 1000
+        if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
+          await notificationService.send({
+            id: uuid(),
+            type: 'error',
+            title: i18n.t('notification.assistant'),
+            message: serializableError.message,
+            silent: false,
+            timestamp: Date.now(),
+            source: 'assistant'
+          })
+        }
       }
 
       const possibleBlockId = findBlockIdForCompletion()
@@ -149,12 +153,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
         }
 
-        const endTime = Date.now()
-        const duration = endTime - startTime
+        const duration = Date.now() - startTime
         const content = getMainTextContent(finalAssistantMsg)
 
+        const timeOut = duration > 30 * 1000
         // 发送长时间运行消息的成功通知
-        if (!isOnHomePage() && duration > 60 * 1000) {
+        if ((!isOnHomePage() && timeOut) || (!isFocused() && timeOut)) {
           await notificationService.send({
             id: uuid(),
             type: 'success',
@@ -162,7 +166,8 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             message: content.length > 50 ? content.slice(0, 47) + '...' : content,
             silent: false,
             timestamp: Date.now(),
-            source: 'assistant'
+            source: 'assistant',
+            channel: 'system'
           })
         }
 
