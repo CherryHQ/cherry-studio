@@ -7185,7 +7185,6 @@ __metadata:
     fetch-socks: "npm:1.3.2"
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
-    global-agent: "npm:3.0.0"
     google-auth-library: "npm:^9.15.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -11919,7 +11918,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"global-agent@npm:3.0.0, global-agent@npm:^3.0.0":
+"global-agent@npm:^3.0.0":
   version: 3.0.0
   resolution: "global-agent@npm:3.0.0"
   dependencies:
