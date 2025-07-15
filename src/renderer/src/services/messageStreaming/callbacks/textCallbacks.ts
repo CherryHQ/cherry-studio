@@ -21,7 +21,6 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
   return {
     onTextStart: async () => {
       if (blockManager.hasInitialPlaceholder) {
-        blockManager.lastBlockType = MessageBlockType.MAIN_TEXT
         const changes = {
           type: MessageBlockType.MAIN_TEXT,
           content: accumulatedContent,

@@ -19,7 +19,6 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
   return {
     onToolCallPending: (toolResponse: MCPToolResponse) => {
       if (blockManager.hasInitialPlaceholder) {
-        blockManager.lastBlockType = MessageBlockType.TOOL
         const changes = {
           type: MessageBlockType.TOOL,
           status: MessageBlockStatus.PENDING,

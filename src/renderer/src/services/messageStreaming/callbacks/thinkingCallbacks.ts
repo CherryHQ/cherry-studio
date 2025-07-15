@@ -18,7 +18,6 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
   return {
     onThinkingStart: async () => {
       if (blockManager.hasInitialPlaceholder) {
-        blockManager.lastBlockType = MessageBlockType.THINKING
         const changes = {
           type: MessageBlockType.THINKING,
           content: accumulatedThinking,

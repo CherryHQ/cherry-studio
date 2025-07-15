@@ -109,19 +109,17 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
-
-      // 更新消息状态
-      const messageUpdates = {
-        status: isErrorTypeAbort ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.ERROR
+      const messageErrorUpdate = {
+        status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
       }
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
           messageId: assistantMsgId,
-          updates: messageUpdates
+          updates: messageErrorUpdate
         })
       )
-      await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+      await saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
 
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,

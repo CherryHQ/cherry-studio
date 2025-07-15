@@ -212,7 +212,8 @@ vi.mock('@renderer/utils/queue', () => ({
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   default: {},
   findMainTextBlocks: vi.fn(() => []),
-  getMainTextContent: vi.fn(() => 'Test content')
+  getMainTextContent: vi.fn(() => 'Test content'),
+  findAllBlocks: vi.fn(() => [])
 }))
 
 vi.mock('i18next', () => {
@@ -550,7 +551,6 @@ describe('streamCallback Integration Tests', () => {
     // 验证 Redux 状态
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
-
     const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
     expect(citationBlock).toBeDefined()
     expect(citationBlock?.response?.source).toEqual(mockWebSearchResult.source)

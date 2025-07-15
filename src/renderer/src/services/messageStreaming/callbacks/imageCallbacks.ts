@@ -17,7 +17,6 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
   return {
     onImageCreated: async () => {
       if (blockManager.hasInitialPlaceholder) {
-        blockManager.lastBlockType = MessageBlockType.IMAGE
         const initialChanges = {
           type: MessageBlockType.IMAGE,
           status: MessageBlockStatus.PENDING

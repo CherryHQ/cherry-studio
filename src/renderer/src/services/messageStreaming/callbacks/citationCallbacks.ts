@@ -39,8 +39,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
 
     onLLMWebSearchInProgress: async () => {
       if (blockManager.hasInitialPlaceholder) {
-        blockManager.lastBlockType = MessageBlockType.CITATION
+        // blockManager.lastBlockType = MessageBlockType.CITATION
+        console.log('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)
         citationBlockId = blockManager.initialPlaceholderBlockId!
+        console.log('citationBlockId', citationBlockId)
+
         const changes = {
           type: MessageBlockType.CITATION,
           status: MessageBlockStatus.PROCESSING
@@ -61,7 +64,7 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
           response: llmWebSearchResult,
           status: MessageBlockStatus.SUCCESS
         }
-        blockManager.smartBlockUpdate(blockId, changes, MessageBlockType.CITATION)
+        blockManager.smartBlockUpdate(blockId, changes, MessageBlockType.CITATION, true)
 
         const state = getState()
         const existingMainTextBlocks = findMainTextBlocks(state.messages.entities[assistantMsgId])
