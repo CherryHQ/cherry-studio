@@ -214,6 +214,7 @@
       "input.web_search.no_web_search": "不使用网络",
       "input.web_search.no_web_search.description": "不启用网络搜索功能",
       "input.web_search.settings": "网络搜索设置",
+      "input.url_context": "网页上下文",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -764,7 +765,8 @@
         "invoking": "调用中",
         "pending": "等待中",
         "preview": "预览",
-        "autoApproveEnabled": "此工具已启用自动批准"
+        "autoApproveEnabled": "此工具已启用自动批准",
+        "raw": "原始"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -904,7 +906,8 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "成功添加 {{type}} 到知识库"
+      "knowledge.success": "成功添加 {{type}} 到知识库",
+      "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5 分钟）",
@@ -1029,7 +1032,7 @@
         "turbo": "快速"
       },
       "req_error_no_balance": "请检查令牌有效性",
-      "req_error_text": "运行失败，请重试。提示词避免 \"版权词\" 和 \"敏感词\" 哦。",
+      "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
       "req_error_token": "请检查令牌有效性",
       "required_field": "必填项",
       "seed": "随机种子",
@@ -1763,6 +1766,13 @@
         "addServer.importFrom.invalid": "无效输入，请检查 JSON 格式",
         "addServer.importFrom.nameExists": "服务器已存在：{{name}}",
         "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.method": "导入方式",
+        "addServer.importFrom.dxtFile": "DXT 包文件",
+        "addServer.importFrom.dxtHelp": "选择包含 MCP 服务器的 .dxt 文件",
+        "addServer.importFrom.selectDxtFile": "选择 DXT 文件",
+        "addServer.importFrom.noDxtFile": "请选择一个 DXT 文件",
+        "addServer.importFrom.dxtProcessFailed": "处理 DXT 文件失败",
+        "addServer.importFrom.dxt": "导入 DXT 包",
         "addServer.importFrom.placeholder": "粘贴 MCP 服务器 JSON 配置",
         "addServer.importFrom.tooltip": "请从 MCP Servers 的介绍页面复制配置 JSON（优先使用\n NPX 或 UVX 配置），并粘贴到输入框中",
         "addSuccess": "服务器添加成功",
@@ -1887,6 +1897,7 @@
         "tools": {
           "availableTools": "可用工具",
           "inputSchema": "输入模式",
+          "inputSchema.enum.allowedValues": "允许的值",
           "loadError": "获取工具失败",
           "noToolsAvailable": "无可用工具",
           "enable": "启用工具",
@@ -2114,6 +2125,7 @@
         "api_key": "API 密钥",
         "api_key.tip": "多个密钥使用逗号或空格分隔",
         "api_version": "API 版本",
+        "azure.apiversion.tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 preview 版本",
         "basic_auth": "HTTP 认证",
         "basic_auth.password": "密码",
         "basic_auth.password.tip": "",
@@ -2446,6 +2458,304 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "update": {
+      "title": "更新提示",
+      "message": "发现新版本 {{version}}，是否立即安装？",
+      "later": "稍后",
+      "install": "立即安装",
+      "noReleaseNotes": "暂无更新日志"
+    },
+    "selection": {
+      "name": "划词助手",
+      "action": {
+        "builtin": {
+          "translate": "翻译",
+          "explain": "解释",
+          "summary": "总结",
+          "search": "搜索",
+          "refine": "优化",
+          "copy": "复制",
+          "quote": "引用"
+        },
+        "window": {
+          "pin": "置顶",
+          "pinned": "已置顶",
+          "opacity": "窗口透明度",
+          "original_show": "显示原文",
+          "original_hide": "隐藏原文",
+          "original_copy": "复制原文",
+          "esc_close": "Esc 关闭",
+          "esc_stop": "Esc 停止",
+          "c_copy": "C 复制",
+          "r_regenerate": "R 重新生成"
+        },
+        "translate": {
+          "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
+        }
+      },
+      "settings": {
+        "experimental": "实验性功能",
+        "enable": {
+          "title": "启用",
+          "description": "当前仅支持 Windows & macOS",
+          "mac_process_trust_hint": {
+            "title": "辅助功能权限",
+            "description": [
+              "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
+              "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
+              "完成设置后，请再次开启划词助手。"
+            ],
+            "button": {
+              "open_accessibility_settings": "打开辅助功能设置",
+              "go_to_settings": "去设置"
+            }
+          }
+        },
+        "toolbar": {
+          "title": "工具栏",
+          "trigger_mode": {
+            "title": "取词方式",
+            "description": "划词后，触发取词并显示工具栏的方式",
+            "description_note": {
+              "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+              "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。"
+            },
+            "selected": "划词",
+            "selected_note": "划词后立即显示工具栏",
+            "ctrlkey": "Ctrl 键",
+            "ctrlkey_note": "划词后，再 长按 Ctrl 键，才显示工具栏",
+            "shortcut": "快捷键",
+            "shortcut_note": "划词后，使用快捷键显示工具栏。请在快捷键设置页面中设置取词快捷键并启用。",
+            "shortcut_link": "前往快捷键设置"
+          },
+          "compact_mode": {
+            "title": "紧凑模式",
+            "description": "紧凑模式下，只显示图标，不显示文字"
+          }
+        },
+        "window": {
+          "title": "功能窗口",
+          "follow_toolbar": {
+            "title": "跟随工具栏",
+            "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
+          },
+          "remember_size": {
+            "title": "记住大小",
+            "description": "应用运行期间，窗口会按上次调整的大小显示"
+          },
+          "auto_close": {
+            "title": "自动关闭",
+            "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"
+          },
+          "auto_pin": {
+            "title": "自动置顶",
+            "description": "默认将窗口置于顶部"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "设置窗口的默认透明度，100% 为完全不透明"
+          }
+        },
+        "actions": {
+          "title": "功能",
+          "custom": "自定义功能",
+          "reset": {
+            "button": "重置",
+            "tooltip": "重置为默认功能，自定义功能不会被删除",
+            "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。"
+          },
+          "add_tooltip": {
+            "enabled": "添加自定义功能",
+            "disabled": "自定义功能已达上限 ({{max}} 个)"
+          },
+          "delete_confirm": "确定要删除这个自定义功能吗？",
+          "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "高级",
+          "filter_mode": {
+            "title": "应用筛选",
+            "description": "可以限制划词助手只在特定应用中生效（白名单）或不生效（黑名单）",
+            "default": "关闭",
+            "whitelist": "白名单",
+            "blacklist": "黑名单"
+          },
+          "filter_list": {
+            "title": "筛选名单",
+            "description": "高级功能，建议有经验的用户在了解的情况下再进行设置"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "添加自定义功能",
+            "edit": "编辑自定义功能"
+          },
+          "name": {
+            "label": "名称",
+            "hint": "请输入功能名称"
+          },
+          "icon": {
+            "label": "图标",
+            "placeholder": "输入 Lucide 图标名称",
+            "error": "无效的图标名称，请检查输入",
+            "tooltip": "Lucide 图标名称为小写，如 arrow-right",
+            "view_all": "查看所有图标",
+            "random": "随机图标"
+          },
+          "model": {
+            "label": "模型",
+            "tooltip": "使用助手：会同时使用助手的系统提示词和模型参数",
+            "default": "默认模型",
+            "assistant": "使用助手"
+          },
+          "assistant": {
+            "label": "选择助手",
+            "default": "默认"
+          },
+          "prompt": {
+            "label": "用户提示词 (Prompt)",
+            "tooltip": "用户提示词，作为用户输入的补充，不会覆盖助手的系统提示词",
+            "placeholder": "使用占位符 {{text}} 代表选中的文本，不填写时，选中的文本将添加到本提示词的末尾",
+            "placeholder_text": "占位符",
+            "copy_placeholder": "复制占位符"
+          }
+        },
+        "search_modal": {
+          "title": "设置搜索引擎",
+          "engine": {
+            "label": "搜索引擎",
+            "custom": "自定义"
+          },
+          "custom": {
+            "name": {
+              "label": "自定义名称",
+              "hint": "请输入搜索引擎名称",
+              "max_length": "名称不能超过 16 个字符"
+            },
+            "url": {
+              "label": "自定义搜索 URL",
+              "hint": "用 {{queryString}} 代表搜索词",
+              "required": "请输入搜索 URL",
+              "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
+              "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
+            },
+            "test": "测试"
+          }
+        },
+        "filter_modal": {
+          "title": "应用筛选名单",
+          "user_tips": {
+            "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
+            "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
+          }
+        }
+      }
+    },
+    "memory": {
+      "settings": "设置",
+      "statistics": "统计",
+      "search": "搜索",
+      "actions": "操作",
+      "add_memory": "添加记忆",
+      "edit_memory": "编辑记忆",
+      "memory_content": "记忆内容",
+      "please_enter_memory": "请输入记忆内容",
+      "memory_placeholder": "输入记忆内容...",
+      "user_id": "用户ID",
+      "user_id_placeholder": "输入用户ID（可选）",
+      "load_failed": "加载记忆失败",
+      "add_success": "记忆添加成功",
+      "add_failed": "添加记忆失败",
+      "update_success": "记忆更新成功",
+      "update_failed": "更新记忆失败",
+      "delete_success": "记忆删除成功",
+      "delete_failed": "删除记忆失败",
+      "delete_confirm_title": "删除记忆",
+      "delete_confirm_content": "确定要删除 {{count}} 条记忆吗？",
+      "delete_confirm": "确定要删除这条记忆吗？",
+      "time": "时间",
+      "user": "用户",
+      "content": "内容",
+      "score": "分数",
+      "title": "记忆",
+      "memories_description": "显示 {{count}} / {{total}} 条记忆",
+      "search_placeholder": "搜索记忆...",
+      "start_date": "开始日期",
+      "end_date": "结束日期",
+      "all_users": "所有用户",
+      "users": "用户",
+      "delete_selected": "删除选中",
+      "reset_filters": "重置筛选",
+      "pagination_total": "第 {{start}}-{{end}} 项，共 {{total}} 项",
+      "current_user": "当前用户",
+      "select_user": "选择用户",
+      "default_user": "默认用户",
+      "switch_user": "切换用户",
+      "user_switched": "用户上下文已切换到 {{user}}",
+      "switch_user_confirm": "将用户上下文切换到 {{user}}？",
+      "add_user": "添加用户",
+      "add_new_user": "添加新用户",
+      "new_user_id": "新用户ID",
+      "new_user_id_placeholder": "输入唯一的用户ID",
+      "user_management": "用户管理",
+      "user_id_required": "用户ID为必填项",
+      "user_id_reserved": "'default-user' 为保留字，请使用其他ID",
+      "user_id_exists": "该用户ID已存在",
+      "user_id_too_long": "用户ID不能超过50个字符",
+      "user_id_invalid_chars": "用户ID只能包含字母、数字、连字符和下划线",
+      "user_id_rules": "用户ID必须唯一，只能包含字母、数字、连字符(-)和下划线(_)",
+      "user_created": "用户 {{user}} 创建并切换成功",
+      "add_user_failed": "添加用户失败",
+      "memory": "条记忆",
+      "reset_user_memories": "重置用户记忆",
+      "reset_memories": "重置记忆",
+      "delete_user": "删除用户",
+      "loading_memories": "正在加载记忆...",
+      "no_memories": "暂无记忆",
+      "no_matching_memories": "未找到匹配的记忆",
+      "no_memories_description": "开始添加您的第一条记忆吧",
+      "try_different_filters": "尝试调整搜索条件",
+      "add_first_memory": "添加您的第一条记忆",
+      "user_switch_failed": "切换用户失败",
+      "cannot_delete_default_user": "不能删除默认用户",
+      "delete_user_confirm_title": "删除用户",
+      "delete_user_confirm_content": "确定要删除用户 {{user}} 及其所有记忆吗？",
+      "user_deleted": "用户 {{user}} 删除成功",
+      "delete_user_failed": "删除用户失败",
+      "reset_user_memories_confirm_title": "重置用户记忆",
+      "reset_user_memories_confirm_content": "确定要重置 {{user}} 的所有记忆吗？",
+      "user_memories_reset": "{{user}} 的所有记忆已重置",
+      "reset_user_memories_failed": "重置用户记忆失败",
+      "reset_memories_confirm_title": "重置所有记忆",
+      "reset_memories_confirm_content": "确定要永久删除 {{user}} 的所有记忆吗？此操作无法撤销。",
+      "memories_reset_success": "{{user}} 的所有记忆已成功重置",
+      "reset_memories_failed": "重置记忆失败",
+      "delete_confirm_single": "确定要删除这条记忆吗？",
+      "total_memories": "条记忆",
+      "default": "默认",
+      "custom": "自定义",
+      "description": "记忆功能允许您存储和管理与助手交互的信息。您可以添加、编辑和删除记忆，也可以对它们进行过滤和搜索。",
+      "global_memory_enabled": "全局记忆已启用",
+      "global_memory": "全局记忆",
+      "enable_global_memory_first": "请先启用全局记忆",
+      "configure_memory_first": "请先配置记忆设置",
+      "global_memory_disabled_title": "全局记忆已禁用",
+      "global_memory_disabled_desc": "要使用记忆功能，请先在助手设置中启用全局记忆。",
+      "not_configured_title": "记忆未配置",
+      "not_configured_desc": "请在记忆设置中配置嵌入和LLM模型以启用记忆功能。",
+      "go_to_memory_page": "前往记忆页面",
+      "initial_memory_content": "欢迎！这是您的第一条记忆。",
+      "loading": "正在加载记忆...",
+      "settings_title": "记忆设置",
+      "llm_model": "LLM 模型",
+      "please_select_llm_model": "请选择 LLM 模型",
+      "select_llm_model_placeholder": "选择 LLM 模型",
+      "embedding_model": "嵌入模型",
+      "please_select_embedding_model": "请选择嵌入模型",
+      "select_embedding_model_placeholder": "选择嵌入模型",
+      "embedding_dimensions": "嵌入维度",
+      "stored_memories": "已存储记忆"
     }
   }
 }

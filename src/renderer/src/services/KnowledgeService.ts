@@ -37,23 +37,24 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
 
   return {
     id: base.id,
-    model: base.model.id,
-    provider: base.model.provider,
     dimensions: base.dimensions,
-    apiKey: aiProvider.getApiKey() || 'secret',
-    apiVersion: provider.apiVersion,
-    baseURL: host,
+    embedApiClient: {
+      model: base.model.id,
+      provider: base.model.provider,
+      apiKey: aiProvider.getApiKey() || 'secret',
+      apiVersion: provider.apiVersion,
+      baseURL: host
+    },
     chunkSize,
     chunkOverlap: base.chunkOverlap,
-    rerankBaseURL: rerankHost,
-    rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
-    rerankModel: base.rerankModel?.id,
-    rerankModelProvider: rerankProvider.name.toLowerCase(),
-    // topN: base.topN,
-    // preprocessing: base.preprocessing,
-    preprocessOrOcrProvider: base.preprocessOrOcrProvider
-
-    // topN: base.topN
+    rerankApiClient: {
+      model: base.rerankModel?.id || '',
+      provider: rerankProvider.name.toLowerCase(),
+      apiKey: rerankAiProvider.getApiKey() || 'secret',
+      baseURL: rerankHost
+    },
+    preprocessOrOcrProvider: base.preprocessOrOcrProvider,
+    documentCount: base.documentCount
   }
 }
 

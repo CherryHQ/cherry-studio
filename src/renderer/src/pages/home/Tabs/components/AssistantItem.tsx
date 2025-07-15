@@ -25,7 +25,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
 import { AlignJustify, Plus, Settings2, Tag, Tags } from 'lucide-react'
-import { FC, memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -125,12 +125,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
       if (topicPosition === 'left') {
         EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
-      onSwitch(assistant)
-    } else {
-      startTransition(() => {
-        onSwitch(assistant)
-      })
     }
+    onSwitch(assistant)
   }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])

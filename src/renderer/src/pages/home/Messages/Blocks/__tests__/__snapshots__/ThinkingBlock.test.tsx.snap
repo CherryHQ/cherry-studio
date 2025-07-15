@@ -2,23 +2,27 @@
 
 exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
 .c0 {
-  margin: 15px 0;
-  margin-top: 5px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+}
+
+.c0 .ant-collapse-header {
+  padding: 0!important;
+}
+
+.c0 .ant-collapse-content-box {
+  padding: 16px!important;
+  border-width: 0 0.5px 0.5px 0.5px;
+  border-style: solid;
+  border-color: var(--color-border);
+  border-radius: 0 0 12px 12px;
 }
 
 .c1 {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  height: 22px;
-  gap: 4px;
+  position: relative;
 }
 
 .c2 {
-  color: var(--color-text-2);
-}
-
-.c3 {
   background: none;
   border: none;
   color: var(--color-text-2);
@@ -30,26 +34,28 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
   margin-left: auto;
   opacity: 0.6;
   transition: all 0.3s;
+  position: absolute;
+  right: -12px;
+  top: -12px;
 }
 
-.c3:hover {
+.c2:hover {
   opacity: 1;
   color: var(--color-text);
 }
 
-.c3:focus-visible {
+.c2:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-.c3 .iconfont {
+.c2 .iconfont {
   font-size: 14px;
 }
 
 <div
   class="c0 message-thought-container"
   data-active-key="thought"
-  data-expand-icon-position="end"
   data-size="small"
   data-testid="collapse-container"
 >
@@ -60,40 +66,15 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
       data-testid="collapse-header-thought"
     >
       <div
-        class="c1"
+        data-content="I need to think about this carefully..."
+        data-expanded="true"
+        data-is-thinking="false"
+        data-testid="mock-marquee-component"
       >
-        <span
-          data-animate="idle"
-          data-initial="idle"
-          data-testid="motion-span"
-          data-variants="{"active":{"rotate":10,"scale":1.1},"idle":{"rotate":0,"scale":1}}"
-          style="height: 18px;"
-        >
-          <span
-            data-size="18"
-            data-testid="lightbulb-icon"
-          >
-            💡
-          </span>
-        </span>
-        <span
-          class="c2"
+        <div
+          data-testid="thinking-time-text"
         >
           Thought for 5.0s
-        </span>
-        <div
-          data-mouse-enter-delay="0.8"
-          data-testid="tooltip"
-          title="Copy"
-        >
-          <button
-            aria-label="Copy"
-            class="c3 message-action-button"
-          >
-            <i
-              class="iconfont icon-copy"
-            />
-          </button>
         </div>
       </div>
     </div>
@@ -101,8 +82,23 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
       data-testid="collapse-content-thought"
     >
       <div
+        class="c1"
         style="font-family: var(--font-family); font-size: 14px;"
       >
+        <div
+          data-mouse-enter-delay="0.8"
+          data-testid="tooltip"
+          title="Copy"
+        >
+          <button
+            aria-label="Copy"
+            class="c2 message-action-button"
+          >
+            <i
+              class="iconfont icon-copy"
+            />
+          </button>
+        </div>
         <div
           data-block-id="test-thinking-block-1"
           data-testid="mock-markdown"

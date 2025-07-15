@@ -18,8 +18,8 @@ import { getStoreSetting } from './useSettings'
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
 
-export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
-  const { assistant } = useAssistant(_assistant.id)
+export function useActiveTopic(assistantId: string, topic?: Topic) {
+  const { assistant } = useAssistant(assistantId)
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
 
   _activeTopic = activeTopic
