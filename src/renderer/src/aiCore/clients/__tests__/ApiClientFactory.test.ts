@@ -31,7 +31,9 @@ vi.mock('../openai/OpenAIApiClient', () => ({
   OpenAIAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 vi.mock('../openai/OpenAIResponseAPIClient', () => ({
-  OpenAIResponseAPIClient: vi.fn().mockImplementation(() => ({}))
+  OpenAIResponseAPIClient: vi.fn().mockImplementation(() => ({
+    getClient: vi.fn().mockReturnThis()
+  }))
 }))
 vi.mock('../ppio/PPIOAPIClient', () => ({
   PPIOAPIClient: vi.fn().mockImplementation(() => ({}))
@@ -111,7 +113,7 @@ describe('ApiClientFactory', () => {
 
     it('should create OpenAIResponseAPIClient for azure-openai type', () => {
       const provider: Provider = {
-        id: 'azure',
+        id: 'azure-openai',
         type: 'azure-openai',
         name: 'Azure OpenAI',
         apiKey: 'test-key',
@@ -259,7 +261,7 @@ describe('ApiClientFactory', () => {
 
     it('should return true for azure-openai type', () => {
       const provider: Provider = {
-        id: 'azure',
+        id: 'azure-openai',
         type: 'azure-openai',
         name: 'Azure OpenAI',
         apiKey: 'test-key',
