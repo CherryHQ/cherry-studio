@@ -32,8 +32,11 @@ export class ProxyManager {
     this.originalHttpsRequest = https.request
 
     this.config = configManager.getProxy()
-    app.once('ready', () => {
-      this.configureProxy(this.config, true)
+    app.once('ready', async () => {
+      if (this.config.mode === 'direct') {
+        return
+      }
+      await this.configureProxy(this.config, true)
     })
   }
 
