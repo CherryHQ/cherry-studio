@@ -283,7 +283,6 @@ const dispatchMultiModelResponses = async (
 
 // --- End Helper Function ---
 
-// Internal function extracted from sendMessage to handle fetching and processing assistant response
 const fetchAndProcessAssistantResponseImpl = async (
   dispatch: AppDispatch,
   getState: () => RootState,
@@ -292,7 +291,7 @@ const fetchAndProcessAssistantResponseImpl = async (
   assistantMessage: Message // Pass the prepared assistant message (new or reset)
 ) => {
   const assistantMsgId = assistantMessage.id
-  const callbacks: StreamProcessorCallbacks = {}
+  let callbacks: StreamProcessorCallbacks = {}
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -872,7 +871,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     //   }
     // }
 
-    const callbacks = createCallbacks({
+    callbacks = createCallbacks({
       blockManager,
       dispatch,
       getState,

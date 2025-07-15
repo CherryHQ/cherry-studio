@@ -76,7 +76,7 @@ export class BlockManager {
     blockType: MessageBlockType,
     isComplete: boolean = false
   ) {
-    const isBlockTypeChanged = this._activeBlockInfo !== null && this._activeBlockInfo.type !== blockType
+    const isBlockTypeChanged = this._lastBlockType !== null && this._lastBlockType !== blockType
 
     if (isBlockTypeChanged || isComplete) {
       // 如果块类型改变，则取消上一个块的节流更新
@@ -92,6 +92,7 @@ export class BlockManager {
       }
       this.deps.dispatch(updateOneBlock({ id: blockId, changes }))
       this.deps.saveUpdatedBlockToDB(blockId, this.deps.assistantMsgId, this.deps.topicId, this.deps.getState)
+      this._lastBlockType = blockType
     } else {
       this._activeBlockInfo = { id: blockId, type: blockType } // 更新活跃块信息
       this.deps.throttledBlockUpdate(blockId, changes)

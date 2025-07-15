@@ -67,7 +67,7 @@ interface InsertMessageAtIndexPayload {
 }
 
 // 4. Create the Slice with Refactored Reducers
-const messagesSlice = createSlice({
+export const messagesSlice = createSlice({
   name: 'newMessages',
   initialState,
   reducers: {
