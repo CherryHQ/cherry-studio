@@ -190,7 +190,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
           <SettingsItem>
             <div className="settings-label">{t('knowledge.dimensions')}</div>
-            <InputNumber value={base.dimensions} style={{ width: '100%' }} disabled></InputNumber>
+            <Input value={base.dimensions ?? t('knowledge.not_set')} style={{ width: '100%' }} disabled></Input>
           </SettingsItem>
 
           <SettingsItem>
