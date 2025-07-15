@@ -12,7 +12,6 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
   const { blockManager, assistantMsgId } = deps
 
   // 内部维护的状态
-  let accumulatedThinking = ''
   let thinkingBlockId: string | null = null
 
   return {
@@ -20,14 +19,14 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
           type: MessageBlockType.THINKING,
-          content: accumulatedThinking,
+          content: '',
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: 0
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
       } else if (!thinkingBlockId) {
-        const newBlock = createThinkingBlock(assistantMsgId, accumulatedThinking, {
+        const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: 0
         })
@@ -37,11 +36,9 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
     },
 
     onThinkingChunk: async (text: string, thinking_millsec?: number) => {
-      accumulatedThinking += text
-
       if (thinkingBlockId) {
         const blockChanges: Partial<MessageBlock> = {
-          content: accumulatedThinking,
+          content: text,
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: thinking_millsec || 0
         }
@@ -59,7 +56,6 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
         }
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
         thinkingBlockId = null
-        accumulatedThinking = ''
       } else {
         console.warn(
           `[onThinkingComplete] Received thinking.complete but last block was not THINKING (was ${blockManager.lastBlockType}) or lastBlockId is null.`

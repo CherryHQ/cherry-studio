@@ -15,7 +15,6 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
   const { blockManager, getState, assistantMsgId, getCitationBlockId } = deps
 
   // 内部维护的状态
-  let accumulatedContent = ''
   let mainTextBlockId: string | null = null
 
   return {
@@ -23,13 +22,13 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
           type: MessageBlockType.MAIN_TEXT,
-          content: accumulatedContent,
+          content: '',
           status: MessageBlockStatus.STREAMING
         }
         mainTextBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
       } else if (!mainTextBlockId) {
-        const newBlock = createMainTextBlock(assistantMsgId, accumulatedContent, {
+        const newBlock = createMainTextBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING
         })
         mainTextBlockId = newBlock.id
@@ -42,16 +41,13 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
       const citationBlockSource = citationBlockId
         ? (getState().messageBlocks.entities[citationBlockId] as CitationMessageBlock).response?.source
         : WebSearchSource.WEBSEARCH
-
-      accumulatedContent += text
-
-      if (mainTextBlockId) {
+      if (text) {
         const blockChanges: Partial<MessageBlock> = {
-          content: accumulatedContent,
+          content: text,
           status: MessageBlockStatus.STREAMING,
           citationReferences: citationBlockId ? [{ citationBlockId, citationBlockSource }] : []
         }
-        blockManager.smartBlockUpdate(mainTextBlockId, blockChanges, MessageBlockType.MAIN_TEXT)
+        blockManager.smartBlockUpdate(mainTextBlockId!, blockChanges, MessageBlockType.MAIN_TEXT)
       }
     },
 
@@ -63,7 +59,6 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
         }
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
         mainTextBlockId = null
-        accumulatedContent = ''
       } else {
         console.warn(
           `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${blockManager.lastBlockType}) or lastBlockId is null.`
