@@ -8,10 +8,8 @@ import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
-import { configManager } from './ConfigManager'
-
 export class ProxyManager {
-  private config: ProxyConfig
+  private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
   private isSettingProxy = false
 
@@ -30,14 +28,6 @@ export class ProxyManager {
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
-
-    this.config = configManager.getProxy()
-    app.once('ready', async () => {
-      if (this.config.mode === 'direct') {
-        return
-      }
-      await this.configureProxy(this.config, true)
-    })
   }
 
   private async monitorSystemProxy(): Promise<void> {
@@ -68,7 +58,8 @@ export class ProxyManager {
     }
   }
 
-  async configureProxy(config: ProxyConfig, isInitial: boolean = false): Promise<void> {
+  async configureProxy(config: ProxyConfig): Promise<void> {
+    Logger.info('configureProxy', config.mode, config.proxyRules)
     if (this.isSettingProxy) {
       return
     }
@@ -76,7 +67,8 @@ export class ProxyManager {
     this.isSettingProxy = true
 
     try {
-      if (!isInitial && config.mode === this.config.mode && config.proxyRules === this.config.proxyRules) {
+      if (config?.mode === this.config?.mode && config?.proxyRules === this.config?.proxyRules) {
+        Logger.info('proxy config is the same, skip configure')
         return
       }
 
@@ -85,6 +77,7 @@ export class ProxyManager {
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
+          Logger.info('current system proxy', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
           this.monitorSystemProxy()
         } else {
@@ -93,8 +86,6 @@ export class ProxyManager {
         }
       }
 
-      // Save the proxy config to the config file
-      configManager.setProxy(this.config)
       this.setGlobalProxy()
     } catch (error) {
       Logger.error('Failed to config proxy:', error)

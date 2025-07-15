@@ -232,14 +232,6 @@ export class ConfigManager {
     this.set(key, value, true)
   }
 
-  setProxy(value: ProxyConfig) {
-    this.set(ConfigKeys.Proxy, value)
-  }
-
-  getProxy(): ProxyConfig {
-    return this.get<ProxyConfig>(ConfigKeys.Proxy, { mode: 'direct' })
-  }
-
   set(key: string, value: unknown, isNotify: boolean = false) {
     this.store.set(key, value)
     isNotify && this.notifySubscribers(key, value)
