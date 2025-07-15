@@ -16,12 +16,13 @@ import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch } from 'antd'
+import { Flex, Input, Switch, Tooltip } from "antd";
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { InfoCircleOutlined } from "@ant-design/icons";
 
 const GeneralSettings: FC = () => {
   const {
@@ -261,7 +262,12 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.notification.assistant')}</SettingRowTitle>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.notification.assistant')}</span>
+            <Tooltip title={t('notification.tip')} placement="right">
+              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingRowTitle>
           <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
         </SettingRow>
         <SettingDivider />

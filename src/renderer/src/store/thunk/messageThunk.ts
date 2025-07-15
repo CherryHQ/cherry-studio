@@ -762,7 +762,8 @@ const fetchAndProcessAssistantResponseImpl = async (
           status: error.status || error.code,
           requestId: error.request_id
         }
-        if (!isOnHomePage()) {
+        const msgDuration = Date.now() - startTime
+        if ((!isOnHomePage() && msgDuration > 30 * 1000) || (!isFocused() && msgDuration > 30 * 1000)) {
           await notificationService.send({
             id: uuid(),
             type: 'error',
@@ -833,8 +834,9 @@ const fetchAndProcessAssistantResponseImpl = async (
             smartBlockUpdate(possibleBlockId, changes, lastBlockType!, true)
           }
 
+          const msgDuration = Date.now() - startTime
           const content = getMainTextContent(finalAssistantMsg)
-          if (!isFocused()) {
+          if ((!isOnHomePage() && msgDuration > 30 * 1000) || (!isFocused() && msgDuration > 30 * 1000)) {
             await notificationService.send({
               id: uuid(),
               type: 'success',
@@ -888,6 +890,7 @@ const fetchAndProcessAssistantResponseImpl = async (
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
+    const startTime = Date.now()
     await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
