@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
+import Logger from 'electron-log'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
@@ -12,9 +13,10 @@ import { configManager } from './ConfigManager'
 export class ProxyManager {
   private config: ProxyConfig
   private systemProxyInterval: NodeJS.Timeout | null = null
+  private isSettingProxy = false
+
   private originalGlobalDispatcher: Dispatcher
   private originalSocksDispatcher: Dispatcher
-
   // for http and https
   private originalHttpGet: typeof http.get
   private originalHttpRequest: typeof http.request
@@ -22,7 +24,6 @@ export class ProxyManager {
   private originalHttpsRequest: typeof https.request
 
   constructor() {
-    this.config = configManager.getProxy()
     this.originalGlobalDispatcher = getGlobalDispatcher()
     this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
     this.originalHttpGet = http.get
@@ -30,8 +31,9 @@ export class ProxyManager {
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
 
+    this.config = configManager.getProxy()
     app.once('ready', () => {
-      this.setGlobalProxy()
+      this.configureProxy(this.config, true)
     })
   }
 
@@ -39,9 +41,21 @@ export class ProxyManager {
     // Clear any existing interval first
     this.clearSystemProxyMonitor()
     // Set new interval
-    this.systemProxyInterval = setInterval(async () => {
-      await this.setSystemProxy()
-    }, 10000)
+    this.systemProxyInterval = setInterval(
+      async () => {
+        const currentProxy = await getSystemProxy()
+        if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config.proxyRules) {
+          return
+        }
+
+        await this.configureProxy({
+          mode: 'system',
+          proxyRules: currentProxy?.proxyUrl.toLowerCase()
+        })
+      },
+      // 1 minutes
+      1000 * 60
+    )
   }
 
   private clearSystemProxyMonitor(): void {
@@ -51,30 +65,55 @@ export class ProxyManager {
     }
   }
 
-  async configureProxy(config: ProxyConfig): Promise<void> {
+  async configureProxy(config: ProxyConfig, isInitial: boolean = false): Promise<void> {
+    if (this.isSettingProxy) {
+      return
+    }
+
+    this.isSettingProxy = true
+
     try {
+      if (!isInitial && config.mode === this.config.mode && config.proxyRules === this.config.proxyRules) {
+        return
+      }
+
       this.config = config
       this.clearSystemProxyMonitor()
-
-      if (this.config.mode === 'system') {
-        await this.setSystemProxy()
-        this.monitorSystemProxy()
-      } else if (this.config.mode === 'fixed_servers') {
-        await this.setCustomProxy()
-      } else {
-        await this.clearProxy()
+      if (config.mode === 'system') {
+        const currentProxy = await getSystemProxy()
+        if (currentProxy) {
+          this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          this.monitorSystemProxy()
+        } else {
+          // no system proxy, use direct mode
+          this.config.mode = 'direct'
+        }
       }
 
       // Save the proxy config to the config file
-      configManager.set('proxy', this.config)
+      configManager.setProxy(this.config)
       this.setGlobalProxy()
     } catch (error) {
-      console.error('Failed to config proxy:', error)
+      Logger.error('Failed to config proxy:', error)
       throw error
+    } finally {
+      this.isSettingProxy = false
     }
   }
 
   private setEnvironment(url: string): void {
+    if (url === '') {
+      delete process.env.HTTP_PROXY
+      delete process.env.HTTPS_PROXY
+      delete process.env.grpc_proxy
+      delete process.env.http_proxy
+      delete process.env.https_proxy
+
+      delete process.env.SOCKS_PROXY
+      delete process.env.ALL_PROXY
+      return
+    }
+
     process.env.grpc_proxy = url
     process.env.HTTP_PROXY = url
     process.env.HTTPS_PROXY = url
@@ -85,48 +124,6 @@ export class ProxyManager {
       process.env.SOCKS_PROXY = url
       process.env.ALL_PROXY = url
     }
-  }
-
-  private async setSystemProxy(): Promise<void> {
-    try {
-      const currentProxy = await getSystemProxy()
-      if (!currentProxy || currentProxy.proxyUrl === this.config.proxyRules) {
-        return
-      }
-
-      this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
-      this.config.mode = 'system'
-    } catch (error) {
-      console.error('Failed to set system proxy:', error)
-      throw error
-    }
-  }
-
-  private async setCustomProxy(): Promise<void> {
-    try {
-      if (this.config.proxyRules) {
-        this.config.mode = 'fixed_servers'
-      }
-    } catch (error) {
-      console.error('Failed to set custom proxy:', error)
-      throw error
-    }
-  }
-
-  private clearEnvironment(): void {
-    delete process.env.HTTP_PROXY
-    delete process.env.HTTPS_PROXY
-    delete process.env.grpc_proxy
-    delete process.env.http_proxy
-    delete process.env.https_proxy
-
-    delete process.env.SOCKS_PROXY
-    delete process.env.ALL_PROXY
-  }
-
-  private async clearProxy(): Promise<void> {
-    this.clearEnvironment()
-    this.config = { mode: 'direct' }
   }
 
   private setGlobalProxy() {
@@ -208,14 +205,10 @@ export class ProxyManager {
   }
 
   private setGlobalFetchProxy(config: ProxyConfig) {
-    if (config.mode === 'direct') {
+    const proxyUrl = config.proxyRules
+    if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      return
-    }
-
-    const proxyUrl = config.proxyRules
-    if (!proxyUrl) {
       return
     }
 
@@ -233,11 +226,17 @@ export class ProxyManager {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
+    let c = config
+
+    if (config.mode === 'direct' || !config.proxyRules) {
+      c = { mode: 'direct' }
+    }
+
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    await Promise.all(sessions.map((session) => session.setProxy(config)))
+    await Promise.all(sessions.map((session) => session.setProxy(c)))
 
     // set proxy for electron
-    app.setProxy(config)
+    app.setProxy(c)
   }
 }
 
