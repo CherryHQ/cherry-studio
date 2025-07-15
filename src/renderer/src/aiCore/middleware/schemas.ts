@@ -49,6 +49,7 @@ export interface CompletionsParams {
   // 功能开关
   streamOutput: boolean
   enableWebSearch?: boolean
+  enableUrlContext?: boolean
   enableReasoning?: boolean
   enableGenerateImage?: boolean
 

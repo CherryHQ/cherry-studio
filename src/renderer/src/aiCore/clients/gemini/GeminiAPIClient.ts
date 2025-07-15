@@ -443,7 +443,7 @@ export class GeminiAPIClient extends BaseApiClient<
         messages: GeminiSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableUrlContext, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
         let systemInstruction = assistant.prompt
 
@@ -480,6 +480,12 @@ export class GeminiAPIClient extends BaseApiClient<
         if (enableWebSearch) {
           tools.push({
             googleSearch: {}
+          })
+        }
+
+        if (enableUrlContext) {
+          tools.push({
+            urlContext: {}
           })
         }
 
