@@ -36,9 +36,11 @@ const DISALLOWED_ELEMENTS = ['iframe']
 interface Props {
   // message: Message & { content: string }
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
+  postProcess?: (text: string) => string
 }
 
-const Markdown: FC<Props> = ({ block }) => {
+const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
   const { mathEngine } = useSettings()
 
@@ -50,7 +52,11 @@ const Markdown: FC<Props> = ({ block }) => {
   const prevBlockIdRef = useRef(block.id)
 
   const { addChunk, reset } = useSmoothStream({
-    onUpdate: setDisplayedContent,
+    onUpdate: (rawText) => {
+      // 如果提供了后处理函数就调用，否则直接使用原始文本
+      const finalText = postProcess ? postProcess(rawText) : rawText
+      setDisplayedContent(finalText)
+    },
     streamDone: isStreamDone,
     initialText: block.content
   })
