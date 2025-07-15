@@ -1,3 +1,4 @@
+import { InfoCircleOutlined } from '@ant-design/icons'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -16,13 +17,12 @@ import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch, Tooltip } from "antd";
+import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
-import { InfoCircleOutlined } from "@ant-design/icons";
 
 const GeneralSettings: FC = () => {
   const {
