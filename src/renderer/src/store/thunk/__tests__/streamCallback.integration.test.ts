@@ -142,7 +142,8 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/utils/window', () => ({
-  isOnHomePage: vi.fn(() => true)
+  isOnHomePage: vi.fn(() => true),
+  isFocused: vi.fn(() => true)
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -231,11 +232,10 @@ const reducer = combineReducers({
 })
 
 const createMockStore = () => {
-  const store = configureStore({
+  return configureStore({
     reducer: reducer,
     middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false })
   })
-  return store
 }
 
 // Helper function to simulate processing chunks through the stream processor
