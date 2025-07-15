@@ -8,7 +8,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents, ProxyConfig } from 'electron'
+import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 

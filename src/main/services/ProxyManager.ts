@@ -1,12 +1,13 @@
-import { ProxyConfig, session, app } from 'electron'
-import { getSystemProxy } from 'os-proxy-config'
+import axios from 'axios'
+import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
-import { setGlobalDispatcher, EnvHttpProxyAgent, getGlobalDispatcher, Dispatcher } from 'undici'
-import { configManager } from './ConfigManager'
-import { ProxyAgent } from 'proxy-agent'
 import http from 'http'
 import https from 'https'
-import axios from 'axios'
+import { getSystemProxy } from 'os-proxy-config'
+import { ProxyAgent } from 'proxy-agent'
+import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+
+import { configManager } from './ConfigManager'
 
 export class ProxyManager {
   private config: ProxyConfig
@@ -169,6 +170,7 @@ export class ProxyManager {
     https.request = this.bindHttpMethod(this.originalHttpsRequest, agent)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private bindHttpMethod(originalMethod: Function, agent: http.Agent | https.Agent) {
     return (...args: any[]) => {
       let url: string | URL | undefined

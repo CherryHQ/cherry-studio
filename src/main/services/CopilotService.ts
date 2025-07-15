@@ -1,10 +1,9 @@
 import { AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import { app, safeStorage } from 'electron'
 import Logger from 'electron-log'
 import fs from 'fs/promises'
 import path from 'path'
-
-import axios from 'axios'
 
 // 配置常量，集中管理
 const CONFIG = {
