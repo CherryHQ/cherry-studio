@@ -84,6 +84,7 @@ export interface ResponseChunkTransformerContext {
   isStreaming: boolean
   isEnabledToolCalling: boolean
   isEnabledWebSearch: boolean
+  isEnabledUrlContext: boolean
   isEnabledReasoning: boolean
   mcpTools: MCPTool[]
   provider: Provider

@@ -22,7 +22,6 @@
     margin: 1.5em 0 1em 0;
     line-height: 1.3;
     font-weight: bold;
-    font-family: var(--font-family);
   }
 
   h1 {
@@ -124,7 +123,7 @@
   pre {
     border-radius: 8px;
     overflow-x: auto;
-    font-family: 'Fira Code', 'Courier New', Courier, monospace;
+    font-family: var(--code-font-family);
     background-color: var(--color-background-mute);
     &:has(.special-preview) {
       background-color: transparent;
@@ -188,7 +187,6 @@
   th {
     background-color: var(--color-background-mute);
     font-weight: 600;
-    font-family: var(--font-family);
     text-align: left;
   }
 

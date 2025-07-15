@@ -24,19 +24,14 @@ export default defineConfig({
     build: {
       rollupOptions: {
         external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
-        output: isProd
-          ? {
-              manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-              inlineDynamicImports: true // 内联所有动态导入，这是关键配置
-            }
-          : {}
+        output: {
+          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
+          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+        }
       },
       sourcemap: isDev
     },
-    esbuild: {
-      drop: ['console', 'debugger'],
-      legalComments: 'none'
-    },
+    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
     }
@@ -96,11 +91,6 @@ export default defineConfig({
         }
       }
     },
-    esbuild: isProd
-      ? {
-          drop: ['console', 'debugger'],
-          legalComments: 'none'
-        }
-      : {}
+    esbuild: isProd ? { legalComments: 'none' } : {}
   }
 })

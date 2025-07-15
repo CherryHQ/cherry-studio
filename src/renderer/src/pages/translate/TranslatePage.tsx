@@ -302,7 +302,15 @@ const TranslatePage: FC = () => {
   const { providers } = useProviders()
   const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
 
-  const translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+
+  const translateHistory = useMemo(() => {
+    return _translateHistory?.map((item) => ({
+      ...item,
+      _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
+      _targetLanguage: getLanguageByLangcode(item.targetLanguage)
+    }))
+  }, [_translateHistory])
 
   _text = text
   _result = result
@@ -441,10 +449,11 @@ const TranslatePage: FC = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = (history: TranslateHistory) => {
+  const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setResult(history.targetText)
-    setTargetLanguage(getLanguageByLangcode(history.targetLanguage))
+    setSourceLanguage(history._sourceLanguage)
+    setTargetLanguage(history._targetLanguage)
   }
 
   useEffect(() => {
@@ -579,7 +588,7 @@ const TranslatePage: FC = () => {
         </NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
+        <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
@@ -612,9 +621,22 @@ const TranslatePage: FC = () => {
                   }}>
                   <HistoryListItem onClick={() => onHistoryItemClick(item)}>
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                      <Flex align="center" justify="space-between" style={{ flex: 1 }}>
+                        <Flex align="center" gap={6}>
+                          <span>
+                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
+                          </span>
+                          →
+                          <span>
+                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
+                          </span>
+                        </Flex>
+                        <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                      </Flex>
                       <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                      <HistoryListItemTitle>{item.targetText}</HistoryListItemTitle>
-                      <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                      <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                        {item.targetText}
+                      </HistoryListItemTitle>
                     </Flex>
                   </HistoryListItem>
                 </Dropdown>
@@ -625,7 +647,7 @@ const TranslatePage: FC = () => {
               <Empty description={t('translate.history.empty')} />
             </Flex>
           )}
-        </HistoryContainner>
+        </HistoryContainer>
 
         <InputContainer>
           <OperationBar>
@@ -840,7 +862,7 @@ const BidirectionalLanguageDisplay = styled.div`
   text-align: center;
 `
 
-const HistoryContainner = styled.div<{ $historyDrawerVisible: boolean }>`
+const HistoryContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   width: ${({ $historyDrawerVisible }) => ($historyDrawerVisible ? '300px' : '0')};
   height: calc(100vh - var(--navbar-height) - 40px);
   transition:
@@ -868,15 +890,12 @@ const HistoryList = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   overflow-y: auto;
-  padding: 0 5px;
 `
 
 const HistoryListItem = styled.div`
   width: 100%;
   padding: 5px 10px;
-  border-radius: var(--list-item-border-radius);
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
@@ -893,15 +912,10 @@ const HistoryListItem = styled.div`
     }
   }
 
-  &:not(:last-child)::after {
-    content: '';
-    display: block;
-    width: 100%;
-    height: 1px;
+  border-top: 1px dashed var(--color-border-soft);
+
+  &:last-child {
     border-bottom: 1px dashed var(--color-border-soft);
-    position: absolute;
-    bottom: -8px;
-    left: 0;
   }
 `
 

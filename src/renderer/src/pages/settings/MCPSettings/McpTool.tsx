@@ -84,7 +84,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               )}
               {prop.enum && (
                 <div style={{ marginTop: 4 }}>
-                  <Typography.Text type="secondary">Allowed values: </Typography.Text>
+                  <Typography.Text type="secondary">
+                    {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
+                  </Typography.Text>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                     {prop.enum.map((value: string, idx: number) => (
                       <Tag key={idx}>{value}</Tag>
@@ -111,17 +113,22 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       onFilter: (value, record) => record.name === value,
       filterSearch: true,
       render: (_, tool) => (
-        <Flex vertical align="flex-start">
-          <Flex align="center" gap={4} style={{ width: '100%' }}>
-            <Typography.Text strong>{tool.name}</Typography.Text>
+        <Flex vertical align="flex-start" gap={4}>
+          <Flex align="center" gap={4}>
+            <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
+              {tool.name}
+            </Typography.Text>
             <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
               <Info size={14} />
             </Tooltip>
           </Flex>
           {tool.description && (
-            <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-              {tool.description.length > 100 ? `${tool.description.substring(0, 100)}...` : tool.description}
-            </Typography.Text>
+            <Typography.Paragraph
+              type="secondary"
+              style={{ fontSize: '13px' }}
+              ellipsis={{ rows: 1, expandable: true }}>
+              {tool.description}
+            </Typography.Paragraph>
           )}
         </Flex>
       )
@@ -171,23 +178,18 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     }
   ]
 
-  return (
-    <>
-      {tools.length > 0 ? (
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={tools}
-          pagination={false}
-          sticky={{ offsetHeader: -55 }}
-          expandable={{
-            expandedRowRender: (tool) => renderToolProperties(tool)
-          }}
-        />
-      ) : (
-        <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-    </>
+  return tools.length > 0 ? (
+    <Table
+      rowKey="id"
+      columns={columns}
+      dataSource={tools}
+      pagination={false}
+      expandable={{
+        expandedRowRender: (tool) => renderToolProperties(tool)
+      }}
+    />
+  ) : (
+    <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
   )
 }
 
