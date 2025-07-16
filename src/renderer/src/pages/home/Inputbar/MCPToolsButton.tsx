@@ -152,18 +152,6 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     return () => EventEmitter.off('mcp-server-select', handler)
   }, [])
 
-  const updateMcpEnabled = useCallback(
-    (enabled: boolean) => {
-      setTimeout(() => {
-        updateAssistant({
-          ...assistant,
-          mcpServers: enabled ? (assistant.mcpServers?.length ? assistant.mcpServers : []) : []
-        })
-      }, 200)
-    },
-    [assistant, updateAssistant]
-  )
-
   const menuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
@@ -183,10 +171,6 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }, [activedMcpServers, t, assistantMcpServers, navigate])
 
   const openQuickPanel = useCallback(() => {
-    if (assistant.mcpServers && assistant.mcpServers.length > 0) {
-      return updateMcpEnabled(false)
-    }
-
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: menuItems,
@@ -196,7 +180,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
         item.isSelected = !item.isSelected
       }
     })
-  }, [menuItems, quickPanel, t, assistant.mcpServers, updateMcpEnabled])
+  }, [menuItems, quickPanel, t])
 
   // 使用 useCallback 优化 insertPromptIntoTextArea
   const insertPromptIntoTextArea = useCallback(
