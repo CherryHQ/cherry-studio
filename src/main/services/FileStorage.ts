@@ -270,7 +270,7 @@ class FileStorage {
       }
     } catch (error) {
       logger.error(error)
-      return 'failed to read file'
+      throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
 
