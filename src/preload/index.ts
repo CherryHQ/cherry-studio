@@ -343,6 +343,12 @@ const api = {
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
+  webSocket: {
+    start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),
+    stop: () => ipcRenderer.invoke(IpcChannel.WebSocket_Stop),
+    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
+    sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath)
+  },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable)

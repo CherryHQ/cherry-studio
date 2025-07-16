@@ -117,8 +117,4 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增全局记忆功能
-    MCP 支持 DXT 格式导入
-    全局快捷键支持 Linux 系统
-    模型思考过程增加动画效果
-    错误修复和性能优化
+    Cherry Studio App 数据同步
