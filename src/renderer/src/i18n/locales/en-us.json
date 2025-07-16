@@ -220,7 +220,6 @@
       "message.new.context": "New Context",
       "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
-      "message.useful": "Helpful",
       "multiple.select": "Multiple Select",
       "multiple.select.empty": "No Messages Selected",
       "navigation": {
@@ -367,7 +366,8 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "message.useful": "[to be translated]:有用"
     },
     "html_artifacts": {
       "code": "Code",
@@ -1139,188 +1139,188 @@
       "title": "Data Restore"
     },
     "selection": {
+      "name": "Selection Assistant",
       "action": {
         "builtin": {
-          "copy": "Copy",
+          "translate": "Translate",
           "explain": "Explain",
-          "quote": "Quote",
-          "refine": "Refine",
-          "search": "Search",
           "summary": "Summarize",
-          "translate": "Translate"
+          "search": "Search",
+          "refine": "Refine",
+          "copy": "Copy",
+          "quote": "Quote"
+        },
+        "window": {
+          "pin": "Pin",
+          "pinned": "Pinned",
+          "opacity": "Window Opacity",
+          "original_show": "Show Original",
+          "original_hide": "Hide Original",
+          "original_copy": "Copy Original",
+          "esc_close": "Esc: Close",
+          "esc_stop": "Esc: Stop",
+          "c_copy": "C: Copy",
+          "r_regenerate": "R: Regenerate"
         },
         "translate": {
           "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
-        },
-        "window": {
-          "c_copy": "C: Copy",
-          "esc_close": "Esc: Close",
-          "esc_stop": "Esc: Stop",
-          "opacity": "Window Opacity",
-          "original_copy": "Copy Original",
-          "original_hide": "Hide Original",
-          "original_show": "Show Original",
-          "pin": "Pin",
-          "pinned": "Pinned",
-          "r_regenerate": "R: Regenerate"
         }
       },
-      "name": "Selection Assistant",
       "settings": {
-        "actions": {
-          "add_tooltip": {
-            "disabled": "Maximum number of custom actions reached ({{max}})",
-            "enabled": "Add Custom Action"
-          },
-          "custom": "Custom Action",
-          "delete_confirm": "Are you sure you want to delete this custom action?",
-          "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
-          "reset": {
-            "button": "Reset",
-            "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted.",
-            "tooltip": "Reset to default actions. Custom actions will not be deleted."
-          },
-          "title": "Actions"
-        },
-        "advanced": {
-          "filter_list": {
-            "description": "Advanced feature, recommended for users with experience",
-            "title": "Filter List"
-          },
-          "filter_mode": {
-            "blacklist": "Blacklist",
-            "default": "Off",
-            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
-            "title": "Application Filter",
-            "whitelist": "Whitelist"
-          },
-          "title": "Advanced"
-        },
+        "experimental": "Experimental Features",
         "enable": {
+          "title": "Enable",
           "description": "Currently only supported on Windows & macOS",
           "mac_process_trust_hint": {
-            "button": {
-              "go_to_settings": "Go to Settings",
-              "open_accessibility_settings": "Open Accessibility Settings"
-            },
+            "title": "Accessibility Permission",
             "description": [
               "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
               "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
               "After completing the settings, please reopen the selection assistant."
             ],
-            "title": "Accessibility Permission"
-          },
-          "title": "Enable"
-        },
-        "experimental": "Experimental Features",
-        "filter_modal": {
-          "title": "Application Filter List",
-          "user_tips": {
-            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+            "button": {
+              "open_accessibility_settings": "Open Accessibility Settings",
+              "go_to_settings": "Go to Settings"
+            }
           }
         },
-        "search_modal": {
-          "custom": {
-            "name": {
-              "hint": "Please enter search engine name",
-              "label": "Custom Name",
-              "max_length": "Name cannot exceed 16 characters"
-            },
-            "test": "Test",
-            "url": {
-              "hint": "Use {{queryString}} to represent the search term",
-              "invalid_format": "Please enter a valid URL starting with http:// or https://",
-              "label": "Custom Search URL",
-              "missing_placeholder": "URL must contain {{queryString}} placeholder",
-              "required": "Please enter search URL"
-            }
-          },
-          "engine": {
-            "custom": "Custom",
-            "label": "Search Engine"
-          },
-          "title": "Set Search Engine"
-        },
         "toolbar": {
-          "compact_mode": {
-            "description": "In compact mode, only icons are displayed without text",
-            "title": "Compact Mode"
-          },
           "title": "Toolbar",
           "trigger_mode": {
-            "ctrlkey": "Ctrl Key",
-            "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
+            "title": "Trigger Mode",
             "description": "The way to trigger the selection assistant and show the toolbar",
             "description_note": {
-              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text.",
-              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text."
+              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
+              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text."
             },
             "selected": "Selection",
             "selected_note": "Show toolbar immediately when text is selected",
+            "ctrlkey": "Ctrl Key",
+            "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
             "shortcut": "Shortcut",
-            "shortcut_link": "Go to Shortcut Settings",
             "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
-            "title": "Trigger Mode"
-          }
-        },
-        "user_modal": {
-          "assistant": {
-            "default": "Default",
-            "label": "Select Assistant"
+            "shortcut_link": "Go to Shortcut Settings"
           },
-          "icon": {
-            "error": "Invalid icon name, please check your input",
-            "label": "Icon",
-            "placeholder": "Enter Lucide icon name",
-            "random": "Random Icon",
-            "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
-            "view_all": "View All Icons"
-          },
-          "model": {
-            "assistant": "Use Assistant",
-            "default": "Default Model",
-            "label": "Model",
-            "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters"
-          },
-          "name": {
-            "hint": "Please enter action name",
-            "label": "Name"
-          },
-          "prompt": {
-            "copy_placeholder": "Copy Placeholder",
-            "label": "User Prompt",
-            "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
-            "placeholder_text": "Placeholder",
-            "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt"
-          },
-          "title": {
-            "add": "Add Custom Action",
-            "edit": "Edit Custom Action"
+          "compact_mode": {
+            "title": "Compact Mode",
+            "description": "In compact mode, only icons are displayed without text"
           }
         },
         "window": {
-          "auto_close": {
-            "description": "Automatically close the window when it's not pinned and loses focus",
-            "title": "Auto Close"
-          },
-          "auto_pin": {
-            "description": "Pin the window by default",
-            "title": "Auto Pin"
-          },
+          "title": "Action Window",
           "follow_toolbar": {
-            "description": "Window position will follow the toolbar. When disabled, it will always be centered.",
-            "title": "Follow Toolbar"
-          },
-          "opacity": {
-            "description": "Set the default opacity of the window, 100% is fully opaque",
-            "title": "Opacity"
+            "title": "Follow Toolbar",
+            "description": "Window position will follow the toolbar. When disabled, it will always be centered."
           },
           "remember_size": {
-            "description": "Window will display at the last adjusted size during the application running",
-            "title": "Remember Size"
+            "title": "Remember Size",
+            "description": "Window will display at the last adjusted size during the application running"
           },
-          "title": "Action Window"
+          "auto_close": {
+            "title": "Auto Close",
+            "description": "Automatically close the window when it's not pinned and loses focus"
+          },
+          "auto_pin": {
+            "title": "Auto Pin",
+            "description": "Pin the window by default"
+          },
+          "opacity": {
+            "title": "Opacity",
+            "description": "Set the default opacity of the window, 100% is fully opaque"
+          }
+        },
+        "actions": {
+          "title": "Actions",
+          "custom": "Custom Action",
+          "reset": {
+            "button": "Reset",
+            "tooltip": "Reset to default actions. Custom actions will not be deleted.",
+            "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted."
+          },
+          "add_tooltip": {
+            "enabled": "Add Custom Action",
+            "disabled": "Maximum number of custom actions reached ({{max}})"
+          },
+          "delete_confirm": "Are you sure you want to delete this custom action?",
+          "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "Advanced",
+          "filter_mode": {
+            "title": "Application Filter",
+            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
+            "default": "Off",
+            "whitelist": "Whitelist",
+            "blacklist": "Blacklist"
+          },
+          "filter_list": {
+            "title": "Filter List",
+            "description": "Advanced feature, recommended for users with experience"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "Add Custom Action",
+            "edit": "Edit Custom Action"
+          },
+          "name": {
+            "label": "Name",
+            "hint": "Please enter action name"
+          },
+          "icon": {
+            "label": "Icon",
+            "placeholder": "Enter Lucide icon name",
+            "error": "Invalid icon name, please check your input",
+            "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
+            "view_all": "View All Icons",
+            "random": "Random Icon"
+          },
+          "model": {
+            "label": "Model",
+            "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters",
+            "default": "Default Model",
+            "assistant": "Use Assistant"
+          },
+          "assistant": {
+            "label": "Select Assistant",
+            "default": "Default"
+          },
+          "prompt": {
+            "label": "User Prompt",
+            "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt",
+            "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
+            "placeholder_text": "Placeholder",
+            "copy_placeholder": "Copy Placeholder"
+          }
+        },
+        "search_modal": {
+          "title": "Set Search Engine",
+          "engine": {
+            "label": "Search Engine",
+            "custom": "Custom"
+          },
+          "custom": {
+            "name": {
+              "label": "Custom Name",
+              "hint": "Please enter search engine name",
+              "max_length": "Name cannot exceed 16 characters"
+            },
+            "url": {
+              "label": "Custom Search URL",
+              "hint": "Use {{queryString}} to represent the search term",
+              "required": "Please enter search URL",
+              "invalid_format": "Please enter a valid URL starting with http:// or https://",
+              "missing_placeholder": "URL must contain {{queryString}} placeholder"
+            },
+            "test": "Test"
+          }
+        },
+        "filter_modal": {
+          "title": "Application Filter List",
+          "user_tips": {
+            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc.",
+            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc."
+          }
         }
       }
     },
@@ -2451,210 +2451,17 @@
       "show_window": "Show Window"
     },
     "update": {
-      "install": "Install",
-      "later": "Later",
-      "message": "New version {{version}} is ready, do you want to install it now?",
-      "noReleaseNotes": "No release notes",
-      "title": "Update"
-    },
-    "words": {
-      "knowledgeGraph": "Knowledge Graph",
-      "quit": "Quit",
-      "show_window": "Show Window",
-      "visualization": "Visualization"
-    },
-    "update": {
       "title": "Update",
       "message": "New version {{version}} is ready, do you want to install it now?",
       "later": "Later",
       "install": "Install",
       "noReleaseNotes": "No release notes"
     },
-    "selection": {
-      "name": "Selection Assistant",
-      "action": {
-        "builtin": {
-          "translate": "Translate",
-          "explain": "Explain",
-          "summary": "Summarize",
-          "search": "Search",
-          "refine": "Refine",
-          "copy": "Copy",
-          "quote": "Quote"
-        },
-        "window": {
-          "pin": "Pin",
-          "pinned": "Pinned",
-          "opacity": "Window Opacity",
-          "original_show": "Show Original",
-          "original_hide": "Hide Original",
-          "original_copy": "Copy Original",
-          "esc_close": "Esc: Close",
-          "esc_stop": "Esc: Stop",
-          "c_copy": "C: Copy",
-          "r_regenerate": "R: Regenerate"
-        },
-        "translate": {
-          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
-        }
-      },
-      "settings": {
-        "experimental": "Experimental Features",
-        "enable": {
-          "title": "Enable",
-          "description": "Currently only supported on Windows & macOS",
-          "mac_process_trust_hint": {
-            "title": "Accessibility Permission",
-            "description": [
-              "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
-              "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
-              "After completing the settings, please reopen the selection assistant."
-            ],
-            "button": {
-              "open_accessibility_settings": "Open Accessibility Settings",
-              "go_to_settings": "Go to Settings"
-            }
-          }
-        },
-        "toolbar": {
-          "title": "Toolbar",
-          "trigger_mode": {
-            "title": "Trigger Mode",
-            "description": "The way to trigger the selection assistant and show the toolbar",
-            "description_note": {
-              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
-              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text."
-            },
-            "selected": "Selection",
-            "selected_note": "Show toolbar immediately when text is selected",
-            "ctrlkey": "Ctrl Key",
-            "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
-            "shortcut": "Shortcut",
-            "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
-            "shortcut_link": "Go to Shortcut Settings"
-          },
-          "compact_mode": {
-            "title": "Compact Mode",
-            "description": "In compact mode, only icons are displayed without text"
-          }
-        },
-        "window": {
-          "title": "Action Window",
-          "follow_toolbar": {
-            "title": "Follow Toolbar",
-            "description": "Window position will follow the toolbar. When disabled, it will always be centered."
-          },
-          "remember_size": {
-            "title": "Remember Size",
-            "description": "Window will display at the last adjusted size during the application running"
-          },
-          "auto_close": {
-            "title": "Auto Close",
-            "description": "Automatically close the window when it's not pinned and loses focus"
-          },
-          "auto_pin": {
-            "title": "Auto Pin",
-            "description": "Pin the window by default"
-          },
-          "opacity": {
-            "title": "Opacity",
-            "description": "Set the default opacity of the window, 100% is fully opaque"
-          }
-        },
-        "actions": {
-          "title": "Actions",
-          "custom": "Custom Action",
-          "reset": {
-            "button": "Reset",
-            "tooltip": "Reset to default actions. Custom actions will not be deleted.",
-            "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted."
-          },
-          "add_tooltip": {
-            "enabled": "Add Custom Action",
-            "disabled": "Maximum number of custom actions reached ({{max}})"
-          },
-          "delete_confirm": "Are you sure you want to delete this custom action?",
-          "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})"
-        },
-        "advanced": {
-          "title": "Advanced",
-          "filter_mode": {
-            "title": "Application Filter",
-            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
-            "default": "Off",
-            "whitelist": "Whitelist",
-            "blacklist": "Blacklist"
-          },
-          "filter_list": {
-            "title": "Filter List",
-            "description": "Advanced feature, recommended for users with experience"
-          }
-        },
-        "user_modal": {
-          "title": {
-            "add": "Add Custom Action",
-            "edit": "Edit Custom Action"
-          },
-          "name": {
-            "label": "Name",
-            "hint": "Please enter action name"
-          },
-          "icon": {
-            "label": "Icon",
-            "placeholder": "Enter Lucide icon name",
-            "error": "Invalid icon name, please check your input",
-            "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
-            "view_all": "View All Icons",
-            "random": "Random Icon"
-          },
-          "model": {
-            "label": "Model",
-            "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters",
-            "default": "Default Model",
-            "assistant": "Use Assistant"
-          },
-          "assistant": {
-            "label": "Select Assistant",
-            "default": "Default"
-          },
-          "prompt": {
-            "label": "User Prompt",
-            "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt",
-            "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
-            "placeholder_text": "Placeholder",
-            "copy_placeholder": "Copy Placeholder"
-          }
-        },
-        "search_modal": {
-          "title": "Set Search Engine",
-          "engine": {
-            "label": "Search Engine",
-            "custom": "Custom"
-          },
-          "custom": {
-            "name": {
-              "label": "Custom Name",
-              "hint": "Please enter search engine name",
-              "max_length": "Name cannot exceed 16 characters"
-            },
-            "url": {
-              "label": "Custom Search URL",
-              "hint": "Use {{queryString}} to represent the search term",
-              "required": "Please enter search URL",
-              "invalid_format": "Please enter a valid URL starting with http:// or https://",
-              "missing_placeholder": "URL must contain {{queryString}} placeholder"
-            },
-            "test": "Test"
-          }
-        },
-        "filter_modal": {
-          "title": "Application Filter List",
-          "user_tips": {
-            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc.",
-            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc."
-          }
-        }
-      }
+    "words": {
+      "knowledgeGraph": "Knowledge Graph",
+      "quit": "Quit",
+      "show_window": "Show Window",
+      "visualization": "Visualization"
     },
     "memory": {
       "title": "Memories",

@@ -220,7 +220,7 @@
       "message.new.context": "清除上下文",
       "message.quote": "引用",
       "message.regenerate.model": "切换模型",
-      "message.useful": "有用",
+      "message.useful": "选为上下文",
       "multiple.select": "多选",
       "multiple.select.empty": "未选中任何消息",
       "navigation": {
