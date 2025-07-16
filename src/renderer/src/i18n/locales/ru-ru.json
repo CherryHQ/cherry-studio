@@ -94,9 +94,7 @@
         "edit": "Редактировать подсказку",
         "title": "Регулярные подсказки",
         "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}."
+        "titlePlaceholder": "Введите заголовок"
       },
       "settings.preset_messages": {
         "title": "Предустановленные сообщения",
@@ -114,32 +112,13 @@
         "systemMessage": "Системное сообщение",
         "roleUser": "Пользователь",
         "roleAssistant": "Ассистент",
-        "roleSystem": "Система"
-      },
-      "list": {
-        "showByList": "Список",
-        "showByTags": "По тегам"
+        "roleSystem": "Система",
+        "exportSuccess": "Предустановки успешно экспортированы",
+        "importSuccess": "Предустановки успешно импортированы",
+        "importError": "Не удалось импортировать предустановки. Неверный файл."
       },
       "settings.title": "Настройки ассистента",
       "settings.tool_use_mode": "Режим использования инструментов",
-      "settings.preset_messages": {
-        "title": "Предустановленные сообщения",
-        "add": "Добавить сообщение",
-        "edit": "Редактировать сообщение",
-        "delete": "Удалить сообщение",
-        "deleteConfirm": "Вы уверены, что хотите удалить это сообщение?",
-        "roleLabel": "Роль",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание",
-        "chatHistory": "История чата",
-        "chatHistoryDesc": "Здесь будут вставлены фактические записи разговора",
-        "userMessage": "Сообщение пользователя",
-        "assistantMessage": "Сообщение ассистента",
-        "systemMessage": "Системное сообщение",
-        "roleUser": "Пользователь",
-        "roleAssistant": "Ассистент",
-        "roleSystem": "Система"
-      },
       "settings.tool_use_mode.function": "Функция",
       "settings.tool_use_mode.prompt": "Подсказка",
       "tags": {
@@ -510,7 +489,9 @@
       "swap": "Поменять местами",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "import": "Импорт",
+      "export": "Экспорт"
     },
     "docs": {
       "title": "Документация"

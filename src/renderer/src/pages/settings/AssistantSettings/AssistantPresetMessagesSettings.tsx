@@ -1,16 +1,18 @@
 import {
   DeleteOutlined,
+  DownloadOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
   HistoryOutlined,
   PlusOutlined,
   RobotOutlined,
+  UploadOutlined,
   UserOutlined
 } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, AssistantMessage } from '@renderer/types'
-import { Button, Flex, Input, Modal, Popconfirm, Select, Space, Switch } from 'antd'
+import { Button, Flex, Input, message, Modal, Popconfirm, Select, Space, Switch } from 'antd'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,6 +37,7 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
   const [listHeight, setListHeight] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const promptListRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 计算可用高度并设置列表高度
   useEffect(() => {
@@ -151,6 +154,69 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
     updateAssistant({ ...assistant, messages: newMessages })
   }
 
+  const handleExport = () => {
+    const assistantName = assistant.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const filename = `${assistantName}_presets_${timestamp}.json`
+
+    // 导出时不包含临时的 'id'，使其更具可移植性
+    const messagesToExport = messagesList.map(({ id, ...rest }) => rest)
+
+    const jsonString = JSON.stringify(messagesToExport, null, 2)
+    const blob = new Blob([jsonString], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    message.success(t('assistants.settings.preset_messages.exportSuccess', 'Presets exported successfully'))
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const importedMessages = JSON.parse(content)
+
+        // 简单的验证，确保是消息数组
+        if (!Array.isArray(importedMessages) || !importedMessages.every((msg) => 'role' in msg && 'content' in msg)) {
+          throw new Error('Invalid file format')
+        }
+
+        // 为导入的消息添加唯一ID，以确保拖拽等功能正常
+        const messagesWithIds = importedMessages.map((msg: Omit<AssistantMessage, 'id'>) => ({
+          ...msg,
+          id: uuidv4()
+        }))
+
+        setMessagesList(messagesWithIds)
+        updateAssistant({ ...assistant, messages: messagesWithIds })
+        message.success(t('assistants.settings.preset_messages.importSuccess', 'Presets imported successfully'))
+      } catch (error) {
+        message.error(t('assistants.settings.preset_messages.importError', 'Failed to import presets. Invalid file.'))
+        console.error('Import failed:', error)
+      } finally {
+        // 重置文件输入，以便可以再次选择相同的文件
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleToggleHistory = (checked: boolean) => {
     const updatedMessages = messagesList.map((msg) =>
       msg.type === 'chat_history' ? { ...msg, enabled: checked } : msg
@@ -161,15 +227,41 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
 
   return (
     <Container ref={containerRef}>
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept=".json"
+        onChange={handleFileSelect}
+        title={t('common.import', 'Import')}
+      />
       <SettingTitle>
         {t('assistants.settings.preset_messages.title', 'Preset Messages')}
-        <Button
-          type="primary"
-          size="small"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-          style={{ marginLeft: '8px', borderRadius: '4px' }}
-        />
+        <Space style={{ marginLeft: '8px' }}>
+          <Button
+            type="default"
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={handleImportClick}
+            style={{ borderRadius: '4px' }}>
+            {t('common.import', 'Import')}
+          </Button>
+          <Button
+            type="default"
+            size="small"
+            icon={<UploadOutlined />}
+            onClick={handleExport}
+            style={{ borderRadius: '4px' }}>
+            {t('common.export', 'Export')}
+          </Button>
+          <Button
+            type="primary"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={handleAdd}
+            style={{ borderRadius: '4px' }}
+          />
+        </Space>
       </SettingTitle>
       <SettingDivider />
       <SettingRow style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>

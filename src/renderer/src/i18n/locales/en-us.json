@@ -94,9 +94,7 @@
         "edit": "Edit Phrase",
         "title": "Regular Phrase",
         "titleLabel": "Title",
-        "titlePlaceholder": "Enter title",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+        "titlePlaceholder": "Enter title"
       },
       "settings.preset_messages": {
         "title": "Preset Messages",
@@ -114,32 +112,13 @@
         "systemMessage": "System Message",
         "roleUser": "User",
         "roleAssistant": "Assistant",
-        "roleSystem": "System"
-      },
-      "list": {
-        "showByList": "List View",
-        "showByTags": "Tag View"
+        "roleSystem": "System",
+        "exportSuccess": "Presets exported successfully",
+        "importSuccess": "Presets imported successfully",
+        "importError": "Failed to import presets. Invalid file."
       },
       "settings.title": "Assistant Settings",
       "settings.tool_use_mode": "Tool Use Mode",
-      "settings.preset_messages": {
-        "title": "Preset Messages",
-        "add": "Add Message",
-        "edit": "Edit Message",
-        "delete": "Delete Message",
-        "deleteConfirm": "Are you sure to delete this message?",
-        "roleLabel": "Role",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Enter content",
-        "chatHistory": "Chat History",
-        "chatHistoryDesc": "The actual conversation records will be inserted here.",
-        "userMessage": "User Message",
-        "assistantMessage": "Assistant Message",
-        "systemMessage": "System Message",
-        "roleUser": "User",
-        "roleAssistant": "Assistant",
-        "roleSystem": "System"
-      },
       "settings.tool_use_mode.function": "Function",
       "settings.tool_use_mode.prompt": "Prompt",
       "tags": {
@@ -471,6 +450,8 @@
       "disabled": "Disabled",
       "docs": "Docs",
       "download": "Download",
+      "export": "Export",
+      "import": "Import",
       "duplicate": "Duplicate",
       "edit": "Edit",
       "enabled": "Enabled",
