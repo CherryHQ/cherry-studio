@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios, { AxiosRequestConfig } from 'axios'

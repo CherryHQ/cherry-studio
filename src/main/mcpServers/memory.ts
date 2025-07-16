@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -164,7 +164,7 @@ class KnowledgeGraphManager {
     relations.forEach((relation) => {
       // Ensure related entities exist before creating a relation
       if (!this.entities.has(relation.from) || !this.entities.has(relation.to)) {
-        console.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
+        logger.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
         return // Skip this relation
       }
       const relationStr = this._serializeRelation(relation)
@@ -190,7 +190,7 @@ class KnowledgeGraphManager {
         // Option 1: Throw error
         throw new McpError(ErrorCode.InvalidParams, `Entity with name ${o.entityName} not found`)
         // Option 2: Skip and warn
-        // console.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
+        // logger.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
         // return;
       }
       // Ensure observations array exists

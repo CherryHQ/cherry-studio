@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'

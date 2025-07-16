@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import {
   DEFAULT_LANGUAGES,
   DEFAULT_THEMES,

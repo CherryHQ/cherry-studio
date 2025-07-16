@@ -1,8 +1,8 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
+import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -261,7 +261,7 @@ export function openAIToolsToMcpTool(
   })
 
   if (!tool) {
-    console.warn('No MCP Tool found for tool call:', toolCall)
+    logger.warn('No MCP Tool found for tool call:', toolCall)
     return undefined
   }
 

@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 
 import BraveSearchServer from './brave-search'

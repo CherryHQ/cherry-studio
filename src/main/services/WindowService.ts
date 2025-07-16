@@ -2,8 +2,8 @@
 import './ThemeService'
 
 import { is } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'

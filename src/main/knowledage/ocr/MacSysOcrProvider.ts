@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 import { FileMetadata, OcrProvider } from '@types'
 import * as fs from 'fs'
 import * as path from 'path'

@@ -1,4 +1,5 @@
 import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
@@ -33,6 +34,8 @@ import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TranslatePage')
 
 let _text = ''
 let _result = ''
@@ -428,7 +431,7 @@ const TranslatePage: FC = () => {
       await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
       setLoading(false)
     } catch (error) {
-      console.error('Translation error:', error)
+      logger.error('Translation error:', error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
@@ -545,7 +548,7 @@ const TranslatePage: FC = () => {
         )
       }
     } catch (error) {
-      console.error('Error getting language display:', error)
+      logger.error('Error getting language display:', error)
       setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 

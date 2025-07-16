@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
@@ -7,7 +8,6 @@ import {
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
-import loggerService from '@renderer/services/LoggerService'
 import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,

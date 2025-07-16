@@ -1,6 +1,6 @@
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/filesystem/index.ts
 
-import LoggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ToolSchema } from '@modelcontextprotocol/sdk/types.js'
 import { createTwoFilesPatch } from 'diff'
@@ -11,7 +11,7 @@ import path from 'path'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
-const logger = LoggerService.withContext('MCP:FileSystemServer')
+const logger = loggerService.withContext('MCP:FileSystemServer')
 
 // Normalize all paths consistently
 function normalizePath(p: string): string {

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { MistralClientManager } from '@main/services/MistralClientManager'
 import { MistralService } from '@main/services/remotefile/MistralService'
 import { Mistral } from '@mistralai/mistralai'

@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'

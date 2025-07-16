@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import { OAuthClientInformation, OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth'

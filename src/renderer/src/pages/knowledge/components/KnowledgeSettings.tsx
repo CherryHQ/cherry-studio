@@ -1,4 +1,5 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
@@ -23,6 +24,8 @@ interface ShowParams {
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
+
+const logger = loggerService.withContext('KnowledgeSettings')
 
 const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const { preprocessProviders } = usePreprocessProviders()
@@ -98,7 +101,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       setOpen(false)
       resolve(newBase)
     } catch (error) {
-      console.error('Validation failed:', error)
+      logger.error('Validation failed:', error)
     }
   }
 

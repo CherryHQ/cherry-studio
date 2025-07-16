@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('AbortController')
 

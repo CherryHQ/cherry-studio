@@ -1,7 +1,7 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import loggerService from '@renderer/services/LoggerService'
 import { Alert, Button, Input, Slider, Steps, Tooltip, Typography } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

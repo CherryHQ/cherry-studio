@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { getMcpDir, getTempDir } from '@main/utils/file'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'

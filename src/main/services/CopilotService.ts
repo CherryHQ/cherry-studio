@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { AxiosRequestConfig } from 'axios'
 import { app, safeStorage } from 'electron'
 import fs from 'fs/promises'

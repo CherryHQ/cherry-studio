@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import loggerService from '@renderer/services/LoggerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -77,7 +77,7 @@ export function useMessageOperations(topic: Topic) {
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
       if (!topic?.id) {
-        console.error('[editMessage] Topic prop is not valid.')
+        logger.error('[editMessage] Topic prop is not valid.')
         return
       }
 
@@ -159,7 +159,7 @@ export function useMessageOperations(topic: Topic) {
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
       if (message.role !== 'assistant') {
-        console.warn('regenerateAssistantMessage should only be called for assistant messages.')
+        logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
       }
       await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
@@ -174,11 +174,11 @@ export function useMessageOperations(topic: Topic) {
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
       if (existingAssistantMessage.role !== 'assistant') {
-        console.error('appendAssistantResponse should only be called for an existing assistant message.')
+        logger.error('appendAssistantResponse should only be called for an existing assistant message.')
         return
       }
       if (!existingAssistantMessage.askId) {
-        console.error('Cannot append response: The existing assistant message is missing its askId.')
+        logger.error('Cannot append response: The existing assistant message is missing its askId.')
         return
       }
       await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
@@ -206,7 +206,7 @@ export function useMessageOperations(topic: Topic) {
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message) {
-        console.error('[getTranslationUpdater] cannot find message:', messageId)
+        logger.error('[getTranslationUpdater] cannot find message:', messageId)
         return null
       }
 
@@ -242,7 +242,7 @@ export function useMessageOperations(topic: Topic) {
       }
 
       if (!blockId) {
-        console.error('[getTranslationUpdater] Failed to create translation block.')
+        logger.error('[getTranslationUpdater] Failed to create translation block.')
         return null
       }
 
@@ -282,7 +282,7 @@ export function useMessageOperations(topic: Topic) {
   const editMessageBlocks = useCallback(
     async (messageId: string, editedBlocks: MessageBlock[]) => {
       if (!topic?.id) {
-        console.error('[editMessageBlocks] Topic prop is not valid.')
+        logger.error('[editMessageBlocks] Topic prop is not valid.')
         return
       }
 
@@ -291,7 +291,7 @@ export function useMessageOperations(topic: Topic) {
         const state = store.getState()
         const message = state.messages.entities[messageId]
         if (!message) {
-          console.error('[editMessageBlocks] Message not found:', messageId)
+          logger.error('[editMessageBlocks] Message not found:', messageId)
           return
         }
 
@@ -355,7 +355,7 @@ export function useMessageOperations(topic: Topic) {
           await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
         }
       } catch (error) {
-        console.error('[editMessageBlocks] Failed to update message blocks:', error)
+        logger.error('[editMessageBlocks] Failed to update message blocks:', error)
       }
     },
     [dispatch, topic?.id]
@@ -371,7 +371,7 @@ export function useMessageOperations(topic: Topic) {
 
       const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
       if (!mainTextBlock) {
-        console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
+        logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
 
@@ -403,14 +403,14 @@ export function useMessageOperations(topic: Topic) {
   const removeMessageBlock = useCallback(
     async (messageId: string, blockIdToRemove: string) => {
       if (!topic?.id) {
-        console.error('[removeMessageBlock] Topic prop is not valid.')
+        logger.error('[removeMessageBlock] Topic prop is not valid.')
         return
       }
 
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message || !message.blocks) {
-        console.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        logger.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
         return
       }
 

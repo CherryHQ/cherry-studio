@@ -5,7 +5,7 @@ import './bootstrap'
 
 import '@main/config'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'

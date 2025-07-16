@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import loggerService from '@renderer/services/LoggerService'
 import { Message } from '@renderer/types/newMessage'
 import {
   analyzeMessageContent,

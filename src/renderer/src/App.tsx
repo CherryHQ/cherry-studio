@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { Provider } from 'react-redux'
 import { HashRouter, Route, Routes } from 'react-router-dom'
@@ -21,7 +22,6 @@ import KnowledgePage from './pages/knowledge/KnowledgePage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
-import loggerService from './services/LoggerService'
 
 const logger = loggerService.withContext('App.tsx')
 

@@ -1,7 +1,7 @@
 import util from 'node:util'
 import zlib from 'node:zlib'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('Utils:Zip')
 

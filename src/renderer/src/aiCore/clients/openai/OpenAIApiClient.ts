@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
@@ -16,7 +17,6 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
-import loggerService from '@renderer/services/LoggerService'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token

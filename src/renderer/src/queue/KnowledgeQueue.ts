@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import loggerService from '@renderer/services/LoggerService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import store from '@renderer/store'
 import {

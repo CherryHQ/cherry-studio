@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import loggerService from '@renderer/services/LoggerService'
 import type { MCPConfig, MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')

@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'

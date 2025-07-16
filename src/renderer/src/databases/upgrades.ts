@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
-import loggerService from '@renderer/services/LoggerService'
 import type { LanguageCode, LegacyMessage as OldMessage, Topic } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
@@ -104,7 +104,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
     const blocksToCreate: MessageBlock[] = []
 
     if (!oldTopic.messages || !Array.isArray(oldTopic.messages)) {
-      console.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
+      logger.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
       topicUpdates[oldTopic.id] = { messages: [] }
       return
     }
@@ -381,7 +381,7 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
         targetLanguage: langMap[history.targetLanguage]
       })
     } catch (error) {
-      console.error('Error upgrading history:', error)
+      logger.error('Error upgrading history:', error)
     }
   }
   logger.info('DB migration to version 8 finished.')

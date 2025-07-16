@@ -11,10 +11,10 @@ import {
   UserDeleteOutlined,
   UserOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
-import loggerService from '@renderer/services/LoggerService'
 import MemoryService from '@renderer/services/MemoryService'
 import {
   selectCurrentUserId,

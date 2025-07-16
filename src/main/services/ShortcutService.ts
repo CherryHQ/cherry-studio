@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'

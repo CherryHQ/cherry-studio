@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 import { OcrProvider } from '@types'
 
 import BaseOcrProvider from './BaseOcrProvider'

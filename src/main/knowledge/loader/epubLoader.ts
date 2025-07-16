@@ -1,7 +1,7 @@
 import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
 import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { getTempDir } from '@main/utils/file'
 import EPub from 'epub'
 import * as fs from 'fs'

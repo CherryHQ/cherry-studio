@@ -1,7 +1,8 @@
+import { loggerService } from '@logger'
 import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
-import loggerService from '@renderer/services/LoggerService'
-const logger = loggerService.withContext('Utils:Oauth')
+
+const logger = loggerService.withContext('Utils:oauth')
 
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
@@ -112,7 +113,7 @@ export const oauthWithPPIO = async (setKey) => {
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          console.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
+          logger.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
           throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
         }
 
@@ -126,7 +127,7 @@ export const oauthWithPPIO = async (setKey) => {
           reject(new Error('No access token received'))
         }
       } catch (error) {
-        console.error('[PPIO OAuth] Error processing callback:', error)
+        logger.error('[PPIO OAuth] Error processing callback:', error)
         reject(error)
       } finally {
         removeListener()

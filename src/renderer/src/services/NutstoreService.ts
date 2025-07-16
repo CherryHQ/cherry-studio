@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { setNutstoreSyncState } from '@renderer/store/nutstore'
 import { WebDavConfig } from '@renderer/types'

@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { Assistant, MCPTool } from '@renderer/types'
 

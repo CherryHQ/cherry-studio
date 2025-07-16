@@ -147,5 +147,4 @@ export class LoggerService {
   }
 }
 
-// Default export of the singleton instance
-export default LoggerService.getInstance()
+export const loggerService = LoggerService.getInstance()

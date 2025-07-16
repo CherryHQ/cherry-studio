@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProviderResponse } from '@renderer/types'
 

@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { backup } from '@renderer/services/BackupService'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'

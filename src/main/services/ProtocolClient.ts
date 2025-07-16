@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { app } from 'electron'
 
 import { handleProvidersProtocolUrl } from './urlschema/handle-providers'

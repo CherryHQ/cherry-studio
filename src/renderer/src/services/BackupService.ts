@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import { S3Config, WebDavConfig } from '@renderer/types'

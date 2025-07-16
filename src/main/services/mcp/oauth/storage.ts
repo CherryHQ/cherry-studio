@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import {
   OAuthClientInformation,
   OAuthClientInformationFull,

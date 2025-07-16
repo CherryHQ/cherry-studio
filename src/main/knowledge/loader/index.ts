@@ -1,7 +1,7 @@
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'

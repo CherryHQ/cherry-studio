@@ -1,9 +1,9 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import loggerService from '@renderer/services/LoggerService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
@@ -445,7 +445,7 @@ export const streamCallback = (
         smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
         mainTextBlockId = null
       } else {
-        console.warn(
+        logger.warn(
           `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${lastBlockType}) or lastBlockId  is null.`
         )
       }
@@ -490,7 +490,7 @@ export const streamCallback = (
         }
         smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
       } else {
-        console.warn(
+        logger.warn(
           `[onThinkingComplete] Received thinking.complete but last block was not THINKING (was ${lastBlockType}) or lastBlockId  is null.`
         )
       }
@@ -518,7 +518,7 @@ export const streamCallback = (
         handleBlockTransition(toolBlock, MessageBlockType.TOOL)
         toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
       } else {
-        console.warn(
+        logger.warn(
           `[onToolCallPending] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
         )
       }
@@ -534,12 +534,12 @@ export const streamCallback = (
         }
         smartBlockUpdate(targetBlockId, changes, MessageBlockType.TOOL)
       } else if (!targetBlockId) {
-        console.warn(
+        logger.warn(
           `[onToolCallInProgress] No block ID found for tool ID: ${toolResponse.id}. Available mappings:`,
           Array.from(toolCallIdToBlockIdMap.entries())
         )
       } else {
-        console.warn(
+        logger.warn(
           `[onToolCallInProgress] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
         )
       }
@@ -568,7 +568,7 @@ export const streamCallback = (
         }
         smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
       } else {
-        console.warn(
+        logger.warn(
           `[onToolCallComplete] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
         )
       }
@@ -909,7 +909,7 @@ export const sendMessage =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
       if (userMessage.blocks.length === 0) {
-        console.warn('sendMessage: No blocks in the provided message.')
+        logger.warn('sendMessage: No blocks in the provided message.')
         return
       }
       await saveMessageAndBlocksToDB(userMessage, userMessageBlocks)
@@ -1039,7 +1039,7 @@ export const deleteMessageGroupThunk =
     // }
 
     if (messagesToDelete.length === 0) {
-      console.warn(`[deleteMessageGroup] No messages found with askId ${askId} in topic ${topicId}.`)
+      logger.warn(`[deleteMessageGroup] No messages found with askId ${askId} in topic ${topicId}.`)
       return
     }
 
@@ -1114,7 +1114,7 @@ export const resendMessageThunk =
         window.keyv.remove(`web-search-${userMessageToResend.id}`)
         window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
-        console.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error)
+        logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error)
       }
 
       const resetDataList: Message[] = []
@@ -1531,7 +1531,7 @@ export const cloneMessagesToNewTopicThunk =
       // 1. Slice messages to clone
       const messagesToClone = sourceMessages.slice(0, branchPointIndex)
       if (messagesToClone.length === 0) {
-        console.warn(`[cloneMessagesToNewTopicThunk] No messages to branch (index ${branchPointIndex}).`)
+        logger.warn(`[cloneMessagesToNewTopicThunk] No messages to branch (index ${branchPointIndex}).`)
         return true // Nothing to clone, operation considered successful but did nothing.
       }
 
@@ -1556,7 +1556,7 @@ export const cloneMessagesToNewTopicThunk =
             // This happens if the user message corresponding to askId was *before* the branch point index
             // and thus wasn't included in messagesToClone or the map.
             // In this case, the link is broken in the new topic.
-            console.warn(
+            logger.warn(
               `[cloneMessages] Could not find new ID mapping for original askId ${oldMessage.askId} (likely outside branch). Setting askId to undefined for new assistant message ${newMsgId}.`
             )
             // newAskId remains undefined
@@ -1585,7 +1585,7 @@ export const cloneMessagesToNewTopicThunk =
                 }
               }
             } else {
-              console.warn(
+              logger.warn(
                 `[cloneMessagesToNewTopicThunk] Block ${oldBlockId} not found in state for message ${oldMessage.id}. Skipping block clone.`
               )
             }
@@ -1718,7 +1718,7 @@ export const removeBlocksThunk =
   (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
     if (!blockIdsToRemove.length) {
-      console.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      logger.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
       return
     }
 

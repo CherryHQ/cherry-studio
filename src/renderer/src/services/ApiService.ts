@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import {
   isEmbeddingModel,
@@ -17,7 +18,6 @@ import {
 import { getModel } from '@renderer/hooks/useModel'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import {
@@ -459,14 +459,14 @@ async function processConversationMemory(messages: Message[], assistant: Assista
       getFirstEmbeddingModel()
 
     if (!embedderModel) {
-      console.warn(
+      logger.warn(
         'Memory processing skipped: no embedding model available. Please configure an embedding model in memory settings.'
       )
       return
     }
 
     if (!llmModel) {
-      console.warn('Memory processing skipped: LLM model not available')
+      logger.warn('Memory processing skipped: LLM model not available')
       return
     }
 

@@ -1,7 +1,7 @@
 import { UploadOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
-import loggerService from '@renderer/services/LoggerService'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
@@ -169,7 +169,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               .catch((connError: any) => {
                 logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
                 // Don't show error for DXT servers as they might need additional setup
-                console.warn(
+                logger.warn(
                   `DXT server ${newServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
                 )
               })

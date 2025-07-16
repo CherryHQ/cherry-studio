@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 
 import { windowService } from '../WindowService'
 

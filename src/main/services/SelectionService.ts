@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
@@ -17,6 +17,13 @@ import { ConfigKeys, configManager } from './ConfigManager'
 import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
+
+logger.info('test1')
+logger.warn('test2')
+logger.error('test3', new Error('test error'))
+logger.debug('test4')
+logger.verbose('test5')
+logger.silly('test6')
 
 const isSupportedOS = isWin || isMac
 

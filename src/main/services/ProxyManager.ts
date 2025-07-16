@@ -1,4 +1,4 @@
-import LoggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
@@ -6,7 +6,7 @@ import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
 
 type ProxyMode = 'system' | 'custom' | 'none'
 
-const logger = LoggerService.withContext('ProxyManager')
+const logger = loggerService.withContext('ProxyManager')
 
 export interface ProxyConfig {
   mode: ProxyMode

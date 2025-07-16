@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { Mistral } from '@mistralai/mistralai'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 

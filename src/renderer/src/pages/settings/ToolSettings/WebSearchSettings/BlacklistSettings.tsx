@@ -1,7 +1,7 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
-import loggerService from '@renderer/services/LoggerService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'

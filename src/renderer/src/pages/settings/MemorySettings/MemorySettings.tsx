@@ -11,8 +11,8 @@ import {
   UserDeleteOutlined,
   UserOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import loggerService from '@renderer/services/LoggerService'
 import MemoryService from '@renderer/services/MemoryService'
 import {
   selectCurrentUserId,

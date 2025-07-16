@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@renderer/config/constant'
-import loggerService from '@renderer/services/LoggerService'
 import type { SendMessageShortcut } from '@renderer/store/settings'
 import { FileMetadata } from '@renderer/types'
 

@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
@@ -22,7 +23,6 @@ import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import loggerService from '@renderer/services/LoggerService'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'

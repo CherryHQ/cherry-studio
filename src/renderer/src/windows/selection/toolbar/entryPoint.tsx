@@ -1,7 +1,7 @@
 import '@ant-design/v5-patch-for-react-19'
 
+import { loggerService } from '@logger'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import loggerService from '@renderer/services/LoggerService'
 import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
 import { FC } from 'react'

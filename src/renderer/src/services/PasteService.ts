@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { FileMetadata } from '@renderer/types'
 import { getFileExtension } from '@renderer/utils'
 

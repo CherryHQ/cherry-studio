@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 

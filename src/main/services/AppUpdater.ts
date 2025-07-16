@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import loggerService from '@main/services/LoggerService'
 import { locales } from '@main/utils/locales'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'

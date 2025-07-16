@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
-import loggerService from '@renderer/services/LoggerService'
 import { AssistantMessage } from '@renderer/types'
 import {
   FactRetrievalSchema,

@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { FileType } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'

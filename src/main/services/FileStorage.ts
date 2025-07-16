@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'

@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 // @ts-ignore next-line`
@@ -142,7 +142,7 @@ export function hasPath(url: string): boolean {
     const parsedUrl = new URL(url)
     return parsedUrl.pathname !== '/' && parsedUrl.pathname !== ''
   } catch (error) {
-    console.error('Invalid URL:', error)
+    logger.error('Invalid URL:', error)
     return false
   }
 }

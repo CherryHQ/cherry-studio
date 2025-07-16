@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
-import loggerService from '@renderer/services/LoggerService'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'

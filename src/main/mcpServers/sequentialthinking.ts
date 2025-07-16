@@ -1,11 +1,13 @@
 // Sequential Thinking MCP Server
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/sequentialthinking/index.ts
 
-import LoggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from '@modelcontextprotocol/sdk/types.js'
 // Fixed chalk import for ESM
 import chalk from 'chalk'
+
+const logger = loggerService.withContext('MCPServer:SequentialThinkingServer')
 
 interface ThoughtData {
   thought: string
@@ -18,8 +20,6 @@ interface ThoughtData {
   needsMoreThoughts?: boolean
   nextThoughtNeeded: boolean
 }
-
-const logger = LoggerService.withContext('MCPServer:SequentialThinkingServer')
 
 class SequentialThinkingServer {
   private thoughtHistory: ThoughtData[] = []

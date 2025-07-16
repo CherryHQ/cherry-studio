@@ -1,5 +1,5 @@
 import { File, Files, FileState, GoogleGenAI } from '@google/genai'
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 

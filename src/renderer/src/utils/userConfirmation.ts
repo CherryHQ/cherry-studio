@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 
 // 存储每个工具的确认Promise的resolve函数
 const toolConfirmResolvers = new Map<string, (value: boolean) => void>()

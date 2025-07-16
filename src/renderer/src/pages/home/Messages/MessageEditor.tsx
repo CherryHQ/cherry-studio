@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -32,6 +33,8 @@ interface Props {
   onResend: (blocks: MessageBlock[]) => void
   onCancel: () => void
 }
+
+const logger = loggerService.withContext('MessageBlockEditor')
 
 const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onCancel }) => {
   const allBlocks = findAllBlocks(message)
@@ -161,7 +164,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     setIsFileDragging(false)
 
     const files = await getFilesFromDropEvent(e).catch((err) => {
-      console.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
+      logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
       return null
     })
     if (files) {

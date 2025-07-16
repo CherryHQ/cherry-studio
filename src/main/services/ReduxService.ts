@@ -1,4 +1,4 @@
-import LoggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { EventEmitter } from 'events'
@@ -8,7 +8,7 @@ import { windowService } from './WindowService'
 type StoreValue = any
 type Unsubscribe = () => void
 
-const logger = LoggerService.withContext('ReduxService')
+const logger = loggerService.withContext('ReduxService')
 
 export class ReduxService extends EventEmitter {
   private stateCache: any = {}

@@ -1,7 +1,7 @@
 /* eslint-disable no-case-declarations */
 // ExportService
 
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import {
   AlignmentType,
   BorderStyle,

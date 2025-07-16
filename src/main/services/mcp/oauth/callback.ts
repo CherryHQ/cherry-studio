@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'

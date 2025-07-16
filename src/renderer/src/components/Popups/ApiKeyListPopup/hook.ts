@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
-import loggerService from '@renderer/services/LoggerService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'

@@ -1,4 +1,5 @@
 import { InfoCircleOutlined, SettingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Box } from '@renderer/components/Layout'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
@@ -11,6 +12,8 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import MemoriesSettingsModal from '../../memory/settings-modal'
+
+const logger = loggerService.withContext('AssistantMemorySettings')
 
 const { Text } = Typography
 
@@ -43,7 +46,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       })
       setMemoryStats({ count: result.results.length, loading: false })
     } catch (error) {
-      console.error('Failed to load memory stats:', error)
+      logger.error('Failed to load memory stats:', error)
       setMemoryStats({ count: 0, loading: false })
     }
   }, [assistant.id, memoryService])

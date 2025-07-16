@@ -33,7 +33,10 @@ const ANSICOLORS = {
   BLUE: '\x1b[34m',
   MAGENTA: '\x1b[35m',
   CYAN: '\x1b[36m',
-  END: '\x1b[0m'
+  END: '\x1b[0m',
+  BOLD: '\x1b[1m',
+  ITALIC: '\x1b[3m',
+  UNDERLINE: '\x1b[4m'
 }
 
 function colorText(text: string, color: string) {
@@ -146,29 +149,42 @@ export class LoggerService {
 
       let moduleString = ''
       if (source.process === 'main') {
-        moduleString = this.module ? ` [${this.module}]` : ''
+        moduleString = this.module ? ` [${colorText(this.module, 'UNDERLINE')}] ` : ' '
       } else {
-        moduleString = ` [${source.window}:${source.module}]`
+        const combineString = `${source.window}:${source.module}`
+        moduleString = ` [${colorText(combineString, 'UNDERLINE')}] `
       }
 
       switch (level) {
         case 'error':
-          console.error(datetimeColored + moduleString + colorText(' <ERROR> ', 'RED') + message, ...meta)
+          console.error(
+            `${datetimeColored} ${colorText(colorText('<ERROR>', 'RED'), 'BOLD')}${moduleString}${message}`,
+            ...meta
+          )
           break
         case 'warn':
-          console.warn(datetimeColored + moduleString + colorText(' <WARN> ', 'YELLOW') + message, ...meta)
+          console.warn(
+            `${datetimeColored} ${colorText(colorText('<WARN>', 'YELLOW'), 'BOLD')}${moduleString}${message}`,
+            ...meta
+          )
           break
         case 'info':
-          console.info(datetimeColored + moduleString + colorText(' <INFO> ', 'GREEN') + message, ...meta)
+          console.info(
+            `${datetimeColored} ${colorText(colorText('<INFO>', 'GREEN'), 'BOLD')}${moduleString}${message}`,
+            ...meta
+          )
           break
         case 'debug':
-          console.debug(datetimeColored + moduleString + colorText(' <DEBUG> ', 'BLUE') + message, ...meta)
+          console.debug(
+            `${datetimeColored} ${colorText(colorText('<DEBUG>', 'BLUE'), 'BOLD')}${moduleString}${message}`,
+            ...meta
+          )
           break
         case 'verbose':
-          console.log(datetimeColored + moduleString + ' <VERBOSE> ' + message, ...meta)
+          console.log(`${datetimeColored} ${colorText('<VERBOSE>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
         case 'silly':
-          console.log(datetimeColored + moduleString + ' <SILLY> ' + message, ...meta)
+          console.log(`${datetimeColored} ${colorText('<SILLY>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
       }
     }
@@ -258,5 +274,4 @@ export class LoggerService {
   }
 }
 
-// Default export of the singleton instance
-export default LoggerService.getInstance()
+export const loggerService = LoggerService.getInstance()

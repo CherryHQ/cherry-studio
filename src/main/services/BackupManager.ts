@@ -1,4 +1,4 @@
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
 import { S3Config } from '@types'

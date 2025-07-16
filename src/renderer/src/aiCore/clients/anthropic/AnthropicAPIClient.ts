@@ -24,12 +24,12 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
-import loggerService from '@renderer/services/LoggerService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,

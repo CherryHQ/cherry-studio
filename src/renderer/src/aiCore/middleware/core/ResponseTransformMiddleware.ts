@@ -1,4 +1,4 @@
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { SdkRawChunk } from '@renderer/types/sdk'
 
 import { ResponseChunkTransformerContext } from '../../clients/types'

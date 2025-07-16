@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
-import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
 import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'

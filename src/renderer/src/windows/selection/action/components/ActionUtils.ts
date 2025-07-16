@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
@@ -8,6 +9,8 @@ import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+
+const logger = loggerService.withContext('ActionUtils')
 
 export const processMessages = async (
   assistant: Assistant,
@@ -146,6 +149,6 @@ export const processMessages = async (
   } catch (err) {
     if (isAbortError(err)) return
     onError(err instanceof Error ? err : new Error('An error occurred'))
-    console.error('Error fetching result:', err)
+    logger.error('Error fetching result:', err)
   }
 }

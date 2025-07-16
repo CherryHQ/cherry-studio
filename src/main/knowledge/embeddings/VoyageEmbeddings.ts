@@ -1,7 +1,10 @@
 import { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { VoyageEmbeddings as _VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
+import { loggerService } from '@logger'
 
 import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
+
+const logger = loggerService.withContext('VoyageEmbeddings')
 
 /**
  * 支持设置嵌入维度的模型

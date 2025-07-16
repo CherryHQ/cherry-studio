@@ -6,7 +6,7 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
-import loggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import type { S3Config } from '@types'
 import * as net from 'net'
 import { Readable } from 'stream'

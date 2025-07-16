@@ -1,5 +1,5 @@
 import { SearxngClient } from '@agentic/searxng'
-import loggerService from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
@@ -43,7 +43,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         `Failed to initialize SearxNG client: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
-    this.initEngines().catch((err) => console.error('Failed to initialize SearxNG engines:', err))
+    this.initEngines().catch((err) => logger.error('Failed to initialize SearxNG engines:', err))
   }
   private async initEngines(): Promise<void> {
     try {

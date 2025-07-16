@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import LoggerService from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
@@ -8,7 +8,7 @@ import { type FileStat } from 'webdav'
 
 import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
 
-const logger = LoggerService.withContext('NutstoreService')
+const logger = loggerService.withContext('NutstoreService')
 
 interface OAuthResponse {
   username: string
