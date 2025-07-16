@@ -144,7 +144,8 @@
         "selectZip": "Select Zip File",
         "sendZip": "Start Restore Data",
         "noZipSelected": "No Zip File Selected"
-      }
+      },
+      "confirm.button": "Select Backup File"
     },
     "button": {
       "add": "Add",
@@ -1699,7 +1700,10 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
-        }
+        },
+        "export_to_phone": "Export To App",
+        "export_to_phone.button": "Export",
+        "export_to_phone_use_lan.button": "Landrop"
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
