@@ -54,21 +54,20 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   text: accumulatedTextContent // 增量更新
                 })
               } else if (accumulatedTextContent && chunk.type !== ChunkType.TEXT_START) {
-                if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
-                  const finalText = accumulatedTextContent
-                  ctx._internal.customState!.accumulatedText = finalText
-                  if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
-                    ctx._internal.toolProcessingState.output = finalText
-                  }
+                ctx._internal.customState!.accumulatedText = accumulatedTextContent
+                if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
+                  ctx._internal.toolProcessingState.output = accumulatedTextContent
+                }
 
+                if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
                   // 处理 onResponse 回调 - 发送最终完整文本
                   if (params.onResponse) {
-                    params.onResponse(finalText, true)
+                    params.onResponse(accumulatedTextContent, true)
                   }
 
                   controller.enqueue({
                     type: ChunkType.TEXT_COMPLETE,
-                    text: finalText
+                    text: accumulatedTextContent
                   })
                   controller.enqueue(chunk)
                 } else {
