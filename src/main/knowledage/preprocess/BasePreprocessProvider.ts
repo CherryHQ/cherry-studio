@@ -6,6 +6,7 @@ import { getFileExt } from '@main/utils/file'
 import { FileMetadata, PreprocessProvider } from '@types'
 import { app } from 'electron'
 import { TypedArray } from 'pdfjs-dist/types/src/display/api'
+import pdfjs from 'pdfjs-dist'
 
 export default abstract class BasePreprocessProvider {
   protected provider: PreprocessProvider
@@ -80,8 +81,7 @@ export default abstract class BasePreprocessProvider {
     source: string | URL | TypedArray,
     passwordCallback?: (fn: (password: string) => void, reason: string) => string
   ) {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    const documentLoadingTask = getDocument(source)
+    const documentLoadingTask = pdfjs.getDocument(source)
     if (passwordCallback) {
       documentLoadingTask.onPassword = passwordCallback
     }
