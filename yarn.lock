@@ -7165,7 +7165,7 @@ __metadata:
     diff: "npm:^7.0.0"
     docx: "npm:^9.0.2"
     dotenv-cli: "npm:^7.4.2"
-    electron: "npm:35.6.0"
+    electron: "npm:37.1.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-log: "npm:^5.1.5"
@@ -10194,16 +10194,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:35.6.0":
-  version: 35.6.0
-  resolution: "electron@npm:35.6.0"
+"electron@npm:37.1.0":
+  version: 37.1.0
+  resolution: "electron@npm:37.1.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/a8feb656ce9173607f23517753ba47933e716ba362695e1a31bc52bcd9003bc29160e0c2aa43373a30d7c02620fcc837fdbb3c37382cb2b28466f5018e296be1
+  checksum: 10c0/3821c81a383ac1f6e99fbfb9f231dc113f80df4ee0091cc3e1f4fcd9421e30fd38a8c777a47a06163a0dc13fbcfd70164a7c09d14284f7e4228eb6558ed6c8e9
   languageName: node
   linkType: hard
 
@@ -15405,21 +15405,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-abi@npm:^2.7.0":
-  version: 2.30.1
-  resolution: "node-abi@npm:2.30.1"
+"node-abi@npm:4.12.0":
+  version: 4.12.0
+  resolution: "node-abi@npm:4.12.0"
   dependencies:
-    semver: "npm:^5.4.1"
-  checksum: 10c0/baddd9799ae3f9ad085695cd6545438a76f5a8deb47976daf06b13ee90e9dab5463de145b703aca38a5afb627c038e85d5f8a4ba2f31ec678a68366cb6daf76f
-  languageName: node
-  linkType: hard
-
-"node-abi@npm:^3.45.0":
-  version: 3.74.0
-  resolution: "node-abi@npm:3.74.0"
-  dependencies:
-    semver: "npm:^7.3.5"
-  checksum: 10c0/a6c83c448d5e8b591f749a0157c9ec02f653021cdf3415c1a44fcb5fc8afc124acad186bc1ec76cb4db2485cc2dcdda187aacd382c54b6e3093ffc0389603643
+    semver: "npm:^7.6.3"
+  checksum: 10c0/78a0697b1ea7da95bee5465d92772a883fb829ae01e89cf2b60c2af79bf784e422cdde9cc2f15684d5bafb9a0ac3d8e16292520107dc36eff30c541e23ac9fb7
   languageName: node
   linkType: hard
 
@@ -18255,7 +18246,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^5.4.1, semver@npm:^5.5.0":
+"semver@npm:^5.5.0":
   version: 5.7.2
   resolution: "semver@npm:5.7.2"
   bin:
