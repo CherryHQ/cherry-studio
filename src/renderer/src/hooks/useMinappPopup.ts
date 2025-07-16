@@ -9,27 +9,10 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
+import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
 
-const updateLRUCache = <T extends { id: string }>(apps: T[], app: T, limitation: number): T[] => {
-  const existingIndex = apps.findIndex((item) => item.id === app.id)
-
-  if (existingIndex !== -1) {
-    // 找到已存在的 app，将其移动到最前面
-    const updatedApps = [...apps]
-    updatedApps.splice(existingIndex, 1)
-    updatedApps.unshift(app)
-    return updatedApps
-  }
-
-  const updatedApps = [app, ...apps]
-
-  if (updatedApps.length > limitation) {
-    return updatedApps.slice(0, limitation)
-  }
-
-  return updatedApps
-}
+let minAppsCache: LRUCache<MinAppType, number>
 
 /**
  * Usage:
@@ -50,12 +33,25 @@ export const useMinappPopup = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
 
+  if (!minAppsCache) {
+    minAppsCache = new LRUCache<MinAppType, number>({
+      max: maxKeepAliveMinapps
+    })
+  }
+
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
-        const updatedApps = updateLRUCache(openedKeepAliveMinapps, app, maxKeepAliveMinapps)
-        dispatch(setOpenedKeepAliveMinapps(updatedApps))
+        minAppsCache.set(app, +Date.now())
+        // 如果小程序已经打开，只切换显示
+        if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
+          dispatch(setCurrentMinappId(app.id))
+          dispatch(setMinappShow(true))
+          return
+        }
+
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.keys())))
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
