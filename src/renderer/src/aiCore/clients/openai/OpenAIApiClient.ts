@@ -717,7 +717,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               contentSource = choice.message
             }
 
-            if (!contentSource) continue
+            if (!contentSource) {
+              if ('finish_reason' in choice && choice.finish_reason) {
+                emitCompletionSignals(controller)
+              }
+              continue
+            }
 
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {

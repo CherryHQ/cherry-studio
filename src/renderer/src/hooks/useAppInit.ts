@@ -4,7 +4,10 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
+import MemoryService from '@renderer/services/MemoryService'
 import { useAppDispatch } from '@renderer/store'
+import { useAppSelector } from '@renderer/store'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -24,10 +27,14 @@ export function useAppInit() {
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
+  const memoryConfig = useAppSelector(selectMemoryConfig)
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
     console.timeEnd('init')
+
+    // Initialize MemoryService after app is ready
+    MemoryService.getInstance()
   }, [])
 
   useEffect(() => {
@@ -121,4 +128,12 @@ export function useAppInit() {
   useEffect(() => {
     // TODO: init data collection
   }, [enableDataCollection])
+
+  // Update memory service configuration when it changes
+  useEffect(() => {
+    const memoryService = MemoryService.getInstance()
+    memoryService.updateConfig().catch((error) => {
+      console.error('Failed to update memory config:', error)
+    })
+  }, [memoryConfig])
 }
