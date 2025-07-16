@@ -5,8 +5,8 @@ import { windowService } from '@main/services/WindowService'
 import { getFileExt } from '@main/utils/file'
 import { FileMetadata, PreprocessProvider } from '@types'
 import { app } from 'electron'
-import { TypedArray } from 'pdfjs-dist/types/src/display/api'
 import pdfjs from 'pdfjs-dist'
+import { TypedArray } from 'pdfjs-dist/types/src/display/api'
 
 export default abstract class BasePreprocessProvider {
   protected provider: PreprocessProvider
