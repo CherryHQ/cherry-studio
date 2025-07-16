@@ -14,6 +14,16 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+// Import notification schemas from MCP SDK
+import {
+  CancelledNotificationSchema,
+  LoggingMessageNotificationSchema,
+  ProgressNotificationSchema,
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  ToolListChangedNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import {
   GetMCPPromptResponse,
@@ -31,6 +41,7 @@ import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
+import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import getLoginShellEnvironment from './mcp/shell-env'
@@ -72,6 +83,7 @@ function withCache<T extends unknown[], R>(
 class McpService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
 
   constructor() {
@@ -88,6 +100,7 @@ class McpService {
     this.stopServer = this.stopServer.bind(this)
     this.abortTool = this.abortTool.bind(this)
     this.cleanup = this.cleanup.bind(this)
+    this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
   }
 
@@ -137,7 +150,7 @@ class McpService {
         // Create new client instance for each connection
         const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
-        const args = [...(server.args || [])]
+        let args = [...(server.args || [])]
 
         // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         const authProvider = new McpOAuthClientProvider({
@@ -207,6 +220,23 @@ class McpService {
           } else if (server.command) {
             let cmd = server.command
 
+            // For DXT servers, use resolved configuration with platform overrides and variable substitution
+            if (server.dxtPath) {
+              const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
+              if (resolvedConfig) {
+                cmd = resolvedConfig.command
+                args = resolvedConfig.args
+                // Merge resolved environment variables with existing ones
+                server.env = {
+                  ...server.env,
+                  ...resolvedConfig.env
+                }
+                Logger.info(`[MCP] Using resolved DXT config - command: ${cmd}, args: ${args?.join(' ')}`)
+              } else {
+                Logger.warn(`[MCP] Failed to resolve DXT config for ${server.name}, falling back to manifest values`)
+              }
+            }
+
             if (server.command === 'npx') {
               cmd = await getBinaryPath('bun')
               Logger.info(`[MCP] Using command: ${cmd}`)
@@ -253,7 +283,7 @@ class McpService {
               this.removeProxyEnv(loginShellEnv)
             }
 
-            const stdioTransport = new StdioClientTransport({
+            const transportOptions: any = {
               command: cmd,
               args,
               env: {
@@ -261,7 +291,15 @@ class McpService {
                 ...server.env
               },
               stderr: 'pipe'
-            })
+            }
+
+            // For DXT servers, set the working directory to the extracted path
+            if (server.dxtPath) {
+              transportOptions.cwd = server.dxtPath
+              Logger.info(`[MCP] Setting working directory for DXT server: ${server.dxtPath}`)
+            }
+
+            const stdioTransport = new StdioClientTransport(transportOptions)
             stdioTransport.stderr?.on('data', (data) =>
               Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
             )
@@ -335,6 +373,12 @@ class McpService {
           // Store the new client in the cache
           this.clients.set(serverKey, client)
 
+          // Set up notification handlers
+          this.setupNotificationHandlers(client, server)
+
+          // Clear existing cache to ensure fresh data
+          this.clearServerCache(serverKey)
+
           Logger.info(`[MCP] Activated server: ${server.name}`)
           return client
         } catch (error: any) {
@@ -353,6 +397,79 @@ class McpService {
     return initPromise
   }
 
+  /**
+   * Set up notification handlers for MCP client
+   */
+  private setupNotificationHandlers(client: Client, server: MCPServer) {
+    const serverKey = this.getServerKey(server)
+
+    try {
+      // Set up tools list changed notification handler
+      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Tools list changed for server: ${server.name}`)
+        // Clear tools cache
+        CacheService.remove(`mcp:list_tool:${serverKey}`)
+      })
+
+      // Set up resources list changed notification handler
+      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Resources list changed for server: ${server.name}`)
+        // Clear resources cache
+        CacheService.remove(`mcp:list_resources:${serverKey}`)
+      })
+
+      // Set up prompts list changed notification handler
+      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Prompts list changed for server: ${server.name}`)
+        // Clear prompts cache
+        CacheService.remove(`mcp:list_prompts:${serverKey}`)
+      })
+
+      // Set up resource updated notification handler
+      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
+        Logger.info(`[MCP] Resource updated for server: ${server.name}`)
+        // Clear resource-specific caches
+        this.clearResourceCaches(serverKey)
+      })
+
+      // Set up progress notification handler
+      client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Progress notification received for server: ${server.name}`, notification.params)
+      })
+
+      // Set up cancelled notification handler
+      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Operation cancelled for server: ${server.name}`, notification.params)
+      })
+
+      // Set up logging message notification handler
+      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Message from server ${server.name}:`, notification.params)
+      })
+
+      Logger.info(`[MCP] Set up notification handlers for server: ${server.name}`)
+    } catch (error) {
+      Logger.error(`[MCP] Failed to set up notification handlers for server ${server.name}:`, error)
+    }
+  }
+
+  /**
+   * Clear resource-specific caches for a server
+   */
+  private clearResourceCaches(serverKey: string) {
+    CacheService.remove(`mcp:list_resources:${serverKey}`)
+  }
+
+  /**
+   * Clear all caches for a specific server
+   */
+  private clearServerCache(serverKey: string) {
+    CacheService.remove(`mcp:list_tool:${serverKey}`)
+    CacheService.remove(`mcp:list_prompts:${serverKey}`)
+    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    Logger.info(`[MCP] Cleared all caches for server: ${serverKey}`)
+  }
+
   async closeClient(serverKey: string) {
     const client = this.clients.get(serverKey)
     if (client) {
@@ -360,8 +477,8 @@ class McpService {
       await client.close()
       Logger.info(`[MCP] Closed server: ${serverKey}`)
       this.clients.delete(serverKey)
-      CacheService.remove(`mcp:list_tool:${serverKey}`)
-      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
+      // Clear all caches for this server
+      this.clearServerCache(serverKey)
     } else {
       Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
@@ -379,12 +496,26 @@ class McpService {
     if (existingClient) {
       await this.closeClient(serverKey)
     }
+
+    // If this is a DXT server, cleanup its directory
+    if (server.dxtPath) {
+      try {
+        const cleaned = this.dxtService.cleanupDxtServer(server.name)
+        if (cleaned) {
+          Logger.info(`[MCP] Cleaned up DXT server directory for: ${server.name}`)
+        }
+      } catch (error) {
+        Logger.error(`[MCP] Failed to cleanup DXT server: ${server.name}`, error)
+      }
+    }
   }
 
   async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     Logger.info(`[MCP] Restarting server: ${server.name}`)
     const serverKey = this.getServerKey(server)
     await this.closeClient(serverKey)
+    // Clear cache before restarting to ensure fresh data
+    this.clearServerCache(serverKey)
     await this.initClient(server)
   }
 
@@ -404,6 +535,12 @@ class McpService {
   public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
     Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
     try {
+      Logger.info(`[MCP] About to call initClient for server: ${server.name}`, { hasInitClient: !!this.initClient })
+
+      if (!this.initClient) {
+        throw new Error('initClient method is not available')
+      }
+
       const client = await this.initClient(server)
       // Attempt to list tools as a way to check connectivity
       await client.listTools()

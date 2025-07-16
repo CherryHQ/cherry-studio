@@ -1,7 +1,7 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { SYSTEM_MODELS } from '@renderer/config/models'
+import { isFunctionCallingModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -1723,7 +1723,13 @@ const migrateConfig = {
       addProvider(state, 'new-api')
       state.llm.providers = moveProvider(state.llm.providers, 'new-api', 16)
       state.settings.disableHardwareAcceleration = false
-
+      // migrate to enable memory feature on sidebar
+      if (state.settings && state.settings.sidebarIcons) {
+        // Check if 'memory' is not already in visible icons
+        if (!state.settings.sidebarIcons.visible.includes('memory' as any)) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'memory' as any]
+        }
+      }
       return state
     } catch (error) {
       return state
@@ -1731,6 +1737,18 @@ const migrateConfig = {
   },
   '120': (state: RootState) => {
     try {
+      // migrate to remove memory feature from sidebar (moved to settings)
+      if (state.settings && state.settings.sidebarIcons) {
+        // Remove 'memory' from visible icons if present
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
+          (icon) => icon !== ('memory' as any)
+        )
+        // Remove 'memory' from disabled icons if present
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.filter(
+          (icon) => icon !== ('memory' as any)
+        )
+      }
+
       if (!state.settings.s3) {
         state.settings.s3 = settingsInitialState.s3
       }
@@ -1759,6 +1777,37 @@ const migrateConfig = {
       state.settings.localBackupDir = ''
       state.settings.localBackupAutoSync = false
       state.settings.localBackupSyncInterval = 0
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '121': (state: RootState) => {
+    try {
+      const { toolOrder } = state.inputTools
+      const urlContextKey = 'url_context'
+      if (!toolOrder.visible.includes(urlContextKey)) {
+        const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
+        if (webSearchIndex !== -1) {
+          toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
+        } else if (knowledgeBaseIndex !== -1) {
+          toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
+        } else {
+          toolOrder.visible.push(urlContextKey)
+        }
+      }
+
+      for (const assistant of state.assistants.assistants) {
+        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
+          assistant.settings.toolUseMode = 'function'
+        }
+      }
+
+      if (state.settings && typeof state.settings.webdavDisableStream === 'undefined') {
+        state.settings.webdavDisableStream = false
+      }
+
       return state
     } catch (error) {
       return state
