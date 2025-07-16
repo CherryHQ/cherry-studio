@@ -186,6 +186,11 @@ export class ProxyManager {
         callback = args[1]
       }
 
+      // for webdav https self-signed certificate
+      if (options.agent instanceof https.Agent) {
+        ;(agent as https.Agent).options.rejectUnauthorized = options.agent.options.rejectUnauthorized
+      }
+
       // 确保只设置 agent，不修改其他网络选项
       if (!options.agent) {
         options.agent = agent

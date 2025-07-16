@@ -1,5 +1,6 @@
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
+import https from 'https'
 import path from 'path'
 import Stream from 'stream'
 import {
@@ -21,7 +22,10 @@ export default class WebDav {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
-      maxContentLength: Infinity
+      maxContentLength: Infinity,
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+      })
     })
 
     this.putFileContents = this.putFileContents.bind(this)
