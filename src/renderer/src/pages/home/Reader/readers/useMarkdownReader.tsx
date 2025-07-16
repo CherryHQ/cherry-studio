@@ -1,4 +1,4 @@
-import CodeBlockView from '@renderer/components/CodeBlockView'
+import { CodeBlockView } from '@renderer/components/CodeBlockView'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
