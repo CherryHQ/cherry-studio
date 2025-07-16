@@ -1676,7 +1676,11 @@
           "syncError": "备份错误",
           "syncStatus": "备份状态",
           "title": "WebDAV",
-          "user": "WebDAV 用户名"
+          "user": "WebDAV 用户名",
+          "disableStream": {
+            "title": "禁用流式上传",
+            "help": "开启后，将文件加载到内存中再上传，可解决部分WebDAV服务不兼容chunked上传的问题，但会增加内存占用。"
+          }
         },
         "yuque": {
           "check": {

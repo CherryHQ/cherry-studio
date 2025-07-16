@@ -27,6 +27,7 @@ interface WebdavBackupManagerProps {
     webdavUser?: string
     webdavPass?: string
     webdavPath?: string
+    webdavDisableStream?: boolean
   }
   restoreMethod?: (fileName: string) => Promise<void>
 }

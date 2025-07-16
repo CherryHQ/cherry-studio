@@ -1676,7 +1676,11 @@
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
           "title": "WebDAV",
-          "user": "WebDAV 使用者名稱"
+          "user": "WebDAV 使用者名稱",
+          "disableStream": {
+            "title": "禁用串流上傳",
+            "help": "開啟後，將檔案載入到記憶體中再上傳，可解決部分 WebDAV 服務不相容 chunked 上傳的問題，但會增加記憶體佔用。"
+          }
         },
         "yuque": {
           "check": {
