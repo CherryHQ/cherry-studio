@@ -906,7 +906,8 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "成功添加 {{type}} 到知识库"
+      "knowledge.success": "成功添加 {{type}} 到知识库",
+      "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5 分钟）",
@@ -1675,7 +1676,11 @@
           "syncError": "备份错误",
           "syncStatus": "备份状态",
           "title": "WebDAV",
-          "user": "WebDAV 用户名"
+          "user": "WebDAV 用户名",
+          "disableStream": {
+            "title": "禁用流式上传",
+            "help": "开启后，将文件加载到内存中再上传，可解决部分WebDAV服务不兼容chunked上传的问题，但会增加内存占用。"
+          }
         },
         "yuque": {
           "check": {

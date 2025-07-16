@@ -61,24 +61,6 @@ const SettingsPage: FC = () => {
               {t('settings.model')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
-              <SquareTerminal size={18} />
-              {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
-              <Brain size={18} />
-              {t('memory.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <Settings2 size={18} />
@@ -101,6 +83,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/tool')}>
               <PencilRuler size={18} />
               {t('settings.tool.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/memory">
+            <MenuItem className={isRoute('/settings/memory')}>
+              <Brain size={18} />
+              {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">

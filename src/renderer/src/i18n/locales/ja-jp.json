@@ -906,7 +906,8 @@
     "notification": {
       "assistant": "助手回應",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました"
+      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
+      "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -1675,7 +1676,11 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー"
+          "user": "WebDAVユーザー",
+          "disableStream": {
+            "title": "ストリーミングアップロードを無効にする",
+            "help": "有効にすると、アップロード前にファイルがメモリに読み込まれます。これにより、チャンクアップロードをサポートしていない一部のWebDAVサーバーとの互換性の問題を解決できますが、メモリ使用量が増加します。"
+          }
         },
         "yuque": {
           "check": {

@@ -1799,6 +1799,16 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '122': (state: RootState) => {
+    try {
+      if (state.settings && typeof state.settings.webdavDisableStream === 'undefined') {
+        state.settings.webdavDisableStream = false
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

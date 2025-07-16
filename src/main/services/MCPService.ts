@@ -14,6 +14,16 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+// Import notification schemas from MCP SDK
+import {
+  CancelledNotificationSchema,
+  LoggingMessageNotificationSchema,
+  ProgressNotificationSchema,
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  ToolListChangedNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import {
   GetMCPPromptResponse,
@@ -363,6 +373,12 @@ class McpService {
           // Store the new client in the cache
           this.clients.set(serverKey, client)
 
+          // Set up notification handlers
+          this.setupNotificationHandlers(client, server)
+
+          // Clear existing cache to ensure fresh data
+          this.clearServerCache(serverKey)
+
           Logger.info(`[MCP] Activated server: ${server.name}`)
           return client
         } catch (error: any) {
@@ -381,6 +397,79 @@ class McpService {
     return initPromise
   }
 
+  /**
+   * Set up notification handlers for MCP client
+   */
+  private setupNotificationHandlers(client: Client, server: MCPServer) {
+    const serverKey = this.getServerKey(server)
+
+    try {
+      // Set up tools list changed notification handler
+      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Tools list changed for server: ${server.name}`)
+        // Clear tools cache
+        CacheService.remove(`mcp:list_tool:${serverKey}`)
+      })
+
+      // Set up resources list changed notification handler
+      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Resources list changed for server: ${server.name}`)
+        // Clear resources cache
+        CacheService.remove(`mcp:list_resources:${serverKey}`)
+      })
+
+      // Set up prompts list changed notification handler
+      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+        Logger.info(`[MCP] Prompts list changed for server: ${server.name}`)
+        // Clear prompts cache
+        CacheService.remove(`mcp:list_prompts:${serverKey}`)
+      })
+
+      // Set up resource updated notification handler
+      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
+        Logger.info(`[MCP] Resource updated for server: ${server.name}`)
+        // Clear resource-specific caches
+        this.clearResourceCaches(serverKey)
+      })
+
+      // Set up progress notification handler
+      client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Progress notification received for server: ${server.name}`, notification.params)
+      })
+
+      // Set up cancelled notification handler
+      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Operation cancelled for server: ${server.name}`, notification.params)
+      })
+
+      // Set up logging message notification handler
+      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
+        Logger.info(`[MCP] Message from server ${server.name}:`, notification.params)
+      })
+
+      Logger.info(`[MCP] Set up notification handlers for server: ${server.name}`)
+    } catch (error) {
+      Logger.error(`[MCP] Failed to set up notification handlers for server ${server.name}:`, error)
+    }
+  }
+
+  /**
+   * Clear resource-specific caches for a server
+   */
+  private clearResourceCaches(serverKey: string) {
+    CacheService.remove(`mcp:list_resources:${serverKey}`)
+  }
+
+  /**
+   * Clear all caches for a specific server
+   */
+  private clearServerCache(serverKey: string) {
+    CacheService.remove(`mcp:list_tool:${serverKey}`)
+    CacheService.remove(`mcp:list_prompts:${serverKey}`)
+    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    Logger.info(`[MCP] Cleared all caches for server: ${serverKey}`)
+  }
+
   async closeClient(serverKey: string) {
     const client = this.clients.get(serverKey)
     if (client) {
@@ -388,8 +477,8 @@ class McpService {
       await client.close()
       Logger.info(`[MCP] Closed server: ${serverKey}`)
       this.clients.delete(serverKey)
-      CacheService.remove(`mcp:list_tool:${serverKey}`)
-      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
+      // Clear all caches for this server
+      this.clearServerCache(serverKey)
     } else {
       Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
@@ -425,6 +514,8 @@ class McpService {
     Logger.info(`[MCP] Restarting server: ${server.name}`)
     const serverKey = this.getServerKey(server)
     await this.closeClient(serverKey)
+    // Clear cache before restarting to ensure fresh data
+    this.clearServerCache(serverKey)
     await this.initClient(server)
   }
 

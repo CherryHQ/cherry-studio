@@ -356,6 +356,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {

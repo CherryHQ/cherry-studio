@@ -5,7 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -16,6 +16,9 @@ import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
+const DEFAULT_MINIWINDOW_WIDTH = 550
+const DEFAULT_MINIWINDOW_HEIGHT = 400
+
 export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
@@ -25,6 +28,11 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+
+  private miniWindowSize: { width: number; height: number } = {
+    width: DEFAULT_MINIWINDOW_WIDTH,
+    height: DEFAULT_MINIWINDOW_HEIGHT
+  }
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -426,8 +434,8 @@ export class WindowService {
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
     this.miniWindow = new BrowserWindow({
-      width: 550,
-      height: 400,
+      width: this.miniWindowSize.width,
+      height: this.miniWindowSize.height,
       minWidth: 350,
       minHeight: 380,
       maxWidth: 1024,
@@ -437,13 +445,12 @@ export class WindowService {
       transparent: isMac,
       vibrancy: 'under-window',
       visualEffectState: 'followWindow',
-      center: true,
       frame: false,
       alwaysOnTop: true,
-      resizable: true,
       useContentSize: true,
       ...(isMac ? { type: 'panel' } : {}),
       skipTaskbar: true,
+      resizable: true,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -485,6 +492,13 @@ export class WindowService {
       this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
     })
 
+    this.miniWindow.on('resized', () => {
+      this.miniWindowSize = this.miniWindow?.getBounds() || {
+        width: DEFAULT_MINIWINDOW_WIDTH,
+        height: DEFAULT_MINIWINDOW_HEIGHT
+      }
+    })
+
     this.miniWindow.on('show', () => {
       this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
     })
@@ -508,10 +522,48 @@ export class WindowService {
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
 
-      if (this.miniWindow.isMinimized()) {
-        this.miniWindow.restore()
+      // [Windows] hacky fix
+      // the window is minimized only when in Windows platform
+      // because it's a workround for Windows, see `hideMiniWindow()`
+      if (this.miniWindow?.isMinimized()) {
+        // don't let the window being seen before we finish adusting the position across screens
+        this.miniWindow?.setOpacity(0)
+        // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
+        // We have to use `show()` here, then set the position and bounds
+        this.miniWindow?.show()
       }
-      this.miniWindow.show()
+
+      const miniWindowBounds = this.miniWindow.getBounds()
+
+      // Check if miniWindow is on the same screen as mouse cursor
+      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      const miniWindowDisplay = screen.getDisplayNearestPoint(miniWindowBounds)
+
+      // Show the miniWindow on the cursor's screen center
+      // If miniWindow is not on the same screen as cursor, move it to cursor's screen center
+      if (cursorDisplay.id !== miniWindowDisplay.id) {
+        const workArea = cursorDisplay.bounds
+
+        // use remembered size to avoid the bug of Electron with screens of different scale factor
+        const miniWindowWidth = this.miniWindowSize.width
+        const miniWindowHeight = this.miniWindowSize.height
+
+        // move to the center of the cursor's screen
+        const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
+        const miniWindowY = Math.round(workArea.y + (workArea.height - miniWindowHeight) / 2)
+
+        this.miniWindow.setPosition(miniWindowX, miniWindowY, false)
+        this.miniWindow.setBounds({
+          x: miniWindowX,
+          y: miniWindowY,
+          width: miniWindowWidth,
+          height: miniWindowHeight
+        })
+      }
+
+      this.miniWindow?.setOpacity(1)
+      this.miniWindow?.show()
+
       return
     }
 
@@ -519,20 +571,26 @@ export class WindowService {
   }
 
   public hideMiniWindow() {
-    //hacky-fix:[mac/win] previous window(not self-app) should be focused again after miniWindow hide
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      return
+    }
+
+    //[macOs/Windows] hacky fix
+    // previous window(not self-app) should be focused again after miniWindow hide
+    // this workaround is to make previous window focused again after miniWindow hide
     if (isWin) {
-      this.miniWindow?.minimize()
-      this.miniWindow?.hide()
+      this.miniWindow.setOpacity(0) // don't show the minimizing animation
+      this.miniWindow.minimize()
       return
     } else if (isMac) {
-      this.miniWindow?.hide()
+      this.miniWindow.hide()
       if (!this.wasMainWindowFocused) {
         app.hide()
       }
       return
     }
 
-    this.miniWindow?.hide()
+    this.miniWindow.hide()
   }
 
   public closeMiniWindow() {

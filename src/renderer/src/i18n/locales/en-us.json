@@ -906,7 +906,8 @@
     "notification": {
       "assistant": "Assistant Response",
       "knowledge.error": "{{error}}",
-      "knowledge.success": "Successfully added {{type}} to the knowledge base"
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -1675,7 +1676,11 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "disableStream": {
+            "title": "Disable Stream Upload",
+            "help": "When enabled, loads the file into memory before uploading. This can solve incompatibility issues with some WebDAV servers that do not support chunked uploads, but it will increase memory usage."
+          }
         },
         "yuque": {
           "check": {
