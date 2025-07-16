@@ -74,7 +74,7 @@ export const useMinappPopup = () => {
       dispatch(setMinappShow(true))
       return
     },
-    [dispatch, maxKeepAliveMinapps, openedKeepAliveMinapps]
+    [dispatch, openedKeepAliveMinapps]
   )
 
   /** a wrapper of openMinapp(app, true) */
