@@ -6,6 +6,9 @@
   "main": "./out/main/index.js",
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "workspaces": {
     "packages": [
       "local",
