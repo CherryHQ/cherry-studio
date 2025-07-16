@@ -14,7 +14,7 @@ import {
   LinkOutlined
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
-import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { useActiveTopic, useTopic } from '@renderer/hooks/useTopic'
 import FileManager from '@renderer/services/FileManager'
 import { Assistant, AttachedPage, FileMetadata, Topic } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -144,6 +144,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, topic, updateTopic, ass
   const { attachedDocument } = assistant
   const { t } = useTranslation()
   const { activeTopic, setActiveTopic } = useActiveTopic(assistant.id, topic)
+  const _topic = useTopic(assistant, topic.id)
 
   const updateAndSetActiveTopic = useCallback(
     (updatedTopic: Topic) => {
@@ -160,11 +161,11 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, topic, updateTopic, ass
   const handleRemoveAttachedPage = useCallback(
     (index: number, pages: AttachedPage[]) => {
       updateAndSetActiveTopic({
-        ...activeTopic,
+        ..._topic!,
         attachedPages: filter(pages, (page) => page.index !== index)
       })
     },
-    [activeTopic, updateAndSetActiveTopic]
+    [_topic, updateAndSetActiveTopic]
   )
 
   const onTriggerAttachedDocumentEnabled = useCallback(() => {
@@ -181,7 +182,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, topic, updateTopic, ass
   }, [assistant, updateAssistant])
 
   const Attachments = useMemo(() => {
-    const { attachedText, attachedPages } = activeTopic
+    const { attachedText, attachedPages } = _topic!
     const attachments: ReactNode[] = []
 
     if (attachedDocument) {
@@ -247,7 +248,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, topic, updateTopic, ass
 
     return attachments
   }, [
-    activeTopic,
+    _topic,
     attachedDocument,
     files,
     onTriggerAttachedDocumentEnabled,

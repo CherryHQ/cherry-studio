@@ -2,9 +2,7 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useActiveTopic } from '@renderer/hooks/useTopic'
-import { useAppDispatch } from '@renderer/store'
-import { updateTopic } from '@renderer/store/assistants'
+import { useActiveTopic, useTopic } from '@renderer/hooks/useTopic'
 import { Assistant, AttachedPage, Topic } from '@renderer/types'
 import { Button, Divider, Flex, Popover, Space, Tooltip } from 'antd'
 import { BookCopy, LogOut, PanelLeft, PanelRight } from 'lucide-react'
@@ -24,8 +22,9 @@ interface Props {
 const Reader: React.FC<Props> = (props) => {
   const { topic, pageWidth, assistant } = props
   const { activeTopic, setActiveTopic } = useActiveTopic(assistant.id, topic)
-  const { attachedPages = [] } = activeTopic
-  const dispatch = useAppDispatch()
+  const { updateTopic } = useAssistant(assistant.id)
+  const _topic = useTopic(assistant, topic.id)
+  const { attachedPages = [] } = _topic || {}
 
   const { t } = useTranslation()
   const { updateAssistant } = useAssistant(assistant.id)
@@ -76,7 +75,7 @@ const Reader: React.FC<Props> = (props) => {
 
   const updateTopicAttachedPages = (newData: AttachedPage[]) => {
     setActiveTopic({ ...activeTopic, attachedPages: newData })
-    dispatch(updateTopic({ assistantId: assistant.id, topic: { ...activeTopic, attachedPages: newData } }))
+    updateTopic({ ..._topic!, attachedPages: newData })
   }
 
   const onCloseReader = () => {
