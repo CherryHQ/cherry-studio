@@ -1688,7 +1688,10 @@
           "title": "语雀配置",
           "token": "语雀 Token",
           "token_placeholder": "请输入语雀 Token"
-        }
+        },
+        "export_to_phone": "导出到应用",
+        "export_to_phone.button": "导出",
+        "export_to_phone_use_lan.button": "蓝投"
       },
       "display.assistant.title": "助手设置",
       "display.custom.css": "自定义 CSS",
@@ -2558,6 +2561,18 @@
       "select_embedding_model_placeholder": "选择嵌入模型",
       "embedding_dimensions": "嵌入维度",
       "stored_memories": "已存储记忆"
+    },
+    "exportToPhone": {
+      "title": "导出到手机",
+      "content": "导出部分数据，包括聊天记录和设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "lan": {
+        "title": "蓝卓",
+        "content": "请确保电脑和手机处于同一网络，使用局域网传输。请打开 Cherry Studio 应用扫描此二维码。",
+        "selectZip": "选择压缩文件",
+        "sendZip": "开始恢复数据",
+        "noZipSelected": "未选择压缩文件"
+      },
+      "confirm.button": "选择备份文件"
     }
   }
 }

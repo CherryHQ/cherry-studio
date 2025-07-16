@@ -359,7 +359,7 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "save.file.title": "[to be translated]:Save to Local File"
+      "save.file.title": "儲存至本機檔案"
     },
     "html_artifacts": {
       "code": "程式碼",
@@ -1688,7 +1688,10 @@
           "title": "語雀設定",
           "token": "語雀 Token",
           "token_placeholder": "請輸入語雀 Token"
-        }
+        },
+        "export_to_phone": "導出到應用程式",
+        "export_to_phone.button": "輸出",
+        "export_to_phone_use_lan.button": "Landrop"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
@@ -2558,6 +2561,18 @@
       "select_embedding_model_placeholder": "選擇嵌入模型",
       "embedding_dimensions": "嵌入維度",
       "stored_memories": "儲存的記憶"
+    },
+    "exportToPhone": {
+      "title": "匯出到手機",
+      "content": "匯出部分資料，包括聊天記錄、設定。請注意備份過程可能需要一些時間，感謝您的耐心等待。",
+      "lan": {
+        "title": "Landrop",
+        "content": "使用 LAN 傳輸時，請確保電腦和手機位於同一網路。請打開 Cherry Studio App 掃描此 QR Code。",
+        "selectZip": "選擇 Zip 檔案",
+        "sendZip": "開始還原資料",
+        "noZipSelected": "未選擇 Zip 檔案"
+      },
+      "confirm.button": "選擇備份檔案"
     }
   }
 }

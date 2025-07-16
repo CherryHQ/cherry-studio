@@ -54,7 +54,7 @@ Object.defineProperty(exports, '__esModule', { value: true })
 var fs = __importStar(require('fs'))
 var path = __importStar(require('path'))
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
-var baseLocale = 'en-us'
+var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
 var baseFilePath = path.join(translationsDir, baseFileName)
 /**

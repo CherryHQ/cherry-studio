@@ -1688,7 +1688,10 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
-        }
+        },
+        "export_to_phone": "アプリにエクスポート",
+        "export_to_phone.button": "エクスポート",
+        "export_to_phone_use_lan.button": "ランドロップ"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
@@ -2558,6 +2561,18 @@
       "select_embedding_model_placeholder": "埋め込みモデルを選択",
       "embedding_dimensions": "埋め込み次元",
       "stored_memories": "保存された記憶"
+    },
+    "exportToPhone": {
+      "title": "電話にエクスポート",
+      "content": "チャット履歴や設定を含むデータをエクスポートします。バックアップ処理には時間がかかる場合がありますので、ご了承ください。",
+      "lan": {
+        "title": "ランドロップ",
+        "content": "LAN転送を使用する場合、コンピュータと携帯電話が同じネットワーク上にあることを確認してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+        "selectZip": "Zipファイルを選択",
+        "sendZip": "データの復元を開始",
+        "noZipSelected": "ZIPファイルが選択されていません"
+      },
+      "confirm.button": "バックアップファイルを選択"
     }
   }
 }
