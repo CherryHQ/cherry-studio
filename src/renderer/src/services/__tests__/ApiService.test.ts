@@ -1,6 +1,9 @@
+import { ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import { WebSearchResultBlock, WebSearchToolResultError } from '@anthropic-ai/sdk/resources/messages'
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
+import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
@@ -14,7 +17,7 @@ import {
   TextStartChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import { GeminiSdkRawChunk } from '@renderer/types/sdk'
+import { AnthropicSdkRawChunk, GeminiSdkRawChunk } from '@renderer/types/sdk'
 import { cloneDeep } from 'lodash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -615,6 +618,26 @@ const geminiToolUseChunks: GeminiSdkRawChunk[] = [
   } as GeminiSdkRawChunk
 ]
 
+const anthropicTextChunks: AnthropicSdkRawChunk[] = [
+  {
+    id: 'msg_bdrk_01HctMh5mCpuFRq49KFwTDU6',
+    type: 'message',
+    role: 'assistant',
+    content: [
+      {
+        type: 'text',
+        text: '你好！有什么我可以帮助你的吗？'
+      }
+    ],
+    model: 'claude-3-7-sonnet-20250219',
+    stop_reason: 'end_turn',
+    usage: {
+      input_tokens: 15,
+      output_tokens: 21
+    }
+  } as AnthropicSdkRawChunk
+]
+
 // 正确的 async generator 函数
 async function* geminiChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
   for (const chunk of geminiChunks) {
@@ -630,6 +653,12 @@ async function* geminiThinkingChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk
 
 async function* geminiToolUseChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
   for (const chunk of geminiToolUseChunks) {
+    yield chunk
+  }
+}
+
+async function* anthropicTextChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
+  for (const chunk of anthropicTextChunks) {
     yield chunk
   }
 }
@@ -752,6 +781,221 @@ const mockGeminiApiClient = {
   getApiKey: vi.fn(() => 'mock-api-key')
 } as unknown as GeminiAPIClient
 
+const mockAnthropicApiClient = {
+  createCompletions: vi.fn().mockImplementation(() => anthropicTextChunkGenerator()),
+  getResponseChunkTransformer: vi.fn().mockImplementation(() => {
+    return () => {
+      let accumulatedJson = ''
+      const toolCalls: Record<number, ToolUseBlock> = {}
+      return {
+        async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+          switch (rawChunk.type) {
+            case 'message': {
+              let i = 0
+              let hasTextContent = false
+              let hasThinkingContent = false
+
+              for (const content of rawChunk.content) {
+                switch (content.type) {
+                  case 'text': {
+                    if (!hasTextContent) {
+                      controller.enqueue({
+                        type: ChunkType.TEXT_START
+                      } as TextStartChunk)
+                      hasTextContent = true
+                    }
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: content.text
+                    } as TextDeltaChunk)
+                    break
+                  }
+                  case 'tool_use': {
+                    toolCalls[i] = content
+                    i++
+                    break
+                  }
+                  case 'thinking': {
+                    if (!hasThinkingContent) {
+                      controller.enqueue({
+                        type: ChunkType.THINKING_START
+                      })
+                      hasThinkingContent = true
+                    }
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: content.thinking
+                    })
+                    break
+                  }
+                  case 'web_search_tool_result': {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: content.content,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    } as LLMWebSearchCompleteChunk)
+                    break
+                  }
+                }
+              }
+              if (i > 0) {
+                controller.enqueue({
+                  type: ChunkType.MCP_TOOL_CREATED,
+                  tool_calls: Object.values(toolCalls)
+                })
+              }
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: rawChunk.usage.input_tokens || 0,
+                    completion_tokens: rawChunk.usage.output_tokens || 0,
+                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                  }
+                }
+              })
+              break
+            }
+            case 'content_block_start': {
+              const contentBlock = rawChunk.content_block
+              switch (contentBlock.type) {
+                case 'server_tool_use': {
+                  if (contentBlock.name === 'web_search') {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                    })
+                  }
+                  break
+                }
+                case 'web_search_tool_result': {
+                  if (
+                    contentBlock.content &&
+                    (contentBlock.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
+                  ) {
+                    controller.enqueue({
+                      type: ChunkType.ERROR,
+                      error: {
+                        code: (contentBlock.content as WebSearchToolResultError).error_code,
+                        message: (contentBlock.content as WebSearchToolResultError).error_code
+                      }
+                    })
+                  } else {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: contentBlock.content as Array<WebSearchResultBlock>,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    })
+                  }
+                  break
+                }
+                case 'tool_use': {
+                  toolCalls[rawChunk.index] = contentBlock
+                  break
+                }
+                case 'text': {
+                  controller.enqueue({
+                    type: ChunkType.TEXT_START
+                  } as TextStartChunk)
+                  break
+                }
+                case 'thinking':
+                case 'redacted_thinking': {
+                  controller.enqueue({
+                    type: ChunkType.THINKING_START
+                  } as ThinkingStartChunk)
+                  break
+                }
+              }
+              break
+            }
+            case 'content_block_delta': {
+              const messageDelta = rawChunk.delta
+              switch (messageDelta.type) {
+                case 'text_delta': {
+                  if (messageDelta.text) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: messageDelta.text
+                    } as TextDeltaChunk)
+                  }
+                  break
+                }
+                case 'thinking_delta': {
+                  if (messageDelta.thinking) {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: messageDelta.thinking
+                    })
+                  }
+                  break
+                }
+                case 'input_json_delta': {
+                  if (messageDelta.partial_json) {
+                    accumulatedJson += messageDelta.partial_json
+                  }
+                  break
+                }
+              }
+              break
+            }
+            case 'content_block_stop': {
+              const toolCall = toolCalls[rawChunk.index]
+              if (toolCall) {
+                try {
+                  toolCall.input = JSON.parse(accumulatedJson)
+                  controller.enqueue({
+                    type: ChunkType.MCP_TOOL_CREATED,
+                    tool_calls: [toolCall]
+                  })
+                } catch (error) {
+                  console.error(`Error parsing tool call input: ${error}`)
+                }
+              }
+              break
+            }
+            case 'message_delta': {
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: rawChunk.usage.input_tokens || 0,
+                    completion_tokens: rawChunk.usage.output_tokens || 0,
+                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                  }
+                }
+              })
+            }
+          }
+        }
+      }
+    }
+  }),
+  getRequestTransformer: vi.fn().mockImplementation(() => ({
+    async transform(params: any) {
+      return {
+        payload: {
+          model: params.assistant?.model?.id || 'claude-3-7-sonnet-20250219',
+          messages: params.messages || [],
+          tools: params.tools || []
+        },
+        metadata: {}
+      }
+    }
+  })),
+  convertMcpToolsToSdkTools: vi.fn(() => []),
+  convertSdkToolCallToMcpToolResponse: vi.fn(),
+  buildSdkMessages: vi.fn(() => []),
+  extractMessagesFromSdkPayload: vi.fn(() => []),
+  provider: {} as Provider,
+  useSystemPromptForTools: true,
+  getBaseURL: vi.fn(() => 'https://api.anthropic.com'),
+  getApiKey: vi.fn(() => 'mock-api-key')
+} as unknown as AnthropicAPIClient
+
 const mockGeminiThinkingApiClient = cloneDeep(mockGeminiApiClient)
 mockGeminiThinkingApiClient.createCompletions = vi.fn().mockImplementation(() => geminiThinkingChunkGenerator())
 
@@ -777,7 +1021,7 @@ describe('ApiService', () => {
     collectedChunks.length = 0
   })
 
-  it('should return a stream of chunks with correct types and content', async () => {
+  it('should return a stream of chunks with correct types and content in gemini', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockGeminiApiClient as unknown as BaseApiClient)
     const AI = new AiProvider(mockProvider)
@@ -893,6 +1137,82 @@ describe('ApiService', () => {
     expect(completionChunk.response?.usage?.total_tokens).toBe(1205)
     expect(completionChunk.response?.usage?.prompt_tokens).toBe(383)
     expect(completionChunk.response?.usage?.completion_tokens).toBe(822)
+  })
+
+  it('should return a stream of chunks with correct types and content in anthropic', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockAnthropicApiClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+
+        type: 'anthropic',
+        model: {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet'
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      mcpTools: [],
+      maxTokens: 1000,
+      streamOutput: false
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const expectedChunks: GenericChunk[] = [
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好！有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '你好！有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 21,
+            prompt_tokens: 15,
+            total_tokens: 36
+          }
+        }
+      }
+    ]
+
+    expect(chunks).toEqual(expectedChunks)
+
+    // 验证chunk的数量和类型
+    expect(chunks.length).toBeGreaterThan(0)
+
+    // 验证第一个chunk应该是TEXT_START
+    const firstChunk = chunks[0]
+    expect(firstChunk.type).toBe(ChunkType.TEXT_START)
   })
 
   it('should return a stream of thinking chunks with correct types and content', async () => {
