@@ -184,7 +184,8 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-thinking-preview'
 ]
 
 const visionExcludedModels = [
@@ -239,7 +240,8 @@ export const FUNCTION_CALLING_MODELS = [
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-k2(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
