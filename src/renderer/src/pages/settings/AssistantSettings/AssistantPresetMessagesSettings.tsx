@@ -140,7 +140,8 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
       const newMessage: AssistantMessage = {
         id: uuidv4(),
         ...formData,
-        type: 'message' // 明确标记为普通消息
+        type: 'message', // 明确标记为普通消息
+        enabled: true
       }
       updatedMessages = [...messagesList, newMessage]
     }
@@ -221,6 +222,12 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
     const updatedMessages = messagesList.map((msg) =>
       msg.type === 'chat_history' ? { ...msg, enabled: checked } : msg
     )
+    setMessagesList(updatedMessages)
+    updateAssistant({ ...assistant, messages: updatedMessages })
+  }
+
+  const handleToggleMessage = (id: string, checked: boolean) => {
+    const updatedMessages = messagesList.map((msg) => (msg.id === id ? { ...msg, enabled: checked } : msg))
     setMessagesList(updatedMessages)
     updateAssistant({ ...assistant, messages: updatedMessages })
   }
@@ -329,27 +336,35 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
                         <HistoryOutlined style={{ color: 'var(--color-warning)' }} />
                       ),
                     actions: (
-                      <Flex gap={4} style={{ opacity: 0.6 }}>
-                        <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(message)} />
-                        <Popconfirm
-                          title={t('assistants.settings.preset_messages.delete', 'Delete Message')}
-                          description={t(
-                            'assistants.settings.preset_messages.deleteConfirm',
-                            'Are you sure to delete this message?'
-                          )}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={() => handleDelete(message.id!)}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
-                        </Popconfirm>
+                      <Flex gap={8} align="center">
+                        <Switch
+                          checked={message.enabled !== false}
+                          onChange={(checked) => handleToggleMessage(message.id!, checked)}
+                          size="small"
+                        />
+                        <Flex gap={4} style={{ opacity: 0.6 }}>
+                          <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(message)} />
+                          <Popconfirm
+                            title={t('assistants.settings.preset_messages.delete', 'Delete Message')}
+                            description={t(
+                              'assistants.settings.preset_messages.deleteConfirm',
+                              'Are you sure to delete this message?'
+                            )}
+                            okText={t('common.confirm')}
+                            cancelText={t('common.cancel')}
+                            onConfirm={() => handleDelete(message.id!)}
+                            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+                            <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
+                          </Popconfirm>
+                        </Flex>
                       </Flex>
                     )
                   }}
                   style={{
                     borderRadius: '6px',
                     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    opacity: message.enabled !== false ? 1 : 0.6
                   }}
                 />
               )
