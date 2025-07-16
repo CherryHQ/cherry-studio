@@ -8,6 +8,7 @@ import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
+import { getMCProuterToken, saveMCProuterToken, syncMCProuterServers } from './providers/mcprouter'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
 // Provider configuration interface
@@ -57,6 +58,17 @@ const providers: ProviderConfig[] = [
     getToken: getTokenLanYunToken,
     saveToken: saveTokenLanYunToken,
     syncServers: syncTokenLanYunServers
+  },
+  {
+    key: 'mcprouter',
+    name: 'MCProuter',
+    description: 'MCProuter platform MCP services',
+    discoverUrl: 'https://mcprouter.to/servers',
+    apiKeyUrl: 'https://mcprouter.to/api-keys',
+    tokenFieldName: 'mcprouterToken',
+    getToken: getMCProuterToken,
+    saveToken: saveMCProuterToken,
+    syncServers: syncMCProuterServers
   }
 ]
 
