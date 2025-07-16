@@ -1165,10 +1165,15 @@ export const resendMessageThunk =
 
       // 先处理已有的重传
       for (const originalMsg of assistantMessagesToReset) {
+        const modelToSet =
+          assistantMessagesToReset.length === 1 && !userMessageToResend?.mentions?.length
+            ? assistant.model
+            : originalMsg.model
         const blockIdsToDelete = [...(originalMsg.blocks || [])]
         const resetMsg = resetAssistantMessage(originalMsg, {
           status: AssistantMessageStatus.PENDING,
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          model: modelToSet
         })
 
         resetDataList.push(resetMsg)
