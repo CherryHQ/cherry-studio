@@ -13,6 +13,7 @@ import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantMemorySettings from './AssistantMemorySettings'
 import AssistantModelSettings from './AssistantModelSettings'
+import AssistantPresetMessagesSettings from './AssistantPresetMessagesSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
 
@@ -28,6 +29,7 @@ type AssistantSettingPopupTab =
   | 'knowledge_base'
   | 'mcp'
   | 'regular_phrases'
+  | 'preset_messages'
   | 'memory'
 
 interface Props extends AssistantSettingPopupShowParams {
@@ -69,6 +71,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'model',
       label: t('assistants.settings.model')
+    },
+    {
+      key: 'preset_messages',
+      label: t('assistants.settings.preset_messages.title', 'Preset Messages')
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',
@@ -151,6 +157,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           )}
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
+          )}
+          {menu === 'preset_messages' && (
+            <AssistantPresetMessagesSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
           {menu === 'memory' && (
             <AssistantMemorySettings

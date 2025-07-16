@@ -36,8 +36,11 @@ export type Assistant = {
 export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
-  role: 'user' | 'assistant'
+  id?: string
+  role: 'user' | 'assistant' | 'system'
   content: string
+  type?: 'message' | 'chat_history'
+  enabled?: boolean
 }
 
 export type AssistantSettingCustomParameters = {

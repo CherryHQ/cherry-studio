@@ -96,6 +96,27 @@
         "titleLabel": "タイトル",
         "titlePlaceholder": "タイトルを入力"
       },
+      "settings.preset_messages": {
+        "title": "プリセットメッセージ",
+        "add": "メッセージを追加",
+        "edit": "メッセージを編集",
+        "delete": "メッセージを削除",
+        "deleteConfirm": "このメッセージを削除してもよろしいですか？",
+        "roleLabel": "役割",
+        "contentLabel": "内容",
+        "contentPlaceholder": "内容を入力",
+        "chatHistory": "チャット履歴",
+        "chatHistoryDesc": "実際の会話記録がここに挿入されます",
+        "userMessage": "ユーザーメッセージ",
+        "assistantMessage": "アシスタントメッセージ",
+        "systemMessage": "システムメッセージ",
+        "roleUser": "ユーザー",
+        "roleAssistant": "アシスタント",
+        "roleSystem": "システム",
+        "exportSuccess": "プリセットのエクスポートに成功しました",
+        "importSuccess": "プリセットのインポートに成功しました",
+        "importError": "プリセットのインポートに失敗しました。無効なファイルです。"
+      },
       "settings.title": "アシスタント設定",
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "関数",
@@ -460,7 +481,9 @@
       "swap": "交換",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "import": "インポート",
+      "export": "エクスポート"
     },
     "docs": {
       "title": "ドキュメント"
