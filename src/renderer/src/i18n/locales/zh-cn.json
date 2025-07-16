@@ -265,14 +265,6 @@
         "select.content.tip": "已选择 {{count}} 项内容，文本类型将合并保存为一个笔记"
       },
       "settings.code.title": "代码块设置",
-      "settings.code_cache_max_size": "缓存上限",
-      "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多",
-      "settings.code_cache_threshold": "缓存阈值",
-      "settings.code_cache_threshold.tip": "允许缓存的最小代码长度（千字符），超过阈值的代码块才会被缓存",
-      "settings.code_cache_ttl": "缓存期限",
-      "settings.code_cache_ttl.tip": "缓存过期时间（分钟）",
-      "settings.code_cacheable": "代码块缓存",
-      "settings.code_cacheable.tip": "缓存代码块可以减少长代码块的渲染时间，但会增加内存占用",
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_editor": {
         "autocompletion": "自动补全",
@@ -2235,9 +2227,8 @@
           "system": "系统代理",
           "title": "代理模式"
         },
-        "title": "代理设置"
+        "address": "代理地址"
       },
-      "proxy.title": "代理地址",
       "quickAssistant": {
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",
@@ -2462,199 +2453,6 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
-    },
-    "update": {
-      "title": "更新提示",
-      "message": "发现新版本 {{version}}，是否立即安装？",
-      "later": "稍后",
-      "install": "立即安装",
-      "noReleaseNotes": "暂无更新日志"
-    },
-    "selection": {
-      "name": "划词助手",
-      "action": {
-        "builtin": {
-          "translate": "翻译",
-          "explain": "解释",
-          "summary": "总结",
-          "search": "搜索",
-          "refine": "优化",
-          "copy": "复制",
-          "quote": "引用"
-        },
-        "window": {
-          "pin": "置顶",
-          "pinned": "已置顶",
-          "opacity": "窗口透明度",
-          "original_show": "显示原文",
-          "original_hide": "隐藏原文",
-          "original_copy": "复制原文",
-          "esc_close": "Esc 关闭",
-          "esc_stop": "Esc 停止",
-          "c_copy": "C 复制",
-          "r_regenerate": "R 重新生成"
-        },
-        "translate": {
-          "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
-        }
-      },
-      "settings": {
-        "experimental": "实验性功能",
-        "enable": {
-          "title": "启用",
-          "description": "当前仅支持 Windows & macOS",
-          "mac_process_trust_hint": {
-            "title": "辅助功能权限",
-            "description": [
-              "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
-              "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
-              "完成设置后，请再次开启划词助手。"
-            ],
-            "button": {
-              "open_accessibility_settings": "打开辅助功能设置",
-              "go_to_settings": "去设置"
-            }
-          }
-        },
-        "toolbar": {
-          "title": "工具栏",
-          "trigger_mode": {
-            "title": "取词方式",
-            "description": "划词后，触发取词并显示工具栏的方式",
-            "description_note": {
-              "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
-              "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。"
-            },
-            "selected": "划词",
-            "selected_note": "划词后立即显示工具栏",
-            "ctrlkey": "Ctrl 键",
-            "ctrlkey_note": "划词后，再 长按 Ctrl 键，才显示工具栏",
-            "shortcut": "快捷键",
-            "shortcut_note": "划词后，使用快捷键显示工具栏。请在快捷键设置页面中设置取词快捷键并启用。",
-            "shortcut_link": "前往快捷键设置"
-          },
-          "compact_mode": {
-            "title": "紧凑模式",
-            "description": "紧凑模式下，只显示图标，不显示文字"
-          }
-        },
-        "window": {
-          "title": "功能窗口",
-          "follow_toolbar": {
-            "title": "跟随工具栏",
-            "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
-          },
-          "remember_size": {
-            "title": "记住大小",
-            "description": "应用运行期间，窗口会按上次调整的大小显示"
-          },
-          "auto_close": {
-            "title": "自动关闭",
-            "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"
-          },
-          "auto_pin": {
-            "title": "自动置顶",
-            "description": "默认将窗口置于顶部"
-          },
-          "opacity": {
-            "title": "透明度",
-            "description": "设置窗口的默认透明度，100% 为完全不透明"
-          }
-        },
-        "actions": {
-          "title": "功能",
-          "custom": "自定义功能",
-          "reset": {
-            "button": "重置",
-            "tooltip": "重置为默认功能，自定义功能不会被删除",
-            "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。"
-          },
-          "add_tooltip": {
-            "enabled": "添加自定义功能",
-            "disabled": "自定义功能已达上限 ({{max}} 个)"
-          },
-          "delete_confirm": "确定要删除这个自定义功能吗？",
-          "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
-        },
-        "advanced": {
-          "title": "高级",
-          "filter_mode": {
-            "title": "应用筛选",
-            "description": "可以限制划词助手只在特定应用中生效（白名单）或不生效（黑名单）",
-            "default": "关闭",
-            "whitelist": "白名单",
-            "blacklist": "黑名单"
-          },
-          "filter_list": {
-            "title": "筛选名单",
-            "description": "高级功能，建议有经验的用户在了解的情况下再进行设置"
-          }
-        },
-        "user_modal": {
-          "title": {
-            "add": "添加自定义功能",
-            "edit": "编辑自定义功能"
-          },
-          "name": {
-            "label": "名称",
-            "hint": "请输入功能名称"
-          },
-          "icon": {
-            "label": "图标",
-            "placeholder": "输入 Lucide 图标名称",
-            "error": "无效的图标名称，请检查输入",
-            "tooltip": "Lucide 图标名称为小写，如 arrow-right",
-            "view_all": "查看所有图标",
-            "random": "随机图标"
-          },
-          "model": {
-            "label": "模型",
-            "tooltip": "使用助手：会同时使用助手的系统提示词和模型参数",
-            "default": "默认模型",
-            "assistant": "使用助手"
-          },
-          "assistant": {
-            "label": "选择助手",
-            "default": "默认"
-          },
-          "prompt": {
-            "label": "用户提示词 (Prompt)",
-            "tooltip": "用户提示词，作为用户输入的补充，不会覆盖助手的系统提示词",
-            "placeholder": "使用占位符 {{text}} 代表选中的文本，不填写时，选中的文本将添加到本提示词的末尾",
-            "placeholder_text": "占位符",
-            "copy_placeholder": "复制占位符"
-          }
-        },
-        "search_modal": {
-          "title": "设置搜索引擎",
-          "engine": {
-            "label": "搜索引擎",
-            "custom": "自定义"
-          },
-          "custom": {
-            "name": {
-              "label": "自定义名称",
-              "hint": "请输入搜索引擎名称",
-              "max_length": "名称不能超过 16 个字符"
-            },
-            "url": {
-              "label": "自定义搜索 URL",
-              "hint": "用 {{queryString}} 代表搜索词",
-              "required": "请输入搜索 URL",
-              "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
-              "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
-            },
-            "test": "测试"
-          }
-        },
-        "filter_modal": {
-          "title": "应用筛选名单",
-          "user_tips": {
-            "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
-            "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
-          }
-        }
-      }
     },
     "memory": {
       "settings": "设置",

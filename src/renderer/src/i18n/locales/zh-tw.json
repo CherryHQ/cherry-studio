@@ -264,14 +264,6 @@
         "select.content.tip": "已選擇 {{count}} 項內容，文本類型將合併儲存為一個筆記"
       },
       "settings.code.title": "程式碼區塊",
-      "settings.code_cache_max_size": "快取上限",
-      "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多",
-      "settings.code_cache_threshold": "快取門檻",
-      "settings.code_cache_threshold.tip": "允許快取的最小程式碼長度（千字符），超過門檻的程式碼區塊才會被快取",
-      "settings.code_cache_ttl": "快取期限",
-      "settings.code_cache_ttl.tip": "快取的存活時間（分鐘）",
-      "settings.code_cacheable": "程式碼區塊快取",
-      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_editor": {
         "autocompletion": "自動補全",
@@ -1770,6 +1762,13 @@
         "addServer.importFrom.invalid": "無效的輸入，請檢查 JSON 格式",
         "addServer.importFrom.nameExists": "伺服器已存在：{{name}}",
         "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.method": "導入方式",
+        "addServer.importFrom.dxtFile": "DXT 包文件",
+        "addServer.importFrom.dxtHelp": "選擇包含 MCP 服務器的 .dxt 文件",
+        "addServer.importFrom.selectDxtFile": "選擇 DXT 文件",
+        "addServer.importFrom.noDxtFile": "請選擇一個 DXT 文件",
+        "addServer.importFrom.dxtProcessFailed": "處理 DXT 文件失敗",
+        "addServer.importFrom.dxt": "導入 DXT 包",
         "addServer.importFrom.placeholder": "貼上 MCP 伺服器 JSON 設定",
         "addServer.importFrom.tooltip": "請從 MCP Servers 的介紹頁面複製配置 JSON（優先使用\n NPX 或 UVX 配置），並粘貼到輸入框中",
         "addSuccess": "伺服器新增成功",
@@ -2228,9 +2227,8 @@
           "system": "系統代理伺服器",
           "title": "代理伺服器模式"
         },
-        "title": "代理伺服器設定"
+        "address": "代理伺服器位址"
       },
-      "proxy.title": "代理伺服器地址",
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
@@ -2455,199 +2453,6 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
-    },
-    "update": {
-      "title": "更新提示",
-      "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
-      "later": "稍後",
-      "install": "立即安裝",
-      "noReleaseNotes": "暫無更新日誌"
-    },
-    "selection": {
-      "name": "劃詞助手",
-      "action": {
-        "builtin": {
-          "translate": "翻譯",
-          "explain": "解釋",
-          "summary": "總結",
-          "search": "搜尋",
-          "refine": "優化",
-          "copy": "複製",
-          "quote": "引用"
-        },
-        "window": {
-          "pin": "置頂",
-          "pinned": "已置頂",
-          "opacity": "視窗透明度",
-          "original_show": "顯示原文",
-          "original_hide": "隱藏原文",
-          "original_copy": "複製原文",
-          "esc_close": "Esc 關閉",
-          "esc_stop": "Esc 停止",
-          "c_copy": "C 複製",
-          "r_regenerate": "R 重新生成"
-        },
-        "translate": {
-          "smart_translate_tips": "智能翻譯：內容將優先翻譯為目標語言；內容已是目標語言的，將翻譯為備用語言"
-        }
-      },
-      "settings": {
-        "experimental": "實驗性功能",
-        "enable": {
-          "title": "啟用",
-          "description": "目前僅支援 Windows & macOS",
-          "mac_process_trust_hint": {
-            "title": "輔助使用權限",
-            "description": [
-              "劃詞助手需「<strong>輔助使用權限</strong>」才能正常工作。",
-              "請點擊「<strong>去設定</strong>」，並在稍後彈出的權限請求彈窗中點擊 「<strong>打開系統設定</strong>」 按鈕，然後在之後的應用程式列表中找到 「<strong>Cherry Studio</strong>」，並開啟權限開關。",
-              "完成設定後，請再次開啟劃詞助手。"
-            ],
-            "button": {
-              "open_accessibility_settings": "打開輔助使用設定",
-              "go_to_settings": "去設定"
-            }
-          }
-        },
-        "toolbar": {
-          "title": "工具列",
-          "trigger_mode": {
-            "title": "取詞方式",
-            "description": "劃詞後，觸發取詞並顯示工具列的方式",
-            "description_note": {
-              "windows": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了 AHK 等工具對 Ctrl 鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
-              "mac": "若使用了快捷鍵或鍵盤映射工具對 ⌘ 鍵進行了重新對應，可能導致部分應用程式無法劃詞。"
-            },
-            "selected": "劃詞",
-            "selected_note": "劃詞後，立即顯示工具列",
-            "ctrlkey": "Ctrl 鍵",
-            "ctrlkey_note": "劃詞後，再 按住 Ctrl 鍵，才顯示工具列",
-            "shortcut": "快捷鍵",
-            "shortcut_note": "劃詞後，使用快捷鍵顯示工具列。請在快捷鍵設定頁面中設置取詞快捷鍵並啟用。",
-            "shortcut_link": "前往快捷鍵設定"
-          },
-          "compact_mode": {
-            "title": "緊湊模式",
-            "description": "緊湊模式下，只顯示圖示，不顯示文字"
-          }
-        },
-        "window": {
-          "title": "功能視窗",
-          "follow_toolbar": {
-            "title": "跟隨工具列",
-            "description": "視窗位置將跟隨工具列顯示，停用後則始終置中顯示"
-          },
-          "remember_size": {
-            "title": "記住大小",
-            "description": "應用運行期間，視窗會按上次調整的大小顯示"
-          },
-          "auto_close": {
-            "title": "自動關閉",
-            "description": "當視窗未置頂且失去焦點時，將自動關閉該視窗"
-          },
-          "auto_pin": {
-            "title": "自動置頂",
-            "description": "預設將視窗置於頂部"
-          },
-          "opacity": {
-            "title": "透明度",
-            "description": "設置視窗的預設透明度，100% 為完全不透明"
-          }
-        },
-        "actions": {
-          "title": "功能",
-          "custom": "自訂功能",
-          "reset": {
-            "button": "重設",
-            "tooltip": "重設為預設功能，自訂功能不會被刪除",
-            "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。"
-          },
-          "add_tooltip": {
-            "enabled": "新增自訂功能",
-            "disabled": "自訂功能已達上限 ({{max}} 個)"
-          },
-          "delete_confirm": "確定要刪除這個自訂功能嗎？",
-          "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})"
-        },
-        "advanced": {
-          "title": "進階",
-          "filter_mode": {
-            "title": "應用篩選",
-            "description": "可以限制劃詞助手只在特定應用中生效（白名單）或不生效（黑名單）",
-            "default": "關閉",
-            "whitelist": "白名單",
-            "blacklist": "黑名單"
-          },
-          "filter_list": {
-            "title": "篩選名單",
-            "description": "進階功能，建議有經驗的用戶在了解情況下再進行設置"
-          }
-        },
-        "user_modal": {
-          "title": {
-            "add": "新增自訂功能",
-            "edit": "編輯自訂功能"
-          },
-          "name": {
-            "label": "名稱",
-            "hint": "請輸入功能名稱"
-          },
-          "icon": {
-            "label": "圖示",
-            "placeholder": "輸入 Lucide 圖示名稱",
-            "error": "無效的圖示名稱，請檢查輸入",
-            "tooltip": "Lucide 圖示名稱為小寫，如 arrow-right",
-            "view_all": "檢視所有圖示",
-            "random": "隨機圖示"
-          },
-          "model": {
-            "label": "模型",
-            "tooltip": "使用助手：會同時使用助手的系統提示詞和模型參數",
-            "default": "預設模型",
-            "assistant": "使用助手"
-          },
-          "assistant": {
-            "label": "選擇助手",
-            "default": "預設"
-          },
-          "prompt": {
-            "label": "使用者提示詞 (Prompt)",
-            "tooltip": "使用者提示詞，作為使用者輸入的補充，不會覆蓋助手的系統提示詞",
-            "placeholder": "使用佔位符 {{text}} 代表選取的文字，不填寫時，選取的文字將加到本提示詞的末尾",
-            "placeholder_text": "佔位符",
-            "copy_placeholder": "複製佔位符"
-          }
-        },
-        "search_modal": {
-          "title": "設定搜尋引擎",
-          "engine": {
-            "label": "搜尋引擎",
-            "custom": "自訂"
-          },
-          "custom": {
-            "name": {
-              "label": "自訂名稱",
-              "hint": "請輸入搜尋引擎名稱",
-              "max_length": "名稱不能超過 16 個字元"
-            },
-            "url": {
-              "label": "自訂搜尋 URL",
-              "hint": "使用 {{queryString}} 代表搜尋詞",
-              "required": "請輸入搜尋 URL",
-              "invalid_format": "請輸入以 http:// 或 https:// 開頭的有效 URL",
-              "missing_placeholder": "URL 必須包含 {{queryString}} 佔位符"
-            },
-            "test": "測試"
-          }
-        },
-        "filter_modal": {
-          "title": "應用篩選名單",
-          "user_tips": {
-            "windows": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等",
-            "mac": "請輸入應用的 Bundle ID，每行一個，不區分大小寫，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等"
-          }
-        }
-      }
     },
     "memory": {
       "add_memory": "新增記憶",
