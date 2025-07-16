@@ -2,9 +2,11 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { useAppDispatch } from '@renderer/store'
+import { updateTopic } from '@renderer/store/assistants'
 import { Assistant, AttachedPage, Topic } from '@renderer/types'
 import { Button, Divider, Flex, Popover, Space, Tooltip } from 'antd'
-import { filter } from 'lodash'
 import { BookCopy, LogOut, PanelLeft, PanelRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,23 +19,26 @@ interface Props {
   assistant: Assistant
   topic: Topic
   pageWidth: number
-  setActiveTopic: (topic: Topic) => void
 }
 
 const Reader: React.FC<Props> = (props) => {
-  const { topic, pageWidth, assistant, setActiveTopic } = props
-  const { attachedPages = [] } = topic
+  const { topic, pageWidth, assistant } = props
+  const { activeTopic, setActiveTopic } = useActiveTopic(assistant.id, topic)
+  const { attachedPages = [] } = activeTopic
+  const dispatch = useAppDispatch()
 
   const { t } = useTranslation()
-  const { updateTopic, updateAssistant } = useAssistant(assistant.id)
+  const { updateAssistant } = useAssistant(assistant.id)
 
   const [file, setFile] = useState<File | null>(null)
 
   const onTriggerSelectPage = (checked, page) => {
     if (checked) {
-      updateTopicAttachedPages(filter(attachedPages, (p) => p.index !== page))
+      const newAttachedPages = [...attachedPages, { index: page, content: pageContents.get(page) || '' }]
+      updateTopicAttachedPages(newAttachedPages)
     } else {
-      updateTopicAttachedPages([...attachedPages, { index: page, content: pageContents.get(page) || '' }])
+      const newAttachedPages = [...attachedPages].filter((p) => p.index !== page)
+      updateTopicAttachedPages(newAttachedPages)
     }
   }
 
@@ -70,12 +75,8 @@ const Reader: React.FC<Props> = (props) => {
   ])
 
   const updateTopicAttachedPages = (newData: AttachedPage[]) => {
-    const data = {
-      ...topic,
-      attachedPages: newData
-    }
-    updateTopic(data)
-    setActiveTopic(data)
+    setActiveTopic({ ...activeTopic, attachedPages: newData })
+    dispatch(updateTopic({ assistantId: assistant.id, topic: { ...activeTopic, attachedPages: newData } }))
   }
 
   const onCloseReader = () => {

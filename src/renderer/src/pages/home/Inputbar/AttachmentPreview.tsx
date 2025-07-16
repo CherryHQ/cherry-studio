@@ -14,12 +14,13 @@ import {
   LinkOutlined
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
+import { useActiveTopic } from '@renderer/hooks/useTopic'
 import FileManager from '@renderer/services/FileManager'
 import { Assistant, AttachedPage, FileMetadata, Topic } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Radio, Space, Tag, Tooltip } from 'antd'
 import { filter, isEmpty, map } from 'lodash'
-import { FC, ReactNode, useMemo, useState } from 'react'
+import { FC, ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -139,35 +140,34 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   )
 }
 
-const AttachmentPreview: FC<Props> = ({
-  files,
-  setFiles,
-  topic,
-  setActiveTopic,
-  updateTopic,
-  assistant,
-  updateAssistant
-}) => {
+const AttachmentPreview: FC<Props> = ({ files, setFiles, topic, updateTopic, assistant, updateAssistant }) => {
   const { attachedDocument } = assistant
   const { t } = useTranslation()
+  const { activeTopic, setActiveTopic } = useActiveTopic(assistant.id, topic)
 
-  const handleRemoveAttachedText = () => {
-    updateAndSetActiveTopic({ ...topic, attachedText: undefined })
-  }
+  const updateAndSetActiveTopic = useCallback(
+    (updatedTopic: Topic) => {
+      updateTopic(updatedTopic)
+      setActiveTopic(updatedTopic)
+    },
+    [updateTopic, setActiveTopic]
+  )
 
-  const handleRemoveAttachedPage = (index: number, pages: AttachedPage[]) => {
-    updateAndSetActiveTopic({
-      ...topic,
-      attachedPages: filter(pages, (page) => page.index !== index)
-    })
-  }
+  const handleRemoveAttachedText = useCallback(() => {
+    updateAndSetActiveTopic({ ...activeTopic, attachedText: undefined })
+  }, [activeTopic, updateAndSetActiveTopic])
 
-  const updateAndSetActiveTopic = (updatedTopic: Topic) => {
-    updateTopic(updatedTopic)
-    setActiveTopic(updatedTopic)
-  }
+  const handleRemoveAttachedPage = useCallback(
+    (index: number, pages: AttachedPage[]) => {
+      updateAndSetActiveTopic({
+        ...activeTopic,
+        attachedPages: filter(pages, (page) => page.index !== index)
+      })
+    },
+    [activeTopic, updateAndSetActiveTopic]
+  )
 
-  const onTriggerAttachedDocumentEnabled = () => {
+  const onTriggerAttachedDocumentEnabled = useCallback(() => {
     const { attachedDocument } = assistant
     if (attachedDocument) {
       updateAssistant({
@@ -178,10 +178,10 @@ const AttachmentPreview: FC<Props> = ({
         }
       })
     }
-  }
+  }, [assistant, updateAssistant])
 
   const Attachments = useMemo(() => {
-    const { attachedText, attachedPages } = topic
+    const { attachedText, attachedPages } = activeTopic
     const attachments: ReactNode[] = []
 
     if (attachedDocument) {
@@ -246,7 +246,16 @@ const AttachmentPreview: FC<Props> = ({
     }
 
     return attachments
-  }, [assistant, files, topic])
+  }, [
+    activeTopic,
+    attachedDocument,
+    files,
+    onTriggerAttachedDocumentEnabled,
+    t,
+    handleRemoveAttachedText,
+    setFiles,
+    handleRemoveAttachedPage
+  ])
 
   if (isEmpty(Attachments)) {
     return null

@@ -100,6 +100,22 @@ const usePdfReader = (props: Props) => {
   }
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    const targetElement = e.target as HTMLElement
+
+    if (targetElement === docDivRef.current) {
+      return
+    }
+
+    if (targetElement.closest('.page-checker')) {
+      return
+    }
+    const isClickOnPdfContent =
+      targetElement.closest('.react-pdf__Page__canvas') ||
+      targetElement.classList.contains('react-pdf__Page__textContent')
+
+    if (!isClickOnPdfContent) {
+      return
+    }
     if (textSelectionMode) {
       setIsSelectingText(true)
       // 在文本选择模式下，禁用滚动以便于选择
@@ -356,7 +372,9 @@ const usePdfReader = (props: Props) => {
               <Checkbox
                 checked={checked}
                 className={`page-checker ${checked ? 'checked' : ''}`}
-                onChange={() => onTriggerSelectPage(checked, page)}
+                onChange={(e) => {
+                  onTriggerSelectPage(e.target.checked, page)
+                }}
               />
             )}
           </PageWrapper>

@@ -195,12 +195,7 @@ const Chat: FC<Props> = (props) => {
               }}>
               <CollapseIcon size={14} />
             </CollapseButton>
-            <Reader
-              assistant={currentAssistant}
-              topic={activeTopic}
-              pageWidth={pageWidth}
-              setActiveTopic={setActiveTopic}
-            />
+            <Reader assistant={currentAssistant} topic={activeTopic} pageWidth={pageWidth} />
           </ReaderContainer>
         )}
         <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
