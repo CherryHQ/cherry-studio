@@ -18,13 +18,6 @@ import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
 
-logger.info('test1')
-logger.warn('test2')
-logger.error('test3', new Error('test error'))
-logger.debug('test4')
-logger.verbose('test5')
-logger.silly('test6')
-
 const isSupportedOS = isWin || isMac
 
 let SelectionHook: SelectionHookConstructor | null = null

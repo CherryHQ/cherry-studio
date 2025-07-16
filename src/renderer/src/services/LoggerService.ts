@@ -19,10 +19,17 @@ const LEVEL_MAP: Record<LogLevel, number> = {
 const DEFAULT_LEVEL = IS_DEV ? 'silly' : 'info'
 const MAIN_LOG_LEVEL = 'warn'
 
+/**
+ * IMPORTANT: How to use LoggerService
+ * please refer to
+ *   English: `docs/how-to-use-logger-en.md`
+ *   Chinese: `docs/how-to-use-logger-zh.md`
+ */
 export class LoggerService {
   private static instance: LoggerService
 
   private level: LogLevel = DEFAULT_LEVEL
+  private logToMainLevel: LogLevel = MAIN_LOG_LEVEL
 
   private window: string = ''
   private module: string = ''
@@ -54,7 +61,6 @@ export class LoggerService {
     const newLogger = Object.create(this)
 
     // Copy all properties from the base logger
-    newLogger.level = this.level
     newLogger.module = module
     newLogger.context = { ...this.context, ...context }
 
@@ -99,7 +105,7 @@ export class LoggerService {
     // if the last data is an object with logToMain: true, force log to main
     const forceLogToMain = data.length > 0 && data[data.length - 1]?.logToMain === true
 
-    if (levelNumber >= LEVEL_MAP[MAIN_LOG_LEVEL] || forceLogToMain) {
+    if (levelNumber >= LEVEL_MAP[this.logToMainLevel] || forceLogToMain) {
       const source: LogSourceWithContext = {
         process: 'renderer',
         window: this.window,
@@ -108,6 +114,11 @@ export class LoggerService {
 
       if (Object.keys(this.context).length > 0) {
         source.context = this.context
+      }
+
+      // remove the last item if it is an object with logToMain: true
+      if (forceLogToMain) {
+        data = data.slice(0, -1)
       }
 
       window.api.logToMain(source, level, message, data)
@@ -133,7 +144,6 @@ export class LoggerService {
     this.processLog('silly', message, data)
   }
 
-  //   Additional utility methods
   public setLevel(level: LogLevel): void {
     this.level = level
   }
@@ -145,6 +155,18 @@ export class LoggerService {
   // Method to reset log level to environment default
   public resetLevel(): void {
     this.setLevel(DEFAULT_LEVEL)
+  }
+
+  public setLogToMainLevel(level: LogLevel): void {
+    this.logToMainLevel = level
+  }
+
+  public getLogToMainLevel(): LogLevel {
+    return this.logToMainLevel
+  }
+
+  public resetLogToMainLevel(): void {
+    this.setLogToMainLevel(MAIN_LOG_LEVEL)
   }
 }
 

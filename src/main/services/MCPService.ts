@@ -303,7 +303,7 @@ class McpService {
 
             const stdioTransport = new StdioClientTransport(transportOptions)
             stdioTransport.stderr?.on('data', (data) =>
-              logger.debug(`Stdio stderr for server: ${server.name} `, data.toString())
+              logger.debug(`Stdio stderr for server: ${server.name}` + data.toString())
             )
             return stdioTransport
           } else {

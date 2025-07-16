@@ -31,6 +31,13 @@ const SYSTEM_INFO = {
 const APP_VERSION = `v${app?.getVersion?.() || 'unknown'}`
 
 const DEFAULT_LEVEL = isDev ? 'silly' : 'info'
+
+/**
+ * IMPORTANT: How to use LoggerService
+ * please refer to
+ *   English: `docs/how-to-use-logger-en.md`
+ *   Chinese: `docs/how-to-use-logger-zh.md`
+ */
 export class LoggerService {
   private static instance: LoggerService
   private logger: winston.Logger
@@ -48,7 +55,7 @@ export class LoggerService {
     const transports: winston.transport[] = []
 
     //TODO remove when debug is done
-    transports.push(new winston.transports.Console())
+    // transports.push(new winston.transports.Console())
 
     // Daily rotate file transport for general logs
     transports.push(
