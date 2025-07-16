@@ -150,10 +150,6 @@ export class ProxyManager {
     axios.defaults.httpAgent = agent
     axios.defaults.httpsAgent = agent
 
-    // agent 设置 rejectUnauthorized 为 false
-    // webdav https for self-signed certificate
-    agent.options.rejectUnauthorized = false
-
     http.get = this.bindHttpMethod(this.originalHttpGet, agent)
     http.request = this.bindHttpMethod(this.originalHttpRequest, agent)
 
