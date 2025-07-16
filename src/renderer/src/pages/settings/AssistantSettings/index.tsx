@@ -31,7 +31,6 @@ type AssistantSettingPopupTab =
   | 'regular_phrases'
   | 'preset_messages'
   | 'memory'
-  | 'preset_messages'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -72,10 +71,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'model',
       label: t('assistants.settings.model')
-    },
-    {
-      key: 'preset_messages',
-      label: t('assistants.settings.preset_messages.title', 'Preset Messages')
     },
     {
       key: 'preset_messages',
@@ -173,9 +168,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistantSettings={updateAssistantSettings}
               onClose={onCancel}
             />
-          )}
-          {menu === 'preset_messages' && (
-            <AssistantPresetMessagesSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
         </Settings>
       </HStack>
