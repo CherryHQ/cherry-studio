@@ -181,8 +181,8 @@
       "input.generate_image": "画像を生成する",
       "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "input.knowledge_base": "ナレッジベース",
-      "input.new.context": "コンテキストをクリア {{Command}}",
       "input.new_topic": "新しいトピック {{Command}}",
+      "input.new.context": "コンテキストをクリア {{Command}}",
       "input.pause": "一時停止",
       "input.placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "input.send": "送信",
@@ -204,6 +204,7 @@
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
       "input.upload.upload_from_local": "ローカルファイルをアップロード...",
+      "input.url_context": "URLコンテキスト",
       "input.web_search": "ウェブ検索",
       "input.web_search.builtin": "モデル内蔵",
       "input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません",
@@ -214,7 +215,6 @@
       "input.web_search.no_web_search": "ウェブ検索を無効にする",
       "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
       "input.web_search.settings": "ウェブ検索設定",
-      "input.url_context": "URLコンテキスト",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -235,35 +235,35 @@
       },
       "resend": "再送信",
       "save": "保存",
+      "save.file.title": "ローカルファイルに保存",
       "save.knowledge": {
-        "title": "ナレッジベースに保存",
-        "content.maintext.title": "メインテキスト",
-        "content.maintext.description": "主要なテキストコンテンツを含む",
-        "content.code.title": "コードブロック",
-        "content.code.description": "独立したコードブロックを含む",
-        "content.thinking.title": "思考プロセス",
-        "content.thinking.description": "モデルの推論内容を含む",
-        "content.tool_use.title": "ツール使用",
-        "content.tool_use.description": "ツール呼び出しパラメーターと実行結果を含む",
-        "content.citation.title": "引用",
         "content.citation.description": "ウェブ検索とナレッジベース参照情報を含む",
-        "content.translation.title": "翻訳",
-        "content.translation.description": "翻訳コンテンツを含む",
-        "content.error.title": "エラー",
+        "content.citation.title": "引用",
+        "content.code.description": "独立したコードブロックを含む",
+        "content.code.title": "コードブロック",
         "content.error.description": "実行中のエラーメッセージを含む",
-        "content.file.title": "ファイル",
+        "content.error.title": "エラー",
         "content.file.description": "添付ファイルを含む",
+        "content.file.title": "ファイル",
+        "content.maintext.description": "主要なテキストコンテンツを含む",
+        "content.maintext.title": "メインテキスト",
+        "content.thinking.description": "モデルの推論内容を含む",
+        "content.thinking.title": "思考プロセス",
+        "content.tool_use.description": "ツール呼び出しパラメーターと実行結果を含む",
+        "content.tool_use.title": "ツール使用",
+        "content.translation.description": "翻訳コンテンツを含む",
+        "content.translation.title": "翻訳",
         "empty.no_content": "このメッセージには保存可能なコンテンツがありません",
         "empty.no_knowledge_base": "利用可能なナレッジベースがありません。まず作成してください",
-        "error.save_failed": "保存に失敗しました。ナレッジベースの設定を確認してください",
         "error.invalid_base": "選択されたナレッジベースが正しく設定されていません",
         "error.no_content_selected": "少なくとも1つのコンテンツタイプを選択してください",
-        "select.base.title": "ナレッジベースを選択",
+        "error.save_failed": "保存に失敗しました。ナレッジベースの設定を確認してください",
         "select.base.placeholder": "ナレッジベースを選択してください",
+        "select.base.title": "ナレッジベースを選択",
+        "select.content.tip": "{{count}}項目が選択されました。テキストタイプは統合されて1つのノートとして保存されます",
         "select.content.title": "保存するコンテンツタイプを選択",
-        "select.content.tip": "{{count}}項目が選択されました。テキストタイプは統合されて1つのノートとして保存されます"
+        "title": "ナレッジベースに保存"
       },
-      "settings.code.title": "コード設定",
       "settings.code_cache_max_size": "キャッシュ上限",
       "settings.code_cache_max_size.tip": "キャッシュできる文字数の上限（千字符）。ハイライトされたコードの長さは純粋なテキストよりもはるかに長くなります。",
       "settings.code_cache_threshold": "キャッシュ閾値",
@@ -287,6 +287,7 @@
         "title": "コード実行"
       },
       "settings.code_wrappable": "コードブロック折り返し",
+      "settings.code.title": "コード設定",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -366,14 +367,7 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
-      "translate": "翻訳",
-      "save.file.title": "ローカルファイルに保存"
-    },
-    "html_artifacts": {
-      "code": "コード",
-      "generating": "生成中",
-      "preview": "プレビュー",
-      "split": "分割"
+      "translate": "翻訳"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -551,6 +545,12 @@
       "search.topics.empty": "トピックが見つかりませんでした。Enterキーを押してすべてのメッセージを検索",
       "title": "トピック検索"
     },
+    "html_artifacts": {
+      "code": "コード",
+      "generating": "生成中",
+      "preview": "プレビュー",
+      "split": "分割"
+    },
     "knowledge": {
       "add": {
         "title": "ナレッジベースを追加"
@@ -667,6 +667,111 @@
       "keep_alive_time.title": "保持時間",
       "title": "LM Studio"
     },
+    "memory": {
+      "actions": "アクション",
+      "add_failed": "メモリーの追加に失敗しました",
+      "add_first_memory": "最初のメモリを追加",
+      "add_memory": "メモリーを追加",
+      "add_new_user": "新しいユーザーを追加",
+      "add_success": "メモリーが正常に追加されました",
+      "add_user": "ユーザーを追加",
+      "add_user_failed": "ユーザーの追加に失敗しました",
+      "all_users": "すべてのユーザー",
+      "cannot_delete_default_user": "デフォルトユーザーは削除できません",
+      "configure_memory_first": "最初にメモリ設定を構成してください",
+      "content": "内容",
+      "current_user": "現在のユーザー",
+      "custom": "カスタム",
+      "default": "デフォルト",
+      "default_user": "デフォルトユーザー",
+      "delete_confirm": "このメモリーを削除してもよろしいですか？",
+      "delete_confirm_content": "{{count}}件のメモリーを削除してもよろしいですか？",
+      "delete_confirm_single": "このメモリを削除してもよろしいですか？",
+      "delete_confirm_title": "メモリーを削除",
+      "delete_failed": "メモリーの削除に失敗しました",
+      "delete_selected": "選択したものを削除",
+      "delete_success": "メモリーが正常に削除されました",
+      "delete_user": "ユーザーを削除",
+      "delete_user_confirm_content": "ユーザー{{user}}とそのすべてのメモリを削除してもよろしいですか？",
+      "delete_user_confirm_title": "ユーザーを削除",
+      "delete_user_failed": "ユーザーの削除に失敗しました",
+      "description": "メモリは、アシスタントとのやりとりに関する情報を保存・管理する機能です。メモリの追加、編集、削除のほか、フィルタリングや検索を行うことができます。",
+      "edit_memory": "メモリーを編集",
+      "embedding_dimensions": "埋め込み次元",
+      "embedding_model": "埋め込みモデル",
+      "enable_global_memory_first": "最初にグローバルメモリを有効にしてください",
+      "end_date": "終了日",
+      "global_memory": "グローバルメモリ",
+      "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
+      "global_memory_disabled_title": "グローバルメモリが無効です",
+      "global_memory_enabled": "グローバルメモリが有効化されました",
+      "go_to_memory_page": "メモリページに移動",
+      "initial_memory_content": "ようこそ！これはあなたの最初の記憶です。",
+      "llm_model": "LLMモデル",
+      "load_failed": "メモリーの読み込みに失敗しました",
+      "loading": "思い出を読み込み中...",
+      "loading_memories": "メモリを読み込み中...",
+      "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
+      "memories_reset_success": "{{user}}のすべてのメモリが正常にリセットされました",
+      "memory": "個のメモリ",
+      "memory_content": "メモリー内容",
+      "memory_placeholder": "メモリー内容を入力...",
+      "new_user_id": "新しいユーザーID",
+      "new_user_id_placeholder": "一意のユーザーIDを入力",
+      "no_matching_memories": "一致するメモリが見つかりません",
+      "no_memories": "メモリがありません",
+      "no_memories_description": "最初のメモリを追加してください",
+      "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
+      "not_configured_title": "メモリが設定されていません",
+      "pagination_total": "{{total}}件中{{start}}-{{end}}件",
+      "please_enter_memory": "メモリー内容を入力してください",
+      "please_select_embedding_model": "埋め込みモデルを選択してください",
+      "please_select_llm_model": "LLMモデルを選択してください",
+      "reset_filters": "フィルターをリセット",
+      "reset_memories": "メモリをリセット",
+      "reset_memories_confirm_content": "{{user}}のすべてのメモリを完全に削除してもよろしいですか？この操作は元に戻せません。",
+      "reset_memories_confirm_title": "すべてのメモリをリセット",
+      "reset_memories_failed": "メモリのリセットに失敗しました",
+      "reset_user_memories": "ユーザーメモリをリセット",
+      "reset_user_memories_confirm_content": "{{user}}のすべてのメモリをリセットしてもよろしいですか？",
+      "reset_user_memories_confirm_title": "ユーザーメモリをリセット",
+      "reset_user_memories_failed": "ユーザーメモリのリセットに失敗しました",
+      "score": "スコア",
+      "search": "検索",
+      "search_placeholder": "メモリーを検索...",
+      "select_embedding_model_placeholder": "埋め込みモデルを選択",
+      "select_llm_model_placeholder": "LLMモデルを選択",
+      "select_user": "ユーザーを選択",
+      "settings": "設定",
+      "settings_title": "メモリ設定",
+      "start_date": "開始日",
+      "statistics": "統計",
+      "stored_memories": "保存された記憶",
+      "switch_user": "ユーザーを切り替え",
+      "switch_user_confirm": "ユーザーコンテキストを{{user}}に切り替えますか？",
+      "time": "時間",
+      "title": "メモリー",
+      "total_memories": "個のメモリ",
+      "try_different_filters": "検索条件を調整してください",
+      "update_failed": "メモリーの更新に失敗しました",
+      "update_success": "メモリーが正常に更新されました",
+      "user": "ユーザー",
+      "user_created": "ユーザー{{user}}が作成され、切り替えが成功しました",
+      "user_deleted": "ユーザー{{user}}が正常に削除されました",
+      "user_id": "ユーザーID",
+      "user_id_exists": "このユーザーIDはすでに存在します",
+      "user_id_invalid_chars": "ユーザーIDには文字、数字、ハイフン、アンダースコアのみ使用できます",
+      "user_id_placeholder": "ユーザーIDを入力（オプション）",
+      "user_id_required": "ユーザーIDは必須です",
+      "user_id_reserved": "'default-user'は予約済みです。別のIDを使用してください",
+      "user_id_rules": "ユーザーIDは一意であり、文字、数字、ハイフン(-)、アンダースコア(_)のみ含む必要があります",
+      "user_id_too_long": "ユーザーIDは50文字を超えられません",
+      "user_management": "ユーザー管理",
+      "user_memories_reset": "{{user}}のすべてのメモリがリセットされました",
+      "user_switch_failed": "ユーザーの切り替えに失敗しました",
+      "user_switched": "ユーザーコンテキストが{{user}}に切り替わりました",
+      "users": "ユーザー"
+    },
     "message": {
       "agents": {
         "import.error": "インポートに失敗しました",
@@ -759,13 +864,13 @@
       "tools": {
         "abort_failed": "ツール呼び出し中断失敗",
         "aborted": "ツール呼び出し中断",
+        "autoApproveEnabled": "このツールは自動承認が有効になっています",
         "cancelled": "キャンセル",
         "completed": "完了",
         "error": "エラーが発生しました",
         "invoking": "呼び出し中",
         "pending": "保留中",
         "preview": "プレビュー",
-        "autoApproveEnabled": "このツールは自動承認が有効になっています",
         "raw": "生データ"
       },
       "topic.added": "新しいトピックが追加されました",
@@ -957,7 +1062,6 @@
       "go_to_settings": "設定に移動",
       "guidance_scale": "ガイダンススケール",
       "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",
-      "image.size": "画像サイズ",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
       "image_handle_required": "最初に画像をアップロードしてください。",
@@ -966,6 +1070,7 @@
       "image_size_options": {
         "auto": "自動"
       },
+      "image.size": "画像サイズ",
       "inference_steps": "推論ステップ数",
       "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
       "input_image": "入力画像",
@@ -1627,8 +1732,8 @@
           "root_path_placeholder": "例：/CherryStudio",
           "title": "思源ノート設定",
           "token": "APIトークン",
-          "token.help": "思源ノート->設定->について で取得",
-          "token_placeholder": "思源ノートトークンを入力してください"
+          "token_placeholder": "思源ノートトークンを入力してください",
+          "token.help": "思源ノート->設定->について で取得"
         },
         "title": "データ設定",
         "webdav": {
@@ -1656,6 +1761,10 @@
           "backup.manager.title": "バックアップデータ管理",
           "backup.modal.filename.placeholder": "バックアップファイル名を入力してください",
           "backup.modal.title": "WebDAV にバックアップ",
+          "disableStream": {
+            "help": "有効にすると、アップロード前にファイルがメモリに読み込まれます。これにより、チャンクアップロードをサポートしていない一部のWebDAVサーバーとの互換性の問題を解決できますが、メモリ使用量が増加します。",
+            "title": "ストリーミングアップロードを無効にする"
+          },
           "host": "WebDAVホスト",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} 時間",
@@ -1676,11 +1785,7 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー",
-          "disableStream": {
-            "title": "ストリーミングアップロードを無効にする",
-            "help": "有効にすると、アップロード前にファイルがメモリに読み込まれます。これにより、チャンクアップロードをサポートしていない一部のWebDAVサーバーとの互換性の問題を解決できますが、メモリ使用量が増加します。"
-          }
+          "user": "WebDAVユーザー"
         },
         "yuque": {
           "check": {
@@ -1767,16 +1872,24 @@
         "addServer.create": "クイック作成",
         "addServer.importFrom": "JSONからインポート",
         "addServer.importFrom.connectionFailed": "接続に失敗しました",
+        "addServer.importFrom.dxt": "[to be translated]:导入 DXT 包",
+        "addServer.importFrom.dxtFile": "[to be translated]:DXT 包文件",
+        "addServer.importFrom.dxtHelp": "[to be translated]:选择包含 MCP 服务器的 .dxt 文件",
+        "addServer.importFrom.dxtProcessFailed": "[to be translated]:处理 DXT 文件失败",
         "addServer.importFrom.invalid": "無効な入力です。JSON形式を確認してください。",
+        "addServer.importFrom.method": "[to be translated]:导入方式",
         "addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
+        "addServer.importFrom.noDxtFile": "[to be translated]:请选择一个 DXT 文件",
         "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
         "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
+        "addServer.importFrom.selectDxtFile": "[to be translated]:选择 DXT 文件",
         "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
         "addSuccess": "サーバーが正常に追加されました",
         "advancedSettings": "詳細設定",
         "args": "引数",
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
+        "builtinServers": "組み込みサーバー",
         "command": "コマンド",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
@@ -1813,6 +1926,17 @@
         "jsonSaveSuccess": "JSON設定が保存されました。",
         "logoUrl": "ロゴURL",
         "missingDependencies": "が不足しています。続行するにはインストールしてください。",
+        "more": {
+          "awesome": "厳選された MCP サーバーリスト",
+          "composio": "Composio MCP 開発ツール",
+          "glama": "Glama MCP サーバーディレクトリ",
+          "higress": "Higress MCP サーバー",
+          "mcpso": "MCP サーバー発見プラットフォーム",
+          "modelscope": "魔搭コミュニティ MCP サーバー",
+          "official": "公式 MCP サーバーコレクション",
+          "pulsemcp": "Pulse MCP サーバー",
+          "smithery": "Smithery MCP ツール"
+        },
         "name": "名前",
         "newServer": "MCP サーバー",
         "noDescriptionAvailable": "説明がありません",
@@ -1845,6 +1969,7 @@
         "registry": "パッケージ管理レジストリ",
         "registryDefault": "デフォルト",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
+        "requiresConfig": "設定が必要",
         "resources": {
           "availableResources": "利用可能なリソース",
           "blob": "バイナリデータ",
@@ -1892,17 +2017,17 @@
         "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
         "title": "MCP 設定",
         "tools": {
+          "autoApprove": "自動承認",
+          "autoApprove.tooltip.confirm": "このMCPツールを実行してもよろしいですか？",
+          "autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です",
+          "autoApprove.tooltip.enabled": "ツールは承認なしで自動実行されます",
+          "autoApprove.tooltip.howToEnable": "ツールを有効にしてから自動承認を使用できます",
           "availableTools": "利用可能なツール",
+          "enable": "ツールを有効にする",
           "inputSchema": "入力スキーマ",
           "inputSchema.enum.allowedValues": "許可された値",
           "loadError": "ツール取得エラー",
           "noToolsAvailable": "利用可能なツールなし",
-          "enable": "ツールを有効にする",
-          "autoApprove": "自動承認",
-          "autoApprove.tooltip.howToEnable": "ツールを有効にしてから自動承認を使用できます",
-          "autoApprove.tooltip.enabled": "ツールは承認なしで自動実行されます",
-          "autoApprove.tooltip.disabled": "ツールは実行前に手動承認が必要です",
-          "autoApprove.tooltip.confirm": "このMCPツールを実行してもよろしいですか？",
           "run": "実行"
         },
         "type": "タイプ",
@@ -1915,20 +2040,7 @@
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
         "url": "URL",
-        "user": "ユーザー",
-        "requiresConfig": "設定が必要",
-        "builtinServers": "組み込みサーバー",
-        "more": {
-          "modelscope": "魔搭コミュニティ MCP サーバー",
-          "higress": "Higress MCP サーバー",
-          "mcpso": "MCP サーバー発見プラットフォーム",
-          "smithery": "Smithery MCP ツール",
-          "glama": "Glama MCP サーバーディレクトリ",
-          "pulsemcp": "Pulse MCP サーバー",
-          "composio": "Composio MCP 開発ツール",
-          "official": "公式 MCP サーバーコレクション",
-          "awesome": "厳選された MCP サーバーリスト"
-        }
+        "user": "ユーザー"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
@@ -2109,6 +2221,10 @@
         "add.name.placeholder": "例：OpenAI",
         "add.title": "プロバイダーを追加",
         "add.type": "プロバイダータイプ",
+        "api_host": "APIホスト",
+        "api_key": "APIキー",
+        "api_key.tip": "複数のキーはカンマまたはスペースで区切ります",
+        "api_version": "APIバージョン",
         "api.key.check.latency": "遅延",
         "api.key.error.duplicate": "APIキーはすでに存在します",
         "api.key.error.empty": "APIキーは空にできません",
@@ -2118,10 +2234,7 @@
         "api.url.preview": "プレビュー: {{url}}",
         "api.url.reset": "リセット",
         "api.url.tip": "/で終わる場合、v1を無視します。#で終わる場合、入力されたアドレスを強制的に使用します",
-        "api_host": "APIホスト",
-        "api_key": "APIキー",
-        "api_key.tip": "複数のキーはカンマまたはスペースで区切ります",
-        "api_version": "APIバージョン",
+        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください",
         "basic_auth": "HTTP 認証",
         "basic_auth.password": "パスワード",
         "basic_auth.password.tip": "",
@@ -2218,8 +2331,7 @@
             "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
             "title": "サービスアカウント設定"
           }
-        },
-        "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
+        }
       },
       "proxy": {
         "mode": {
@@ -2455,304 +2567,6 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
-    },
-    "update": {
-      "title": "更新",
-      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
-      "later": "後で",
-      "install": "今すぐインストール",
-      "noReleaseNotes": "暫無更新日誌"
-    },
-    "selection": {
-      "name": "テキスト選択ツール",
-      "action": {
-        "builtin": {
-          "translate": "翻訳",
-          "explain": "解説",
-          "summary": "要約",
-          "search": "検索",
-          "refine": "最適化",
-          "copy": "コピー",
-          "quote": "引用"
-        },
-        "window": {
-          "pin": "最前面に固定",
-          "pinned": "固定中",
-          "opacity": "ウィンドウの透過度",
-          "original_show": "原文を表示",
-          "original_hide": "原文を非表示",
-          "original_copy": "原文をコピー",
-          "esc_close": "Escで閉じる",
-          "esc_stop": "Escで停止",
-          "c_copy": "Cでコピー",
-          "r_regenerate": "Rで再生成"
-        },
-        "translate": {
-          "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
-        }
-      },
-      "settings": {
-        "experimental": "実験的機能",
-        "enable": {
-          "title": "有効化",
-          "description": "現在Windows & macOSのみ対応",
-          "mac_process_trust_hint": {
-            "title": "アクセシビリティー権限",
-            "description": [
-              "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
-              "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
-              "設定が完了したら、テキスト選択ツールを再起動してください。"
-            ],
-            "button": {
-              "open_accessibility_settings": "アクセシビリティー設定を開く",
-              "go_to_settings": "設定に移動"
-            }
-          }
-        },
-        "toolbar": {
-          "title": "ツールバー",
-          "trigger_mode": {
-            "title": "単語の取り出し方",
-            "description": "テキスト選択後、取詞ツールバーを表示する方法",
-            "description_note": {
-              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
-              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
-            },
-            "selected": "選択時",
-            "selected_note": "テキスト選択時に即時表示",
-            "ctrlkey": "Ctrlキー",
-            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
-            "shortcut": "ショートカットキー",
-            "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
-            "shortcut_link": "ショートカット設定ページに移動"
-          },
-          "compact_mode": {
-            "title": "コンパクトモード",
-            "description": "アイコンのみ表示（テキスト非表示）"
-          }
-        },
-        "window": {
-          "title": "機能ウィンドウ",
-          "follow_toolbar": {
-            "title": "ツールバーに追従",
-            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
-          },
-          "remember_size": {
-            "title": "サイズを記憶",
-            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
-          },
-          "auto_close": {
-            "title": "自動閉じる",
-            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
-          },
-          "auto_pin": {
-            "title": "自動で最前面に固定",
-            "description": "デフォルトで最前面表示"
-          },
-          "opacity": {
-            "title": "透明度",
-            "description": "デフォルトの透明度を設定（100%は完全不透明）"
-          }
-        },
-        "actions": {
-          "title": "機能設定",
-          "custom": "カスタム機能",
-          "reset": {
-            "button": "リセット",
-            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
-            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
-          },
-          "add_tooltip": {
-            "enabled": "カスタム機能を追加",
-            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
-          },
-          "delete_confirm": "このカスタム機能を削除しますか？",
-          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
-        },
-        "advanced": {
-          "title": "進階",
-          "filter_mode": {
-            "title": "アプリケーションフィルター",
-            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
-            "default": "オフ",
-            "whitelist": "ホワイトリスト",
-            "blacklist": "ブラックリスト"
-          },
-          "filter_list": {
-            "title": "フィルターリスト",
-            "description": "進階機能です。経験豊富なユーザー向けです。"
-          }
-        },
-        "user_modal": {
-          "title": {
-            "add": "カスタム機能追加",
-            "edit": "カスタム機能編集"
-          },
-          "name": {
-            "label": "機能名",
-            "hint": "機能名を入力"
-          },
-          "icon": {
-            "label": "アイコン",
-            "placeholder": "Lucideアイコン名を入力",
-            "error": "無効なアイコン名です",
-            "tooltip": "例: arrow-right（小文字で入力）",
-            "view_all": "全アイコンを表示",
-            "random": "ランダム選択"
-          },
-          "model": {
-            "label": "モデル",
-            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
-            "default": "デフォルトモデル",
-            "assistant": "アシスタントを使用"
-          },
-          "assistant": {
-            "label": "アシスタント選択",
-            "default": "デフォルト"
-          },
-          "prompt": {
-            "label": "ユーザープロンプト",
-            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
-            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
-            "placeholder_text": "プレースホルダー",
-            "copy_placeholder": "プレースホルダーをコピー"
-          }
-        },
-        "search_modal": {
-          "title": "検索エンジン設定",
-          "engine": {
-            "label": "検索エンジン",
-            "custom": "カスタム"
-          },
-          "custom": {
-            "name": {
-              "label": "表示名",
-              "hint": "検索エンジン名（16文字以内）",
-              "max_length": "16文字以内で入力"
-            },
-            "url": {
-              "label": "検索URL",
-              "hint": "{{queryString}}で検索語を表す",
-              "required": "URLを入力してください",
-              "invalid_format": "http:// または https:// で始まるURLを入力",
-              "missing_placeholder": "{{queryString}}を含めてください"
-            },
-            "test": "テスト"
-          }
-        },
-        "filter_modal": {
-          "title": "アプリケーションフィルターリスト",
-          "user_tips": {
-            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
-            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
-          }
-        }
-      }
-    },
-    "memory": {
-      "add_memory": "メモリーを追加",
-      "edit_memory": "メモリーを編集",
-      "memory_content": "メモリー内容",
-      "please_enter_memory": "メモリー内容を入力してください",
-      "memory_placeholder": "メモリー内容を入力...",
-      "user_id": "ユーザーID",
-      "user_id_placeholder": "ユーザーIDを入力（オプション）",
-      "load_failed": "メモリーの読み込みに失敗しました",
-      "add_success": "メモリーが正常に追加されました",
-      "add_failed": "メモリーの追加に失敗しました",
-      "update_success": "メモリーが正常に更新されました",
-      "update_failed": "メモリーの更新に失敗しました",
-      "delete_success": "メモリーが正常に削除されました",
-      "delete_failed": "メモリーの削除に失敗しました",
-      "delete_confirm_title": "メモリーを削除",
-      "delete_confirm_content": "{{count}}件のメモリーを削除してもよろしいですか？",
-      "delete_confirm": "このメモリーを削除してもよろしいですか？",
-      "time": "時間",
-      "user": "ユーザー",
-      "content": "内容",
-      "score": "スコア",
-      "title": "メモリー",
-      "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
-      "search_placeholder": "メモリーを検索...",
-      "start_date": "開始日",
-      "end_date": "終了日",
-      "all_users": "すべてのユーザー",
-      "users": "ユーザー",
-      "delete_selected": "選択したものを削除",
-      "reset_filters": "フィルターをリセット",
-      "pagination_total": "{{total}}件中{{start}}-{{end}}件",
-      "current_user": "現在のユーザー",
-      "select_user": "ユーザーを選択",
-      "default_user": "デフォルトユーザー",
-      "switch_user": "ユーザーを切り替え",
-      "user_switched": "ユーザーコンテキストが{{user}}に切り替わりました",
-      "switch_user_confirm": "ユーザーコンテキストを{{user}}に切り替えますか？",
-      "add_user": "ユーザーを追加",
-      "add_new_user": "新しいユーザーを追加",
-      "new_user_id": "新しいユーザーID",
-      "new_user_id_placeholder": "一意のユーザーIDを入力",
-      "user_id_required": "ユーザーIDは必須です",
-      "user_id_reserved": "'default-user'は予約済みです。別のIDを使用してください",
-      "user_id_exists": "このユーザーIDはすでに存在します",
-      "user_id_too_long": "ユーザーIDは50文字を超えられません",
-      "user_id_invalid_chars": "ユーザーIDには文字、数字、ハイフン、アンダースコアのみ使用できます",
-      "user_id_rules": "ユーザーIDは一意であり、文字、数字、ハイフン(-)、アンダースコア(_)のみ含む必要があります",
-      "user_created": "ユーザー{{user}}が作成され、切り替えが成功しました",
-      "add_user_failed": "ユーザーの追加に失敗しました",
-      "memory": "個のメモリ",
-      "reset_user_memories": "ユーザーメモリをリセット",
-      "reset_memories": "メモリをリセット",
-      "delete_user": "ユーザーを削除",
-      "loading_memories": "メモリを読み込み中...",
-      "no_memories": "メモリがありません",
-      "no_matching_memories": "一致するメモリが見つかりません",
-      "no_memories_description": "最初のメモリを追加してください",
-      "try_different_filters": "検索条件を調整してください",
-      "add_first_memory": "最初のメモリを追加",
-      "user_switch_failed": "ユーザーの切り替えに失敗しました",
-      "cannot_delete_default_user": "デフォルトユーザーは削除できません",
-      "delete_user_confirm_title": "ユーザーを削除",
-      "delete_user_confirm_content": "ユーザー{{user}}とそのすべてのメモリを削除してもよろしいですか？",
-      "user_deleted": "ユーザー{{user}}が正常に削除されました",
-      "delete_user_failed": "ユーザーの削除に失敗しました",
-      "reset_user_memories_confirm_title": "ユーザーメモリをリセット",
-      "reset_user_memories_confirm_content": "{{user}}のすべてのメモリをリセットしてもよろしいですか？",
-      "user_memories_reset": "{{user}}のすべてのメモリがリセットされました",
-      "reset_user_memories_failed": "ユーザーメモリのリセットに失敗しました",
-      "reset_memories_confirm_title": "すべてのメモリをリセット",
-      "reset_memories_confirm_content": "{{user}}のすべてのメモリを完全に削除してもよろしいですか？この操作は元に戻せません。",
-      "memories_reset_success": "{{user}}のすべてのメモリが正常にリセットされました",
-      "reset_memories_failed": "メモリのリセットに失敗しました",
-      "delete_confirm_single": "このメモリを削除してもよろしいですか？",
-      "total_memories": "個のメモリ",
-      "default": "デフォルト",
-      "custom": "カスタム",
-      "description": "メモリは、アシスタントとのやりとりに関する情報を保存・管理する機能です。メモリの追加、編集、削除のほか、フィルタリングや検索を行うことができます。",
-      "global_memory_enabled": "グローバルメモリが有効化されました",
-      "global_memory": "グローバルメモリ",
-      "enable_global_memory_first": "最初にグローバルメモリを有効にしてください",
-      "configure_memory_first": "最初にメモリ設定を構成してください",
-      "global_memory_disabled_title": "グローバルメモリが無効です",
-      "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
-      "not_configured_title": "メモリが設定されていません",
-      "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
-      "go_to_memory_page": "メモリページに移動",
-      "settings": "設定",
-      "statistics": "統計",
-      "search": "検索",
-      "actions": "アクション",
-      "user_management": "ユーザー管理",
-      "initial_memory_content": "ようこそ！これはあなたの最初の記憶です。",
-      "loading": "思い出を読み込み中...",
-      "settings_title": "メモリ設定",
-      "llm_model": "LLMモデル",
-      "please_select_llm_model": "LLMモデルを選択してください",
-      "select_llm_model_placeholder": "LLMモデルを選択",
-      "embedding_model": "埋め込みモデル",
-      "please_select_embedding_model": "埋め込みモデルを選択してください",
-      "select_embedding_model_placeholder": "埋め込みモデルを選択",
-      "embedding_dimensions": "埋め込み次元",
-      "stored_memories": "保存された記憶"
     }
   }
 }

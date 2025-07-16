@@ -3,7 +3,7 @@ Object.defineProperty(exports, '__esModule', { value: true })
 var fs = require('fs')
 var path = require('path')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
-var baseLocale = 'en-us'
+var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
 var baseFilePath = path.join(translationsDir, baseFileName)
 /**
@@ -48,12 +48,36 @@ function syncRecursively(target, template) {
   }
   return isUpdated
 }
+/**
+ * 对对象的键按照字典序进行排序（支持嵌套对象）
+ * @param obj 需要排序的对象
+ */
+function sortObjectByKeys(obj) {
+  var sortedKeys = Object.keys(obj).sort(function (a, b) {
+    return a.localeCompare(b)
+  })
+  var sortedObj = {}
+  for (var _i = 0, sortedKeys_1 = sortedKeys; _i < sortedKeys_1.length; _i++) {
+    var key = sortedKeys_1[_i]
+    var value = obj[key]
+    // 如果值是对象，递归排序
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      sortObjectByKeys(value)
+    }
+    sortedObj[key] = value
+  }
+  // 清空原对象并用排序后的键值填充
+  for (var key_ in obj) {
+    delete obj[key_]
+  }
+  Object.assign(obj, sortedObj)
+}
 function syncTranslations() {
   if (!fs.existsSync(baseFilePath)) {
     console.error(
       '\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(
         baseFileName,
-        ' \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8DEF\u5F84\u6216\u6587\u4EF6\u540D\u3002'
+        ' \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8DEF\u5F84\u6216\u6587\u4EF6\u540D'
       )
     )
     return
@@ -66,9 +90,14 @@ function syncTranslations() {
     console.error('\u89E3\u6790 '.concat(baseFileName, ' \u51FA\u9519:'), error)
     return
   }
+  // 先对模板排序
+  sortObjectByKeys(baseJson)
+  fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
+  console.log('\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(baseFileName, ' \u5DF2\u6309\u952E\u6392\u5E8F'))
   var files = fs.readdirSync(translationsDir).filter(function (file) {
     return file.endsWith('.json') && file !== baseFileName
   })
+  // 同步键
   for (var _i = 0, files_1 = files; _i < files_1.length; _i++) {
     var file = files_1[_i]
     var filePath = path.join(translationsDir, file)
@@ -89,15 +118,14 @@ function syncTranslations() {
     var isUpdated = syncRecursively(targetJson, baseJson)
     if (isUpdated) {
       try {
-        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2), 'utf-8')
-        console.log(
-          '\u6587\u4EF6 '.concat(file, ' \u5DF2\u66F4\u65B0\u540C\u6B65\u4E3B\u6A21\u677F\u7684\u5185\u5BB9\u3002')
-        )
+        sortObjectByKeys(targetJson)
+        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
+        console.log('\u6587\u4EF6 '.concat(file, ' \u5DF2\u66F4\u65B0\u540C\u6B65\u4E3B\u6A21\u677F\u7684\u5185\u5BB9'))
       } catch (error) {
         console.error('\u5199\u5165 '.concat(file, ' \u51FA\u9519:'), error)
       }
     } else {
-      console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0\u3002'))
+      console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0'))
     }
   }
 }
