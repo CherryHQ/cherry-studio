@@ -1,4 +1,4 @@
-import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -9,12 +9,13 @@ import { debounce } from 'lodash'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
-interface CodePreviewProps {
-  children: string
+import { BasicPreviewProps } from './types'
+
+interface CodePreviewProps extends BasicPreviewProps {
   language: string
-  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 const MAX_COLLAPSE_HEIGHT = 350
@@ -150,7 +151,8 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
           {
             '--gutter-width': `${gutterDigits}ch`,
             fontSize: `${fontSize - 1}px`,
-            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined
+            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined,
+            overflowY: shouldCollapse ? 'auto' : 'hidden'
           } as React.CSSProperties
         }>
         <div
@@ -162,19 +164,11 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
           }}>
           <div
             style={{
-              /*
-               * FIXME: @tanstack/react-virtual 使用绝对定位，但是会导致
-               * 有气泡样式 `self-end` 并且气泡中只有代码块时整个代码块收缩
-               * 到最小宽度（目前应该是工具栏的宽度）。改为相对定位可以保证宽
-               * 度足够，目前没有发现其他副作用。
-               * 如果发现破坏虚拟列表功能，或者将来有更好的解决方案，再调整。
-               */
-              position: 'relative',
+              position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
-              willChange: 'transform'
+              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
             }}>
             {virtualizer.getVirtualItems().map((virtualItem) => (
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
@@ -195,9 +189,49 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
 CodePreview.displayName = 'CodePreview'
 
+/**
+ * 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
+ */
+function completeLineTokens(themedTokens: ThemedToken[], rawLine: string): ThemedToken[] {
+  // 如果出现空行，补一个空格保证行高
+  if (rawLine.length === 0) {
+    return [
+      {
+        content: ' ',
+        offset: 0,
+        color: 'inherit',
+        bgColor: 'inherit',
+        htmlStyle: {
+          opacity: '0.35'
+        }
+      }
+    ]
+  }
+
+  const themedContent = themedTokens.map((token) => token.content).join('')
+  const extraContent = rawLine.slice(themedContent.length)
+
+  // 已有内容已经全部高亮，直接返回
+  if (!extraContent) return themedTokens
+
+  // 补全剩余内容
+  return [
+    ...themedTokens,
+    {
+      content: extraContent,
+      offset: themedContent.length,
+      color: 'inherit',
+      bgColor: 'inherit',
+      htmlStyle: {
+        opacity: '0.35'
+      }
+    }
+  ]
+}
+
 interface VirtualizedRowData {
   rawLine: string
-  tokenLine?: any[]
+  tokenLine?: ThemedToken[]
   showLineNumbers: boolean
 }
 
@@ -210,17 +244,11 @@ const VirtualizedRow = memo(
       <div className="line">
         {showLineNumbers && <span className="line-number">{index + 1}</span>}
         <span className="line-content">
-          {tokenLine ? (
-            // 渲染高亮后的内容
-            tokenLine.map((token, tokenIndex) => (
-              <span key={tokenIndex} style={getReactStyleFromToken(token)}>
-                {token.content}
-              </span>
-            ))
-          ) : (
-            // 渲染原始内容
-            <span className="line-content-raw">{rawLine || ' '}</span>
-          )}
+          {completeLineTokens(tokenLine ?? [], rawLine).map((token, tokenIndex) => (
+            <span key={tokenIndex} style={getReactStyleFromToken(token)}>
+              {token.content}
+            </span>
+          ))}
         </span>
       </div>
     )
@@ -234,7 +262,7 @@ const ScrollContainer = styled.div<{
   $lineHeight?: number
 }>`
   display: block;
-  overflow: auto;
+  overflow-x: auto;
   position: relative;
   border-radius: inherit;
   padding: 0.5em 1em;
@@ -263,10 +291,6 @@ const ScrollContainer = styled.div<{
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
       }
-    }
-
-    .line-content-raw {
-      opacity: 0.35;
     }
   }
 `

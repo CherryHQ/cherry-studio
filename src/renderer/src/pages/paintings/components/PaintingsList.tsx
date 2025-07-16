@@ -1,5 +1,5 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import FileManager from '@renderer/services/FileManager'
@@ -38,7 +38,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
           <PlusOutlined />
         </NewPaintingButton>
       )}
-      <DragableList
+      <DraggableList
         list={paintings}
         onUpdate={(value) => updatePaintings(namespace, value)}
         onDragStart={() => setDragging(true)}
@@ -61,7 +61,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
             </DeleteButton>
           </CanvasWrapper>
         )}
-      </DragableList>
+      </DraggableList>
     </Container>
   )
 }

@@ -17,11 +17,13 @@ import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
+import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import FileStorage from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import MemoryService from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -46,6 +48,8 @@ const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
+const memoryService = MemoryService.getInstance()
+const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -399,6 +403,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
+  ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath)
   ipcMain.handle(IpcChannel.File_BinaryFile, fileManager.binaryFile)
 
   // file service
@@ -453,6 +458,38 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank)
   ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota)
 
+  // memory
+  ipcMain.handle(IpcChannel.Memory_Add, async (_, messages, config) => {
+    return await memoryService.add(messages, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Search, async (_, query, config) => {
+    return await memoryService.search(query, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_List, async (_, config) => {
+    return await memoryService.list(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Delete, async (_, id) => {
+    return await memoryService.delete(id)
+  })
+  ipcMain.handle(IpcChannel.Memory_Update, async (_, id, memory, metadata) => {
+    return await memoryService.update(id, memory, metadata)
+  })
+  ipcMain.handle(IpcChannel.Memory_Get, async (_, memoryId) => {
+    return await memoryService.get(memoryId)
+  })
+  ipcMain.handle(IpcChannel.Memory_SetConfig, async (_, config) => {
+    memoryService.setConfig(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_DeleteUser, async (_, userId) => {
+    return await memoryService.deleteUser(userId)
+  })
+  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, async (_, userId) => {
+    return await memoryService.deleteAllMemoriesForUser(userId)
+  })
+  ipcMain.handle(IpcChannel.Memory_GetUsersList, async () => {
+    return await memoryService.getUsersList()
+  })
+
   // window
   ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
     mainWindow?.setMinimumSize(width, height)
@@ -502,6 +539,29 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
+  ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
+  ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
+    mainWindow.webContents.send('mcp-progress', progress)
+  })
+
+  // DXT upload handler
+  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+    try {
+      // Create a temporary file with the uploaded content
+      const tempPath = await fileManager.createTempFile(event, fileName)
+      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
+
+      // Process DXT file using the temporary path
+      return await dxtService.uploadDxt(event, tempPath)
+    } catch (error) {
+      log.error('[IPC] DXT upload error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
+      }
+    }
+  })
 
   // Register Python execution handler
   ipcMain.handle(

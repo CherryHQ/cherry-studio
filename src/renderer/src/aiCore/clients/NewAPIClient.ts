@@ -106,7 +106,7 @@ export class NewAPIClient extends BaseApiClient {
       return client
     }
 
-    if (model.endpoint_type === 'openai') {
+    if (model.endpoint_type === 'openai' || model.endpoint_type === 'image-generation') {
       const client = this.clients.get('openai')
       if (!client || !this.isValidClient(client)) {
         throw new Error('Failed to get openai client')

@@ -136,7 +136,6 @@ function extractAndAccumulateUsageMetrics(ctx: CompletionsContext, chunk: Generi
       Logger.debug(`[${MIDDLEWARE_NAME}] First token timestamp: ${ctx._internal.customState.firstTokenTimestamp}`)
     }
     if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
-      Logger.debug(`[${MIDDLEWARE_NAME}] LLM_RESPONSE_COMPLETE chunk received:`, ctx._internal)
       // 从LLM_RESPONSE_COMPLETE chunk中提取usage数据
       if (chunk.response?.usage) {
         accumulateUsage(ctx._internal.observer.usage, chunk.response.usage)

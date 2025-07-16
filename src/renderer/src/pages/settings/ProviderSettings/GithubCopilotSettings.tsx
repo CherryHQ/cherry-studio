@@ -1,12 +1,12 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Button, Input, message, Popconfirm, Slider, Space, Tooltip, Typography } from 'antd'
+import { Alert, Button, Input, Slider, Steps, Tooltip, Typography } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingTitle } from '..'
+import { SettingRow, SettingSubtitle } from '..'
 
 interface GithubCopilotSettingsProps {
   providerId: string
@@ -21,27 +21,29 @@ enum AuthStatus {
 const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
-  const { username, avatar, defaultHeaders, updateState, updateDefaultHeaders } = useCopilot()
+  const { username, avatar, defaultHeaders, updateState } = useCopilot()
   // 状态管理
   const [authStatus, setAuthStatus] = useState<AuthStatus>(AuthStatus.NOT_STARTED)
   const [deviceCode, setDeviceCode] = useState<string>('')
   const [userCode, setUserCode] = useState<string>('')
   const [verificationUri, setVerificationUri] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
-  const [showHeadersForm, setShowHeadersForm] = useState<boolean>(false)
-  const [headerText, setHeaderText] = useState<string>(JSON.stringify(defaultHeaders || {}, null, 2))
   const [verificationPageOpened, setVerificationPageOpened] = useState<boolean>(false)
+  const [currentStep, setCurrentStep] = useState<number>(0)
 
   // 初始化及同步状态
   useEffect(() => {
     if (provider.isAuthed) {
       setAuthStatus(AuthStatus.AUTHENTICATED)
+      setCurrentStep(3)
     } else {
       setAuthStatus(AuthStatus.NOT_STARTED)
+      setCurrentStep(0)
       // 重置其他状态
       setDeviceCode('')
       setUserCode('')
       setVerificationUri('')
+      setVerificationPageOpened(false)
     }
   }, [provider])
 
@@ -49,15 +51,27 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const handleGetDeviceCode = useCallback(async () => {
     try {
       setLoading(true)
+      setCurrentStep(1)
       const { device_code, user_code, verification_uri } = await window.api.copilot.getAuthMessage(defaultHeaders)
-
+      console.log('device_code', device_code)
+      console.log('user_code', user_code)
+      console.log('verification_uri', verification_uri)
       setDeviceCode(device_code)
       setUserCode(user_code)
       setVerificationUri(verification_uri)
       setAuthStatus(AuthStatus.CODE_GENERATED)
+
+      // 自动复制授权码到剪贴板
+      try {
+        await navigator.clipboard.writeText(user_code)
+        window.message.success(t('settings.provider.copilot.code_copied'))
+      } catch (error) {
+        console.error('Failed to copy to clipboard:', error)
+      }
     } catch (error) {
       console.error('Failed to get device code:', error)
-      message.error(t('settings.provider.copilot.code_failed'))
+      window.message.error(t('settings.provider.copilot.code_failed'))
+      setCurrentStep(0)
     } finally {
       setLoading(false)
     }
@@ -67,6 +81,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const handleGetToken = useCallback(async () => {
     try {
       setLoading(true)
+      setCurrentStep(3)
       const { access_token } = await window.api.copilot.getCopilotToken(deviceCode, defaultHeaders)
 
       await window.api.copilot.saveCopilotToken(access_token)
@@ -77,11 +92,12 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         setAuthStatus(AuthStatus.AUTHENTICATED)
         updateState({ username: login, avatar: avatar })
         updateProvider({ ...provider, apiKey: token, isAuthed: true })
-        message.success(t('settings.provider.copilot.auth_success'))
+        window.message.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
       console.error('Failed to get token:', error)
-      message.error(t('settings.provider.copilot.auth_failed'))
+      window.message.error(t('settings.provider.copilot.auth_failed'))
+      setCurrentStep(2)
     } finally {
       setLoading(false)
     }
@@ -103,11 +119,13 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       setDeviceCode('')
       setUserCode('')
       setVerificationUri('')
+      setVerificationPageOpened(false)
+      setCurrentStep(0)
 
-      message.success(t('settings.provider.copilot.logout_success'))
+      window.message.success(t('settings.provider.copilot.logout_success'))
     } catch (error) {
       console.error('Failed to logout:', error)
-      message.error(t('settings.provider.copilot.logout_failed'))
+      window.message.error(t('settings.provider.copilot.logout_failed'))
       // 如果登出失败，重置登出状态
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
     } finally {
@@ -116,9 +134,14 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   }, [t, updateProvider, provider])
 
   // 复制用户代码
-  const handleCopyUserCode = useCallback(() => {
-    navigator.clipboard.writeText(userCode)
-    message.success(t('common.copied'))
+  const handleCopyUserCode = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(userCode)
+      window.message.success(t('common.copied'))
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error)
+      window.message.error(t('common.copy_failed'))
+    }
   }, [userCode, t])
 
   // 打开验证页面
@@ -126,27 +149,52 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     if (verificationUri) {
       window.open(verificationUri, '_blank')
       setVerificationPageOpened(true)
+      setCurrentStep(2)
     }
   }, [verificationUri])
 
-  // 处理更新请求头
-  const handleUpdateHeaders = useCallback(() => {
-    try {
-      // 处理headerText可能为空的情况
-      const headers = headerText.trim() ? JSON.parse(headerText) : {}
-      updateDefaultHeaders(headers)
-      message.success(t('message.save.success.title'))
-    } catch (error) {
-      message.error(t('settings.provider.copilot.invalid_json'))
+  // 步骤配置
+  const getSteps = () => [
+    {
+      title: t('settings.provider.copilot.step_get_code'),
+      description: t('settings.provider.copilot.step_get_code_desc'),
+      status: (currentStep > 0 ? 'finish' : currentStep === 0 ? 'process' : 'wait') as
+        | 'error'
+        | 'finish'
+        | 'process'
+        | 'wait'
+    },
+    {
+      title: t('settings.provider.copilot.step_copy_code'),
+      description: t('settings.provider.copilot.step_copy_code_desc'),
+      status: (currentStep > 1 ? 'finish' : currentStep === 1 ? 'process' : 'wait') as
+        | 'error'
+        | 'finish'
+        | 'process'
+        | 'wait'
+    },
+    {
+      title: t('settings.provider.copilot.step_authorize'),
+      description: t('settings.provider.copilot.step_authorize_desc'),
+      status: (currentStep > 2 ? 'finish' : currentStep === 2 ? 'process' : 'wait') as
+        | 'error'
+        | 'finish'
+        | 'process'
+        | 'wait'
+    },
+    {
+      title: t('settings.provider.copilot.step_connect'),
+      description: t('settings.provider.copilot.step_connect_desc'),
+      status: (currentStep >= 3 ? 'finish' : 'wait') as 'error' | 'finish' | 'process' | 'wait'
     }
-  }, [headerText, updateDefaultHeaders, t])
+  ]
 
   // 根据认证状态渲染不同的UI
   const renderAuthContent = () => {
     switch (authStatus) {
       case AuthStatus.AUTHENTICATED:
         return (
-          <>
+          <AuthSuccessContainer>
             <Alert
               type="success"
               message={
@@ -170,119 +218,213 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               icon={<CheckCircleOutlined />}
               showIcon
             />
-          </>
+          </AuthSuccessContainer>
         )
 
       case AuthStatus.CODE_GENERATED:
         return (
-          <>
-            <Alert
-              style={{ marginTop: 12, marginBottom: 12 }}
-              type="info"
-              message={t('settings.provider.copilot.code_generated_title')}
-              description={
-                <>
-                  <p>{t('settings.provider.copilot.code_generated_desc')}</p>
-                  <Typography.Link onClick={handleOpenVerificationPage}>{verificationUri}</Typography.Link>
-                </>
-              }
-              showIcon
-            />
-            <SettingRow>
-              <Input value={userCode} readOnly />
-              <Button icon={<CopyOutlined />} onClick={handleCopyUserCode}>
-                {t('common.copy')}
-              </Button>
-            </SettingRow>
-            <SettingRow>
-              <Tooltip title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
-                <Button type="primary" loading={loading} disabled={!verificationPageOpened} onClick={handleGetToken}>
-                  {t('settings.provider.copilot.connect')}
-                </Button>
-              </Tooltip>
-            </SettingRow>
-          </>
+          <AuthFlowContainer>
+            <StepsContainer>
+              <Steps current={currentStep} size="small" items={getSteps()} direction="vertical" />
+            </StepsContainer>
+
+            <AuthActionsContainer>
+              {/* 步骤2: 复制授权码 */}
+              {currentStep >= 1 && (
+                <StepCard>
+                  <StepHeader>
+                    <StepNumber completed={currentStep > 1}>2</StepNumber>
+                    <div>
+                      <StepTitle>{t('settings.provider.copilot.step_copy_code')}</StepTitle>
+                      <StepDesc>{t('settings.provider.copilot.step_copy_code_detail')}</StepDesc>
+                    </div>
+                  </StepHeader>
+                  <SettingRow>
+                    <Input
+                      value={userCode}
+                      readOnly
+                      style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold', marginRight: 8 }}
+                    />
+                    <Button icon={<CopyOutlined />} onClick={handleCopyUserCode}>
+                      {t('common.copy')}
+                    </Button>
+                  </SettingRow>
+                </StepCard>
+              )}
+
+              {/* 步骤3: 打开授权页面 */}
+              {currentStep >= 1 && (
+                <StepCard>
+                  <StepHeader>
+                    <StepNumber completed={currentStep > 2}>3</StepNumber>
+                    <div>
+                      <StepTitle>{t('settings.provider.copilot.step_authorize')}</StepTitle>
+                      <StepDesc>{t('settings.provider.copilot.step_authorize_detail')}</StepDesc>
+                    </div>
+                  </StepHeader>
+                  <Button type="primary" onClick={handleOpenVerificationPage} style={{ marginBottom: 8 }}>
+                    {t('settings.provider.copilot.open_verification_page')}
+                  </Button>
+                  {verificationUri && (
+                    <Typography.Text type="secondary" style={{ fontSize: '12px', marginLeft: 8 }}>
+                      {verificationUri}
+                    </Typography.Text>
+                  )}
+                </StepCard>
+              )}
+
+              {/* 步骤4: 完成连接 */}
+              {currentStep >= 2 && (
+                <StepCard>
+                  <StepHeader>
+                    <StepNumber completed={currentStep > 3}>4</StepNumber>
+                    <div>
+                      <StepTitle>{t('settings.provider.copilot.step_connect')}</StepTitle>
+                      <StepDesc>{t('settings.provider.copilot.step_connect_detail')}</StepDesc>
+                    </div>
+                  </StepHeader>
+                  <Tooltip
+                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                    <Button
+                      type="primary"
+                      loading={loading}
+                      disabled={!verificationPageOpened}
+                      onClick={handleGetToken}>
+                      {t('settings.provider.copilot.connect')}
+                    </Button>
+                  </Tooltip>
+                </StepCard>
+              )}
+            </AuthActionsContainer>
+          </AuthFlowContainer>
         )
 
       default: // AuthStatus.NOT_STARTED
         return (
-          <>
+          <StartContainer>
             <Alert
-              style={{ marginTop: 12, marginBottom: 12 }}
-              type="warning"
-              message={t('settings.provider.copilot.tooltip')}
-              description={t('settings.provider.copilot.description')}
+              type="info"
+              message={t('settings.provider.copilot.description')}
+              description={t('settings.provider.copilot.description_detail')}
+              action={
+                <Button type="primary" loading={loading} onClick={handleGetDeviceCode}>
+                  {t('settings.provider.copilot.start_auth')}
+                </Button>
+              }
               showIcon
+              icon={<ExclamationCircleOutlined />}
             />
-
-            <Popconfirm
-              title={t('settings.provider.copilot.confirm_title')}
-              description={t('settings.provider.copilot.confirm_login')}
-              okText={t('common.confirm')}
-              cancelText={t('common.cancel')}
-              onConfirm={handleGetDeviceCode}
-              icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-              <Button type="primary" loading={loading}>
-                {t('settings.provider.copilot.login')}
-              </Button>
-            </Popconfirm>
-          </>
+          </StartContainer>
         )
     }
   }
 
   return (
     <Container>
-      <Space direction="vertical" style={{ width: '100%' }}>
-        {renderAuthContent()}
-        <SettingDivider />
-        <SettingGroup>
-          <SettingTitle> {t('settings.provider.copilot.model_setting')}</SettingTitle>
-          <SettingDivider />
-          <SettingRow>
-            {t('settings.provider.copilot.rate_limit')}
-            <Slider
-              defaultValue={provider.rateLimit ?? 10}
-              style={{ width: 200 }}
-              min={1}
-              max={60}
-              step={1}
-              marks={{ 1: '1', 10: t('common.default'), 60: '60' }}
-              onChangeComplete={(value) => updateProvider({ ...provider, rateLimit: value })}
-            />
-          </SettingRow>
-          <SettingRow>
-            {t('settings.provider.copilot.custom_headers')}
-            <Button onClick={() => setShowHeadersForm((prev) => !prev)} style={{ width: 200 }}>
-              {t('settings.provider.copilot.expand')}
-            </Button>
-          </SettingRow>
-          {showHeadersForm && (
-            <SettingRow>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
-                <Input.TextArea
-                  rows={5}
-                  autoSize={{ minRows: 2, maxRows: 8 }}
-                  value={headerText}
-                  onChange={(e) => setHeaderText(e.target.value)}
-                  placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
-                />
-                <Space>
-                  <Button onClick={handleUpdateHeaders} type="primary">
-                    {t('common.save')}
-                  </Button>
-                  <Button onClick={() => setHeaderText(JSON.stringify({}, null, 2))}>{t('common.reset')}</Button>
-                </Space>
-              </Space>
-            </SettingRow>
-          )}
-        </SettingGroup>
-      </Space>
+      {renderAuthContent()}
+      {authStatus === AuthStatus.AUTHENTICATED && (
+        <SettingRow style={{ marginTop: 20 }}>
+          <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.copilot.rate_limit')}</SettingSubtitle>
+          <Slider
+            defaultValue={provider.rateLimit ?? 10}
+            style={{ width: 200 }}
+            min={1}
+            max={60}
+            step={1}
+            marks={{ 1: '1', 10: t('common.default'), 60: '60' }}
+            onChangeComplete={(value) => updateProvider({ ...provider, rateLimit: value })}
+          />
+        </SettingRow>
+      )}
     </Container>
   )
 }
 
-const Container = styled.div``
+const Container = styled.div`
+  padding-top: 15px;
+`
+
+const StartContainer = styled.div`
+  margin-bottom: 20px;
+`
+
+const AuthSuccessContainer = styled.div`
+  margin-bottom: 20px;
+`
+
+const AuthFlowContainer = styled.div`
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 16px;
+  }
+`
+
+const StepsContainer = styled.div`
+  flex: 1;
+  min-width: 200px;
+
+  .ant-steps-item-description {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+`
+
+const AuthActionsContainer = styled.div`
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`
+
+const StepCard = styled.div`
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background-soft);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-border-soft);
+  }
+`
+
+const StepHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+`
+
+const StepNumber = styled.div<{ completed?: boolean }>`
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  background: ${(props) => (props.completed ? 'var(--color-status-success)' : 'var(--color-primary)')};
+  color: white;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+`
+
+const StepTitle = styled.div`
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-text);
+`
+
+const StepDesc = styled.div`
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+`
 
 export default GithubCopilotSettings

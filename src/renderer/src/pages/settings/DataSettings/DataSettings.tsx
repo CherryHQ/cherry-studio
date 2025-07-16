@@ -595,15 +595,6 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-                <HStack gap="5px">
-                  <Button onClick={reset} danger>
-                    {t('settings.general.reset.button')}
-                  </Button>
-                </HStack>
-              </SettingRow>
-              <SettingDivider />
-              <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
                 <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
               </SettingRow>
@@ -628,17 +619,22 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
                 <PathRow>
-                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</PathText>
+                  <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                    {appInfo?.logsPath}
+                  </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
+                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                    <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                      {t('settings.data.app_logs.button')}
+                    </Button>
+                  </HStack>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
-                  <Button onClick={handleRemoveAllFiles} danger>
-                    {t('settings.data.app_knowledge.button.delete')}
-                  </Button>
+                  <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </HStack>
               </SettingRow>
               <SettingDivider />
@@ -648,8 +644,15 @@ const DataSettings: FC = () => {
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <HStack gap="5px">
-                  <Button onClick={handleClearCache} danger>
-                    {t('settings.data.clear_cache.button')}
+                  <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
+                </HStack>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+                <HStack gap="5px">
+                  <Button onClick={reset} danger>
+                    {t('settings.general.reset.title')}
                   </Button>
                 </HStack>
               </SettingRow>
@@ -725,6 +728,7 @@ const PathText = styled(Typography.Text)`
   vertical-align: middle;
   text-align: right;
   margin-left: 5px;
+  cursor: pointer;
 `
 
 const PathRow = styled(HStack)`

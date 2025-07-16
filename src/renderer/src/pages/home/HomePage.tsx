@@ -3,8 +3,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Assistant } from '@renderer/types'
-import { FC, useEffect, useState } from 'react'
+import { Assistant, Topic } from '@renderer/types'
+import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -21,11 +21,30 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state
 
-  const [activeAssistant, setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
-  const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant, state?.topic)
+  const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
+  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
 
   _activeAssistant = activeAssistant
+
+  const setActiveAssistant = useCallback(
+    (newAssistant: Assistant) => {
+      startTransition(() => {
+        _setActiveAssistant(newAssistant)
+        // 同步更新 active topic，避免不必要的重新渲染
+        const newTopic = newAssistant.topics[0]
+        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
+      })
+    },
+    [_setActiveTopic]
+  )
+
+  const setActiveTopic = useCallback(
+    (newTopic: Topic) => {
+      startTransition(() => _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic)))
+    },
+    [_setActiveTopic]
+  )
 
   useEffect(() => {
     NavigationService.setNavigate(navigate)

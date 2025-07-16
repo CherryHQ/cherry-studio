@@ -23,7 +23,7 @@ interface Props<T> {
   droppableProps?: Partial<DroppableProps>
 }
 
-const DragableList: FC<Props<any>> = ({
+const DraggableList: FC<Props<any>> = ({
   children,
   list,
   style,
@@ -78,4 +78,4 @@ const DragableList: FC<Props<any>> = ({
   )
 }
 
-export default DragableList
+export default DraggableList

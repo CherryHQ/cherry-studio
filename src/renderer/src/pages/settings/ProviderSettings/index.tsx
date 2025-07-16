@@ -259,7 +259,8 @@ const ProvidersList: FC = () => {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       window.navigate('/settings/provider')
     }
-  }, [addProvider, providers, searchParams, t, updateProvider])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const onDragEnd = (result: DropResult) => {
     setDragging(false)

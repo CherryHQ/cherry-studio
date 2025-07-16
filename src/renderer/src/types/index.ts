@@ -23,6 +23,8 @@ export type Assistant = {
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
+  // enableUrlContext 是 Gemini 的特有功能
+  enableUrlContext?: boolean
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   attachedDocument?: FileMetadata & { disabled?: boolean }
@@ -30,6 +32,7 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -187,7 +190,7 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -218,7 +221,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -327,6 +330,8 @@ export interface PaintingsState {
   upscale: Partial<ScalePainting> & PaintingParams[]
   DMXAPIPaintings: DmxapiPainting[]
   tokenFluxPaintings: TokenFluxPainting[]
+  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  openai_image_edit: Partial<EditPainting> & PaintingParams[]
 }
 
 export type MinAppType = {
@@ -360,6 +365,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {
@@ -386,7 +392,7 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
 
 export type KnowledgeItem = {
   id: string
@@ -428,20 +434,21 @@ export interface KnowledgeBase {
   }
 }
 
-export type KnowledgeBaseParams = {
-  id: string
+export type ApiClient = {
   model: string
   provider: string
-  dimensions?: number
   apiKey: string
   apiVersion?: string
   baseURL: string
+}
+
+export type KnowledgeBaseParams = {
+  id: string
+  dimensions?: number
   chunkSize?: number
   chunkOverlap?: number
-  rerankApiKey?: string
-  rerankBaseURL?: string
-  rerankModel?: string
-  rerankModelProvider?: string
+  embedApiClient: ApiClient
+  rerankApiClient?: ApiClient
   documentCount?: number
   // preprocessing?: boolean
   preprocessOrOcrProvider?: {
@@ -534,6 +541,7 @@ export type ExternalToolResult = {
   toolUse?: MCPToolResponse[]
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
+  memories?: MemoryItem[]
 }
 
 export type WebSearchProvider = {
@@ -631,6 +639,7 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
@@ -639,6 +648,8 @@ export interface MCPServer {
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
+  dxtVersion?: string // Version of the DXT package
+  dxtPath?: string // Path where the DXT package was extracted
 }
 
 export interface MCPToolInputSchema {
@@ -692,11 +703,13 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
+export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+
 interface BaseToolResponse {
   id: string // unique id
   tool: MCPTool
   arguments: Record<string, unknown> | undefined
-  status: string // 'invoking' | 'done'
+  status: MCPToolResponseStatus
   response?: any
 }
 
@@ -794,6 +807,84 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+
+// Memory Service Types
+// ========================================================================
+export interface MemoryConfig {
+  /**
+   * @deprecated use embedderApiClient instead
+   */
+  embedderModel?: Model
+  embedderDimensions?: number
+  /**
+   * @deprecated use llmApiClient instead
+   */
+  llmModel?: Model
+  embedderApiClient?: ApiClient
+  llmApiClient?: ApiClient
+  customFactExtractionPrompt?: string
+  customUpdateMemoryPrompt?: string
+  /** Indicates whether embedding dimensions are automatically detected */
+  isAutoDimensions?: boolean
+}
+
+export interface MemoryItem {
+  id: string
+  memory: string
+  hash?: string
+  createdAt?: string
+  updatedAt?: string
+  score?: number
+  metadata?: Record<string, any>
+}
+
+export interface MemorySearchResult {
+  results: MemoryItem[]
+  relations?: any[]
+}
+
+export interface MemoryEntity {
+  userId?: string
+  agentId?: string
+  runId?: string
+}
+
+export interface MemorySearchFilters {
+  userId?: string
+  agentId?: string
+  runId?: string
+  [key: string]: any
+}
+
+export interface AddMemoryOptions extends MemoryEntity {
+  metadata?: Record<string, any>
+  filters?: MemorySearchFilters
+  infer?: boolean
+}
+
+export interface MemorySearchOptions extends MemoryEntity {
+  limit?: number
+  filters?: MemorySearchFilters
+}
+
+export interface MemoryHistoryItem {
+  id: number
+  memoryId: string
+  previousValue?: string
+  newValue: string
+  action: 'ADD' | 'UPDATE' | 'DELETE'
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
+
+export interface MemoryListOptions extends MemoryEntity {
+  limit?: number
+  offset?: number
+}
+
+export interface MemoryDeleteAllOptions extends MemoryEntity {}
+// ========================================================================
 
 export interface ReaderSettings {
   position: 'left' | 'right'

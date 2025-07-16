@@ -11,7 +11,7 @@ interface MessageTokensProps {
   isLastMessage?: boolean
 }
 
-const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
+const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   const { showTokens } = useSettings()
   // const { generating } = useRuntime()
   const locateMessage = () => {
@@ -106,4 +106,4 @@ const MessageMetadata = styled.div`
   }
 `
 
-export default MessgeTokens
+export default MessageTokens

@@ -1,5 +1,5 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
-import { restoreFromLocalBackup } from '@renderer/services/BackupService'
+import { restoreFromLocal } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
 import { Button, message, Modal, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -147,7 +147,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       onOk: async () => {
         setRestoring(true)
         try {
-          await (restoreMethod || restoreFromLocalBackup)(fileName)
+          await (restoreMethod || restoreFromLocal)(fileName)
           message.success(t('settings.data.local.backup.manager.restore.success'))
           onClose() // Close the modal
         } catch (error: any) {

@@ -231,7 +231,11 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
+  public readFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    id: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
     const fileExtension = path.extname(filePath)
@@ -259,8 +263,11 @@ class FileStorage {
     }
 
     try {
-      const result = readTextFileWithAutoEncoding(filePath)
-      return result
+      if (detectEncoding) {
+        return readTextFileWithAutoEncoding(filePath)
+      } else {
+        return fs.readFileSync(filePath, 'utf-8')
+      }
     } catch (error) {
       logger.error(error)
       return 'failed to read file'
@@ -422,6 +429,19 @@ class FileStorage {
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+  }
+
+  /**
+   * 通过相对路径打开文件，跨设备时使用
+   * @param file
+   */
+  public openFileWithRelativePath = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<void> => {
+    const filePath = path.join(this.storageDir, file.name)
+    if (fs.existsSync(filePath)) {
+      shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+    } else {
+      logger.warn('[IPC - Warning] File does not exist:', filePath)
+    }
   }
 
   public save = async (

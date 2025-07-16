@@ -145,7 +145,8 @@ export const useKnowledge = (baseId: string) => {
       }
     }
     if (item.type === 'file' && typeof item.content === 'object') {
-      await window.api.file.deleteDir(item.content.id)
+      // name: eg. text.pdf
+      await window.api.file.delete(item.content.name)
     }
   }
   // 刷新项目
