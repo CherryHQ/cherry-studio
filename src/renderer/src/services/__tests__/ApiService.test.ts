@@ -1,5 +1,11 @@
 import { ToolUseBlock } from '@anthropic-ai/sdk/resources'
-import { WebSearchResultBlock, WebSearchToolResultError } from '@anthropic-ai/sdk/resources/messages'
+import {
+  TextBlock,
+  TextDelta,
+  Usage,
+  WebSearchResultBlock,
+  WebSearchToolResultError
+} from '@anthropic-ai/sdk/resources/messages'
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
@@ -618,7 +624,7 @@ const geminiToolUseChunks: GeminiSdkRawChunk[] = [
   } as GeminiSdkRawChunk
 ]
 
-const anthropicTextChunks: AnthropicSdkRawChunk[] = [
+const anthropicTextNonStreamChunks: AnthropicSdkRawChunk[] = [
   {
     id: 'msg_bdrk_01HctMh5mCpuFRq49KFwTDU6',
     type: 'message',
@@ -636,6 +642,66 @@ const anthropicTextChunks: AnthropicSdkRawChunk[] = [
       output_tokens: 21
     }
   } as AnthropicSdkRawChunk
+]
+
+const anthropicTextStreamChunks: AnthropicSdkRawChunk[] = [
+  {
+    type: 'message_start',
+    message: {
+      id: 'msg_bdrk_013fneHZaGWgKFBzesGM4wu5',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-3-5-sonnet-20241022',
+      content: [],
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 2
+      } as Usage
+    }
+  },
+  {
+    type: 'content_block_start',
+    index: 0,
+    content_block: {
+      type: 'text',
+      text: ''
+    } as TextBlock
+  },
+  {
+    type: 'content_block_delta',
+    index: 0,
+    delta: {
+      type: 'text_delta',
+      text: '你好!很高兴见到你。有'
+    } as TextDelta
+  },
+  {
+    type: 'content_block_delta',
+    index: 0,
+    delta: {
+      type: 'text_delta',
+      text: '什么我可以帮助你的吗？'
+    } as TextDelta
+  },
+  {
+    type: 'content_block_stop',
+    index: 0
+  },
+  {
+    type: 'message_delta',
+    delta: {
+      stop_reason: 'end_turn',
+      stop_sequence: null
+    },
+    usage: {
+      output_tokens: 28
+    } as Usage
+  },
+  {
+    type: 'message_stop'
+  }
 ]
 
 // 正确的 async generator 函数
@@ -657,8 +723,14 @@ async function* geminiToolUseChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk>
   }
 }
 
-async function* anthropicTextChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
-  for (const chunk of anthropicTextChunks) {
+async function* anthropicTextNonStreamChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
+  for (const chunk of anthropicTextNonStreamChunks) {
+    yield chunk
+  }
+}
+
+async function* anthropicTextStreamChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
+  for (const chunk of anthropicTextStreamChunks) {
     yield chunk
   }
 }
@@ -782,7 +854,7 @@ const mockGeminiApiClient = {
 } as unknown as GeminiAPIClient
 
 const mockAnthropicApiClient = {
-  createCompletions: vi.fn().mockImplementation(() => anthropicTextChunkGenerator()),
+  createCompletions: vi.fn().mockImplementation(() => anthropicTextNonStreamChunkGenerator()),
   getResponseChunkTransformer: vi.fn().mockImplementation(() => {
     return () => {
       let accumulatedJson = ''
@@ -996,6 +1068,9 @@ const mockAnthropicApiClient = {
   getApiKey: vi.fn(() => 'mock-api-key')
 } as unknown as AnthropicAPIClient
 
+const mockAnthropicApiClientStream = cloneDeep(mockAnthropicApiClient)
+mockAnthropicApiClientStream.createCompletions = vi.fn().mockImplementation(() => anthropicTextStreamChunkGenerator())
+
 const mockGeminiThinkingApiClient = cloneDeep(mockGeminiApiClient)
 mockGeminiThinkingApiClient.createCompletions = vi.fn().mockImplementation(() => geminiThinkingChunkGenerator())
 
@@ -1139,7 +1214,7 @@ describe('ApiService', () => {
     expect(completionChunk.response?.usage?.completion_tokens).toBe(822)
   })
 
-  it('should return a stream of chunks with correct types and content in anthropic', async () => {
+  it('should return a non-stream of chunks with correct types and content in anthropic', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockAnthropicApiClient as unknown as BaseApiClient)
     const AI = new AiProvider(mockProvider)
@@ -1213,6 +1288,79 @@ describe('ApiService', () => {
     // 验证第一个chunk应该是TEXT_START
     const firstChunk = chunks[0]
     expect(firstChunk.type).toBe(ChunkType.TEXT_START)
+  })
+
+  it('should return a stream of chunks with correct types and content in anthropic', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockAnthropicApiClientStream as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+
+        type: 'anthropic',
+        model: {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet'
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      mcpTools: [],
+      maxTokens: 1000,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const expectedChunks: GenericChunk[] = [
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好!很高兴见到你。有'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好!很高兴见到你。有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '你好!很高兴见到你。有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 28,
+            prompt_tokens: 0,
+            total_tokens: 28
+          }
+        }
+      }
+    ]
+
+    expect(chunks).toEqual(expectedChunks)
   })
 
   it('should return a stream of thinking chunks with correct types and content', async () => {
