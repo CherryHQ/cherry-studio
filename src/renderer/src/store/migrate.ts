@@ -1,7 +1,7 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { SYSTEM_MODELS } from '@renderer/config/models'
+import { isFunctionCallingModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -1768,15 +1768,24 @@ const migrateConfig = {
     try {
       const { toolOrder } = state.inputTools
       const urlContextKey = 'url_context'
-      const webSearchIndex = toolOrder.visible.indexOf('web_search')
-      const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
-      if (webSearchIndex !== -1) {
-        toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
-      } else if (knowledgeBaseIndex !== -1) {
-        toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
-      } else {
-        toolOrder.visible.push(urlContextKey)
+      if (!toolOrder.visible.includes(urlContextKey)) {
+        const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
+        if (webSearchIndex !== -1) {
+          toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
+        } else if (knowledgeBaseIndex !== -1) {
+          toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
+        } else {
+          toolOrder.visible.push(urlContextKey)
+        }
       }
+
+      for (const assistant of state.assistants.assistants) {
+        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
+          assistant.settings.toolUseMode = 'function'
+        }
+      }
+
       return state
     } catch (error) {
       return state
