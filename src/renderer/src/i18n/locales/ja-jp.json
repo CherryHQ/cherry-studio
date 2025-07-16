@@ -264,14 +264,6 @@
         "select.content.tip": "{{count}}項目が選択されました。テキストタイプは統合されて1つのノートとして保存されます"
       },
       "settings.code.title": "コード設定",
-      "settings.code_cache_max_size": "キャッシュ上限",
-      "settings.code_cache_max_size.tip": "キャッシュできる文字数の上限（千字符）。ハイライトされたコードの長さは純粋なテキストよりもはるかに長くなります。",
-      "settings.code_cache_threshold": "キャッシュ閾値",
-      "settings.code_cache_threshold.tip": "キャッシュできる最小のコード長（千字符）。キャッシュできる最小のコード長を超えたコードブロックのみがキャッシュされます。",
-      "settings.code_cache_ttl": "キャッシュ期限",
-      "settings.code_cache_ttl.tip": "キャッシュの有効期限（分単位）。",
-      "settings.code_cacheable": "コードブロックキャッシュ",
-      "settings.code_cacheable.tip": "コードブロックのキャッシュは長いコードブロックのレンダリング時間を短縮できますが、メモリ使用量が増加します",
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_editor": {
         "autocompletion": "自動補完",
@@ -1770,6 +1762,13 @@
         "addServer.importFrom.invalid": "無効な入力です。JSON形式を確認してください。",
         "addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
         "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
+        "addServer.importFrom.method": "インポート方法",
+        "addServer.importFrom.dxtFile": "DXTパッケージファイル",
+        "addServer.importFrom.dxtHelp": "MCPサーバーパッケージを含む.dxtファイルを選択",
+        "addServer.importFrom.selectDxtFile": "DXTファイルを選択",
+        "addServer.importFrom.noDxtFile": "DXTファイルを選択してください",
+        "addServer.importFrom.dxtProcessFailed": "DXTファイルの処理に失敗しました",
+        "addServer.importFrom.dxt": "DXTパッケージをインポート",
         "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
         "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
         "addSuccess": "サーバーが正常に追加されました",
@@ -2228,9 +2227,8 @@
           "system": "システムプロキシ",
           "title": "プロキシモード"
         },
-        "title": "プロキシ設定"
+        "address": "プロキシアドレス"
       },
-      "proxy.title": "プロキシアドレス",
       "quickAssistant": {
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",

@@ -265,14 +265,6 @@
         "select.content.tip": "Selected {{count}} items, text types will be merged and saved as one note"
       },
       "settings.code.title": "Code Block Settings",
-      "settings.code_cache_max_size": "Max cache size",
-      "settings.code_cache_max_size.tip": "The maximum number of characters allowed to be cached (thousand characters), calculated according to the highlighted code. The length of the highlighted code is much longer than the pure text.",
-      "settings.code_cache_threshold": "Cache threshold",
-      "settings.code_cache_threshold.tip": "The minimum number of characters allowed to be cached (thousand characters), calculated according to the actual code. Only code blocks exceeding the threshold will be cached.",
-      "settings.code_cache_ttl": "Cache TTL",
-      "settings.code_cache_ttl.tip": "Cache expiration time (minutes)",
-      "settings.code_cacheable": "Code block cache",
-      "settings.code_cacheable.tip": "Caching code blocks can reduce the rendering time of long code blocks, but it will increase memory usage",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_editor": {
         "autocompletion": "Autocompletion",
@@ -2235,9 +2227,8 @@
           "system": "System Proxy",
           "title": "Proxy Mode"
         },
-        "title": "Proxy Settings"
+        "address": "Proxy Address"
       },
-      "proxy.title": "Proxy Address",
       "quickAssistant": {
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",

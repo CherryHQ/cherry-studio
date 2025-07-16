@@ -265,14 +265,6 @@
         "select.content.tip": "已选择 {{count}} 项内容，文本类型将合并保存为一个笔记"
       },
       "settings.code.title": "代码块设置",
-      "settings.code_cache_max_size": "缓存上限",
-      "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多",
-      "settings.code_cache_threshold": "缓存阈值",
-      "settings.code_cache_threshold.tip": "允许缓存的最小代码长度（千字符），超过阈值的代码块才会被缓存",
-      "settings.code_cache_ttl": "缓存期限",
-      "settings.code_cache_ttl.tip": "缓存过期时间（分钟）",
-      "settings.code_cacheable": "代码块缓存",
-      "settings.code_cacheable.tip": "缓存代码块可以减少长代码块的渲染时间，但会增加内存占用",
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_editor": {
         "autocompletion": "自动补全",
@@ -2235,9 +2227,8 @@
           "system": "系统代理",
           "title": "代理模式"
         },
-        "title": "代理设置"
+        "address": "代理地址"
       },
-      "proxy.title": "代理地址",
       "quickAssistant": {
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",

@@ -264,14 +264,6 @@
         "select.content.tip": "已選擇 {{count}} 項內容，文本類型將合併儲存為一個筆記"
       },
       "settings.code.title": "程式碼區塊",
-      "settings.code_cache_max_size": "快取上限",
-      "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多",
-      "settings.code_cache_threshold": "快取門檻",
-      "settings.code_cache_threshold.tip": "允許快取的最小程式碼長度（千字符），超過門檻的程式碼區塊才會被快取",
-      "settings.code_cache_ttl": "快取期限",
-      "settings.code_cache_ttl.tip": "快取的存活時間（分鐘）",
-      "settings.code_cacheable": "程式碼區塊快取",
-      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_editor": {
         "autocompletion": "自動補全",
@@ -1770,6 +1762,13 @@
         "addServer.importFrom.invalid": "無效的輸入，請檢查 JSON 格式",
         "addServer.importFrom.nameExists": "伺服器已存在：{{name}}",
         "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.method": "導入方式",
+        "addServer.importFrom.dxtFile": "DXT 包文件",
+        "addServer.importFrom.dxtHelp": "選擇包含 MCP 服務器的 .dxt 文件",
+        "addServer.importFrom.selectDxtFile": "選擇 DXT 文件",
+        "addServer.importFrom.noDxtFile": "請選擇一個 DXT 文件",
+        "addServer.importFrom.dxtProcessFailed": "處理 DXT 文件失敗",
+        "addServer.importFrom.dxt": "導入 DXT 包",
         "addServer.importFrom.placeholder": "貼上 MCP 伺服器 JSON 設定",
         "addServer.importFrom.tooltip": "請從 MCP Servers 的介紹頁面複製配置 JSON（優先使用\n NPX 或 UVX 配置），並粘貼到輸入框中",
         "addSuccess": "伺服器新增成功",
@@ -2228,9 +2227,8 @@
           "system": "系統代理伺服器",
           "title": "代理伺服器模式"
         },
-        "title": "代理伺服器設定"
+        "address": "代理伺服器位址"
       },
-      "proxy.title": "代理伺服器地址",
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
