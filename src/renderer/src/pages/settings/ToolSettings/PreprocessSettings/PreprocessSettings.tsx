@@ -1,11 +1,12 @@
 import { ExportOutlined } from '@ant-design/icons'
+import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { formatApiKeys } from '@renderer/services/ApiService'
 import { PreprocessProvider } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Divider, Flex, Input, InputNumber, Segmented } from 'antd'
+import { formatApiKeys, hasObjectKey } from '@renderer/utils'
+import { Avatar, Button, Divider, Flex, Input, InputNumber, Segmented, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
+import { List } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -26,7 +27,7 @@ interface Props {
 }
 
 const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
-  const { provider: preprocessProvider, updatePreprocessProvider } = usePreprocessProvider(_provider.id)
+  const { provider: preprocessProvider, updateProvider } = usePreprocessProvider(_provider.id)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(preprocessProvider.apiKey || '')
   const [apiHost, setApiHost] = useState(preprocessProvider.apiHost || '')
@@ -44,8 +45,17 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== preprocessProvider.apiKey) {
-      updatePreprocessProvider({ ...preprocessProvider, apiKey, quota: undefined })
+      updateProvider({ apiKey, quota: undefined })
     }
+  }
+
+  const openApiKeyList = async () => {
+    await ApiKeyListPopup.show({
+      providerId: preprocessProvider.id,
+      providerKind: 'doc-preprocess',
+      title: `${preprocessProvider.name} ${t('settings.provider.api.key.list.title')}`,
+      showHealthCheck: false // FIXME: 目前还没有检查功能
+    })
   }
 
   const onUpdateApiHost = () => {
@@ -54,7 +64,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== preprocessProvider.apiHost) {
-      updatePreprocessProvider({ ...preprocessProvider, apiHost: trimmedHost })
+      updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(preprocessProvider.apiHost || '')
     }
@@ -63,7 +73,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   const onUpdateOptions = (key: string, value: any) => {
     const newOptions = { ...options, [key]: value }
     setOptions(newOptions)
-    updatePreprocessProvider({ ...preprocessProvider, options: newOptions })
+    updateProvider({ options: newOptions })
   }
 
   return (
@@ -83,7 +93,19 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            {t('settings.provider.api_key')}
+            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+            </Tooltip>
+          </SettingSubtitle>
           <Flex gap={8}>
             <Input.Password
               value={apiKey}

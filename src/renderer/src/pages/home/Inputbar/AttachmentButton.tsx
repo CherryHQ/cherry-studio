@@ -54,7 +54,11 @@ const AttachmentButton: FC<Props> = ({
   }))
 
   return (
-    <Tooltip placement="top" title={couldAddImageFile ? t('chat.input.upload') : t('chat.input.upload.document')} arrow>
+    <Tooltip
+      placement="top"
+      title={couldAddImageFile ? t('chat.input.upload') : t('chat.input.upload.document')}
+      mouseLeaveDelay={0}
+      arrow>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
         <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
       </ToolbarButton>

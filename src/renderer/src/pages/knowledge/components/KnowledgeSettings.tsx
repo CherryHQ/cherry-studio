@@ -220,10 +220,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <Slider
               style={{ width: '100%' }}
               min={1}
-              max={30}
+              max={50}
               step={1}
               defaultValue={base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-              marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
+              marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30', 50: '50' }}
               onChange={(value) => setNewBase({ ...newBase, documentCount: value })}
             />
           </SettingsItem>

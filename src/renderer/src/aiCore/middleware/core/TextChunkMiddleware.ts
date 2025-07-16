@@ -1,5 +1,5 @@
 import Logger from '@renderer/config/logger'
-import { ChunkType, TextCompleteChunk, TextDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -38,48 +38,36 @@ export const TextChunkMiddleware: CompletionsMiddleware =
 
         // 用于跨chunk的状态管理
         let accumulatedTextContent = ''
-        let hasTextCompleteEventEnqueue = false
         const enhancedTextStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               if (chunk.type === ChunkType.TEXT_DELTA) {
-                const textChunk = chunk as TextDeltaChunk
-                accumulatedTextContent += textChunk.text
+                accumulatedTextContent += chunk.text
 
                 // 处理 onResponse 回调 - 发送增量文本更新
                 if (params.onResponse) {
                   params.onResponse(accumulatedTextContent, false)
                 }
 
-                // 创建新的chunk，包含处理后的文本
-                controller.enqueue(chunk)
-              } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
-                const textChunk = chunk as TextCompleteChunk
                 controller.enqueue({
-                  ...textChunk,
-                  text: accumulatedTextContent
+                  ...chunk,
+                  text: accumulatedTextContent // 增量更新
                 })
-                if (params.onResponse) {
-                  params.onResponse(accumulatedTextContent, true)
+              } else if (accumulatedTextContent && chunk.type !== ChunkType.TEXT_START) {
+                ctx._internal.customState!.accumulatedText = accumulatedTextContent
+                if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
+                  ctx._internal.toolProcessingState.output = accumulatedTextContent
                 }
-                hasTextCompleteEventEnqueue = true
-                accumulatedTextContent = ''
-              } else if (accumulatedTextContent && !hasTextCompleteEventEnqueue) {
-                if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
-                  const finalText = accumulatedTextContent
-                  ctx._internal.customState!.accumulatedText = finalText
-                  if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
-                    ctx._internal.toolProcessingState.output = finalText
-                  }
 
+                if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
                   // 处理 onResponse 回调 - 发送最终完整文本
                   if (params.onResponse) {
-                    params.onResponse(finalText, true)
+                    params.onResponse(accumulatedTextContent, true)
                   }
 
                   controller.enqueue({
                     type: ChunkType.TEXT_COMPLETE,
-                    text: finalText
+                    text: accumulatedTextContent
                   })
                   controller.enqueue(chunk)
                 } else {
@@ -89,7 +77,6 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   })
                   controller.enqueue(chunk)
                 }
-                hasTextCompleteEventEnqueue = true
                 accumulatedTextContent = ''
               } else {
                 // 其他类型的chunk直接传递

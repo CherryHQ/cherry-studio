@@ -26,7 +26,7 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error', { endOfLine: 'auto' }]
+      'prettier/prettier': ['error']
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules

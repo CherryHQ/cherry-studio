@@ -44,7 +44,7 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
-  --color-list-item: #222;
+  --color-list-item: #252525;
   --color-list-item-hover: #1e1e1e;
 
   --modal-background: #111111;
@@ -72,6 +72,10 @@
   --chat-text-user: var(--color-black);
 
   --list-item-border-radius: 20px;
+
+  --color-status-success: #52c41a;
+  --color-status-error: #ff4d4f;
+  --color-status-warning: #faad14;
 }
 
 [theme-mode='light'] {

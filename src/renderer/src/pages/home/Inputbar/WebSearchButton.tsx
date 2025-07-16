@@ -6,10 +6,9 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
-import { CircleX, Globe, Settings } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 export interface WebSearchButtonRef {
   openQuickPanel: () => void
@@ -23,10 +22,11 @@ interface Props {
 
 const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
   const { updateAssistant } = useAssistant(assistant.id)
+
+  const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
 
   const updateSelectedWebSearchProvider = useCallback(
     (providerId?: WebSearchProvider['id']) => {
@@ -78,42 +78,41 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       })
     }
 
-    items.push({
-      label: t('chat.input.web_search.settings'),
-      icon: <Settings />,
-      action: () => navigate('/settings/tool/websearch')
-    })
-
-    items.unshift({
-      label: t('common.close'),
-      description: t('chat.input.web_search.no_web_search.description'),
-      icon: <CircleX />,
-      isSelected: !assistant.enableWebSearch && !assistant.webSearchProviderId,
-      action: () => {
-        updateSelectedWebSearchProvider(undefined)
-      }
-    })
-
     return items
   }, [
-    assistant.model,
     assistant.enableWebSearch,
-    assistant.webSearchProviderId,
+    assistant.model,
+    assistant?.webSearchProviderId,
     providers,
     t,
-    updateSelectedWebSearchProvider,
     updateSelectedWebSearchBuiltin,
-    navigate
+    updateSelectedWebSearchProvider
   ])
 
   const openQuickPanel = useCallback(() => {
+    if (assistant.webSearchProviderId) {
+      return updateSelectedWebSearchProvider(undefined)
+    }
+
+    if (assistant.enableWebSearch) {
+      return updateSelectedWebSearchBuiltin()
+    }
+
     quickPanel.open({
       title: t('chat.input.web_search'),
       list: providerItems,
       symbol: '?',
       pageSize: 9
     })
-  }, [quickPanel, providerItems, t])
+  }, [
+    assistant.webSearchProviderId,
+    assistant.enableWebSearch,
+    quickPanel,
+    t,
+    providerItems,
+    updateSelectedWebSearchProvider,
+    updateSelectedWebSearchBuiltin
+  ])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '?') {
@@ -128,13 +127,16 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   }))
 
   return (
-    <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+    <Tooltip
+      placement="top"
+      title={enableWebSearch ? t('common.close') : t('chat.input.web_search')}
+      mouseLeaveDelay={0}
+      arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <Globe
           size={18}
           style={{
-            color:
-              assistant?.webSearchProviderId || assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)'
+            color: enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>

@@ -14,9 +14,8 @@ import {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -28,6 +27,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '../aiCore/middleware/schemas'
+import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from './userConfirmation'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -278,7 +278,8 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
     const resp = await window.api.mcp.callTool({
       server,
       name: toolResponse.tool.name,
-      args: toolResponse.arguments
+      args: toolResponse.arguments,
+      callId: toolResponse.id
     })
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
@@ -390,7 +391,7 @@ export function geminiFunctionCallToMcpTool(
 ): MCPTool | undefined {
   if (!toolCall) return undefined
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolCall.name)
+  const tool = mcpTools.find((tool) => tool.id === toolCall.name || tool.name === toolCall.name)
   if (!tool) {
     return undefined
   }
@@ -400,7 +401,7 @@ export function geminiFunctionCallToMcpTool(
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
+  onChunk: (chunk: MCPToolPendingChunk | MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
   let result = resp
@@ -416,10 +417,29 @@ export function upsertMCPToolResponse(
   } else {
     results.push(resp)
   }
-  onChunk({
-    type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
-    responses: [result]
-  })
+  switch (resp.status) {
+    case 'pending':
+      onChunk({
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [result]
+      })
+      break
+    case 'invoking':
+      onChunk({
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [result]
+      })
+      break
+    case 'cancelled':
+    case 'done':
+      onChunk({
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [result]
+      })
+      break
+    default:
+      break
+  }
 }
 
 export function filterMCPTools(
@@ -441,7 +461,12 @@ export function getMcpServerByTool(tool: MCPTool) {
   return servers.find((s) => s.id === tool.serverId)
 }
 
-export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseResponse[] {
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  const effectiveServer = server ?? getMcpServerByTool(tool)
+  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+}
+
+export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
@@ -461,7 +486,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
   const tools: ToolUseResponse[] = []
   let match
-  let idx = 0
+  let idx = startIdx
   // Find all tool use blocks
   while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     // const fullMatch = match[0]
@@ -505,8 +530,9 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
   content: string,
@@ -514,8 +540,9 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],
@@ -523,81 +550,221 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
-): Promise<R[]> {
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
   if (Array.isArray(content)) {
     curToolResponses = content
   } else {
     // process tool use
-    curToolResponses = parseToolUse(content, mcpTools || [])
+    curToolResponses = parseToolUse(content, mcpTools || [], 0)
   }
   if (!curToolResponses || curToolResponses.length === 0) {
-    return toolResults
+    return { toolResults, confirmedToolResponses: [] }
   }
-  for (let i = 0; i < curToolResponses.length; i++) {
-    const toolResponse = curToolResponses[i]
+
+  for (const toolResponse of curToolResponses) {
     upsertMCPToolResponse(
       allToolResponses,
       {
         ...toolResponse,
-        status: 'invoking'
+        status: 'pending'
       },
       onChunk!
     )
   }
 
-  const toolPromises = curToolResponses.map(async (toolResponse) => {
-    const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
-    upsertMCPToolResponse(
-      allToolResponses,
-      {
-        ...toolResponse,
-        status: 'done',
-        response: toolCallResponse
-      },
-      onChunk!
-    )
+  // 创建工具确认Promise映射，并立即处理每个确认
+  const confirmedTools: MCPToolResponse[] = []
+  const pendingPromises: Promise<void>[] = []
 
-    for (const content of toolCallResponse.content) {
-      if (content.type === 'image' && content.data) {
-        images.push(`data:${content.mimeType};base64,${content.data}`)
-      }
+  curToolResponses.forEach((toolResponse) => {
+    const server = getMcpServerByTool(toolResponse.tool)
+    const isAutoApproveEnabled = isToolAutoApproved(toolResponse.tool, server)
+    let confirmationPromise: Promise<boolean>
+    if (isAutoApproveEnabled) {
+      confirmationPromise = Promise.resolve(true)
+    } else {
+      setToolIdToNameMapping(toolResponse.id, toolResponse.tool.name)
+
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal).then((confirmed) => {
+        if (confirmed && server) {
+          // 自动确认其他同名的待确认工具
+          confirmSameNameTools(toolResponse.tool.name)
+        }
+        return confirmed
+      })
     }
 
-    if (images.length) {
-      onChunk?.({
-        type: ChunkType.IMAGE_CREATED
-      })
-      onChunk?.({
-        type: ChunkType.IMAGE_COMPLETE,
-        image: {
-          type: 'base64',
-          images: images
+    const processingPromise = confirmationPromise
+      .then(async (confirmed) => {
+        if (confirmed) {
+          // 立即更新为invoking状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'invoking'
+            },
+            onChunk!
+          )
+
+          // 执行工具调用
+          try {
+            const images: string[] = []
+            const toolCallResponse = await callMCPTool(toolResponse)
+
+            // 立即更新为done状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: toolCallResponse
+              },
+              onChunk!
+            )
+
+            // 处理图片
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'image' && content.data) {
+                images.push(`data:${content.mimeType};base64,${content.data}`)
+              }
+            }
+
+            if (images.length) {
+              onChunk?.({
+                type: ChunkType.IMAGE_CREATED
+              })
+              onChunk?.({
+                type: ChunkType.IMAGE_COMPLETE,
+                image: {
+                  type: 'base64',
+                  images: images
+                }
+              })
+            }
+
+            // 转换消息并添加到结果
+            const convertedMessage = convertToMessage(toolResponse, toolCallResponse, model)
+            if (convertedMessage) {
+              confirmedTools.push(toolResponse)
+              toolResults.push(convertedMessage)
+            }
+          } catch (error) {
+            Logger.error(`🔧 [MCP] Error executing tool ${toolResponse.id}:`, error)
+            // 更新为错误状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: {
+                  isError: true,
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    }
+                  ]
+                }
+              },
+              onChunk!
+            )
+          }
+        } else {
+          // 立即更新为cancelled状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'cancelled',
+              response: {
+                isError: false,
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Tool call cancelled by user.'
+                  }
+                ]
+              }
+            },
+            onChunk!
+          )
         }
       })
-    }
+      .catch((error) => {
+        Logger.error(`🔧 [MCP] Error waiting for tool confirmation ${toolResponse.id}:`, error)
+        // 立即更新为cancelled状态
+        upsertMCPToolResponse(
+          allToolResponses,
+          {
+            ...toolResponse,
+            status: 'cancelled',
+            response: {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: `Error in confirmation process: ${error instanceof Error ? error.message : 'Unknown error'}`
+                }
+              ]
+            }
+          },
+          onChunk!
+        )
+      })
 
-    return convertToMessage(toolResponse, toolCallResponse, model)
+    pendingPromises.push(processingPromise)
   })
 
-  toolResults.push(...(await Promise.all(toolPromises)).filter((t) => typeof t !== 'undefined'))
-  return toolResults
+  // 等待所有工具处理完成（但每个工具的状态已经实时更新）
+  await Promise.all(pendingPromises)
+
+  return { toolResults, confirmedToolResponses: confirmedTools }
 }
 
 export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
-  isVisionModel: boolean = false
+  isVisionModel: boolean = false,
+  isCompatibleMode: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
-
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
+  } else if (isCompatibleMode) {
+    let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content += (item.text || 'no content') + '\n'
+            break
+          case 'image':
+            // NOTE: 假设兼容模式下支持解析base64图片，虽然我觉得应该不支持
+            content += `Here is a image result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          case 'audio':
+            // NOTE: 假设兼容模式下支持解析base64音频，虽然我觉得应该不支持
+            content += `Here is a audio result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          default:
+            content += `Here is a unsupported result type: ${item.type}\n`
+            break
+        }
+      }
+    } else {
+      content += JSON.stringify(resp.content)
+      content += '\n'
+    }
+
+    message.content = content
   } else {
     const content: ChatCompletionContentPart[] = [
       {

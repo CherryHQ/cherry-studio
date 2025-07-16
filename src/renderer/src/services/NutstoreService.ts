@@ -48,7 +48,7 @@ export async function checkConnection() {
     return false
   }
 
-  const isSuccess = await window.api.backup.checkConnection({
+  const isSuccess = await window.api.backup.checkWebdavConnection({
     ...config,
     webdavPath: '/'
   })

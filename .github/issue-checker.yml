@@ -9,115 +9,115 @@ labels:
   # skips and removes
   - name: skip all
     content:
-    regexes: "[Ss]kip (?:[Aa]ll |)[Ll]abels?"
+    regexes: '[Ss]kip (?:[Aa]ll |)[Ll]abels?'
   - name: remove all
     content:
-    regexes: "[Rr]emove (?:[Aa]ll |)[Ll]abels?"
+    regexes: '[Rr]emove (?:[Aa]ll |)[Ll]abels?'
 
   - name: skip kind/bug
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)'
   - name: remove kind/bug
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)'
 
   - name: skip kind/enhancement
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)'
   - name: remove kind/enhancement
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)'
 
   - name: skip kind/question
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)kind/question(?:`|)'
   - name: remove kind/question
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)kind/question(?:`|)'
 
   - name: skip area/Connectivity
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)area/Connectivity(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)area/Connectivity(?:`|)'
   - name: remove area/Connectivity
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)area/Connectivity(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)area/Connectivity(?:`|)'
 
   - name: skip area/UI/UX
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)area/UI/UX(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)area/UI/UX(?:`|)'
   - name: remove area/UI/UX
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)area/UI/UX(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)area/UI/UX(?:`|)'
 
   - name: skip kind/documentation
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)'
   - name: remove kind/documentation
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)'
 
   - name: skip client:linux
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)client:linux(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)client:linux(?:`|)'
   - name: remove client:linux
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)client:linux(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)client:linux(?:`|)'
 
   - name: skip client:mac
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)client:mac(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)client:mac(?:`|)'
   - name: remove client:mac
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)client:mac(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)client:mac(?:`|)'
 
   - name: skip client:win
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)client:win(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)client:win(?:`|)'
   - name: remove client:win
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)client:win(?:`|)"
-  
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)client:win(?:`|)'
+
   - name: skip sig/Assistant
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)sig/Assistant(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)sig/Assistant(?:`|)'
   - name: remove sig/Assistant
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)sig/Assistant(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)sig/Assistant(?:`|)'
 
   - name: skip sig/Data
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)sig/Data(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)sig/Data(?:`|)'
   - name: remove sig/Data
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)sig/Data(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)sig/Data(?:`|)'
 
   - name: skip sig/MCP
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)sig/MCP(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)sig/MCP(?:`|)'
   - name: remove sig/MCP
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)sig/MCP(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)sig/MCP(?:`|)'
 
   - name: skip sig/RAG
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)sig/RAG(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)sig/RAG(?:`|)'
   - name: remove sig/RAG
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)sig/RAG(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)sig/RAG(?:`|)'
 
   - name: skip lgtm
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)lgtm(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)lgtm(?:`|)'
   - name: remove lgtm
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)lgtm(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)lgtm(?:`|)'
 
   - name: skip License
     content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)License(?:`|)"
+    regexes: '[Ss]kip (?:[Ll]abels? |)(?:`|)License(?:`|)'
   - name: remove License
     content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)License(?:`|)"
+    regexes: '[Rr]emove (?:[Ll]abels? |)(?:`|)License(?:`|)'
 
   # `Dev Team`
   - name: Dev Team
@@ -129,7 +129,7 @@ labels:
   # Area labels
   - name: area/Connectivity
     content: area/Connectivity
-    regexes: "代理|[Pp]roxy"
+    regexes: '代理|[Pp]roxy'
     skip-if:
       - skip all
       - skip area/Connectivity
@@ -139,7 +139,7 @@ labels:
 
   - name: area/UI/UX
     content: area/UI/UX
-    regexes: "界面|[Uu][Ii]|重叠|按钮|图标|组件|渲染|菜单|栏目|头像|主题|样式|[Cc][Ss][Ss]"
+    regexes: '界面|[Uu][Ii]|重叠|按钮|图标|组件|渲染|菜单|栏目|头像|主题|样式|[Cc][Ss][Ss]'
     skip-if:
       - skip all
       - skip area/UI/UX
@@ -150,7 +150,7 @@ labels:
   # Kind labels
   - name: kind/documentation
     content: kind/documentation
-    regexes: "文档|教程|[Dd]oc(s|umentation)|[Rr]eadme"
+    regexes: '文档|教程|[Dd]oc(s|umentation)|[Rr]eadme'
     skip-if:
       - skip all
       - skip kind/documentation
@@ -161,7 +161,7 @@ labels:
   # Client labels
   - name: client:linux
     content: client:linux
-    regexes: "(?:[Ll]inux|[Uu]buntu|[Dd]ebian)"
+    regexes: '(?:[Ll]inux|[Uu]buntu|[Dd]ebian)'
     skip-if:
       - skip all
       - skip client:linux
@@ -171,7 +171,7 @@ labels:
 
   - name: client:mac
     content: client:mac
-    regexes: "(?:[Mm]ac|[Mm]acOS|[Oo]SX)"
+    regexes: '(?:[Mm]ac|[Mm]acOS|[Oo]SX)'
     skip-if:
       - skip all
       - skip client:mac
@@ -181,7 +181,7 @@ labels:
 
   - name: client:win
     content: client:win
-    regexes: "(?:[Ww]in|[Ww]indows)"
+    regexes: '(?:[Ww]in|[Ww]indows)'
     skip-if:
       - skip all
       - skip client:win
@@ -192,7 +192,7 @@ labels:
   # SIG labels
   - name: sig/Assistant
     content: sig/Assistant
-    regexes: "快捷助手|[Aa]ssistant"
+    regexes: '快捷助手|[Aa]ssistant'
     skip-if:
       - skip all
       - skip sig/Assistant
@@ -202,7 +202,7 @@ labels:
 
   - name: sig/Data
     content: sig/Data
-    regexes: "[Ww]ebdav|坚果云|备份|同步|数据|Obsidian|Notion|Joplin|思源"
+    regexes: '[Ww]ebdav|坚果云|备份|同步|数据|Obsidian|Notion|Joplin|思源'
     skip-if:
       - skip all
       - skip sig/Data
@@ -212,7 +212,7 @@ labels:
 
   - name: sig/MCP
     content: sig/MCP
-    regexes: "[Mm][Cc][Pp]"
+    regexes: '[Mm][Cc][Pp]'
     skip-if:
       - skip all
       - skip sig/MCP
@@ -222,7 +222,7 @@ labels:
 
   - name: sig/RAG
     content: sig/RAG
-    regexes: "知识库|[Rr][Aa][Gg]"
+    regexes: '知识库|[Rr][Aa][Gg]'
     skip-if:
       - skip all
       - skip sig/RAG
@@ -233,7 +233,7 @@ labels:
   # Other labels
   - name: lgtm
     content: lgtm
-    regexes: "(?:[Ll][Gg][Tt][Mm]|[Ll]ooks [Gg]ood [Tt]o [Mm]e)"
+    regexes: '(?:[Ll][Gg][Tt][Mm]|[Ll]ooks [Gg]ood [Tt]o [Mm]e)'
     skip-if:
       - skip all
       - skip lgtm
@@ -243,7 +243,7 @@ labels:
 
   - name: License
     content: License
-    regexes: "(?:[Ll]icense|[Cc]opyright|[Mm][Ii][Tt]|[Aa]pache)"
+    regexes: '(?:[Ll]icense|[Cc]opyright|[Mm][Ii][Tt]|[Aa]pache)'
     skip-if:
       - skip all
       - skip License

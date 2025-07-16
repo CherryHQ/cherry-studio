@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DraggableList > snapshot > should match snapshot 1`] = `
+<div>
+  <div
+    data-testid="drag-drop-context"
+  >
+    <div
+      data-testid="droppable"
+    >
+      <div>
+        <div
+          data-testid="virtual-list"
+        >
+          <div
+            data-testid="virtual-list-item"
+          >
+            <div
+              data-testid="draggable-a-0"
+            >
+              <div
+                style="margin-bottom: 8px;"
+              >
+                <div
+                  data-testid="item"
+                >
+                  A
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            data-testid="virtual-list-item"
+          >
+            <div
+              data-testid="draggable-b-1"
+            >
+              <div
+                style="margin-bottom: 8px;"
+              >
+                <div
+                  data-testid="item"
+                >
+                  B
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            data-testid="virtual-list-item"
+          >
+            <div
+              data-testid="draggable-c-2"
+            >
+              <div
+                style="margin-bottom: 8px;"
+              >
+                <div
+                  data-testid="item"
+                >
+                  C
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          data-testid="placeholder"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+`;

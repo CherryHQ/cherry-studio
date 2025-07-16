@@ -19,8 +19,6 @@ interface Props {
   role: Message['role']
 }
 
-const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
-
 const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
   // Use the passed citationBlockId directly in the selector
   const { renderInputMessageAsMarkdown } = useSettings()
@@ -38,10 +36,6 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     return withCitationTags(block.content, rawCitations, sourceType)
   }, [block.content, block.citationReferences, citationBlockId, rawCitations])
 
-  const ignoreToolUse = useMemo(() => {
-    return processedContent.replace(toolUseRegex, '')
-  }, [processedContent])
-
   return (
     <>
       {/* Render mentions associated with the message */}
@@ -57,7 +51,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
           {block.content}
         </p>
       ) : (
-        <Markdown block={{ ...block, content: ignoreToolUse }} />
+        <Markdown block={{ ...block, content: processedContent }} />
       )}
     </>
   )

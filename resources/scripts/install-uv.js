@@ -44,7 +44,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
 
   if (!packageName) {
     console.error(`No binary available for ${platformKey}`)
-    return false
+    return 101
   }
 
   // Create output directory structure
@@ -85,7 +85,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
             fs.chmodSync(outputPath, 0o755)
           } catch (chmodError) {
             console.error(`Warning: Failed to set executable permissions on ${filename}`)
-            return false
+            return 102
           }
         }
         console.log(`Extracted ${entry.name} -> ${outputPath}`)
@@ -95,8 +95,10 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
     await zip.close()
     fs.unlinkSync(tempFilename)
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
-    return true
+    return 0
   } catch (error) {
+    let retCode = 103
+
     console.error(`Error installing uv for ${platformKey}: ${error.message}`)
 
     if (fs.existsSync(tempFilename)) {
@@ -112,9 +114,10 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
       }
     } catch (cleanupError) {
       console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+      retCode = 104
     }
 
-    return false
+    return retCode
   }
 }
 
@@ -154,16 +157,21 @@ async function installUv() {
 
   console.log(`Installing uv ${version} for ${platform}-${arch}${isMusl ? ' (MUSL)' : ''}...`)
 
-  await downloadUvBinary(platform, arch, version, isMusl)
+  return await downloadUvBinary(platform, arch, version, isMusl)
 }
 
 // Run the installation
 installUv()
-  .then(() => {
-    console.log('Installation successful')
-    process.exit(0)
+  .then((retCode) => {
+    if (retCode === 0) {
+      console.log('Installation successful')
+      process.exit(0)
+    } else {
+      console.error('Installation failed')
+      process.exit(retCode)
+    }
   })
   .catch((error) => {
     console.error('Installation failed:', error)
-    process.exit(1)
+    process.exit(100)
   })

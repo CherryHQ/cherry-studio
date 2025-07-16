@@ -20,7 +20,7 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
-const messageBlocksSlice = createSlice({
+export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,
   reducers: {
@@ -246,11 +246,26 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
       })
     )
   }
+
+  if (block.memories && block.memories.length > 0) {
+    // 5. Handle Memory References
+    formattedCitations.push(
+      ...block.memories.map((memory, index) => ({
+        number: index + 1,
+        url: '',
+        title: `Memory ${memory.hash?.slice(0, 8)}`,
+        content: memory.memory,
+        showFavicon: false,
+        type: 'memory'
+      }))
+    )
+  }
+
   // 4. Deduplicate non-knowledge citations by URL and Renumber Sequentially
   const urlSet = new Set<string>()
   return formattedCitations
     .filter((citation) => {
-      if (citation.type === 'knowledge') return true
+      if (citation.type === 'knowledge' || citation.type === 'memory') return true
       if (!citation.url || urlSet.has(citation.url)) return false
       urlSet.add(citation.url)
       return true

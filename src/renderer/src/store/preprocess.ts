@@ -43,10 +43,10 @@ const preprocessSlice = createSlice({
     updatePreprocessProviders(state, action: PayloadAction<PreprocessProvider[]>) {
       state.providers = action.payload
     },
-    updatePreprocessProvider(state, action: PayloadAction<PreprocessProvider>) {
+    updatePreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
-        state.providers[index] = action.payload
+        Object.assign(state.providers[index], action.payload)
       }
     }
   }

@@ -193,6 +193,7 @@ const textExtsByCategory = new Map([
       '.htm',
       '.xhtml', // HTML
       '.xml', // XML
+      '.fxml', // JavaFX XML
       '.org', // Org-mode
       '.wiki', // Wiki
       '.tex',

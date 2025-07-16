@@ -184,7 +184,8 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-thinking-preview'
 ]
 
 const visionExcludedModels = [
@@ -208,7 +209,7 @@ export const isDedicatedImageGenerationModel = (model: Model): boolean =>
   DEDICATED_IMAGE_MODELS.filter((m) => model.id.includes(m)).length > 0
 
 // Text to image models
-export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus/i
+export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -239,7 +240,8 @@ export const FUNCTION_CALLING_MODELS = [
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-k2(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -247,7 +249,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'imagen(?:-[\\w-]+)?',
   'o1-mini',
   'o1-preview',
-  'AIDC-AI/Marco-o1'
+  'AIDC-AI/Marco-o1',
+  'gemini-1(?:\\.[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -260,7 +263,11 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   'i'
 )
 
-export function isFunctionCallingModel(model: Model): boolean {
+export function isFunctionCallingModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
   if (model.type?.includes('function_calling')) {
     return true
   }
@@ -2320,8 +2327,6 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
@@ -2489,7 +2494,7 @@ export function isGrokModel(model?: Model): boolean {
   return model.id.includes('grok')
 }
 
-export function isGrokReasoningModel(model?: Model): boolean {
+export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -2501,7 +2506,16 @@ export function isGrokReasoningModel(model?: Model): boolean {
   return false
 }
 
-export const isSupportedReasoningEffortGrokModel = isGrokReasoningModel
+export function isGrokReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (isSupportedReasoningEffortGrokModel(model) || model.id.includes('grok-4')) {
+    return true
+  }
+
+  return false
+}
 
 export function isGeminiReasoningModel(model?: Model): boolean {
   if (!model) {

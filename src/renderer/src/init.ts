@@ -12,9 +12,9 @@ function initKeyv() {
 
 function initAutoSync() {
   setTimeout(() => {
-    const { webdavAutoSync } = store.getState().settings
+    const { webdavAutoSync, localBackupAutoSync, s3 } = store.getState().settings
     const { nutstoreAutoSync } = store.getState().nutstore
-    if (webdavAutoSync) {
+    if (webdavAutoSync || (s3 && s3.autoSync) || localBackupAutoSync) {
       startAutoSync()
     }
     if (nutstoreAutoSync) {
