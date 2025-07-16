@@ -1164,31 +1164,16 @@ export const resendMessageThunk =
       const messagesToUpdateInRedux: { topicId: string; messageId: string; updates: Partial<Message> }[] = []
 
       // 先处理已有的重传
-      if (assistantMessagesToReset.length === 1 && !userMessageToResend?.mentions?.length) {
-        // 单条消息无mention时使用助手模型
-        const originalMsg = assistantMessagesToReset[0]
+      for (const originalMsg of assistantMessagesToReset) {
         const blockIdsToDelete = [...(originalMsg.blocks || [])]
         const resetMsg = resetAssistantMessage(originalMsg, {
           status: AssistantMessageStatus.PENDING,
-          updatedAt: new Date().toISOString(),
-          model: assistant.model
+          updatedAt: new Date().toISOString()
         })
 
         resetDataList.push(resetMsg)
         allBlockIdsToDelete.push(...blockIdsToDelete)
         messagesToUpdateInRedux.push({ topicId, messageId: resetMsg.id, updates: resetMsg })
-      } else {
-        for (const originalMsg of assistantMessagesToReset) {
-          const blockIdsToDelete = [...(originalMsg.blocks || [])]
-          const resetMsg = resetAssistantMessage(originalMsg, {
-            status: AssistantMessageStatus.PENDING,
-            updatedAt: new Date().toISOString()
-          })
-
-          resetDataList.push(resetMsg)
-          allBlockIdsToDelete.push(...blockIdsToDelete)
-          messagesToUpdateInRedux.push({ topicId, messageId: resetMsg.id, updates: resetMsg })
-        }
       }
 
       // 再处理新的重传（用户消息提及，但是现有助手消息中不存在提及的模型）
