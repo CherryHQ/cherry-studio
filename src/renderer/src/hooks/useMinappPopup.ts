@@ -12,7 +12,7 @@ import { MinAppType } from '@renderer/types'
 import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
 
-let minAppsCache: LRUCache<MinAppType, number>
+let minAppsCache: LRUCache<string, MinAppType>
 
 /**
  * Usage:
@@ -33,35 +33,42 @@ export const useMinappPopup = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
 
-  if (!minAppsCache) {
-    minAppsCache = new LRUCache<MinAppType, number>({
-      max: maxKeepAliveMinapps
-    })
-  }
+  if (!minAppsCache || minAppsCache.max !== maxKeepAliveMinapps) {
+    const oldEntries = minAppsCache ? Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps) : []
 
-  // 当设置发生变化时，重新创建缓存并保留现有条目
-  if (minAppsCache.max !== maxKeepAliveMinapps) {
-    const oldEntries = Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps)
-    minAppsCache = new LRUCache<MinAppType, number>({
-      max: maxKeepAliveMinapps
+    minAppsCache = new LRUCache<string, MinAppType>({
+      max: maxKeepAliveMinapps,
+      disposeAfter: () => {
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+      },
+      onInsert: () => {
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+      },
+      updateAgeOnGet: true,
+      updateAgeOnHas: true
     })
-    oldEntries.forEach(([key, value]) => {
-      minAppsCache.set(key, value)
-    })
+
+    if (oldEntries.length > 0) {
+      oldEntries.forEach(([key, value]) => {
+        minAppsCache.set(key, value)
+      })
+    }
   }
 
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
-        minAppsCache.set(app, +Date.now())
+        // 通过 get 和 set 去更新缓存，避免重复添加
+        const cacheApp = minAppsCache.get(app.id)
+        if (!cacheApp) minAppsCache.set(app.id, app)
+
         // 如果小程序已经打开，只切换显示
         if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
           dispatch(setCurrentMinappId(app.id))
           dispatch(setMinappShow(true))
           return
         }
-        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.keys())))
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
@@ -100,8 +107,7 @@ export const useMinappPopup = () => {
   const closeMinapp = useCallback(
     (appid: string) => {
       if (openedKeepAliveMinapps.some((item) => item.id === appid)) {
-        minAppsCache.delete(openedKeepAliveMinapps.find((item) => item.id === appid)!)
-        dispatch(setOpenedKeepAliveMinapps(openedKeepAliveMinapps.filter((item) => item.id !== appid)))
+        minAppsCache.delete(appid)
       } else if (openedOneOffMinapp?.id === appid) {
         dispatch(setOpenedOneOffMinapp(null))
       }
@@ -116,8 +122,6 @@ export const useMinappPopup = () => {
   /** Close all minapps (popup hides and all minapps unloaded) */
   const closeAllMinapps = useCallback(() => {
     minAppsCache.clear()
-    dispatch(setOpenedKeepAliveMinapps([]))
-    dispatch(setOpenedOneOffMinapp(null))
     dispatch(setCurrentMinappId(''))
     dispatch(setMinappShow(false))
   }, [dispatch])
