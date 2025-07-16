@@ -5,6 +5,15 @@ import { expect, vi } from 'vitest'
 
 expect.addSnapshotSerializer(styleSheetSerializer)
 
+// Mock LoggerService globally for renderer tests
+vi.mock('@logger', async () => {
+  const { MockRendererLoggerService, mockRendererLoggerService } = await import('./__mocks__/RendererLoggerService')
+  return {
+    LoggerService: MockRendererLoggerService,
+    loggerService: mockRendererLoggerService
+  }
+})
+
 vi.mock('axios', () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request

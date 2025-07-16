@@ -19,10 +19,10 @@ import { isDev } from '../constant'
 
 const SYSTEM_INFO = {
   os: `${os.platform()}-${os.arch()} / ${os.version()}`,
-  hw: `${os.cpus()[0].model} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
+  hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
 
-const APP_VERSION = `v${app.getVersion()}`
+const APP_VERSION = `v${app?.getVersion?.() || 'unknown'}`
 
 const DEFAULT_LEVEL = isDev ? 'silly' : 'info'
 

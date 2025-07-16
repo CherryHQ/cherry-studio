@@ -43,7 +43,7 @@ import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
-const logger = loggerService.withContext('ipc.ts')
+const logger = loggerService.withContext('IPC')
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()

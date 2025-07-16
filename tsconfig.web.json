@@ -4,7 +4,8 @@
     "src/renderer/src/**/*",
     "src/preload/*.d.ts",
     "local/src/renderer/**/*",
-    "packages/shared/**/*"
+    "packages/shared/**/*",
+    "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
     "composite": true,
