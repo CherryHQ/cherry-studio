@@ -16,7 +16,7 @@ export class VoyageEmbeddings extends BaseEmbeddings {
     if (!this.configuration.modelName) this.configuration.modelName = 'voyage-3'
 
     if (!VOYAGE_SUPPORTED_DIM_MODELS.includes(this.configuration.modelName) && this.configuration.outputDimension) {
-      console.error(`VoyageEmbeddings only supports ${VOYAGE_SUPPORTED_DIM_MODELS.join(', ')} to set outputDimension.`)
+      logger.error(`VoyageEmbeddings only supports ${VOYAGE_SUPPORTED_DIM_MODELS.join(', ')} to set outputDimension.`)
       this.model = new _VoyageEmbeddings({ ...this.configuration, outputDimension: undefined })
     } else {
       this.model = new _VoyageEmbeddings(this.configuration)

@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
-import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import loggerService from '@renderer/services/LoggerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -25,6 +25,8 @@ import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage
 import { abortCompletion } from '@renderer/utils/abortController'
 import { throttle } from 'lodash'
 import { useCallback } from 'react'
+
+const logger = loggerService.withContext('UseMessageOperations')
 
 const selectMessagesState = (state: RootState) => state.messages
 
@@ -265,7 +267,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const createTopicBranch = useCallback(
     (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
-      Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
+      logger.info(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
       return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
     },
     [dispatch]

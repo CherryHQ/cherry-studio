@@ -1,3 +1,4 @@
+import loggerService from '@renderer/services/LoggerService'
 import { Model } from '@renderer/types'
 import {
   ChunkType,
@@ -7,10 +8,11 @@ import {
   ThinkingStartChunk
 } from '@renderer/types/chunk'
 import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
-import Logger from 'electron-log/renderer'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
+
+const logger = loggerService.withContext('ThinkingTagExtractionMiddleware')
 
 export const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 
@@ -150,7 +152,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
           stream: processedStream
         }
       } else {
-        Logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+        logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
       }
     }
     return result

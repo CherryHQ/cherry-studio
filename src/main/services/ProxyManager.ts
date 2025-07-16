@@ -1,9 +1,12 @@
+import LoggerService from '@main/services/LoggerService'
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
 // import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
+
+const logger = LoggerService.withContext('ProxyManager')
 
 export interface ProxyConfig {
   mode: ProxyMode
@@ -55,7 +58,7 @@ export class ProxyManager {
         await this.clearProxy()
       }
     } catch (error) {
-      console.error('Failed to config proxy:', error)
+      logger.error('Failed to config proxy:', error)
       throw error
     }
   }
@@ -79,7 +82,7 @@ export class ProxyManager {
       this.setEnvironment(this.config.url)
       this.proxyAgent = new GeneralProxyAgent()
     } catch (error) {
-      console.error('Failed to set system proxy:', error)
+      logger.error('Failed to set system proxy:', error)
       throw error
     }
   }
@@ -92,7 +95,7 @@ export class ProxyManager {
         await this.setSessionsProxy({ proxyRules: this.config.url })
       }
     } catch (error) {
-      console.error('Failed to set custom proxy:', error)
+      logger.error('Failed to set custom proxy:', error)
       throw error
     }
   }

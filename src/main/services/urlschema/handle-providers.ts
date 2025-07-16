@@ -1,7 +1,9 @@
 import { isMac } from '@main/constant'
-import Logger from 'electron-log'
+import loggerService from '@main/services/LoggerService'
 
 import { windowService } from '../WindowService'
+
+const logger = loggerService.withContext('URLSchema:handleProvidersProtocolUrl')
 
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
@@ -24,7 +26,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
       const version = params.get('v')
       if (version == '1') {
         // TODO: handle different version
-        Logger.info('handleProvidersProtocolUrl', { data, version })
+        logger.debug('handleProvidersProtocolUrl', { data, version })
       }
 
       // add check there is window.navigate function in mainWindow
@@ -40,14 +42,14 @@ export async function handleProvidersProtocolUrl(url: URL) {
         }
       } else {
         setTimeout(() => {
-          Logger.info('handleProvidersProtocolUrl timeout', { data, version })
+          logger.debug('handleProvidersProtocolUrl timeout', { data, version })
           handleProvidersProtocolUrl(url)
         }, 1000)
       }
       break
     }
     default:
-      Logger.error(`Unknown MCP protocol URL: ${url}`)
+      logger.error(`Unknown MCP protocol URL: ${url}`)
       break
   }
 }

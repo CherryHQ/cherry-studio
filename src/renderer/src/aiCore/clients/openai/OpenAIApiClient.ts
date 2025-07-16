@@ -1,5 +1,4 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import Logger from '@renderer/config/logger'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
@@ -17,6 +16,7 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
+import loggerService from '@renderer/services/LoggerService'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -57,6 +57,8 @@ import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatComple
 import { GenericChunk } from '../../middleware/schemas'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
+
+const logger = loggerService.withContext('OpenAIApiClient')
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
@@ -787,7 +789,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 处理finish_reason，发送流结束信号
             if ('finish_reason' in choice && choice.finish_reason) {
-              Logger.debug(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
+              logger.debug(`Stream finished with reason: ${choice.finish_reason}`)
               const webSearchData = collectWebSearchData(chunk, contentSource, context)
               if (webSearchData) {
                 controller.enqueue({
@@ -805,7 +807,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       flush(controller) {
         if (isFinished) return
 
-        Logger.debug('[OpenAIApiClient] Stream ended without finish_reason, emitting fallback completion signals')
+        logger.debug('Stream ended without finish_reason, emitting fallback completion signals')
         emitCompletionSignals(controller)
       }
     })

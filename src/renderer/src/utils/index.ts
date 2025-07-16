@@ -1,8 +1,10 @@
-import Logger from '@renderer/config/logger'
+import loggerService from '@renderer/services/LoggerService'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 // @ts-ignore next-line`
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('Utils')
 
 /**
  * 异步执行一个函数。
@@ -57,16 +59,6 @@ export const uuid = () => uuidv4()
 
 export function isFreeModel(model: Model) {
   return (model.id + model.name).toLocaleLowerCase().includes('free')
-}
-
-export async function isProduction() {
-  const { isPackaged } = await window.api.getAppInfo()
-  return isPackaged
-}
-
-export async function isDev() {
-  const isProd = await isProduction()
-  return !isProd
 }
 
 /**
@@ -221,13 +213,14 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
         }
       }
     } catch (e) {
-      Logger.log('getMcpConfigSampleFromReadme', e)
+      logger.error('getMcpConfigSampleFromReadme', e)
     }
   }
   return null
 }
 
 export * from './api'
+export * from './env'
 export * from './file'
 export * from './image'
 export * from './json'

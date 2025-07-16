@@ -1,9 +1,12 @@
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
 import { startAutoSync } from './services/BackupService'
+import loggerService from './services/LoggerService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
 import storeSyncService from './services/StoreSyncService'
 import store from './store'
+
+loggerService.initWindowSource('mainWindow')
 
 function initKeyv() {
   window.keyv = new KeyvStorage()

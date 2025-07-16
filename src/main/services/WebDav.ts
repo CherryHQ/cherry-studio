@@ -1,5 +1,5 @@
+import loggerService from '@main/services/LoggerService'
 import { WebDavConfig } from '@types'
-import Logger from 'electron-log'
 import https from 'https'
 import path from 'path'
 import Stream from 'stream'
@@ -11,6 +11,9 @@ import {
   PutFileContentsOptions,
   WebDAVClient
 } from 'webdav'
+
+const logger = loggerService.withContext('WebDav')
+
 export default class WebDav {
   public instance: WebDAVClient | undefined
   private webdavPath: string
@@ -48,7 +51,7 @@ export default class WebDav {
         })
       }
     } catch (error) {
-      Logger.error('[WebDAV] Error creating directory on WebDAV:', error)
+      logger.error('Error creating directory on WebDAV:', error)
       throw error
     }
 
@@ -57,7 +60,7 @@ export default class WebDav {
     try {
       return await this.instance.putFileContents(remoteFilePath, data, options)
     } catch (error) {
-      Logger.error('[WebDAV] Error putting file contents on WebDAV:', error)
+      logger.error('Error putting file contents on WebDAV:', error)
       throw error
     }
   }
@@ -72,7 +75,7 @@ export default class WebDav {
     try {
       return await this.instance.getFileContents(remoteFilePath, options)
     } catch (error) {
-      Logger.error('[WebDAV] Error getting file contents on WebDAV:', error)
+      logger.error('Error getting file contents on WebDAV:', error)
       throw error
     }
   }
@@ -85,7 +88,7 @@ export default class WebDav {
     try {
       return await this.instance.getDirectoryContents(this.webdavPath)
     } catch (error) {
-      Logger.error('[WebDAV] Error getting directory contents on WebDAV:', error)
+      logger.error('Error getting directory contents on WebDAV:', error)
       throw error
     }
   }
@@ -98,7 +101,7 @@ export default class WebDav {
     try {
       return await this.instance.exists('/')
     } catch (error) {
-      Logger.error('[WebDAV] Error checking connection:', error)
+      logger.error('Error checking connection:', error)
       throw error
     }
   }
@@ -111,7 +114,7 @@ export default class WebDav {
     try {
       return await this.instance.createDirectory(path, options)
     } catch (error) {
-      Logger.error('[WebDAV] Error creating directory on WebDAV:', error)
+      logger.error('Error creating directory on WebDAV:', error)
       throw error
     }
   }
@@ -126,7 +129,7 @@ export default class WebDav {
     try {
       return await this.instance.deleteFile(remoteFilePath)
     } catch (error) {
-      Logger.error('[WebDAV] Error deleting file on WebDAV:', error)
+      logger.error('Error deleting file on WebDAV:', error)
       throw error
     }
   }

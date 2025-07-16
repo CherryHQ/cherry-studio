@@ -1,7 +1,7 @@
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
-import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
+import loggerService from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { FileType } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
@@ -10,6 +10,8 @@ import dayjs from 'dayjs'
 // 排序相关
 export type SortField = 'created_at' | 'size' | 'name'
 export type SortOrder = 'asc' | 'desc'
+
+const logger = loggerService.withContext('FileAction')
 
 export function tempFilesSort(files: FileType[]): FileType[] {
   return files.sort((a, b) => {
@@ -80,9 +82,9 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
       await Promise.all(Object.entries(topicsToUpdate).map(([id, data]) => db.topics.update(id, data)))
       await db.message_blocks.bulkDelete(blockIdsToDelete)
     })
-    Logger.log(`Deleted ${blockIdsToDelete.length} blocks for file ${fileId}`)
+    logger.info(`Deleted ${blockIdsToDelete.length} blocks for file ${fileId}`)
   } catch (err) {
-    Logger.error(`Error removing file blocks for ${fileId}:`, err)
+    logger.error(`Error removing file blocks for ${fileId}:`, err)
     window.modal.error({ content: t('files.delete.db_error'), centered: true })
   }
 }

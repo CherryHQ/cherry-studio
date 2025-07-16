@@ -1,3 +1,4 @@
+import LoggerService from '@main/services/LoggerService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { EventEmitter } from 'events'
@@ -6,6 +7,8 @@ import { windowService } from './WindowService'
 
 type StoreValue = any
 type Unsubscribe = () => void
+
+const logger = LoggerService.withContext('ReduxService')
 
 export class ReduxService extends EventEmitter {
   private stateCache: any = {}
@@ -65,7 +68,7 @@ export class ReduxService extends EventEmitter {
       const selectorFn = new Function('state', `return ${selector}`)
       return selectorFn(this.stateCache)
     } catch (error) {
-      console.error('Failed to select from cache:', error)
+      logger.error('Failed to select from cache:', error)
       return undefined
     }
   }
@@ -94,7 +97,7 @@ export class ReduxService extends EventEmitter {
         })()
       `)
     } catch (error) {
-      console.error('Failed to select store value:', error)
+      logger.error('Failed to select store value:', error)
       throw error
     }
   }
@@ -111,7 +114,7 @@ export class ReduxService extends EventEmitter {
         window.store.dispatch(${JSON.stringify(action)})
       `)
     } catch (error) {
-      console.error('Failed to dispatch action:', error)
+      logger.error('Failed to dispatch action:', error)
       throw error
     }
   }
@@ -149,7 +152,7 @@ export class ReduxService extends EventEmitter {
         const newValue = await this.select(selector)
         callback(newValue)
       } catch (error) {
-        console.error('Error in subscription handler:', error)
+        logger.error('Error in subscription handler:', error)
       }
     }
 
@@ -171,7 +174,7 @@ export class ReduxService extends EventEmitter {
         window.store.getState()
       `)
     } catch (error) {
-      console.error('Failed to get state:', error)
+      logger.error('Failed to get state:', error)
       throw error
     }
   }

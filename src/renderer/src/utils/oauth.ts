@@ -1,5 +1,7 @@
 import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
+import loggerService from '@renderer/services/LoggerService'
+const logger = loggerService.withContext('Utils:Oauth')
 
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
@@ -47,7 +49,7 @@ export const oauthWithAihubmix = async (setKey) => {
           window.removeEventListener('message', messageHandler)
         }
       } catch (error) {
-        console.error('[oauthWithAihubmix] error', error)
+        logger.error('[oauthWithAihubmix] error', error)
         popup?.close()
         window.message.error(i18n.t('oauth.error'))
       }
@@ -69,11 +71,11 @@ export const oauthWithPPIO = async (setKey) => {
   )
 
   if (!setKey) {
-    console.log('[PPIO OAuth] No setKey callback provided, returning early')
+    logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
     return
   }
 
-  console.log('[PPIO OAuth] Setting up protocol listener')
+  logger.debug('[PPIO OAuth] Setting up protocol listener')
 
   return new Promise<string>((resolve, reject) => {
     const removeListener = window.api.protocol.onReceiveData(async (data) => {
