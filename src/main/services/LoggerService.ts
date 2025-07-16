@@ -8,24 +8,6 @@ import DailyRotateFile from 'winston-daily-rotate-file'
 
 import { isDev } from '../constant'
 
-// definition of log levels
-// error:   0,
-// warn:    1,
-// info:    2,
-// http:    3,
-// verbose: 4,
-// debug:   5,
-// silly:   6
-
-const SYSTEM_INFO = {
-  os: `${os.platform()}-${os.arch()} / ${os.version()}`,
-  hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
-}
-
-const APP_VERSION = `v${app?.getVersion?.() || 'unknown'}`
-
-const DEFAULT_LEVEL = isDev ? 'silly' : 'info'
-
 const ANSICOLORS = {
   RED: '\x1b[31m',
   GREEN: '\x1b[32m',
@@ -38,11 +20,17 @@ const ANSICOLORS = {
   ITALIC: '\x1b[3m',
   UNDERLINE: '\x1b[4m'
 }
-
 function colorText(text: string, color: string) {
   return ANSICOLORS[color] + text + ANSICOLORS.END
 }
 
+const SYSTEM_INFO = {
+  os: `${os.platform()}-${os.arch()} / ${os.version()}`,
+  hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
+}
+const APP_VERSION = `v${app?.getVersion?.() || 'unknown'}`
+
+const DEFAULT_LEVEL = isDev ? 'silly' : 'info'
 export class LoggerService {
   private static instance: LoggerService
   private logger: winston.Logger

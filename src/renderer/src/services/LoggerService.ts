@@ -1,6 +1,11 @@
 import { isDev } from '@renderer/utils/env'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
 
+const IS_DEV = await getIsDev()
+async function getIsDev() {
+  return await isDev()
+}
+
 // the level number is different from real definition, it only for convenience
 const LEVEL_MAP: Record<LogLevel, number> = {
   error: 5,
@@ -11,15 +16,8 @@ const LEVEL_MAP: Record<LogLevel, number> = {
   silly: 0
 }
 
-const IS_DEV = await getIsDev()
-
 const DEFAULT_LEVEL = IS_DEV ? 'silly' : 'info'
-
 const MAIN_LOG_LEVEL = 'warn'
-
-async function getIsDev() {
-  return await isDev()
-}
 
 export class LoggerService {
   private static instance: LoggerService
@@ -98,7 +96,10 @@ export class LoggerService {
         break
     }
 
-    if (levelNumber >= LEVEL_MAP[MAIN_LOG_LEVEL]) {
+    // if the last data is an object with logToMain: true, force log to main
+    const forceLogToMain = data.length > 0 && data[data.length - 1]?.logToMain === true
+
+    if (levelNumber >= LEVEL_MAP[MAIN_LOG_LEVEL] || forceLogToMain) {
       const source: LogSourceWithContext = {
         process: 'renderer',
         window: this.window,
