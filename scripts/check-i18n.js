@@ -4,7 +4,6 @@ var fs = require('fs')
 var path = require('path')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 var baseLocale = 'zh-cn'
-var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
 var baseFilePath = path.join(translationsDir, baseFileName)
 /**
@@ -110,7 +109,6 @@ function syncTranslations() {
       '\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(
         baseFileName,
         ' \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8DEF\u5F84\u6216\u6587\u4EF6\u540D'
-        ' \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8DEF\u5F84\u6216\u6587\u4EF6\u540D'
       )
     )
     return
@@ -161,7 +159,6 @@ function syncTranslations() {
         console.error('\u5199\u5165 '.concat(file, ' \u51FA\u9519\u3002').concat(error))
       }
     } else {
-      console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0'))
       console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0'))
     }
   }
