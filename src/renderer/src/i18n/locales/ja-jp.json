@@ -113,7 +113,6 @@
         "untagged": "未分類"
       },
       "title": "アシスタント",
-
       "settings.reader": "リーダー設定",
       "settings.reader.reference": "参照資料を選択",
       "settings.reader.upload": "クリックしてアップロード",
@@ -1146,188 +1145,188 @@
       "title": "データ復元"
     },
     "selection": {
+      "name": "テキスト選択ツール",
       "action": {
         "builtin": {
-          "copy": "コピー",
+          "translate": "翻訳",
           "explain": "解説",
-          "quote": "引用",
-          "refine": "最適化",
-          "search": "検索",
           "summary": "要約",
-          "translate": "翻訳"
+          "search": "検索",
+          "refine": "最適化",
+          "copy": "コピー",
+          "quote": "引用"
+        },
+        "window": {
+          "pin": "最前面に固定",
+          "pinned": "固定中",
+          "opacity": "ウィンドウの透過度",
+          "original_show": "原文を表示",
+          "original_hide": "原文を非表示",
+          "original_copy": "原文をコピー",
+          "esc_close": "Escで閉じる",
+          "esc_stop": "Escで停止",
+          "c_copy": "Cでコピー",
+          "r_regenerate": "Rで再生成"
         },
         "translate": {
           "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
-        },
-        "window": {
-          "c_copy": "Cでコピー",
-          "esc_close": "Escで閉じる",
-          "esc_stop": "Escで停止",
-          "opacity": "ウィンドウの透過度",
-          "original_copy": "原文をコピー",
-          "original_hide": "原文を非表示",
-          "original_show": "原文を表示",
-          "pin": "最前面に固定",
-          "pinned": "固定中",
-          "r_regenerate": "Rで再生成"
         }
       },
-      "name": "テキスト選択ツール",
       "settings": {
-        "actions": {
-          "add_tooltip": {
-            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)",
-            "enabled": "カスタム機能を追加"
-          },
-          "custom": "カスタム機能",
-          "delete_confirm": "このカスタム機能を削除しますか？",
-          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})",
-          "reset": {
-            "button": "リセット",
-            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません",
-            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）"
-          },
-          "title": "機能設定"
-        },
-        "advanced": {
-          "filter_list": {
-            "description": "進階機能です。経験豊富なユーザー向けです。",
-            "title": "フィルターリスト"
-          },
-          "filter_mode": {
-            "blacklist": "ブラックリスト",
-            "default": "オフ",
-            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
-            "title": "アプリケーションフィルター",
-            "whitelist": "ホワイトリスト"
-          },
-          "title": "進階"
-        },
+        "experimental": "実験的機能",
         "enable": {
+          "title": "有効化",
           "description": "現在Windows & macOSのみ対応",
           "mac_process_trust_hint": {
-            "button": {
-              "go_to_settings": "設定に移動",
-              "open_accessibility_settings": "アクセシビリティー設定を開く"
-            },
+            "title": "アクセシビリティー権限",
             "description": [
               "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
               "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
               "設定が完了したら、テキスト選択ツールを再起動してください。"
             ],
-            "title": "アクセシビリティー権限"
-          },
-          "title": "有効化"
-        },
-        "experimental": "実験的機能",
-        "filter_modal": {
-          "title": "アプリケーションフィルターリスト",
-          "user_tips": {
-            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。",
-            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+            "button": {
+              "open_accessibility_settings": "アクセシビリティー設定を開く",
+              "go_to_settings": "設定に移動"
+            }
           }
         },
-        "search_modal": {
-          "custom": {
-            "name": {
-              "hint": "検索エンジン名（16文字以内）",
-              "label": "表示名",
-              "max_length": "16文字以内で入力"
-            },
-            "test": "テスト",
-            "url": {
-              "hint": "{{queryString}}で検索語を表す",
-              "invalid_format": "http:// または https:// で始まるURLを入力",
-              "label": "検索URL",
-              "missing_placeholder": "{{queryString}}を含めてください",
-              "required": "URLを入力してください"
-            }
-          },
-          "engine": {
-            "custom": "カスタム",
-            "label": "検索エンジン"
-          },
-          "title": "検索エンジン設定"
-        },
         "toolbar": {
-          "compact_mode": {
-            "description": "アイコンのみ表示（テキスト非表示）",
-            "title": "コンパクトモード"
-          },
           "title": "ツールバー",
           "trigger_mode": {
-            "ctrlkey": "Ctrlキー",
-            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
+            "title": "単語の取り出し方",
             "description": "テキスト選択後、取詞ツールバーを表示する方法",
             "description_note": {
-              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
-              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
+              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
+              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
             },
             "selected": "選択時",
             "selected_note": "テキスト選択時に即時表示",
+            "ctrlkey": "Ctrlキー",
+            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
             "shortcut": "ショートカットキー",
-            "shortcut_link": "ショートカット設定ページに移動",
             "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
-            "title": "単語の取り出し方"
-          }
-        },
-        "user_modal": {
-          "assistant": {
-            "default": "デフォルト",
-            "label": "アシスタント選択"
+            "shortcut_link": "ショートカット設定ページに移動"
           },
-          "icon": {
-            "error": "無効なアイコン名です",
-            "label": "アイコン",
-            "placeholder": "Lucideアイコン名を入力",
-            "random": "ランダム選択",
-            "tooltip": "例: arrow-right（小文字で入力）",
-            "view_all": "全アイコンを表示"
-          },
-          "model": {
-            "assistant": "アシスタントを使用",
-            "default": "デフォルトモデル",
-            "label": "モデル",
-            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用"
-          },
-          "name": {
-            "hint": "機能名を入力",
-            "label": "機能名"
-          },
-          "prompt": {
-            "copy_placeholder": "プレースホルダーをコピー",
-            "label": "ユーザープロンプト",
-            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
-            "placeholder_text": "プレースホルダー",
-            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能"
-          },
-          "title": {
-            "add": "カスタム機能追加",
-            "edit": "カスタム機能編集"
+          "compact_mode": {
+            "title": "コンパクトモード",
+            "description": "アイコンのみ表示（テキスト非表示）"
           }
         },
         "window": {
-          "auto_close": {
-            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる",
-            "title": "自動閉じる"
-          },
-          "auto_pin": {
-            "description": "デフォルトで最前面表示",
-            "title": "自動で最前面に固定"
-          },
+          "title": "機能ウィンドウ",
           "follow_toolbar": {
-            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）",
-            "title": "ツールバーに追従"
-          },
-          "opacity": {
-            "description": "デフォルトの透明度を設定（100%は完全不透明）",
-            "title": "透明度"
+            "title": "ツールバーに追従",
+            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
           },
           "remember_size": {
-            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます",
-            "title": "サイズを記憶"
+            "title": "サイズを記憶",
+            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
           },
-          "title": "機能ウィンドウ"
+          "auto_close": {
+            "title": "自動閉じる",
+            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
+          },
+          "auto_pin": {
+            "title": "自動で最前面に固定",
+            "description": "デフォルトで最前面表示"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "デフォルトの透明度を設定（100%は完全不透明）"
+          }
+        },
+        "actions": {
+          "title": "機能設定",
+          "custom": "カスタム機能",
+          "reset": {
+            "button": "リセット",
+            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
+            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
+          },
+          "add_tooltip": {
+            "enabled": "カスタム機能を追加",
+            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
+          },
+          "delete_confirm": "このカスタム機能を削除しますか？",
+          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
+        },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "カスタム機能追加",
+            "edit": "カスタム機能編集"
+          },
+          "name": {
+            "label": "機能名",
+            "hint": "機能名を入力"
+          },
+          "icon": {
+            "label": "アイコン",
+            "placeholder": "Lucideアイコン名を入力",
+            "error": "無効なアイコン名です",
+            "tooltip": "例: arrow-right（小文字で入力）",
+            "view_all": "全アイコンを表示",
+            "random": "ランダム選択"
+          },
+          "model": {
+            "label": "モデル",
+            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
+            "default": "デフォルトモデル",
+            "assistant": "アシスタントを使用"
+          },
+          "assistant": {
+            "label": "アシスタント選択",
+            "default": "デフォルト"
+          },
+          "prompt": {
+            "label": "ユーザープロンプト",
+            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
+            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
+            "placeholder_text": "プレースホルダー",
+            "copy_placeholder": "プレースホルダーをコピー"
+          }
+        },
+        "search_modal": {
+          "title": "検索エンジン設定",
+          "engine": {
+            "label": "検索エンジン",
+            "custom": "カスタム"
+          },
+          "custom": {
+            "name": {
+              "label": "表示名",
+              "hint": "検索エンジン名（16文字以内）",
+              "max_length": "16文字以内で入力"
+            },
+            "url": {
+              "label": "検索URL",
+              "hint": "{{queryString}}で検索語を表す",
+              "required": "URLを入力してください",
+              "invalid_format": "http:// または https:// で始まるURLを入力",
+              "missing_placeholder": "{{queryString}}を含めてください"
+            },
+            "test": "テスト"
+          }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": {
+            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
+            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
+          }
         }
       }
     },
@@ -1935,7 +1934,14 @@
           "composio": "Composio MCP 開発ツール",
           "official": "公式 MCP サーバーコレクション",
           "awesome": "厳選された MCP サーバーリスト"
-        }
+        },
+        "addServer.importFrom.method": "インポート方法",
+        "addServer.importFrom.dxtFile": "DXTパッケージファイル",
+        "addServer.importFrom.dxtHelp": "MCPサーバーを含む.dxtファイルを選択してください",
+        "addServer.importFrom.selectDxtFile": "DXTファイルを選択",
+        "addServer.importFrom.noDxtFile": "DXTファイルを選択してください",
+        "addServer.importFrom.dxtProcessFailed": "DXTファイルの処理に失敗しました",
+        "addServer.importFrom.dxt": "DXTパッケージをインポート"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
@@ -2463,192 +2469,6 @@
       "install": "今すぐインストール",
       "noReleaseNotes": "暫無更新日誌"
     },
-    "selection": {
-      "name": "テキスト選択ツール",
-      "action": {
-        "builtin": {
-          "translate": "翻訳",
-          "explain": "解説",
-          "summary": "要約",
-          "search": "検索",
-          "refine": "最適化",
-          "copy": "コピー",
-          "quote": "引用"
-        },
-        "window": {
-          "pin": "最前面に固定",
-          "pinned": "固定中",
-          "opacity": "ウィンドウの透過度",
-          "original_show": "原文を表示",
-          "original_hide": "原文を非表示",
-          "original_copy": "原文をコピー",
-          "esc_close": "Escで閉じる",
-          "esc_stop": "Escで停止",
-          "c_copy": "Cでコピー",
-          "r_regenerate": "Rで再生成"
-        },
-        "translate": {
-          "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
-        }
-      },
-      "settings": {
-        "experimental": "実験的機能",
-        "enable": {
-          "title": "有効化",
-          "description": "現在Windows & macOSのみ対応",
-          "mac_process_trust_hint": {
-            "title": "アクセシビリティー権限",
-            "description": [
-              "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
-              "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
-              "設定が完了したら、テキスト選択ツールを再起動してください。"
-            ],
-            "button": {
-              "open_accessibility_settings": "アクセシビリティー設定を開く",
-              "go_to_settings": "設定に移動"
-            }
-          }
-        },
-        "toolbar": {
-          "title": "ツールバー",
-          "trigger_mode": {
-            "title": "単語の取り出し方",
-            "description": "テキスト選択後、取詞ツールバーを表示する方法",
-            "description_note": {
-              "windows": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
-              "mac": "一部のアプリケーションでは、⌘ キーでテキストを選択できません。ショートカットキーまたはキーボードマッピングツールを使用して ⌘ キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。"
-            },
-            "selected": "選択時",
-            "selected_note": "テキスト選択時に即時表示",
-            "ctrlkey": "Ctrlキー",
-            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
-            "shortcut": "ショートカットキー",
-            "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
-            "shortcut_link": "ショートカット設定ページに移動"
-          },
-          "compact_mode": {
-            "title": "コンパクトモード",
-            "description": "アイコンのみ表示（テキスト非表示）"
-          }
-        },
-        "window": {
-          "title": "機能ウィンドウ",
-          "follow_toolbar": {
-            "title": "ツールバーに追従",
-            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
-          },
-          "remember_size": {
-            "title": "サイズを記憶",
-            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
-          },
-          "auto_close": {
-            "title": "自動閉じる",
-            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
-          },
-          "auto_pin": {
-            "title": "自動で最前面に固定",
-            "description": "デフォルトで最前面表示"
-          },
-          "opacity": {
-            "title": "透明度",
-            "description": "デフォルトの透明度を設定（100%は完全不透明）"
-          }
-        },
-        "actions": {
-          "title": "機能設定",
-          "custom": "カスタム機能",
-          "reset": {
-            "button": "リセット",
-            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
-            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
-          },
-          "add_tooltip": {
-            "enabled": "カスタム機能を追加",
-            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
-          },
-          "delete_confirm": "このカスタム機能を削除しますか？",
-          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
-        },
-        "advanced": {
-          "title": "進階",
-          "filter_mode": {
-            "title": "アプリケーションフィルター",
-            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
-            "default": "オフ",
-            "whitelist": "ホワイトリスト",
-            "blacklist": "ブラックリスト"
-          },
-          "filter_list": {
-            "title": "フィルターリスト",
-            "description": "進階機能です。経験豊富なユーザー向けです。"
-          }
-        },
-        "user_modal": {
-          "title": {
-            "add": "カスタム機能追加",
-            "edit": "カスタム機能編集"
-          },
-          "name": {
-            "label": "機能名",
-            "hint": "機能名を入力"
-          },
-          "icon": {
-            "label": "アイコン",
-            "placeholder": "Lucideアイコン名を入力",
-            "error": "無効なアイコン名です",
-            "tooltip": "例: arrow-right（小文字で入力）",
-            "view_all": "全アイコンを表示",
-            "random": "ランダム選択"
-          },
-          "model": {
-            "label": "モデル",
-            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
-            "default": "デフォルトモデル",
-            "assistant": "アシスタントを使用"
-          },
-          "assistant": {
-            "label": "アシスタント選択",
-            "default": "デフォルト"
-          },
-          "prompt": {
-            "label": "ユーザープロンプト",
-            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
-            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
-            "placeholder_text": "プレースホルダー",
-            "copy_placeholder": "プレースホルダーをコピー"
-          }
-        },
-        "search_modal": {
-          "title": "検索エンジン設定",
-          "engine": {
-            "label": "検索エンジン",
-            "custom": "カスタム"
-          },
-          "custom": {
-            "name": {
-              "label": "表示名",
-              "hint": "検索エンジン名（16文字以内）",
-              "max_length": "16文字以内で入力"
-            },
-            "url": {
-              "label": "検索URL",
-              "hint": "{{queryString}}で検索語を表す",
-              "required": "URLを入力してください",
-              "invalid_format": "http:// または https:// で始まるURLを入力",
-              "missing_placeholder": "{{queryString}}を含めてください"
-            },
-            "test": "テスト"
-          }
-        },
-        "filter_modal": {
-          "title": "アプリケーションフィルターリスト",
-          "user_tips": {
-            "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。",
-            "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。"
-          }
-        }
-      }
-    },
     "memory": {
       "add_memory": "メモリーを追加",
       "edit_memory": "メモリーを編集",
@@ -2753,6 +2573,22 @@
       "select_embedding_model_placeholder": "埋め込みモデルを選択",
       "embedding_dimensions": "埋め込み次元",
       "stored_memories": "保存された記憶"
+    },
+    "reader": {
+      "outlineEmpty": "読み込み可能な目次がありません",
+      "reference": "参照資料",
+      "close": "リーダーを閉じる",
+      "switchPosition": "位置を切り替える",
+      "selectReference": "参照資料を選択",
+      "showSelect": "ページ選択",
+      "showOutline": "目次",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "move": "ドラッグ",
+      "attaching": "関連付け中",
+      "pageIndex": "第{{index}}ページ",
+      "enableDragMode": "ドラッグモードを有効にする",
+      "enableTextSelection": "テキスト選択を有効にする"
     }
   }
 }

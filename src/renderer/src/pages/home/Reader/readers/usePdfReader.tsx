@@ -296,29 +296,31 @@ const usePdfReader = (props: Props) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}>
-      <OutlineWrapper className={showOutline ? 'visible' : ''}>
-        <Outline
-          className="outline"
-          onItemClick={({ pageNumber }) => {
-            handleLocatePage(pageNumber)
-            setShowOutline(false)
-          }}
-          onLoadSuccess={(outline) => {
-            if (!outline) {
-              setNoOutline(true)
-            } else {
-              setNoOutline(false)
-            }
-          }}
-        />
-        {noOutline && (
-          <Empty
-            className="outline-empty"
-            description={t('reader.outlineEmpty')}
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+      {showOutline && (
+        <OutlineWrapper className={showOutline ? 'visible' : ''}>
+          <Outline
+            className="outline"
+            onItemClick={({ pageNumber }) => {
+              handleLocatePage(pageNumber)
+              setShowOutline(false)
+            }}
+            onLoadSuccess={(outline) => {
+              if (!outline) {
+                setNoOutline(true)
+              } else {
+                setNoOutline(false)
+              }
+            }}
           />
-        )}
-      </OutlineWrapper>
+          {noOutline && (
+            <Empty
+              className="outline-empty"
+              description={t('reader.outlineEmpty')}
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          )}
+        </OutlineWrapper>
+      )}
       {Array.from(new Array(pageTotal), (_el, index) => {
         const page = index + 1
         const checked = !!find(selectedPages, (p) => p === page)
