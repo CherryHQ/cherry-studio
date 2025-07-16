@@ -33,10 +33,8 @@ export const useMinappPopup = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
 
-  if (!minAppsCache || minAppsCache.max !== maxKeepAliveMinapps) {
-    const oldEntries = minAppsCache ? Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps) : []
-
-    minAppsCache = new LRUCache<string, MinAppType>({
+  const createLRUCache = () => {
+    return new LRUCache<string, MinAppType>({
       max: maxKeepAliveMinapps,
       disposeAfter: () => {
         dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
@@ -47,6 +45,12 @@ export const useMinappPopup = () => {
       updateAgeOnGet: true,
       updateAgeOnHas: true
     })
+  }
+
+  if (!minAppsCache || minAppsCache.max !== maxKeepAliveMinapps) {
+    const oldEntries = minAppsCache ? Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps) : []
+
+    minAppsCache = createLRUCache()
 
     if (oldEntries.length > 0) {
       oldEntries.forEach(([key, value]) => {
@@ -121,7 +125,11 @@ export const useMinappPopup = () => {
 
   /** Close all minapps (popup hides and all minapps unloaded) */
   const closeAllMinapps = useCallback(() => {
-    minAppsCache.clear()
+    // minAppsCache.clear 会多次调用 dispose 方法
+    // 重新创建一个 LRU Cache 替换
+    minAppsCache = createLRUCache()
+    dispatch(setOpenedKeepAliveMinapps([]))
+    dispatch(setOpenedOneOffMinapp(null))
     dispatch(setCurrentMinappId(''))
     dispatch(setMinappShow(false))
   }, [dispatch])
