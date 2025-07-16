@@ -1,4 +1,4 @@
-import { SettingHelpText, SettingRow, SettingTitle } from '@renderer/pages/settings'
+import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
 import { Button, Modal, Progress, Space, Spin } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
@@ -39,7 +39,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           setQrCodeValue(JSON.stringify(connectionInfo))
         } else {
           console.error('Failed to get IP address or port.')
-          // 你可以在此处添加错误提示
         }
       } catch (error) {
         console.error('Failed to initialize WebSocket:', error)
@@ -77,7 +76,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       removeClientConnectedListener()
       removeMessageReceivedListener()
       removeSendProgressListener()
-      // 当组件卸载时，确保WebSocket服务也停止
+
       window.api.webSocket.stop()
     }
   }, [])
@@ -126,8 +125,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      okText={t('exportToPhone.confirm.button')}
-      okButtonProps={{ disabled: !isConnected }}
       maskClosable={false}
       transitionName="animation-move-down"
       centered>
@@ -154,7 +151,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </SettingRow>
 
       <SettingRow style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space direction="vertical" style={{ justifyContent: 'center', width: '100%', alignItems: 'center' }}>
           <Space>
             <Button onClick={handleSelectZip}>{t('exportToPhone.lan.selectZip')}</Button>
             <Button
@@ -170,19 +167,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </SettingHelpText>
           {isSending && <Progress percent={Math.round(sendProgress)} />}
         </Space>
-      </SettingRow>
-
-      <SettingRow style={{ textAlign: 'center' }}>
-        <div
-          style={{
-            padding: '10px',
-            border: `1px solid ${isConnected ? '#b7eb8f' : '#ffccc7'}`,
-            borderRadius: '4px'
-          }}>
-          <SettingTitle>
-            {t('common.status')}: {isConnected ? t('common.connected') : t('common.disconnected')}
-          </SettingTitle>
-        </div>
       </SettingRow>
     </Modal>
   )

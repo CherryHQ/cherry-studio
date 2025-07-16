@@ -136,11 +136,13 @@
     },
     "exportToPhone": {
       "title": "Export To Phone",
-      "confirm.button": "Select Export Location",
       "content": "Export some data, including chat history, settings. Please note that the backup process may take some time, thank you for your patience.",
       "lan": {
         "title": "Landrop",
-        "content": "Using LAN transmission, please ensure the computer and phone are on the same network. Please Open Cherry Studio App to Scan this QR Code."
+        "content": "Using LAN transmission, please ensure the computer and phone are on the same network. Please Open Cherry Studio App to Scan this QR Code.",
+        "selectZip": "Select Zip File",
+        "sendZip": "Start Restore Data",
+        "noZipSelected": "No Zip File Selected"
       }
     },
     "button": {
