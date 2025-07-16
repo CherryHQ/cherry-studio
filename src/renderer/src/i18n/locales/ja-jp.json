@@ -94,7 +94,35 @@
         "edit": "プロンプトを編集",
         "title": "定型プロンプト",
         "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
+        "titlePlaceholder": "タイトルを入力",
+        "contentLabel": "内容",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。"
+      },
+      "settings.preset_messages": {
+        "title": "プリセットメッセージ",
+        "add": "メッセージを追加",
+        "edit": "メッセージを編集",
+        "delete": "メッセージを削除",
+        "deleteConfirm": "このメッセージを削除してもよろしいですか？",
+        "roleLabel": "役割",
+        "contentLabel": "内容",
+        "contentPlaceholder": "内容を入力",
+        "chatHistory": "チャット履歴",
+        "chatHistoryDesc": "実際の会話記録がここに挿入されます",
+        "userMessage": "ユーザーメッセージ",
+        "assistantMessage": "アシスタントメッセージ",
+        "systemMessage": "システムメッセージ",
+        "roleUser": "ユーザー",
+        "roleAssistant": "アシスタント",
+        "roleSystem": "システム"
+      },
+      "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
+      "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
+      "settings.knowledge_base.recognition.off": "強制検索",
+      "settings.knowledge_base.recognition.on": "意図認識",
+      "list": {
+        "showByList": "リスト表示",
+        "showByTags": "タグ表示"
       },
       "settings.preset_messages": {
         "title": "プリセットメッセージ",

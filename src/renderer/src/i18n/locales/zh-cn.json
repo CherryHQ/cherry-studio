@@ -94,7 +94,31 @@
         "edit": "编辑短语",
         "title": "常用短语",
         "titleLabel": "标题",
-        "titlePlaceholder": "输入标题"
+        "titlePlaceholder": "输入标题",
+        "contentLabel": "内容",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}"
+      },
+      "settings.preset_messages": {
+        "title": "消息预设",
+        "add": "添加消息",
+        "edit": "编辑消息",
+        "delete": "删除消息",
+        "deleteConfirm": "确定要删除这条消息吗？",
+        "roleLabel": "角色",
+        "contentLabel": "内容",
+        "contentPlaceholder": "输入内容",
+        "chatHistory": "聊天记录",
+        "chatHistoryDesc": "实际的对话记录将插入到这里",
+        "userMessage": "用户消息",
+        "assistantMessage": "助手消息",
+        "systemMessage": "系统消息",
+        "roleUser": "用户",
+        "roleAssistant": "助手",
+        "roleSystem": "系统"
+      },
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "标签展示"
       },
       "settings.preset_messages": {
         "title": "消息预设",
