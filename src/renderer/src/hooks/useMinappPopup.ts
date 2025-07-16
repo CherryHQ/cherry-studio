@@ -100,6 +100,7 @@ export const useMinappPopup = () => {
   const closeMinapp = useCallback(
     (appid: string) => {
       if (openedKeepAliveMinapps.some((item) => item.id === appid)) {
+        minAppsCache.delete(openedKeepAliveMinapps.find((item) => item.id === appid)!)
         dispatch(setOpenedKeepAliveMinapps(openedKeepAliveMinapps.filter((item) => item.id !== appid)))
       } else if (openedOneOffMinapp?.id === appid) {
         dispatch(setOpenedOneOffMinapp(null))
@@ -114,6 +115,7 @@ export const useMinappPopup = () => {
 
   /** Close all minapps (popup hides and all minapps unloaded) */
   const closeAllMinapps = useCallback(() => {
+    minAppsCache.clear()
     dispatch(setOpenedKeepAliveMinapps([]))
     dispatch(setOpenedOneOffMinapp(null))
     dispatch(setCurrentMinappId(''))
