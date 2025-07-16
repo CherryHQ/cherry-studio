@@ -112,11 +112,11 @@ const Reader: React.FC<Props> = (props) => {
               content={<FilePicker assistant={assistant} />}
               placement="bottomRight"
               destroyTooltipOnHide>
-              <Tooltip title={t('reader.selectReference')}>
+              <Tooltip title={t('reader.selectReference')} placement="bottom">
                 <OperateButton icon={<BookCopy size={16} />} />
               </Tooltip>
             </Popover>
-            <Tooltip title={t('reader.close')}>
+            <Tooltip title={t('reader.close')} placement="bottom">
               <Button onClick={onCloseReader} icon={<LogOut size={16} />} />
             </Tooltip>
           </Space>
