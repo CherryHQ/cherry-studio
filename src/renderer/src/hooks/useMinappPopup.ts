@@ -41,10 +41,7 @@ export const useMinappPopup = () => {
 
   // 当设置发生变化时，重新创建缓存并保留现有条目
   if (minAppsCache.max !== maxKeepAliveMinapps) {
-    const oldEntries =
-      maxKeepAliveMinapps > minAppsCache.max
-        ? Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps)
-        : Array.from(minAppsCache.entries())
+    const oldEntries = Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps)
     minAppsCache = new LRUCache<MinAppType, number>({
       max: maxKeepAliveMinapps
     })
@@ -64,7 +61,6 @@ export const useMinappPopup = () => {
           dispatch(setMinappShow(true))
           return
         }
-        console.log(Array.from(minAppsCache.keys()).length)
         dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.keys())))
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
