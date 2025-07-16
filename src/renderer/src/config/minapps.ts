@@ -60,11 +60,13 @@ import { MinAppType } from '@renderer/types'
 // 加载自定义小应用
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
-    const content = await window.api.file.read('custom-minapps.json')
-
-    if (content === 'failed to read file') {
-      await window.api.file.writeWithId('custom-minapps.json', '[]')
-      return []
+    let content: string
+    try {
+      content = await window.api.file.read('custom-minapps.json')
+    } catch (error) {
+      // 如果文件不存在，创建一个空的 JSON 数组
+      content = '[]'
+      await window.api.file.writeWithId('custom-minapps.json', content)
     }
 
     const customApps = JSON.parse(content)
