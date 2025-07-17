@@ -214,7 +214,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      Logger.log('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {

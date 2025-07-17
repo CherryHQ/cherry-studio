@@ -2,7 +2,7 @@ import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -22,7 +22,7 @@ interface AnimatedBlockWrapperProps {
   enableAnimation: boolean
 }
 
-const blockWrapperVariants = {
+const blockWrapperVariants: Variants = {
   visible: {
     opacity: 1,
     x: 0,

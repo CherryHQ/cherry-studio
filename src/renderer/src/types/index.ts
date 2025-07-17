@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
+import type { BaseTool, MCPTool } from './tool'
 
 export type Assistant = {
   id: string
@@ -151,7 +152,7 @@ export type User = {
   email: string
 }
 
-export type Provider = {
+export interface BaseProvider {
   id: string
   type: ProviderType
   name: string
@@ -167,6 +168,18 @@ export type Provider = {
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+}
+
+export type Provider = BaseProvider
+
+export interface VertexProvider extends BaseProvider {
+  type: 'vertexai'
+  googleCredentials: {
+    clientEmail: string
+    privateKey: string
+  }
+  project: string
+  location: string
 }
 
 export type ProviderType =
@@ -577,7 +590,8 @@ export enum WebSearchSource {
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
   ZHIPU = 'zhipu',
-  GROK = 'grok'
+  GROK = 'grok',
+  AISDK = 'ai-sdk'
 }
 
 export type WebSearchResponse = {
@@ -651,15 +665,6 @@ export interface MCPToolInputSchema {
   properties: Record<string, object>
 }
 
-export interface MCPTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: MCPToolInputSchema
-}
-
 export interface MCPPromptArguments {
   name: string
   description?: string
@@ -698,7 +703,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 
 interface BaseToolResponse {
   id: string // unique id
-  tool: MCPTool
+  tool: BaseTool
   arguments: Record<string, unknown> | undefined
   status: MCPToolResponseStatus
   response?: any
@@ -798,6 +803,7 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+export * from './tool'
 
 // Memory Service Types
 // ========================================================================

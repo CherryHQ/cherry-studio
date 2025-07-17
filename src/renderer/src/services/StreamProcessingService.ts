@@ -40,6 +40,8 @@ export interface StreamProcessorCallbacks {
   onError?: (error: any) => void
   // Called when the entire stream processing is signaled as complete (success or failure)
   onComplete?: (status: AssistantMessageStatus, response?: Response) => void
+  // Called when a block is created
+  onBlockCreated?: () => void
 }
 
 // Function to create a stream processor instance
@@ -133,9 +135,13 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           if (callbacks.onError) callbacks.onError(data.error)
           break
         }
+        case ChunkType.BLOCK_CREATED: {
+          if (callbacks.onBlockCreated) callbacks.onBlockCreated()
+          break
+        }
         default: {
           // Handle unknown chunk types or log an error
-          console.warn(`Unknown chunk type: ${data.type}`)
+          // console.warn(`Unknown chunk type: ${data.type}`)
         }
       }
     } catch (error) {

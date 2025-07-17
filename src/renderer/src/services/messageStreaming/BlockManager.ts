@@ -102,6 +102,7 @@ export class BlockManager {
    * 处理块转换
    */
   async handleBlockTransition(newBlock: MessageBlock, newBlockType: MessageBlockType) {
+    console.log('handleBlockTransition', newBlock, newBlockType)
     this._lastBlockType = newBlockType
     this._activeBlockInfo = { id: newBlock.id, type: newBlockType } // 设置新的活跃块信息
 

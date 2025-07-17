@@ -1,0 +1,138 @@
+{
+  "name": "@cherrystudio/ai-core",
+  "version": "1.0.0-alpha.0",
+  "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "ai",
+    "sdk",
+    "openai",
+    "anthropic",
+    "google",
+    "cherry-studio",
+    "vercel-ai-sdk"
+  ],
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "3.0.0-beta.7",
+    "@ai-sdk/anthropic": "2.0.0-beta.6",
+    "@ai-sdk/azure": "2.0.0-beta.9",
+    "@ai-sdk/cerebras": "1.0.0-beta.6",
+    "@ai-sdk/cohere": "2.0.0-beta.3",
+    "@ai-sdk/deepinfra": "1.0.0-beta.6",
+    "@ai-sdk/deepseek": "1.0.0-beta.6",
+    "@ai-sdk/fal": "1.0.0-beta.3",
+    "@ai-sdk/fireworks": "1.0.0-beta.6",
+    "@ai-sdk/google": "2.0.0-beta.11",
+    "@ai-sdk/google-vertex": "3.0.0-beta.13",
+    "@ai-sdk/groq": "2.0.0-beta.4",
+    "@ai-sdk/mistral": "2.0.0-beta.4",
+    "@ai-sdk/openai": "2.0.0-beta.9",
+    "@ai-sdk/openai-compatible": "1.0.0-beta.6",
+    "@ai-sdk/perplexity": "2.0.0-beta.4",
+    "@ai-sdk/provider": "2.0.0-beta.1",
+    "@ai-sdk/provider-utils": "3.0.0-beta.3",
+    "@ai-sdk/replicate": "1.0.0-beta.3",
+    "@ai-sdk/togetherai": "1.0.0-beta.6",
+    "@ai-sdk/vercel": "1.0.0-beta.6",
+    "@ai-sdk/xai": "2.0.0-beta.8",
+    "@openrouter/ai-sdk-provider": "^0.7.2",
+    "ai": "5.0.0-beta.9",
+    "anthropic-vertex-ai": "^1.0.2",
+    "ollama-ai-provider": "^1.2.0",
+    "zod": "^3.25.0"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/amazon-bedrock": {
+      "optional": true
+    },
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
+      "optional": true
+    },
+    "@ai-sdk/cerebras": {
+      "optional": true
+    },
+    "@ai-sdk/cohere": {
+      "optional": true
+    },
+    "@ai-sdk/deepinfra": {
+      "optional": true
+    },
+    "@ai-sdk/deepseek": {
+      "optional": true
+    },
+    "@ai-sdk/fal": {
+      "optional": true
+    },
+    "@ai-sdk/fireworks": {
+      "optional": true
+    },
+    "@ai-sdk/google": {
+      "optional": true
+    },
+    "@ai-sdk/google-vertex": {
+      "optional": true
+    },
+    "@ai-sdk/groq": {
+      "optional": true
+    },
+    "@ai-sdk/mistral": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@ai-sdk/perplexity": {
+      "optional": true
+    },
+    "@ai-sdk/replicate": {
+      "optional": true
+    },
+    "@ai-sdk/together": {
+      "optional": true
+    },
+    "@ai-sdk/vercel": {
+      "optional": true
+    },
+    "@ai-sdk/xai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsdown": "^0.12.9",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./core/plugins/built-in": {
+      "types": "./dist/core/plugins/built-in/index.d.ts",
+      "import": "./dist/core/plugins/built-in/index.mjs",
+      "require": "./dist/core/plugins/built-in/index.js"
+    }
+  }
+}

@@ -434,7 +434,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Test Tool Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [
@@ -570,7 +571,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Calculator Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [

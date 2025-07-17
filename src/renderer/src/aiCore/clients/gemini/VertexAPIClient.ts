@@ -1,15 +1,23 @@
 import { GoogleGenAI } from '@google/genai'
-import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
-import { Provider } from '@renderer/types'
+import { createVertexProvider, isVertexProvider } from '@renderer/hooks/useVertexAI'
+import { Provider, VertexProvider } from '@renderer/types'
 
 import { GeminiAPIClient } from './GeminiAPIClient'
 
 export class VertexAPIClient extends GeminiAPIClient {
   private authHeaders?: Record<string, string>
   private authHeadersExpiry?: number
+  private vertexProvider: VertexProvider
 
   constructor(provider: Provider) {
     super(provider)
+
+    // 如果传入的是普通 Provider，转换为 VertexProvider
+    if (isVertexProvider(provider)) {
+      this.vertexProvider = provider
+    } else {
+      this.vertexProvider = createVertexProvider(provider)
+    }
   }
 
   override async getSdkInstance() {
@@ -17,11 +25,9 @@ export class VertexAPIClient extends GeminiAPIClient {
       return this.sdkInstance
     }
 
-    const serviceAccount = getVertexAIServiceAccount()
-    const projectId = getVertexAIProjectId()
-    const location = getVertexAILocation()
+    const { googleCredentials, project, location } = this.vertexProvider
 
-    if (!serviceAccount.privateKey || !serviceAccount.clientEmail || !projectId || !location) {
+    if (!googleCredentials.privateKey || !googleCredentials.clientEmail || !project || !location) {
       throw new Error('Vertex AI settings are not configured')
     }
 
@@ -29,7 +35,7 @@ export class VertexAPIClient extends GeminiAPIClient {
 
     this.sdkInstance = new GoogleGenAI({
       vertexai: true,
-      project: projectId,
+      project: project,
       location: location,
       httpOptions: {
         apiVersion: this.getApiVersion(),
@@ -44,11 +50,10 @@ export class VertexAPIClient extends GeminiAPIClient {
    * 获取认证头，如果配置了 service account 则从主进程获取
    */
   private async getServiceAccountAuthHeaders(): Promise<Record<string, string> | undefined> {
-    const serviceAccount = getVertexAIServiceAccount()
-    const projectId = getVertexAIProjectId()
+    const { googleCredentials, project } = this.vertexProvider
 
     // 检查是否配置了 service account
-    if (!serviceAccount.privateKey || !serviceAccount.clientEmail || !projectId) {
+    if (!googleCredentials.privateKey || !googleCredentials.clientEmail || !project) {
       return undefined
     }
 
@@ -61,10 +66,10 @@ export class VertexAPIClient extends GeminiAPIClient {
     try {
       // 从主进程获取认证头
       this.authHeaders = await window.api.vertexAI.getAuthHeaders({
-        projectId,
+        projectId: project,
         serviceAccount: {
-          privateKey: serviceAccount.privateKey,
-          clientEmail: serviceAccount.clientEmail
+          privateKey: googleCredentials.privateKey,
+          clientEmail: googleCredentials.clientEmail
         }
       })
 
@@ -85,11 +90,10 @@ export class VertexAPIClient extends GeminiAPIClient {
     this.authHeaders = undefined
     this.authHeadersExpiry = undefined
 
-    const serviceAccount = getVertexAIServiceAccount()
-    const projectId = getVertexAIProjectId()
+    const { googleCredentials, project } = this.vertexProvider
 
-    if (projectId && serviceAccount.clientEmail) {
-      window.api.vertexAI.clearAuthCache(projectId, serviceAccount.clientEmail)
+    if (project && googleCredentials.clientEmail) {
+      window.api.vertexAI.clearAuthCache(project, googleCredentials.clientEmail)
     }
   }
 }

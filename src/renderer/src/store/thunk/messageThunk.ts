@@ -1,8 +1,8 @@
 import db from '@renderer/databases'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { transformMessagesAndFetch } from '@renderer/services/OrchestrateService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
@@ -10,6 +10,7 @@ import { type Assistant, type FileMetadata, type Model, type Topic } from '@rend
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
+import { addAbortController } from '@renderer/utils/abortController'
 import {
   createAssistantMessage,
   createTranslationBlock,
@@ -150,6 +151,7 @@ const getBlockThrottler = (id: string) => {
  */
 export const throttledBlockUpdate = (id: string, blockUpdate: any) => {
   const throttler = getBlockThrottler(id)
+  // store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
   throttler(blockUpdate)
 }
 
@@ -880,19 +882,33 @@ const fetchAndProcessAssistantResponseImpl = async (
       saveUpdatesToDB,
       assistant
     })
+    console.log('callbacks', callbacks)
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
-    // const startTime = Date.now()
-    await fetchChatCompletion({
-      messages: messagesForContext,
-      assistant: assistant,
-      onChunkReceived: streamProcessorCallbacks
-    })
+    const abortController = new AbortController()
+    addAbortController(userMessageId!, () => abortController.abort())
+
+    await transformMessagesAndFetch(
+      {
+        messages: messagesForContext,
+        assistant,
+        options: {
+          signal: abortController.signal,
+          timeout: 30000
+        }
+      },
+      streamProcessorCallbacks
+    )
   } catch (error: any) {
-    console.error('Error fetching chat completion:', error)
-    if (assistantMessage) {
-      callbacks.onError?.(error)
-      throw error
+    console.error('Error in fetchAndProcessAssistantResponseImpl:', error)
+    // 统一错误处理：确保 loading 状态被正确设置，避免队列任务卡住
+    try {
+      await callbacks.onError?.(error)
+    } catch (callbackError) {
+      console.error('Error in onError callback:', callbackError)
+    } finally {
+      // 确保无论如何都设置 loading 为 false（onError 回调中已设置，这里是保险）
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   }
 }

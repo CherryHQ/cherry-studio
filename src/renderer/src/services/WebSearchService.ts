@@ -37,7 +37,21 @@ interface RequestState {
 /**
  * 提供网络搜索相关功能的服务类
  */
-class WebSearchService {
+export default class WebSearchService {
+  private static instance: WebSearchService
+  private webSearchProviderId: WebSearchProvider['id']
+
+  private constructor(webSearchProviderId: WebSearchProvider['id']) {
+    this.webSearchProviderId = webSearchProviderId
+  }
+
+  public static getInstance(webSearchProviderId: WebSearchProvider['id']): WebSearchService {
+    if (!WebSearchService.instance) {
+      WebSearchService.instance = new WebSearchService(webSearchProviderId)
+    }
+    return WebSearchService.instance
+  }
+
   /**
    * 是否暂停
    */
@@ -96,7 +110,7 @@ class WebSearchService {
    * @private
    * @returns 网络搜索状态
    */
-  private getWebSearchState(): WebSearchState {
+  private static getWebSearchState(): WebSearchState {
     return store.getState().websearch
   }
 
@@ -105,8 +119,8 @@ class WebSearchService {
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
-  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
-    const { providers } = this.getWebSearchState()
+  public static isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
+    const { providers } = WebSearchService.getWebSearchState()
     const provider = providers.find((provider) => provider.id === providerId)
 
     if (!provider) {
@@ -136,7 +150,7 @@ class WebSearchService {
    * @returns 如果启用覆盖搜索则返回true，否则返回false
    */
   public isOverwriteEnabled(): boolean {
-    const { overwrite } = this.getWebSearchState()
+    const { overwrite } = WebSearchService.getWebSearchState()
     return overwrite
   }
 
@@ -146,7 +160,7 @@ class WebSearchService {
    * @returns 网络搜索提供商
    */
   public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
-    const { providers } = this.getWebSearchState()
+    const { providers } = WebSearchService.getWebSearchState()
     const provider = providers.find((provider) => provider.id === providerId)
 
     return provider
@@ -155,17 +169,16 @@ class WebSearchService {
   /**
    * 使用指定的提供商执行网络搜索
    * @public
-   * @param provider 搜索提供商
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  public async search(
-    provider: WebSearchProvider,
-    query: string,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchProviderResponse> {
-    const websearch = this.getWebSearchState()
-    const webSearchEngine = new WebSearchEngineProvider(provider)
+  public async search(query: string, httpOptions?: RequestInit): Promise<WebSearchProviderResponse> {
+    const websearch = WebSearchService.getWebSearchState()
+    const webSearchProvider = this.getWebSearchProvider(this.webSearchProviderId)
+    if (!webSearchProvider) {
+      throw new Error(`WebSearchProvider ${this.webSearchProviderId} not found`)
+    }
+    const webSearchEngine = new WebSearchEngineProvider(webSearchProvider)
 
     let formattedQuery = query
     // FIXME: 有待商榷，效果一般
@@ -187,9 +200,9 @@ class WebSearchService {
    * @param provider 要检查的搜索提供商
    * @returns 如果提供商可用返回true，否则返回false
    */
-  public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
+  public async checkSearch(): Promise<{ valid: boolean; error?: any }> {
     try {
-      const response = await this.search(provider, 'test query')
+      const response = await this.search('test query')
       Logger.log('[checkSearch] Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
       return { valid: response.results !== undefined, error: undefined }
@@ -421,11 +434,7 @@ class WebSearchService {
    *
    * @returns 包含搜索结果的响应对象
    */
-  public async processWebsearch(
-    webSearchProvider: WebSearchProvider,
-    extractResults: ExtractResults,
-    requestId: string
-  ): Promise<WebSearchProviderResponse> {
+  public async processWebsearch(extractResults: ExtractResults, requestId: string): Promise<WebSearchProviderResponse> {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
 
@@ -447,7 +456,7 @@ class WebSearchService {
       return { query: 'summaries', results: contents }
     }
 
-    const searchPromises = questions.map((q) => this.search(webSearchProvider, q, { signal }))
+    const searchPromises = questions.map((q) => this.search(q, { signal }))
     const searchResults = await Promise.allSettled(searchPromises)
 
     // 统计成功完成的搜索数量
@@ -484,7 +493,7 @@ class WebSearchService {
       }
     }
 
-    const { compressionConfig } = this.getWebSearchState()
+    const { compressionConfig } = WebSearchService.getWebSearchState()
 
     // RAG压缩处理
     if (compressionConfig?.method === 'rag' && requestId) {
@@ -530,5 +539,3 @@ class WebSearchService {
     }
   }
 }
-
-export default new WebSearchService()
