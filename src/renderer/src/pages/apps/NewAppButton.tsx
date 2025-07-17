@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
-import { Button, Form, Input, message, Modal, Radio, Upload } from 'antd'
+import { Button, Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,11 +36,11 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
 
       // Check for duplicate ID
       if (customApps.some((app: MinAppType) => app.id === values.id)) {
-        message.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
+        window.message.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
         return
       }
       if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === values.id)) {
-        message.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
+        window.message.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
         return
       }
 
@@ -54,7 +54,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       }
       customApps.push(newApp)
       await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
-      message.success(t('settings.miniapps.custom.save_success'))
+      window.message.success(t('settings.miniapps.custom.save_success'))
       setIsModalVisible(false)
       form.resetFields()
       setFileList([])
@@ -62,7 +62,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       updateDefaultMinApps(reloadedApps)
       updateMinapps([...minapps, newApp])
     } catch (error) {
-      message.error(t('settings.miniapps.custom.save_error'))
+      window.message.error(t('settings.miniapps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error)
     }
   }
@@ -77,14 +77,14 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
         reader.onload = (event) => {
           const base64Data = event.target?.result
           if (typeof base64Data === 'string') {
-            message.success(t('settings.miniapps.custom.logo_upload_success'))
+            window.message.success(t('settings.miniapps.custom.logo_upload_success'))
             form.setFieldValue('logo', base64Data)
           }
         }
         reader.readAsDataURL(file)
       } catch (error) {
         logger.error('Failed to read file:', error)
-        message.error(t('settings.miniapps.custom.logo_upload_error'))
+        window.message.error(t('settings.miniapps.custom.logo_upload_error'))
       }
     }
   }

@@ -116,7 +116,7 @@ const MessageTools: FC<Props> = ({ block }) => {
       try {
         const success = await window.api.mcp.abortTool(toolResponse.id)
         if (success) {
-          message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
+          window.message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
         } else {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
@@ -154,7 +154,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     // Also confirm the current tool
     confirmToolAction(id)
 
-    message.success({
+    window.message.success({
       content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
       key: 'auto-approve'
     })
