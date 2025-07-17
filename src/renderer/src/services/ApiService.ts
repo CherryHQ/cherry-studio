@@ -18,7 +18,6 @@ import {
 import { getModel } from '@renderer/hooks/useModel'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { upsertOneBlock } from '@renderer/store/messageBlock'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import {
@@ -34,7 +33,6 @@ import {
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
-import { MainTextMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
@@ -60,6 +58,7 @@ import {
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
+import { injectPresetMessages } from './PresetMessagesService'
 import WebSearchService from './WebSearchService'
 
 // TODO：考虑拆开
@@ -398,149 +397,8 @@ export async function fetchChatCompletion({
     filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
   )
 
-  // =================================================================
-  // 在所有过滤之后，最终调用之前，注入预设消息
-  console.log('[ApiService] 检查助手对象:', {
-    id: assistant.id,
-    name: assistant.name,
-    hasMessages: !!assistant.messages,
-    messagesType: assistant.messages ? typeof assistant.messages : 'undefined',
-    isArray: Array.isArray(assistant.messages),
-    messagesLength: assistant.messages?.length
-  })
-
-  // 预设消息注入逻辑
-  if (assistant.messages && assistant.messages.length > 0) {
-    console.log('[ApiService] 开始处理预设消息，数量:', assistant.messages.length)
-
-    // 查找聊天记录占位符
-    const historyPlaceholder = assistant.messages.find((msg) => msg.type === 'chat_history')
-    const historyPlaceholderIndex = historyPlaceholder ? assistant.messages.indexOf(historyPlaceholder) : -1
-
-    // 过滤掉占位符，只留下真正的预设消息
-    const actualPresetMessages = assistant.messages.filter((msg) => msg.type !== 'chat_history')
-
-    // 如果找到了启用状态的聊天记录占位符，则进行编排
-    if (historyPlaceholder && historyPlaceholder.enabled !== false) {
-      console.log('[ApiService] 找到启用的聊天记录占位符，位置:', historyPlaceholderIndex)
-
-      // 根据占位符的位置分割预设消息
-      const beforeHistoryPresets = actualPresetMessages.filter(
-        (msg) => assistant.messages!.indexOf(msg) < historyPlaceholderIndex
-      )
-      const afterHistoryPresets = actualPresetMessages.filter(
-        (msg) => assistant.messages!.indexOf(msg) > historyPlaceholderIndex
-      )
-
-      // 创建预设消息对象，并为每个预设消息添加一个MainTextMessageBlock
-      const beforeHistoryMessages = beforeHistoryPresets.map((preset) => {
-        const messageId = preset.id || `preset-${uuid()}`
-        const blockId = `block-${uuid()}`
-
-        // 创建一个MainTextMessageBlock
-        const block: MainTextMessageBlock = {
-          id: blockId,
-          messageId,
-          type: MessageBlockType.MAIN_TEXT,
-          content: preset.content,
-          createdAt: new Date().toISOString(),
-          status: MessageBlockStatus.SUCCESS
-        }
-
-        // 将块添加到store中
-        store.dispatch(upsertOneBlock(block))
-
-        // 创建消息对象，包含block引用
-        return {
-          id: messageId,
-          role: preset.role,
-          content: preset.content,
-          assistantId: assistant.id,
-          topicId: lastUserMessage.topicId!,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          status: 'success',
-          blocks: [blockId]
-        }
-      })
-
-      const afterHistoryMessages = afterHistoryPresets.map((preset) => {
-        const messageId = preset.id || `preset-${uuid()}`
-        const blockId = `block-${uuid()}`
-
-        // 创建一个MainTextMessageBlock
-        const block: MainTextMessageBlock = {
-          id: blockId,
-          messageId,
-          type: MessageBlockType.MAIN_TEXT,
-          content: preset.content,
-          createdAt: new Date().toISOString(),
-          status: MessageBlockStatus.SUCCESS
-        }
-
-        // 将块添加到store中
-        store.dispatch(upsertOneBlock(block))
-
-        // 创建消息对象，包含block引用
-        return {
-          id: messageId,
-          role: preset.role,
-          content: preset.content,
-          assistantId: assistant.id,
-          topicId: lastUserMessage.topicId!,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          status: 'success',
-          blocks: [blockId]
-        }
-      })
-
-      // 核心逻辑：将真实聊天记录插入到前后预设消息之间
-      _messages = [...beforeHistoryMessages, ..._messages, ...afterHistoryMessages] as any
-
-      console.log('[ApiService] 已添加聊天记录前的预设消息:', beforeHistoryMessages.length)
-      console.log('[ApiService] 已添加聊天记录后的预设消息:', afterHistoryMessages.length)
-    } else {
-      // 如果没有找到聊天记录占位符，或者占位符被禁用，则所有消息都作为前置消息
-      console.log('[ApiService] 未找到启用的聊天记录占位符，所有预设消息将作为前置消息')
-
-      const presetMessages = actualPresetMessages.map((preset) => {
-        const messageId = preset.id || `preset-${uuid()}`
-        const blockId = `block-${uuid()}`
-
-        // 创建一个MainTextMessageBlock
-        const block: MainTextMessageBlock = {
-          id: blockId,
-          messageId,
-          type: MessageBlockType.MAIN_TEXT,
-          content: preset.content,
-          createdAt: new Date().toISOString(),
-          status: MessageBlockStatus.SUCCESS
-        }
-
-        // 将块添加到store中
-        store.dispatch(upsertOneBlock(block))
-
-        // 创建消息对象，包含block引用
-        return {
-          id: messageId,
-          role: preset.role,
-          content: preset.content,
-          assistantId: assistant.id,
-          topicId: lastUserMessage.topicId!,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          status: 'success',
-          blocks: [blockId]
-        }
-      })
-
-      _messages = [...presetMessages, ..._messages] as any
-    }
-  } else {
-    console.log('[ApiService] 没有预设消息需要注入')
-  }
-  // =================================================================
+  // 注入预设消息
+  _messages = injectPresetMessages(_messages, assistant, lastUserMessage)
 
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
@@ -560,7 +418,7 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   // 记录最终消息列表
-  console.log(
+  console.debug(
     '[ApiService] 最终发送给适配器的消息列表:',
     JSON.stringify(
       _messages.map((m) => ({
