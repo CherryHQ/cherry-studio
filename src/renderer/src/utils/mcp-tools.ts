@@ -17,7 +17,6 @@ import {
 } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
 import {
@@ -30,220 +29,167 @@ import {
 const logger = loggerService.withContext('Utils:MCPTools')
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
-const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
 
-// const ensureValidSchema = (obj: Record<string, any>) => {
-//   // Filter out unsupported keys for Gemini
-//   const filteredObj = filterUnsupportedKeys(obj)
-
-//   // Handle base schema properties
-//   const baseSchema = {
-//     description: filteredObj.description,
-//     nullable: filteredObj.nullable
-//   } as BaseSchema
-
-//   // Handle string type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
-//     if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
-//       return {
-//         ...baseSchema,
-//         type: SchemaType.STRING,
-//         format: 'enum',
-//         enum: filteredObj.enum as string[]
-//       } as EnumStringSchema
-//     }
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.STRING,
-//       format: filteredObj.format === 'date-time' ? 'date-time' : undefined
-//     } as SimpleStringSchema
-//   }
-
-//   // Handle number type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.NUMBER,
-//       format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
-//     } as NumberSchema
-//   }
-
-//   // Handle integer type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.INTEGER,
-//       format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
-//     } as IntegerSchema
-//   }
-
-//   // Handle boolean type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.BOOLEAN
-//     } as BooleanSchema
-//   }
-
-//   // Handle array type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.ARRAY,
-//       items: filteredObj.items
-//         ? ensureValidSchema(filteredObj.items as Record<string, any>)
-//         : ({ type: SchemaType.STRING } as SimpleStringSchema),
-//       minItems: filteredObj.minItems,
-//       maxItems: filteredObj.maxItems
-//     } as ArraySchema
-//   }
-
-//   // Handle object type (default)
-//   const properties = filteredObj.properties
-//     ? Object.fromEntries(
-//         Object.entries(filteredObj.properties).map(([key, value]) => [
-//           key,
-//           ensureValidSchema(value as Record<string, any>)
-//         ])
-//       )
-//     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
-
-//   return {
-//     ...baseSchema,
-//     type: SchemaType.OBJECT,
-//     properties,
-//     required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
-//   } as ObjectSchema
-// }
-
-// function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
-//   const supportedBaseKeys = ['description', 'nullable']
-//   const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
-//   const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
-//   const supportedBooleanKeys = [...supportedBaseKeys, 'type']
-//   const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
-//   const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
-
-//   const filtered: Record<string, any> = {}
-
-//   let keysToKeep: string[]
-
-//   if (obj.type?.toLowerCase() === SchemaType.STRING) {
-//     keysToKeep = supportedStringKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     keysToKeep = supportedBooleanKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     keysToKeep = supportedArrayKeys
-//   } else {
-//     // Default to object type
-//     keysToKeep = supportedObjectKeys
-//   }
-
-//   // copy supported keys
-//   for (const key of keysToKeep) {
-//     if (obj[key] !== undefined) {
-//       filtered[key] = obj[key]
-//     }
-//   }
-
-//   return filtered
-// }
-
-// function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
-//   const properties = tool.inputSchema.properties
-//   if (!properties) {
-//     return {}
-//   }
-
-//   // For OpenAI, we don't need to validate as strictly
-//   if (!filterNestedObj) {
-//     return properties
-//   }
-
-//   const processedProperties = Object.fromEntries(
-//     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-//   )
-
-//   return processedProperties
-// }
-
-export function filterProperties(
-  properties: Record<string, any> | string | number | boolean | Array<Record<string, any> | string | number | boolean>,
-  supportedKeys: string[]
-) {
-  // If it is an array, recursively process each element
-  if (isArray(properties)) {
-    return properties.map((item) => filterProperties(item, supportedKeys))
+/**
+ * Recursively filters and validates properties for OpenAI o3 strict schema validation
+ *
+ * o3 strict mode requirements:
+ * 1. ALL object schemas (including nested ones) must have complete required arrays with ALL property keys
+ * 2. Object schemas with additionalProperties: false MUST have a properties field (even if empty)
+ *
+ * This function recursively processes the entire schema tree to ensure compliance.
+ */
+function filterProperties(schema: any): any {
+  if (!schema || typeof schema !== 'object') {
+    return schema
   }
 
-  // If it is an object, recursively process each property
-  if (isObject(properties)) {
-    return transform(
-      properties,
-      (result, value, key) => {
-        if (key === 'properties') {
-          result[key] = transform(value, (acc, v, k) => {
-            acc[k] = filterProperties(v, supportedKeys)
-          })
+  // Handle arrays by recursively processing items
+  if (Array.isArray(schema)) {
+    return schema.map(filterProperties)
+  }
 
-          result['additionalProperties'] = false
-          result['required'] = pull(Object.keys(value), ...EXTRA_SCHEMA_KEYS)
-        } else if (key === 'oneOf') {
-          // openai only supports anyOf
-          result['anyOf'] = filterProperties(value, supportedKeys)
-        } else if (supportedKeys.includes(key)) {
-          result[key] = filterProperties(value, supportedKeys)
-          if (key === 'type' && value === 'object') {
-            result['additionalProperties'] = false
+  const filtered = { ...schema }
+
+  // Process all properties recursively first
+  if (filtered.properties && typeof filtered.properties === 'object') {
+    const newProperties: any = {}
+    for (const [key, value] of Object.entries(filtered.properties)) {
+      newProperties[key] = filterProperties(value)
+    }
+    filtered.properties = newProperties
+  }
+
+  // Process other schema fields that might contain nested schemas
+  if (filtered.items) {
+    filtered.items = filterProperties(filtered.items)
+  }
+  if (filtered.additionalProperties && typeof filtered.additionalProperties === 'object') {
+    filtered.additionalProperties = filterProperties(filtered.additionalProperties)
+  }
+  if (filtered.patternProperties) {
+    const newPatternProperties: any = {}
+    for (const [pattern, value] of Object.entries(filtered.patternProperties)) {
+      newPatternProperties[pattern] = filterProperties(value)
+    }
+    filtered.patternProperties = newPatternProperties
+  }
+
+  // Handle schema composition keywords (array-based)
+  const arrayCompositionKeywords = ['allOf', 'anyOf', 'oneOf']
+  for (const keyword of arrayCompositionKeywords) {
+    if (filtered[keyword]) {
+      filtered[keyword] = filtered[keyword].map(filterProperties)
+    }
+  }
+
+  // Handle single schema keywords
+  const singleSchemaKeywords = ['not', 'if', 'then', 'else']
+  for (const keyword of singleSchemaKeywords) {
+    if (filtered[keyword]) {
+      filtered[keyword] = filterProperties(filtered[keyword])
+    }
+  }
+
+  // For ALL object schemas in strict mode, ensure proper o3 compliance
+  if (filtered.type === 'object') {
+    // o3 requirement: object schemas must have a properties field (even if empty)
+    if (!filtered.properties) {
+      filtered.properties = {}
+    }
+
+    // o3 strict requirement 1: ALL properties must be in required array
+    const propertyKeys = Object.keys(filtered.properties)
+    filtered.required = propertyKeys
+
+    // o3 strict requirement 2: additionalProperties must ALWAYS be false for strict validation
+    // This applies regardless of the original value (true, undefined, etc.)
+    filtered.additionalProperties = false
+  }
+
+  return filtered
+}
+
+/**
+ * Fixes object properties for o3 strict mode by ensuring objects have properties field (even if empty)
+ */
+function fixObjectPropertiesForO3(properties: Record<string, any>): Record<string, any> {
+  const fixedProperties = { ...properties }
+  for (const [propKey, propValue] of Object.entries(fixedProperties || {})) {
+    if (propValue && typeof propValue === 'object') {
+      const prop = propValue as any
+      if (prop.type === 'object') {
+        // For object types, ensure they have a properties field (even if empty) for o3 strict mode
+        if (!prop.properties && prop.additionalProperties === false) {
+          fixedProperties[propKey] = {
+            ...prop,
+            properties: {} // Add empty properties object for strict validation
           }
         }
-      },
-      {}
-    )
+      }
+    }
   }
+  return fixedProperties
+}
 
-  // Return other types directly (e.g., string, number, etc.)
-  return properties
+/**
+ * Processes MCP tool schema for OpenAI o3 strict validation requirements
+ */
+function processSchemaForO3(inputSchema: any): {
+  properties: Record<string, any>
+  required: string[]
+  additionalProperties: boolean
+} {
+  const filteredSchema = filterProperties(inputSchema)
+
+  // For strict mode (like o3), ensure ALL properties are in required array
+  // This must be done AFTER filterProperties since it sets its own required array
+  const allPropertyKeys = Object.keys(filteredSchema.properties || {})
+
+  // Fix object properties for o3 strict mode - ensure objects have properties field
+  const fixedProperties = fixObjectPropertiesForO3(filteredSchema.properties)
+
+  // Create clean schema object to avoid mutations
+  return {
+    properties: fixedProperties || {},
+    required: allPropertyKeys, // o3 requires ALL properties to be in required
+    additionalProperties: false
+  }
 }
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
-  const schemaKeys = ['type', 'description', 'items', 'enum', 'additionalProperties', 'anyof']
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        name: tool.id,
-        parameters: {
-          type: 'object',
-          properties: filterProperties(tool.inputSchema, schemaKeys).properties,
-          required: pull(Object.keys(tool.inputSchema.properties), ...EXTRA_SCHEMA_KEYS),
-          additionalProperties: false
-        },
-        strict: true
-      }) satisfies OpenAI.Responses.Tool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      name: tool.id,
+      parameters: {
+        type: 'object' as const,
+        ...parameters
+      },
+      strict: true
+    } satisfies OpenAI.Responses.Tool
+  })
 }
 
 export function mcpToolsToOpenAIChatTools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: {
-            type: 'object',
-            properties: tool.inputSchema.properties,
-            required: tool.inputSchema.required
-          }
-        }
-      }) as ChatCompletionTool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      function: {
+        name: tool.id,
+        description: tool.description,
+        parameters: {
+          type: 'object' as const,
+          ...parameters
+        },
+        strict: true
+      }
+    } as ChatCompletionTool
+  })
 }
 
 export function openAIToolsToMcpTool(
@@ -348,42 +294,16 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
  * @returns
  */
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[]): Tool[] {
-  /**
-   * @typedef {import('@google/genai').Schema} Schema
-   */
-  const schemaKeys = [
-    'example',
-    'pattern',
-    'default',
-    'maxLength',
-    'minLength',
-    'minProperties',
-    'maxProperties',
-    'anyOf',
-    'description',
-    'enum',
-    'format',
-    'items',
-    'maxItems',
-    'maximum',
-    'minItems',
-    'minimum',
-    'nullable',
-    'properties',
-    'propertyOrdering',
-    'required',
-    'title',
-    'type'
-  ]
   return [
     {
       functionDeclarations: mcpTools?.map((tool) => {
+        const filteredSchema = filterProperties(tool.inputSchema)
         return {
           name: tool.id,
           description: tool.description,
           parameters: {
             type: GeminiSchemaType.OBJECT,
-            properties: filterProperties(tool.inputSchema, schemaKeys).properties,
+            properties: filteredSchema.properties,
             required: tool.inputSchema.required
           }
         }

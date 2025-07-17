@@ -58,7 +58,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         clearInterval(intervalRef.current)
       }
     }
-  }, [currentHtml, open, previewHtml])
+  }, [currentHtml, open, previewHtml, currentHtml])
 
   // 全屏时防止 body 滚动
   useEffect(() => {
