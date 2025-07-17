@@ -507,6 +507,7 @@ export type LanguageCode =
   | 'id-id'
   | 'ur-pk'
   | 'ms-my'
+  | 'unknown'
 
 // langCode应当能够唯一确认一种语言
 export type Language = {

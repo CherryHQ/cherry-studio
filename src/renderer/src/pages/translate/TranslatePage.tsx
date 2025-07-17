@@ -18,19 +18,20 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import {
+  AutoDetectionMethod,
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
   determineTargetLanguage,
   getLanguageByLangcode
 } from '@renderer/utils/translate'
-import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Radio, Select, Space, Switch, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { find, isEmpty, sortBy } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -53,6 +54,8 @@ const TranslateSettings: FC<{
   onModelChange: (model: Model) => void
   allModels: Model[]
   selectOptions: any[]
+  autoDetectionMethod: AutoDetectionMethod
+  setAutoDetectionMethod: (value: AutoDetectionMethod) => void
 }> = ({
   visible,
   onClose,
@@ -67,7 +70,9 @@ const TranslateSettings: FC<{
   translateModel,
   onModelChange,
   allModels,
-  selectOptions
+  selectOptions,
+  autoDetectionMethod,
+  setAutoDetectionMethod: setAutoDetectionMethod
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -75,6 +80,7 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
+  const [detectionMethod, setDetectMethod] = useState<AutoDetectionMethod>(autoDetectionMethod)
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -84,7 +90,8 @@ const TranslateSettings: FC<{
   useEffect(() => {
     setLocalPair(bidirectionalPair)
     setLocalPrompt(translateModelPrompt)
-  }, [bidirectionalPair, translateModelPrompt, visible])
+    setDetectMethod(autoDetectionMethod)
+  }, [autoDetectionMethod, bidirectionalPair, translateModelPrompt, visible])
 
   const handleSave = () => {
     if (localPair[0] === localPair[1]) {
@@ -100,6 +107,8 @@ const TranslateSettings: FC<{
     db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
     db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
     dispatch(setTranslateModelPrompt(localPrompt))
+    setAutoDetectionMethod(detectionMethod)
+    db.settings.put({ id: 'translate:detect:method', value: detectionMethod })
     window.message.success({
       content: t('message.save.success.title'),
       key: 'translate-settings-save'
@@ -226,6 +235,36 @@ const TranslateSettings: FC<{
           )}
         </div>
 
+        <HStack style={{ justifyContent: 'space-between' }}>
+          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+            {t('translate.detect.method')}
+            <Tooltip title={t('translate.detect.method.tip')}>
+              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
+                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
+              </span>
+            </Tooltip>
+          </div>
+          <HStack alignItems="center" gap={5}>
+            <Radio.Group
+              defaultValue={detectionMethod}
+              optionType="button"
+              buttonStyle="solid"
+              onChange={(e) => {
+                setDetectMethod(e.target.value)
+              }}>
+              <Tooltip title={t('translate.detect.method.auto.tip')}>
+                <Radio.Button value="auto">{t('translate.detect.method.auto')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.algo.tip')}>
+                <Radio.Button value="franc">{t('translate.detect.method.algo')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.llm.tip')}>
+                <Radio.Button value="llm">{t('translate.detect.method.llm')}</Radio.Button>
+              </Tooltip>
+            </Radio.Group>
+          </HStack>
+        </HStack>
+
         <div>
           <Flex align="center" justify="space-between">
             <div
@@ -294,6 +333,8 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
   const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
+  const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
+
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -371,7 +412,7 @@ const TranslatePage: FC = () => {
     db.translate_history.clear()
   }
 
-  const onTranslate = async () => {
+  const onTranslate = useCallback(async () => {
     if (!text.trim()) return
     if (!translateModel) {
       window.message.error({
@@ -436,7 +477,7 @@ const TranslatePage: FC = () => {
       setLoading(false)
       return
     }
-  }
+  }, [bidirectionalPair, isBidirectional, sourceLanguage, t, targetLanguage, text, translateModel])
 
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
@@ -452,7 +493,6 @@ const TranslatePage: FC = () => {
   const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setResult(history.targetText)
-    setSourceLanguage(history._sourceLanguage)
     setTargetLanguage(history._targetLanguage)
   }
 
@@ -518,6 +558,15 @@ const TranslatePage: FC = () => {
 
       const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
       setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
+
+      const autoDetectionMethodSetting = await db.settings.get({ id: 'translate:detect:method' })
+
+      if (autoDetectionMethodSetting) {
+        setAutoDetectionMethod(autoDetectionMethodSetting.value)
+      } else {
+        setAutoDetectionMethod('franc')
+        db.settings.put({ id: 'translate:detect:method', value: 'franc' })
+      }
     })
   }, [])
 
@@ -759,6 +808,8 @@ const TranslatePage: FC = () => {
         onModelChange={handleModelChange}
         allModels={allModels}
         selectOptions={selectOptions}
+        autoDetectionMethod={autoDetectionMethod}
+        setAutoDetectionMethod={setAutoDetectionMethod}
       />
     </Container>
   )

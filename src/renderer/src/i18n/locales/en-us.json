@@ -653,7 +653,8 @@
       "thai": "Thai",
       "turkish": "Turkish",
       "urdu": "Urdu",
-      "vietnamese": "Vietnamese"
+      "vietnamese": "Vietnamese",
+      "other": "Other"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -2439,7 +2440,16 @@
       },
       "target_language": "Target Language",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "detect.method": "Detection Method",
+      "detect.method.tip": "Method used to detect input language automatically",
+      "detect.method.placeholder": "Select detection method",
+      "detect.method.algo": "Algorithm",
+      "detect.method.algo.tip": "Use franc algorithm for language detection",
+      "detect.method.llm": "LLM",
+      "detect.method.llm.tip": "Use translation model for language detection, consuming a small amount of tokens",
+      "detect.method.auto": "Smart Selection",
+      "detect.method.auto.tip": "Automatically select the appropriate detection method"
     },
     "tray": {
       "quit": "Quit",
