@@ -60,13 +60,13 @@ const InstallNpxUv: FC = () => {
   }
 
   useEffect(() => {
-    if (isUvInstalled && isInstallingUv) {
+    if (isUvInstalled && !isInstallingUv) {
       setIsInstallingUv(false)
     }
   }, [isUvInstalled, isInstallingUv])
 
   useEffect(() => {
-    if (isBunInstalled && isInstallingBun) {
+    if (isBunInstalled && !isInstallingBun) {
       setIsInstallingBun(false)
     }
   }, [isBunInstalled, isInstallingBun])
@@ -85,7 +85,7 @@ const InstallNpxUv: FC = () => {
     window.open('https://docs.cherry-ai.com/advanced-basic/mcp', '_blank')
   }
 
-  const installed = isUvInstalled && isBunInstalled
+  const allInstalled = isUvInstalled && isBunInstalled
 
   const content = (
     <Container>
@@ -170,9 +170,9 @@ const InstallNpxUv: FC = () => {
         size="small"
         variant="filled"
         shape="circle"
-        icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+        icon={allInstalled ? <CheckCircleOutlined /> : <WarningOutlined />}
         className="nodrag"
-        color={installed ? 'green' : 'danger'}
+        color={allInstalled ? 'green' : 'danger'}
       />
     </Popover>
   )
