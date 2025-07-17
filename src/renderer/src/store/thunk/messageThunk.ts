@@ -148,7 +148,7 @@ const getBlockThrottler = (id: string) => {
 /**
  * 更新单个消息块。
  */
-const throttledBlockUpdate = (id: string, blockUpdate: any) => {
+export const throttledBlockUpdate = (id: string, blockUpdate: any) => {
   const throttler = getBlockThrottler(id)
   throttler(blockUpdate)
 }
@@ -156,7 +156,7 @@ const throttledBlockUpdate = (id: string, blockUpdate: any) => {
 /**
  * 取消单个块的节流更新，移除节流器和 RAF。
  */
-const cancelThrottledBlockUpdate = (id: string) => {
+export const cancelThrottledBlockUpdate = (id: string) => {
   const rafId = blockUpdateRafs.get(id)
   if (rafId) {
     cancelAnimationFrame(rafId)
