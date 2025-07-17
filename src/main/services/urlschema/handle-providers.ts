@@ -1,5 +1,6 @@
 import { isMac } from '@main/constant'
 import Logger from 'electron-log'
+
 import { windowService } from '../WindowService'
 
 function ParseData(data: string) {
