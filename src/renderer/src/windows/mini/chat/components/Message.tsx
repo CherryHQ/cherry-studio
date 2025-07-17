@@ -50,8 +50,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,
-          background: messageBackground,
-          ...(isAssistantMessage ? { paddingLeft: 5, paddingRight: 5 } : {})
+          background: messageBackground
         }}>
         <MessageErrorBoundary>
           <MessageContent message={message} />
