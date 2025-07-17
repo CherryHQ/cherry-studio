@@ -2459,6 +2459,16 @@
       "show_window": "顯示視窗",
       "visualization": "視覺化"
     },
+    "research": {
+      "clarification": {
+        "title": "研究澄清"
+      },
+      "ready_to_start": "準備開始深度研究",
+      "retry": "重新澄清",
+      "continue_research": "繼續研究",
+      "supplement_info_label": "補充資訊 (可選)",
+      "supplement_info_placeholder": "您可以在此處提供補充資訊，幫助我們更好地理解您的需求..."
+    },
     "memory": {
       "title": "全域記憶",
       "add_memory": "新增記憶",

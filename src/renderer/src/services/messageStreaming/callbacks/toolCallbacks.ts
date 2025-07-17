@@ -19,9 +19,10 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
   return {
     onToolCallPending: (toolResponse: MCPToolResponse) => {
       if (blockManager.hasInitialPlaceholder) {
-        const changes = {
+        const changes: Partial<ToolMessageBlock> = {
           type: MessageBlockType.TOOL,
           status: MessageBlockStatus.PENDING,
+          toolId: toolResponse.id,
           toolName: toolResponse.tool.name,
           metadata: { rawMcpToolResponse: toolResponse }
         }
@@ -49,7 +50,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       const targetBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
 
       if (targetBlockId && toolResponse.status === 'invoking') {
-        const changes = {
+        const changes: Partial<ToolMessageBlock> = {
           status: MessageBlockStatus.PROCESSING,
           metadata: { rawMcpToolResponse: toolResponse }
         }

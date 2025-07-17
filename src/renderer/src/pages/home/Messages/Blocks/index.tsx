@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import CitationBlock from './CitationBlock'
+import DeepResearchBlock from './DeepResearchBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
 import ImageBlock from './ImageBlock'
@@ -142,6 +143,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             break
           case MessageBlockType.TRANSLATION:
             blockComponent = <TranslationBlock key={block.id} block={block} />
+            break
+          case MessageBlockType.DEEP_RESEARCH:
+            blockComponent = <DeepResearchBlock key={block.id} block={block} />
             break
           default:
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)

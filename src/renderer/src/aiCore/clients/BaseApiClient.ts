@@ -1,6 +1,7 @@
 import {
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
+  isOpenAIDeepResearchModel,
   isOpenAIModel,
   isSupportedFlexServiceTier
 } from '@renderer/config/models'
@@ -205,6 +206,9 @@ export abstract class BaseApiClient<
   protected getTimeout(model: Model) {
     if (isSupportedFlexServiceTier(model)) {
       return 15 * 1000 * 60
+    }
+    if (isOpenAIDeepResearchModel(model)) {
+      return 60 * 1000 * 60
     }
     return defaultTimeout
   }

@@ -2466,6 +2466,16 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
   )
 }
 
+export function isOpenAIDeepResearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (!isOpenAIModel(model)) {
+    return false
+  }
+  return model.id.includes('deep-research')
+}
+
 export function isSupportedThinkingTokenModel(model?: Model): boolean {
   if (!model) {
     return false

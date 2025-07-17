@@ -2,6 +2,7 @@ import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
   isOpenAIChatCompletionOnlyModel,
+  isOpenAIDeepResearchModel,
   isOpenAILLMModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
@@ -406,7 +407,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           reqMessages = [systemMessage, ...userMessage].filter(Boolean) as OpenAI.Responses.EasyInputMessage[]
         }
 
-        if (enableWebSearch) {
+        if (enableWebSearch || isOpenAIDeepResearchModel(model)) {
           tools.push({
             type: 'web_search_preview'
           })
