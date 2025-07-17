@@ -2,7 +2,9 @@
 
 This is a developer document on how to use the logger.
 
-CherryStudio uses a unified logging service to print and record logs. The following are detailed instructions.
+CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**
+
+The following are detailed instructions.
 
 ## Usage in the `main` process
 
