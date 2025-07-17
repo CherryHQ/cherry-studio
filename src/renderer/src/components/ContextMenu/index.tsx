@@ -1,3 +1,5 @@
+import { useAppDispatch } from '@renderer/store'
+import { addPendingQuoteText } from '@renderer/store/runtime'
 import { Dropdown } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +10,7 @@ interface ContextMenuProps {
 
 const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const [selectedText, setSelectedText] = useState<string | undefined>(undefined)
 
   const contextMenuItems = useMemo(() => {
@@ -35,12 +38,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
         label: t('chat.message.quote'),
         onClick: () => {
           if (selectedText) {
-            window.api?.quoteToMainWindow(selectedText)
+            dispatch(addPendingQuoteText(selectedText))
           }
         }
       }
     ]
-  }, [selectedText, t])
+  }, [selectedText, t, dispatch])
 
   const onOpenChange = (open: boolean) => {
     if (open) {

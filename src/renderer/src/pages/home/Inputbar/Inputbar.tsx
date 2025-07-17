@@ -30,7 +30,7 @@ import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setSearching } from '@renderer/store/runtime'
+import { clearPendingQuoteTexts, setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
@@ -39,7 +39,6 @@ import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
@@ -106,6 +105,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
+  const pendingQuoteTexts = useAppSelector((state) => state.runtime.chat.pendingQuoteTexts)
+
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
 
@@ -448,19 +449,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
 
-  const onQuote = useCallback(
-    (text: string) => {
-      const quotedText = formatQuotedText(text)
-      setText((prevText) => {
-        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-        setTimeout(() => resizeTextArea(), 0)
-        return newText
-      })
-      textareaRef.current?.focus()
-    },
-    [resizeTextArea]
-  )
-
   const onPause = async () => {
     await pauseMessages()
   }
@@ -672,23 +660,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
 
-    // 监听引用事件
-    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
-      IpcChannel.App_QuoteToMain,
-      (_, selectedText: string) => onQuote(selectedText)
-    )
-
     return () => {
       unsubscribes.forEach((unsub) => unsub())
-      quoteFromAnywhereRemover?.()
     }
-  }, [addNewTopic, onQuote])
+  }, [addNewTopic])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
       textareaRef.current?.focus()
     }
   }, [assistant, topic])
+
+  // 批量处理所有待处理的引用文本
+  useEffect(() => {
+    if (pendingQuoteTexts.length > 0) {
+      const quotedTexts = pendingQuoteTexts.map((text) => formatQuotedText(text)).join('\n')
+
+      setText((prevText) => {
+        return prevText ? `${prevText}\n${quotedTexts}\n` : `${quotedTexts}\n`
+      })
+
+      dispatch(clearPendingQuoteTexts())
+      textareaRef.current?.focus()
+      setTimeout(() => resizeTextArea(), 0)
+    }
+  }, [pendingQuoteTexts, dispatch, resizeTextArea])
 
   useEffect(() => {
     setTimeout(() => resizeTextArea(), 0)
