@@ -22,7 +22,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
-import { Avatar, Drawer, Tooltip } from 'antd'
+import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -117,59 +117,19 @@ const GoogleLoginTip = ({
   const message = t('miniwindow.alert.google_login')
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: '60px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 9999,
-        width: '80%',
-        maxWidth: '600px',
-        padding: '10px 15px',
-        backgroundColor: '#fffbe6',
-        border: '1px solid #ffe58f',
-        borderRadius: '4px',
-        boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        animation: 'fadeIn 0.3s ease-in-out'
-      }}>
-      <div style={{ fontSize: '13px', color: '#d48806', flex: 1 }}>{message}</div>
-      <div style={{ display: 'flex', alignItems: 'center', marginLeft: '10px' }}>
-        <button
-          onClick={openGoogleMinApp}
-          type="button"
-          style={{
-            background: '#d48806',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            marginRight: '10px',
-            whiteSpace: 'nowrap'
-          }}>
+    <Alert
+      message={message}
+      type="warning"
+      showIcon
+      closable
+      onClose={handleClose}
+      action={
+        <Button type="primary" size="small" onClick={openGoogleMinApp}>
           {t('common.open')} Google
-        </button>
-        <button
-          onClick={handleClose}
-          type="button"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            color: '#d48806',
-            padding: '0 5px'
-          }}>
-          ✕
-        </button>
-      </div>
-    </div>
+        </Button>
+      }
+      style={{ zIndex: 10, animation: 'fadeIn 0.3s ease-in-out' }}
+    />
   )
 }
 
@@ -433,36 +393,36 @@ const MinappPopupContainer: React.FC = () => {
         </Tooltip>
         {appInfo.canOpenExternalLink && (
           <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
+            <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
               <ExportOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         )}
         <Spacer />
         <ButtonsGroup className={isWin || isLinux ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoBack(appInfo.id)}>
+            <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoForward(appInfo.id)}>
+            <TitleButton onClick={() => handleGoForward(appInfo.id)}>
               <ArrowRightOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleReload(appInfo.id)}>
+            <TitleButton onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           {appInfo.canPinned && (
             <Tooltip
               title={appInfo.isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title')}
               mouseEnterDelay={0.8}
               placement="bottom">
-              <Button onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
+              <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           <Tooltip
@@ -473,28 +433,28 @@ const MinappPopupContainer: React.FC = () => {
             }
             mouseEnterDelay={0.8}
             placement="bottom">
-            <Button onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
+            <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
               <LinkOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           {isInDevelopment && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handleOpenDevTools(appInfo.id)}>
+              <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           {canMinimize && (
             <Tooltip title={t('minapp.popup.minimize')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handlePopupMinimize()}>
+              <TitleButton onClick={() => handlePopupMinimize()}>
                 <MinusOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           <Tooltip title={t('minapp.popup.close')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handlePopupClose(appInfo.id)}>
+            <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
               <CloseOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         </ButtonsGroup>
       </TitleContainer>
@@ -598,7 +558,7 @@ const ButtonsGroup = styled.div`
   }
 `
 
-const Button = styled.div`
+const TitleButton = styled.div`
   cursor: pointer;
   width: 30px;
   height: 30px;
