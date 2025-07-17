@@ -100,8 +100,10 @@ export default class AiProvider {
         builder.remove(AbortHandlerMiddlewareName)
       }
       if (params.callType === 'test') {
-        builder.remove(ErrorHandlerMiddlewareName)
-        builder.remove(FinalChunkConsumerMiddlewareName)
+        builder
+          .remove(ErrorHandlerMiddlewareName)
+          .remove(FinalChunkConsumerMiddlewareName)
+          .insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
       }
     }
 

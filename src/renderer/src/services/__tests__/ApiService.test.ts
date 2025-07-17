@@ -743,6 +743,113 @@ const openaiCompletionChunks: OpenAISdkRawChunk[] = [
   }
 ]
 
+const openaiNeedExtractContentChunks: OpenAISdkRawChunk[] = [
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '<think>',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '\n好的，用户发来“你好”，我需要友好回应\n</',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: 'think>',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '你好！有什么我可以帮您的吗？',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {} as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: 'stop'
+      }
+    ]
+  }
+]
+
 const anthropicTextNonStreamChunks: AnthropicSdkRawChunk[] = [
   {
     id: 'msg_bdrk_01HctMh5mCpuFRq49KFwTDU6',
@@ -844,6 +951,12 @@ async function* geminiToolUseChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk>
 
 async function* openaiThinkingChunkGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
   for (const chunk of openaiCompletionChunks) {
+    yield chunk
+  }
+}
+
+async function* openaiNeedExtractContentChunkGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
+  for (const chunk of openaiNeedExtractContentChunks) {
     yield chunk
   }
 }
@@ -1111,6 +1224,11 @@ const mockOpenaiApiClient = {
   getBaseURL: vi.fn(() => 'https://api.openai.com'),
   getApiKey: vi.fn(() => 'mock-api-key')
 } as unknown as OpenAIAPIClient
+
+const mockOpenaiNeedExtractContentApiClient = cloneDeep(mockOpenaiApiClient)
+mockOpenaiNeedExtractContentApiClient.createCompletions = vi
+  .fn()
+  .mockImplementation(() => openaiNeedExtractContentChunkGenerator())
 
 async function* anthropicTextNonStreamChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
   for (const chunk of anthropicTextNonStreamChunks) {
@@ -2004,6 +2122,91 @@ describe('ApiService', () => {
       {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {}
+      }
+    ]
+
+    expect(filteredChunks).toEqual(expectedChunks)
+  })
+
+  it('should handle openai need extract content chunk correctly', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    // @ts-ignore mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
+    mockCreate.mockReturnValue(mockOpenaiNeedExtractContentApiClient as unknown as OpenAIAPIClient)
+    const AI = new AiProvider(mockProvider as Provider)
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o'
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const filteredChunks = chunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedChunks = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '好的，用户发来“你好”，我需要友好回应'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '好的，用户发来“你好”，我需要友好回应'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '\n你好！有什么我可以帮您的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '\n你好！有什么我可以帮您的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
+          }
+        }
       }
     ]
 
