@@ -19626,13 +19626,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:>=6":
-  version: 7.11.0
-  resolution: "undici@npm:7.11.0"
-  checksum: 10c0/e5dd3cc2acae9c8333f97a78d4e91108957367fa7e69918e3a5cbd84702cb453cf7de3f8c2a33bcf808850d78ead70f3bd62900a70d969912e9fed8842bbfc11
-  languageName: node
-  linkType: hard
-
 "unified@npm:^11.0.0, unified@npm:^11.0.5":
   version: 11.0.5
   resolution: "unified@npm:11.0.5"
