@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
-import { Model } from '@renderer/types'
-import { ModalFuncProps } from 'antd/es/modal/interface'
-// @ts-ignore next-line`
+import { Model, Provider } from '@renderer/types'
+import { ModalFuncProps } from 'antd'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils')
@@ -217,6 +216,15 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
     }
   }
   return null
+}
+
+/**
+ * 判断是否为 OpenAI 兼容的提供商
+ * @param {Provider} provider 提供商对象
+ * @returns {boolean} 是否为 OpenAI 兼容提供商
+ */
+export function isOpenAIProvider(provider: Provider): boolean {
+  return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
 }
 
 export * from './api'

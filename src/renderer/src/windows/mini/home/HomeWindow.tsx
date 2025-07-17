@@ -10,6 +10,7 @@ import { getAssistantMessage, getUserMessage } from '@renderer/services/Messages
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
+import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
 import { ThemeMode, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -246,9 +247,7 @@ const HomeWindow: FC = () => {
           .filter((m) => m && !m.status?.includes('ing'))
 
         let blockId: string | null = null
-        let blockContent: string = ''
         let thinkingBlockId: string | null = null
-        let thinkingBlockContent: string = ''
 
         setIsLoading(true)
         setIsOutputted(false)
@@ -262,14 +261,16 @@ const HomeWindow: FC = () => {
           assistant: { ...currentAssistant, settings: { streamOutput: true } },
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
-              case ChunkType.THINKING_DELTA:
+              case ChunkType.THINKING_START:
                 {
-                  thinkingBlockContent += chunk.text
                   setIsOutputted(true)
-                  if (!thinkingBlockId) {
-                    const block = createThinkingBlock(assistantMessage.id, chunk.text, {
-                      status: MessageBlockStatus.STREAMING,
-                      thinking_millsec: chunk.thinking_millsec
+                  if (thinkingBlockId) {
+                    store.dispatch(
+                      updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
+                    )
+                  } else {
+                    const block = createThinkingBlock(assistantMessage.id, '', {
+                      status: MessageBlockStatus.STREAMING
                     })
                     thinkingBlockId = block.id
                     store.dispatch(
@@ -280,19 +281,24 @@ const HomeWindow: FC = () => {
                       })
                     )
                     store.dispatch(upsertOneBlock(block))
-                  } else {
-                    store.dispatch(
-                      updateOneBlock({
-                        id: thinkingBlockId,
-                        changes: { content: thinkingBlockContent, thinking_millsec: chunk.thinking_millsec }
-                      })
-                    )
+                  }
+                }
+                break
+              case ChunkType.THINKING_DELTA:
+                {
+                  setIsOutputted(true)
+                  if (thinkingBlockId) {
+                    throttledBlockUpdate(thinkingBlockId, {
+                      content: chunk.text,
+                      thinking_millsec: chunk.thinking_millsec
+                    })
                   }
                 }
                 break
               case ChunkType.THINKING_COMPLETE:
                 {
                   if (thinkingBlockId) {
+                    cancelThrottledBlockUpdate(thinkingBlockId)
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
@@ -302,12 +308,13 @@ const HomeWindow: FC = () => {
                   }
                 }
                 break
-              case ChunkType.TEXT_DELTA:
+              case ChunkType.TEXT_START:
                 {
-                  blockContent += chunk.text
                   setIsOutputted(true)
-                  if (!blockId) {
-                    const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                  if (blockId) {
+                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.STREAMING } }))
+                  } else {
+                    const block = createMainTextBlock(assistantMessage.id, '', {
                       status: MessageBlockStatus.STREAMING
                     })
                     blockId = block.id
@@ -319,23 +326,29 @@ const HomeWindow: FC = () => {
                       })
                     )
                     store.dispatch(upsertOneBlock(block))
-                  } else {
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+                  }
+                }
+                break
+              case ChunkType.TEXT_DELTA:
+                {
+                  setIsOutputted(true)
+                  if (blockId) {
+                    throttledBlockUpdate(blockId, { content: chunk.text })
                   }
                 }
                 break
 
               case ChunkType.TEXT_COMPLETE:
                 {
-                  blockId &&
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
-                  store.dispatch(
-                    newMessagesActions.updateMessage({
-                      topicId,
-                      messageId: assistantMessage.id,
-                      updates: { status: AssistantMessageStatus.SUCCESS }
-                    })
-                  )
+                  if (blockId) {
+                    cancelThrottledBlockUpdate(blockId)
+                    store.dispatch(
+                      updateOneBlock({
+                        id: blockId,
+                        changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
+                      })
+                    )
+                  }
                 }
                 break
               case ChunkType.ERROR: {
@@ -351,6 +364,15 @@ const HomeWindow: FC = () => {
                       }
                     })
                   )
+                  store.dispatch(
+                    newMessagesActions.updateMessage({
+                      topicId,
+                      messageId: assistantMessage.id,
+                      updates: {
+                        status: isAborted ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.SUCCESS
+                      }
+                    })
+                  )
                 }
                 if (!isAborted) {
                   throw new Error(chunk.error.message)
@@ -361,6 +383,13 @@ const HomeWindow: FC = () => {
                 setIsLoading(false)
                 setIsOutputted(true)
                 currentAskId.current = ''
+                store.dispatch(
+                  newMessagesActions.updateMessage({
+                    topicId,
+                    messageId: assistantMessage.id,
+                    updates: { status: AssistantMessageStatus.SUCCESS }
+                  })
+                )
                 break
             }
           }

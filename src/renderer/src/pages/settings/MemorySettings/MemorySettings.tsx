@@ -10,8 +10,8 @@ import {
   UserDeleteOutlined,
   UserOutlined
 } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
 import { loggerService } from '@logger'
+import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
 import MemoryService from '@renderer/services/MemoryService'
