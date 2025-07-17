@@ -23,7 +23,9 @@ export default class WebDav {
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      httpsAgent: new https.Agent({ rejectUnauthorized: false })
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+      })
     })
 
     this.putFileContents = this.putFileContents.bind(this)

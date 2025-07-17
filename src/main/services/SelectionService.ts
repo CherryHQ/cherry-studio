@@ -1257,14 +1257,15 @@ export class SelectionService {
 
     // Center of the screen
     if (!this.isFollowToolbar || !this.toolbarWindow) {
-      const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
-      const centerY = workArea.y + (workArea.height - actionWindowHeight) / 2
+      const centerX = Math.round(workArea.x + (workArea.width - actionWindowWidth) / 2)
+      const centerY = Math.round(workArea.y + (workArea.height - actionWindowHeight) / 2)
 
+      actionWindow.setPosition(centerX, centerY, false)
       actionWindow.setBounds({
         width: actionWindowWidth,
         height: actionWindowHeight,
-        x: Math.round(centerX),
-        y: Math.round(centerY)
+        x: centerX,
+        y: centerY
       })
     } else {
       // Follow toolbar position

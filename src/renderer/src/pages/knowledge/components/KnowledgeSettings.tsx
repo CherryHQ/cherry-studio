@@ -189,6 +189,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           </SettingsItem>
 
           <SettingsItem>
+            <div className="settings-label">{t('knowledge.dimensions')}</div>
+            <Input value={base.dimensions ?? t('knowledge.not_set')} style={{ width: '100%' }} disabled></Input>
+          </SettingsItem>
+
+          <SettingsItem>
             <div className="settings-label">
               {t('models.rerank_model')}
               <Tooltip title={t('models.rerank_model_tooltip')} placement="right">
@@ -320,7 +325,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       transitionName="animation-move-down"
       width="min(800px, 70vw)"
       styles={{
-        body: { padding: 0, height: 450 },
+        body: { padding: 0, height: 550 },
         header: {
           padding: '10px 15px',
           borderBottom: '0.5px solid var(--color-border)',

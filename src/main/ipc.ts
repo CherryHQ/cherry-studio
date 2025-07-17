@@ -8,7 +8,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -27,7 +27,7 @@ import MemoryService from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
@@ -78,9 +78,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (proxy === 'system') {
       proxyConfig = { mode: 'system' }
     } else if (proxy) {
-      proxyConfig = { mode: 'custom', url: proxy }
+      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
     } else {
-      proxyConfig = { mode: 'none' }
+      proxyConfig = { mode: 'direct' }
     }
 
     await proxyManager.configureProxy(proxyConfig)
