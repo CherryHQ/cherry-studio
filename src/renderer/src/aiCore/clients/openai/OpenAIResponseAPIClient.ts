@@ -78,7 +78,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
    * 根据模型特征选择合适的客户端
    */
   public getClient(model: Model) {
-    if (this.provider.type === 'openai-response') {
+    if (this.provider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
       return this
     }
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
