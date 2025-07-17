@@ -5,7 +5,8 @@ import { windowService } from '../WindowService'
 function ParseData(data: string) {
   try {
     const result = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
-    return result
+
+    return JSON.stringify(result)
   } catch (error) {
     return null
   }
@@ -47,7 +48,9 @@ export async function handleProvidersProtocolUrl(url: URL) {
         !mainWindow.isDestroyed() &&
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
-        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+        mainWindow.webContents.executeJavaScript(
+          `window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data)}')`
+        )
 
         if (isMac) {
           windowService.showMainWindow()
