@@ -25,24 +25,31 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
     }
   }, [content, isThinking, messages])
 
+  const showThinking = useMemo(() => {
+    return isThinking && !expanded
+  }, [expanded, isThinking])
+
   const LINE_HEIGHT = 14
   const containerHeight = useMemo(() => {
-    if (expanded || messages.length < 2) return 38
+    if (!showThinking || messages.length < 2) return 38
     return Math.min(68, Math.max(messages.length + 1, 2) * LINE_HEIGHT + 10)
-  }, [expanded, messages.length])
+  }, [showThinking, messages.length])
 
   return (
     <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
       <LoadingContainer>
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
-          <Lightbulb size={expanded || !messages.length ? 20 : 30} style={{ transition: 'width,height, 150ms' }} />
+          <Lightbulb
+            size={!showThinking || messages.length < 2 ? 20 : 30}
+            style={{ transition: 'width,height, 150ms' }}
+          />
         </motion.div>
       </LoadingContainer>
 
       <TextContainer>
-        <Title className={expanded || !messages.length ? 'expanded' : ''}>{thinkingTimeText}</Title>
+        <Title className={!showThinking || !messages.length ? 'showThinking' : ''}>{thinkingTimeText}</Title>
 
-        {!expanded && (
+        {showThinking && (
           <Content>
             <Messages
               style={{
@@ -68,15 +75,15 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
         )}
       </TextContainer>
       <ArrowContainer className={expanded ? 'expanded' : ''}>
-        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1.2} />
+        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1} />
       </ArrowContainer>
     </ThinkingContainer>
   )
 }
 
-const ThinkingContainer = styled(motion.div)`
+const ThinkingContainer = styled.div`
   width: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -86,7 +93,7 @@ const ThinkingContainer = styled(motion.div)`
   pointer-events: none;
   user-select: none;
   &.expanded {
-    border-radius: 12px 12px 0 0;
+    border-radius: 10px 10px 0 0;
   }
 `
 
@@ -99,7 +106,7 @@ const Title = styled.div`
   padding: 6px 0;
   z-index: 99;
   transition: padding-top 150ms;
-  &.expanded {
+  &.showThinking {
     padding-top: 12px;
   }
 `
