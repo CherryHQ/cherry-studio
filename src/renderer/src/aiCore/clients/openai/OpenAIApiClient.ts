@@ -5,6 +5,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
+  isGrokReasoningModel,
   isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortGrokModel,
@@ -115,11 +116,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
-        if (
-          isSupportedThinkingTokenGeminiModel(model) &&
-          !GEMINI_FLASH_MODEL_REGEX.test(model.id) &&
-          model.id.includes('grok-4')
-        ) {
+        // Don't disable reasoning for Gemini models that support thinking tokens
+        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+          return {}
+        }
+        // Don't disable reasoning for models that require it
+        if (isGrokReasoningModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
