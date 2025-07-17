@@ -25,13 +25,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
+  const messageLength = messages.length
 
-  const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
-    // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
-    messages.length < 2 ? 'fold' : messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+  const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
+    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
 
-  const messageLength = messages.length
+  // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
+  const multiModelMessageStyle = useMemo(
+    () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
+    [_multiModelMessageStyle, messageLength]
+  )
+
   const prevMessageLengthRef = useRef(messageLength)
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
