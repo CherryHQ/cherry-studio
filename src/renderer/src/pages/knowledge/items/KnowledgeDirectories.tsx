@@ -6,7 +6,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button, Modal, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import { FC } from 'react'
@@ -58,6 +58,30 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     path && addDirectory(path)
   }
 
+  const handleDeleteDirectory = (item: KnowledgeItem) => {
+    const fileCount = item.uniqueIds?.length || 0
+    
+    Modal.confirm({
+      title: '确认删除目录',
+      content: (
+        <div>
+          <p>你确定要删除目录 <strong>"{item.content as string}"</strong> 吗？</p>
+          {fileCount > 0 && (
+            <p style={{ color: '#ff4d4f' }}>
+              此目录包含 <strong>{fileCount}</strong> 个文件，删除操作可能需要一些时间。
+            </p>
+          )}
+          <p style={{ color: '#666' }}>此操作不可撤销。</p>
+        </div>
+      ),
+      okText: '确认删除',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: () => removeItem(item),
+      width: 400
+    })
+  }
+
   return (
     <ItemContainer>
       <ItemHeader>
@@ -99,7 +123,13 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                       type="directory"
                     />
                   </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                  <Button 
+                    type="text" 
+                    danger 
+                    onClick={() => handleDeleteDirectory(item)} 
+                    icon={<DeleteOutlined />}
+                    title={`删除目录（包含 ${item.uniqueIds?.length || 0} 个文件）`}
+                  />
                 </FlexAlignCenter>
               )
             }}

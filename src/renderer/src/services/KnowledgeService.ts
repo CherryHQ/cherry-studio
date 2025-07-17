@@ -1,6 +1,11 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import AiProvider from '@renderer/aiCore'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
+import { 
+  DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, 
+  DEFAULT_KNOWLEDGE_THRESHOLD,
+  DEFAULT_TIME_WEIGHT,
+  DEFAULT_RECENCY_DECAY_DAYS
+} from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
 import store from '@renderer/store'
@@ -10,6 +15,50 @@ import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
+
+// 时间权重计算函数
+const calculateTimeWeight = (
+  item: ExtractChunkData & { file: FileMetadata | null },
+  base: KnowledgeBase
+): number => {
+  // 如果没有启用时间加权，直接返回原始分数
+  if (!base.enableRecencyBoost) {
+    return item.score
+  }
+
+  const timeWeight = base.timeWeight ?? DEFAULT_TIME_WEIGHT
+  const semanticWeight = 1 - timeWeight
+  const decayDays = base.recencyDecayDays ?? DEFAULT_RECENCY_DECAY_DAYS
+  
+  // 获取文档时间戳
+  let documentTimestamp = Date.now()
+  
+  // 尝试从文件元数据获取时间
+  if (item.file && item.file.created_at) {
+    documentTimestamp = new Date(item.file.created_at).getTime()
+  } else if (item.metadata.source && item.metadata.source.includes('created_at')) {
+    // 尝试从元数据中解析时间
+    const match = item.metadata.source.match(/created_at[=:](\d+)/)
+    if (match) {
+      documentTimestamp = parseInt(match[1])
+    }
+  }
+  
+  // 计算文档年龄（天数）
+  const currentTime = Date.now()
+  const ageInDays = (currentTime - documentTimestamp) / (1000 * 60 * 60 * 24)
+  
+  // 计算时间衰减因子（指数衰减）
+  const timeDecayFactor = Math.exp(-ageInDays / decayDays)
+  
+  // 计算时间得分（0-1之间）
+  const timeScore = timeDecayFactor
+  
+  // 计算最终得分：语义得分 * 语义权重 + 时间得分 * 时间权重
+  const finalScore = item.score * semanticWeight + timeScore * timeWeight
+  
+  return Math.max(0, Math.min(1, finalScore)) // 确保得分在0-1之间
+}
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
@@ -129,14 +178,26 @@ export const searchKnowledgeBase = async (
     // 限制文档数量
     const limitedResults = rerankResults.slice(0, documentCount)
 
-    // 处理文件信息
-    return await Promise.all(
+    // 处理文件信息并计算时间权重
+    const resultsWithTimeWeight = await Promise.all(
       limitedResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
-        console.log('Knowledge search item:', item, 'File:', file)
-        return { ...item, file }
+        const itemWithFile = { ...item, file }
+        // 计算时间权重得分
+        const timeWeightedScore = calculateTimeWeight(itemWithFile, base)
+        
+        // 添加明显的控制台日志以验证功能
+        console.log(`🎯 [时间权重优化] 文档: ${item.metadata.source}`)
+        console.log(`📊 原始分数: ${item.score.toFixed(4)} → 时间权重分数: ${timeWeightedScore.toFixed(4)}`)
+        console.log(`⚙️ 配置: 启用=${base.enableRecencyBoost}, 时间权重=${base.timeWeight || 0.2}, 衰减天数=${base.recencyDecayDays || 365}`)
+        console.log(`---`)
+        
+        return { ...itemWithFile, score: timeWeightedScore }
       })
     )
+
+    // 按时间权重得分重新排序
+    return resultsWithTimeWeight.sort((a, b) => b.score - a.score)
   } catch (error) {
     Logger.error(`Error searching knowledge base ${base.name}:`, error)
     throw error
@@ -170,11 +231,11 @@ export const processKnowledgeSearch = async (
     // 为每个问题搜索并合并结果
     const allResults = await Promise.all(questions.map((question) => searchKnowledgeBase(question, base, rewrite)))
 
-    // 合并结果并去重
+    // 合并结果并去重（保持时间权重得分）
     const flatResults = allResults.flat()
     const uniqueResults = Array.from(
       new Map(flatResults.map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
-    ).sort((a, b) => b.score - a.score)
+    ).sort((a, b) => b.score - a.score) // 按时间权重得分排序
 
     // 转换为引用格式
     return await Promise.all(

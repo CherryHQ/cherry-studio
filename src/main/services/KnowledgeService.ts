@@ -157,7 +157,7 @@ class KnowledgeService {
     console.log('id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
-      fs.rmSync(dbPath, { recursive: true })
+      await fs.promises.rm(dbPath, { recursive: true, force: true })
     }
   }
 
@@ -523,10 +523,46 @@ class KnowledgeService {
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
   ): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
-    Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
-    for (const id of uniqueIds) {
-      await ragApplication.deleteLoader(id)
+    Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}, Count: ${uniqueIds.length}]`)
+    
+    // 如果是大批量删除（比如目录），使用批量删除优化
+    if (uniqueIds.length > 10) {
+      Logger.log(`[ KnowledgeService ] Large batch deletion detected (${uniqueIds.length} items), using optimized deletion`)
+      
+      // 分批删除，避免一次性删除太多导致阻塞
+      const batchSize = 5 // 减少批量大小以避免资源竞争
+      for (let i = 0; i < uniqueIds.length; i += batchSize) {
+        const batch = uniqueIds.slice(i, i + batchSize)
+        
+        // 改用顺序删除而不是并行删除，避免资源竞争
+        for (const id of batch) {
+          try {
+            await ragApplication.deleteLoader(id)
+          } catch (error) {
+            Logger.error(`Failed to delete loader ${id}:`, error)
+            // 继续删除其他项目，不因单个失败而中断
+          }
+        }
+        
+        // 每批次之间稍微延迟，避免过度占用资源
+        if (i + batchSize < uniqueIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 50)) // 增加延迟时间
+        }
+        
+        Logger.log(`[ KnowledgeService ] Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(uniqueIds.length / batchSize)} completed`)
+      }
+    } else {
+      // 少量删除，使用原始逻辑
+      for (const id of uniqueIds) {
+        try {
+          await ragApplication.deleteLoader(id)
+        } catch (error) {
+          Logger.error(`Failed to delete loader ${id}:`, error)
+        }
+      }
     }
+    
+    Logger.log(`[ KnowledgeService ] Successfully removed ${uniqueIds.length} items from knowledge base`)
   }
 
   public search = async (

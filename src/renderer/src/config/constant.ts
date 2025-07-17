@@ -5,6 +5,11 @@ export const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
 export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
 
+// Knowledge base time weighting defaults
+export const DEFAULT_TIME_WEIGHT = 0.4
+export const DEFAULT_RECENCY_DECAY_DAYS = 180
+export const DEFAULT_ENABLE_RECENCY_BOOST = false
+
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
 export const isWin = platform === 'win32' || platform === 'win64'

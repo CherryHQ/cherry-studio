@@ -1,7 +1,13 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
+import { 
+  DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, 
+  DEFAULT_TIME_WEIGHT, 
+  DEFAULT_RECENCY_DECAY_DAYS, 
+  DEFAULT_ENABLE_RECENCY_BOOST,
+  isMac 
+} from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -10,7 +16,7 @@ import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip } from 'antd'
+import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip, Switch } from 'antd'
 import { sortBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -297,6 +303,58 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
               onChange={(value) => setNewBase({ ...newBase, threshold: value || undefined })}
             />
           </SettingsItem>
+
+          <SettingsItem>
+            <div className="settings-label">
+              {t('knowledge.enable_recency_boost')} 🆕
+              <Tooltip title="🎯 时间权重优化功能 - 让知识库优先返回最新信息！这是Cherry Studio的增强功能。" placement="right">
+                <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+              </Tooltip>
+            </div>
+            <Switch
+              checked={base.enableRecencyBoost ?? DEFAULT_ENABLE_RECENCY_BOOST}
+              onChange={(checked) => setNewBase({ ...newBase, enableRecencyBoost: checked })}
+            />
+          </SettingsItem>
+
+          {base.enableRecencyBoost && (
+            <>
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.time_weight')}
+                  <Tooltip title={t('knowledge.time_weight_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  step={0.1}
+                  min={0}
+                  max={1}
+                  value={base.timeWeight ?? DEFAULT_TIME_WEIGHT}
+                  placeholder={t('knowledge.time_weight_placeholder')}
+                  onChange={(value) => setNewBase({ ...newBase, timeWeight: value || DEFAULT_TIME_WEIGHT })}
+                />
+              </SettingsItem>
+
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('knowledge.recency_decay_days')}
+                  <Tooltip title={t('knowledge.recency_decay_days_tooltip')} placement="right">
+                    <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                  </Tooltip>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={1}
+                  max={3650}
+                  value={base.recencyDecayDays ?? DEFAULT_RECENCY_DECAY_DAYS}
+                  placeholder={t('knowledge.recency_decay_days_placeholder')}
+                  onChange={(value) => setNewBase({ ...newBase, recencyDecayDays: value || DEFAULT_RECENCY_DECAY_DAYS })}
+                />
+              </SettingsItem>
+            </>
+          )}
 
           <Alert
             message={t('knowledge.chunk_size_change_warning')}

@@ -423,6 +423,10 @@ export interface KnowledgeBase {
     type: 'preprocess' | 'ocr'
     provider: PreprocessProvider | OcrProvider
   }
+  // Time-based scoring settings
+  timeWeight?: number // 时间权重 (0-1), 默认0.2
+  enableRecencyBoost?: boolean // 是否启用时间加权，默认false
+  recencyDecayDays?: number // 时间衰减天数，默认365天
 }
 
 export type ApiClient = {
