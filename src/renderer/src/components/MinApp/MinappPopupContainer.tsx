@@ -42,17 +42,23 @@ type AppInfo = MinAppType & AppExtraInfo
 /** Google login tip component */
 const GoogleLoginTip = ({
   isReady,
-  currentUrl
+  currentUrl,
+  currentAppId
 }: {
   appId?: string | null
   isReady: boolean
   currentUrl: string | null
+  currentAppId: string | null
 }) => {
   const { t } = useTranslation()
   const [visible, setVisible] = useState(false)
+  const { openMinappById } = useMinappPopup()
 
   // 判断当前URL是否涉及Google登录
   const needsGoogleLogin = useMemo(() => {
+    // 如果当前已经在Google小程序中，不需要显示提示
+    if (currentAppId === 'google') return false
+
     if (!currentUrl) return false
 
     const googleLoginPatterns = [
@@ -66,7 +72,7 @@ const GoogleLoginTip = ({
     ]
 
     return googleLoginPatterns.some((pattern) => currentUrl.toLowerCase().includes(pattern.toLowerCase()))
-  }, [currentUrl])
+  }, [currentUrl, currentAppId])
 
   // 在URL更新时检查是否需要显示提示
   useEffect(() => {
@@ -96,6 +102,14 @@ const GoogleLoginTip = ({
     setVisible(false)
   }
 
+  // 跳转到Google小程序
+  const openGoogleMinApp = () => {
+    // 使用openMinappById方法打开Google小程序
+    openMinappById('google', true)
+    // 关闭提示
+    setVisible(false)
+  }
+
   // 只在需要Google登录时显示提示
   if (!needsGoogleLogin || !visible) return null
 
@@ -122,22 +136,39 @@ const GoogleLoginTip = ({
         alignItems: 'center',
         animation: 'fadeIn 0.3s ease-in-out'
       }}>
-      <div style={{ fontSize: '13px', color: '#d48806' }}>{message}</div>
-      <button
-        onClick={handleClose}
-        type="button"
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: '#d48806',
-          marginLeft: '15px',
-          padding: '0 5px'
-        }}>
-        ✕
-      </button>
+      <div style={{ fontSize: '13px', color: '#d48806', flex: 1 }}>{message}</div>
+      <div style={{ display: 'flex', alignItems: 'center', marginLeft: '10px' }}>
+        <button
+          onClick={openGoogleMinApp}
+          type="button"
+          style={{
+            background: '#d48806',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            fontSize: '12px',
+            cursor: 'pointer',
+            marginRight: '10px',
+            whiteSpace: 'nowrap'
+          }}>
+          {t('common.open')} Google
+        </button>
+        <button
+          onClick={handleClose}
+          type="button"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#d48806',
+            padding: '0 5px'
+          }}>
+          ✕
+        </button>
+      </div>
     </div>
   )
 }
@@ -505,7 +536,7 @@ const MinappPopupContainer: React.FC = () => {
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
-      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} />
+      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
         <EmptyView>
           <Avatar
