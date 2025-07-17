@@ -1116,45 +1116,54 @@ export const resendMessageThunk =
 
       const resetDataList: Message[] = []
 
-      if (assistantMessagesToReset.length === 0) {
-        // 没有相关的助手消息就创建一个或多个
+      if (assistantMessagesToReset.length === 0 && !userMessageToResend?.mentions?.length) {
+        // 没有相关的助手消息且没有提及模型时，使用助手模型创建一条消息
 
-        if (userMessageToResend?.mentions?.length) {
-          for (const mention of userMessageToResend.mentions) {
-            const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-              askId: userMessageToResend.id,
-              model: mention,
-              modelId: mention.id
-            })
-            resetDataList.push(assistantMessage)
-          }
-        } else {
-          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-            askId: userMessageToResend.id,
-            model: assistant.model
-          })
-          resetDataList.push(assistantMessage)
-        }
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessageToResend.id,
+          model: assistant.model
+        })
+        resetDataList.push(assistantMessage)
 
         resetDataList.forEach((message) => {
           dispatch(newMessagesActions.addMessage({ topicId, message }))
         })
       }
 
+      // 处理存在相关的助手消息的情况
       const allBlockIdsToDelete: string[] = []
       const messagesToUpdateInRedux: { topicId: string; messageId: string; updates: Partial<Message> }[] = []
 
+      // 先处理已有的重传
       for (const originalMsg of assistantMessagesToReset) {
+        const modelToSet =
+          assistantMessagesToReset.length === 1 && !userMessageToResend?.mentions?.length
+            ? assistant.model
+            : originalMsg.model
         const blockIdsToDelete = [...(originalMsg.blocks || [])]
         const resetMsg = resetAssistantMessage(originalMsg, {
           status: AssistantMessageStatus.PENDING,
           updatedAt: new Date().toISOString(),
-          ...(assistantMessagesToReset.length === 1 ? { model: assistant.model } : {})
+          model: modelToSet
         })
 
         resetDataList.push(resetMsg)
         allBlockIdsToDelete.push(...blockIdsToDelete)
         messagesToUpdateInRedux.push({ topicId, messageId: resetMsg.id, updates: resetMsg })
+      }
+
+      // 再处理新的重传（用户消息提及，但是现有助手消息中不存在提及的模型）
+      const originModelSet = new Set(assistantMessagesToReset.map((m) => m.model).filter((m) => m !== undefined))
+      const mentionedModelSet = new Set(userMessageToResend.mentions ?? [])
+      const newModelSet = new Set([...mentionedModelSet].filter((m) => !originModelSet.has(m)))
+      for (const model of newModelSet) {
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessageToResend.id,
+          model: model,
+          modelId: model.id
+        })
+        resetDataList.push(assistantMessage)
+        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
 
       messagesToUpdateInRedux.forEach((update) => dispatch(newMessagesActions.updateMessage(update)))

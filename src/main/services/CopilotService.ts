@@ -1,10 +1,9 @@
 import { AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import { app, safeStorage } from 'electron'
 import Logger from 'electron-log'
 import fs from 'fs/promises'
 import path from 'path'
-
-import aoxisProxy from './AxiosProxy'
 
 // 配置常量，集中管理
 const CONFIG = {
@@ -96,7 +95,7 @@ class CopilotService {
         }
       }
 
-      const response = await aoxisProxy.axios.get(CONFIG.API_URLS.GITHUB_USER, config)
+      const response = await axios.get(CONFIG.API_URLS.GITHUB_USER, config)
       return {
         login: response.data.login,
         avatar: response.data.avatar_url
@@ -117,7 +116,7 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const response = await aoxisProxy.axios.post<AuthResponse>(
+      const response = await axios.post<AuthResponse>(
         CONFIG.API_URLS.GITHUB_DEVICE_CODE,
         {
           client_id: CONFIG.GITHUB_CLIENT_ID,
@@ -149,7 +148,7 @@ class CopilotService {
       await this.delay(currentDelay)
 
       try {
-        const response = await aoxisProxy.axios.post<TokenResponse>(
+        const response = await axios.post<TokenResponse>(
           CONFIG.API_URLS.GITHUB_ACCESS_TOKEN,
           {
             client_id: CONFIG.GITHUB_CLIENT_ID,
@@ -211,7 +210,7 @@ class CopilotService {
         }
       }
 
-      const response = await aoxisProxy.axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
+      const response = await axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
 
       return response.data
     } catch (error) {
