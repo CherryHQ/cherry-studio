@@ -539,8 +539,6 @@ const MemoriesPage = () => {
       title: t('memory.delete_user_confirm_title'),
       content: t('memory.delete_user_confirm_content', { user: userId }),
       icon: <ExclamationCircleOutlined />,
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
       okType: 'danger',
       onOk: async () => {
         try {

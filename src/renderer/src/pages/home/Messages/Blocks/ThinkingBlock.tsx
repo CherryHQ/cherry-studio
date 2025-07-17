@@ -136,7 +136,6 @@ const ThinkingTimeSeconds = memo(
 )
 
 const CollapseContainer = styled(Collapse)`
-  margin-top: 15px;
   margin-bottom: 15px;
   .ant-collapse-header {
     padding: 0 !important;

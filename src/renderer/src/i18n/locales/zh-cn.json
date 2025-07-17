@@ -460,7 +460,8 @@
       "swap": "交换",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "i_know": "我知道了"
     },
     "docs": {
       "title": "帮助文档"
@@ -2308,7 +2309,7 @@
           },
           "provider": "OCR 服务商",
           "provider_placeholder": "选择一个 OCR 服务商",
-          "title": "OCR"
+          "title": "OCR 文字识别"
         },
         "preprocess": {
           "provider": "文档预处理服务商",
@@ -2455,6 +2456,7 @@
       "visualization": "可视化"
     },
     "memory": {
+      "title": "全局记忆",
       "settings": "设置",
       "statistics": "统计",
       "search": "搜索",
@@ -2464,8 +2466,8 @@
       "memory_content": "记忆内容",
       "please_enter_memory": "请输入记忆内容",
       "memory_placeholder": "输入记忆内容...",
-      "user_id": "用户ID",
-      "user_id_placeholder": "输入用户ID（可选）",
+      "user_id": "用户 ID",
+      "user_id_placeholder": "输入用户 ID（可选）",
       "load_failed": "加载记忆失败",
       "add_success": "记忆添加成功",
       "add_failed": "添加记忆失败",
@@ -2480,7 +2482,6 @@
       "user": "用户",
       "content": "内容",
       "score": "分数",
-      "title": "记忆",
       "memories_description": "显示 {{count}} / {{total}} 条记忆",
       "search_placeholder": "搜索记忆...",
       "start_date": "开始日期",
@@ -2557,7 +2558,8 @@
       "please_select_embedding_model": "请选择嵌入模型",
       "select_embedding_model_placeholder": "选择嵌入模型",
       "embedding_dimensions": "嵌入维度",
-      "stored_memories": "已存储记忆"
+      "stored_memories": "已存储记忆",
+      "global_memory_description": "需要开启助手设置中的全局记忆才能使用"
     }
   }
 }

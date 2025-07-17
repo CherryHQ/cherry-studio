@@ -3,6 +3,17 @@ import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
 
+function ParseData(data: string) {
+  try {
+    const result = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
+
+    return JSON.stringify(result)
+  } catch (error) {
+    Logger.error('ParseData error:', { error })
+    return null
+  }
+}
+
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
     case '/api-keys': {
@@ -19,7 +30,13 @@ export async function handleProvidersProtocolUrl(url: URL) {
       // replace + and / to _ and - because + and / are processed by URLSearchParams
       const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
       const params = new URLSearchParams(processedSearch)
-      const data = params.get('data')
+      const data = ParseData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
+
+      if (!data) {
+        Logger.error('handleProvidersProtocolUrl data is null or invalid')
+        return
+      }
+
       const mainWindow = windowService.getMainWindow()
       const version = params.get('v')
       if (version == '1') {
@@ -33,7 +50,9 @@ export async function handleProvidersProtocolUrl(url: URL) {
         !mainWindow.isDestroyed() &&
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
-        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+        mainWindow.webContents.executeJavaScript(
+          `window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data)}')`
+        )
 
         if (isMac) {
           windowService.showMainWindow()

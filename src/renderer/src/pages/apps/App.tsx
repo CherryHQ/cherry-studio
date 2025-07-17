@@ -4,7 +4,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Dropdown, message } from 'antd'
+import { Dropdown } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -61,14 +61,14 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 const customApps = JSON.parse(content)
                 const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
                 await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
-                message.success(t('settings.miniapps.custom.remove_success'))
+                window.message.success(t('settings.miniapps.custom.remove_success'))
                 const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
                 updateDefaultMinApps(reloadedApps)
                 updateMinapps(minapps.filter((item) => item.id !== app.id))
                 updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
-                message.error(t('settings.miniapps.custom.remove_error'))
+                window.message.error(t('settings.miniapps.custom.remove_error'))
                 console.error('Failed to remove custom mini app:', error)
               }
             }

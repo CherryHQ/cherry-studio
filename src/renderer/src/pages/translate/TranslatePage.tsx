@@ -590,7 +590,7 @@ const TranslatePage: FC = () => {
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
-            <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
+            <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
@@ -623,13 +623,8 @@ const TranslatePage: FC = () => {
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
                       <Flex align="center" justify="space-between" style={{ flex: 1 }}>
                         <Flex align="center" gap={6}>
-                          <span>
-                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
-                          </span>
-                          →
-                          <span>
-                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
-                          </span>
+                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                         </Flex>
                         <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
                       </Flex>
@@ -929,6 +924,11 @@ const HistoryListItemTitle = styled.div`
 `
 
 const HistoryListItemDate = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
 `

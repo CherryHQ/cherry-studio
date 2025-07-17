@@ -460,7 +460,8 @@
       "swap": "Swap",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "i_know": "I know"
     },
     "docs": {
       "title": "Docs"
@@ -2308,7 +2309,7 @@
           },
           "provider": "OCR Provider",
           "provider_placeholder": "Choose an OCR provider",
-          "title": "OCR"
+          "title": "OCR Settings"
         },
         "preprocess": {
           "provider": "Pre Process Provider",
@@ -2557,7 +2558,8 @@
       "please_select_embedding_model": "Please select an embedding model",
       "select_embedding_model_placeholder": "Select Embedding Model",
       "embedding_dimensions": "Embedding Dimensions",
-      "stored_memories": "Stored Memories"
+      "stored_memories": "Stored Memories",
+      "global_memory_description": "To use memory features, please enable global memory in assistant settings."
     }
   }
 }
