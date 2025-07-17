@@ -1,6 +1,6 @@
-# useMessageOperations.ts 使用指南
+# useTopicMessageOperations.ts 使用指南
 
-该文件定义了一个名为 `useMessageOperations` 的自定义 React Hook。这个 Hook 的主要目的是为 React 组件提供一个便捷的接口，用于执行与特定主题（Topic）相关的各种消息操作。它封装了调用 Redux Thunks (`messageThunk.ts`) 和 Actions (`newMessage.ts`, `messageBlock.ts`) 的逻辑，简化了组件与消息数据交互的代码。
+该文件定义了一个名为 `useTopicMessageOperations` 的自定义 React Hook。这个 Hook 的主要目的是为 React 组件提供一个便捷的接口，用于执行与特定主题（Topic）相关的各种消息操作。它封装了调用 Redux Thunks (`messageThunk.ts`) 和 Actions (`newMessage.ts`, `messageBlock.ts`) 的逻辑，简化了组件与消息数据交互的代码。
 
 ## 核心目标
 
@@ -10,11 +10,11 @@
 
 ## 如何使用
 
-在你的 React 函数组件中，导入并调用 `useMessageOperations` Hook，并传入当前活动的 `Topic` 对象。
+在你的 React 函数组件中，导入并调用 `useTopicMessageOperations` Hook，并传入当前活动的 `Topic` 对象。
 
 ```typescript
 import React from 'react';
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations';
+import { useTopicMessageOperations } from '@renderer/hooks/useTopicMessageOperations';
 import type { Topic, Message, Assistant, Model } from '@renderer/types';
 
 interface MyComponentProps {
@@ -31,7 +31,7 @@ function MyComponent({ currentTopic, currentAssistant }: MyComponentProps) {
     getTranslationUpdater,
     createTopicBranch,
     // ... 其他操作函数
-  } = useMessageOperations(currentTopic);
+  } = useTopicMessageOperations(currentTopic);
 
   const handleDelete = (messageId: string) => {
     deleteMessage(messageId);
@@ -59,7 +59,7 @@ function MyComponent({ currentTopic, currentAssistant }: MyComponentProps) {
 
 ## 返回值
 
-`useMessageOperations(topic)` Hook 返回一个包含以下函数和值的对象：
+`useTopicMessageOperations(topic)` Hook 返回一个包含以下函数和值的对象：
 
 - **`deleteMessage(id: string)`**:
 
@@ -153,4 +153,4 @@ function MyComponent({ currentTopic, currentAssistant }: MyComponentProps) {
 - **`useTopicLoading(topic: Topic)`**:
   - 使用 `selectNewTopicLoading` selector 来获取并返回指定主题的加载状态。
 
-这些 Hook 可以与 `useMessageOperations` 结合使用，方便地在组件中获取消息数据、加载状态，并执行相关操作。
+这些 Hook 可以与 `useTopicMessageOperations` 结合使用，方便地在组件中获取消息数据、加载状态，并执行相关操作。
