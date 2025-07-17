@@ -66,7 +66,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         let thinkingStartTime = 0
 
         let isFirstTextChunk = true
-
+        let accumulatedThinkingContent = ''
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
@@ -101,9 +101,10 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
 
                       if (extractionResult.content?.trim()) {
+                        accumulatedThinkingContent += extractionResult.content
                         const thinkingDeltaChunk: ThinkingDeltaChunk = {
                           type: ChunkType.THINKING_DELTA,
-                          text: extractionResult.content,
+                          text: accumulatedThinkingContent,
                           thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                         }
                         controller.enqueue(thinkingDeltaChunk)
