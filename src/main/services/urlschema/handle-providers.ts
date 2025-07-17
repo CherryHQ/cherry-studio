@@ -5,10 +5,10 @@ import { windowService } from '../WindowService'
 function ParseData(data: string) {
   try {
     const result = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
-    Logger.info('ParseData:', { result })
 
     return JSON.stringify(result)
   } catch (error) {
+    Logger.error('ParseData error:', { error })
     return null
   }
 }
