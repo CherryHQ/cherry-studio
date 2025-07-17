@@ -23,10 +23,6 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     host = host + '/v1beta/openai/'
   }
 
-  if (provider.type === 'azure-openai') {
-    host = host.endsWith('/') ? host + 'openai/' : host + '/openai/'
-  }
-
   let chunkSize = base.chunkSize
   const maxChunkSize = getEmbeddingMaxContext(base.model.id)
 
