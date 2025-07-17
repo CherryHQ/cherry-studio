@@ -4,6 +4,7 @@ import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
 // import { LegacyMessage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { classNames } from '@renderer/utils'
 import { FC, memo, useRef } from 'react'
 import styled from 'styled-components'
 
@@ -21,7 +22,6 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
   // const [message, setMessage] = useState(_message)
   // const [bl, setTextBlock] = useState<MainTextMessageBlock | null>(null)
   // const model = useModel(getMessageModelId(message))
-  const isBubbleStyle = true
   const { messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
@@ -39,7 +39,12 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
     <MessageContainer
       key={message.id}
       ref={messageContainerRef}
-      style={{ ...(isBubbleStyle ? { alignItems: isAssistantMessage ? 'start' : 'end' } : {}), maxWidth }}>
+      className={classNames({
+        message: true,
+        'message-assistant': isAssistantMessage,
+        'message-user': !isAssistantMessage
+      })}
+      style={{ maxWidth }}>
       <MessageContentContainer
         className="message-content-container"
         style={{

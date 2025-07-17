@@ -1,7 +1,7 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import React, { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
@@ -25,15 +25,15 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
     }
   }, [content, isThinking, messages])
 
-  const lineHeight = 16
+  const LINE_HEIGHT = 14
   const containerHeight = useMemo(() => {
-    if (expanded) return lineHeight * 3
-    return Math.min(80, Math.max(messages.length + 2, 3) * lineHeight)
+    if (expanded || messages.length < 2) return 38
+    return Math.min(68, Math.max(messages.length + 1, 2) * LINE_HEIGHT + 10)
   }, [expanded, messages.length])
 
   return (
     <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
-      <LoadingContainer className={expanded || !messages.length ? 'expanded' : ''}>
+      <LoadingContainer>
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
           <Lightbulb size={expanded || !messages.length ? 20 : 30} style={{ transition: 'width,height, 150ms' }} />
         </motion.div>
@@ -44,31 +44,26 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
 
         {!expanded && (
           <Content>
-            <AnimatePresence>
+            <Messages
+              style={{
+                height: messages.length * LINE_HEIGHT
+              }}
+              initial={{
+                y: -2
+              }}
+              animate={{
+                y: -messages.length * LINE_HEIGHT - 2
+              }}
+              transition={{
+                duration: 0.15,
+                ease: 'linear'
+              }}>
               {messages.map((message, index) => {
-                const finalY = containerHeight - (messages.length - index) * lineHeight - 4
-
                 if (index < messages.length - 5) return null
 
-                return (
-                  <ContentLineMotion
-                    key={index}
-                    initial={{
-                      y: index === messages.length - 1 ? containerHeight : finalY + lineHeight,
-                      height: lineHeight
-                    }}
-                    animate={{
-                      y: finalY
-                    }}
-                    transition={{
-                      duration: 0.15,
-                      ease: 'linear'
-                    }}>
-                    {message}
-                  </ContentLineMotion>
-                )
+                return <Message key={index}>{message}</Message>
               })}
-            </AnimatePresence>
+            </Messages>
           </Content>
         )}
       </TextContainer>
@@ -99,17 +94,18 @@ const Title = styled.div`
   position: absolute;
   inset: 0 0 auto 0;
   font-size: 14px;
+  line-height: 14px;
   font-weight: 500;
-  padding: 4px 0 30px;
+  padding: 6px 0;
   z-index: 99;
   transition: padding-top 150ms;
   &.expanded {
-    padding-top: 14px;
+    padding-top: 12px;
   }
 `
 
 const LoadingContainer = styled.div`
-  width: 60px;
+  width: 50px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -123,9 +119,6 @@ const LoadingContainer = styled.div`
     justify-content: center;
     align-items: center;
   }
-  &.expanded {
-    width: 40px;
-  }
 `
 
 const TextContainer = styled.div`
@@ -135,7 +128,7 @@ const TextContainer = styled.div`
   position: relative;
 `
 
-const Content = styled(motion.div)`
+const Content = styled.div`
   width: 100%;
   height: 100%;
   mask: linear-gradient(
@@ -146,17 +139,26 @@ const Content = styled(motion.div)`
     rgb(0 0 0 / 100%) 90%,
     rgb(0 0 0 / 100%) 100%
   );
+  position: relative;
 `
 
-const ContentLineMotion = styled(motion.div)`
+const Messages = styled(motion.div)`
   width: 100%;
-  line-height: 16px;
-  font-size: 12px;
+  position: absolute;
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+`
+
+const Message = styled.div`
+  width: 100%;
+  line-height: 14px;
+  font-size: 11px;
   color: var(--color-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  position: absolute;
 `
 
 const ArrowContainer = styled.div`
