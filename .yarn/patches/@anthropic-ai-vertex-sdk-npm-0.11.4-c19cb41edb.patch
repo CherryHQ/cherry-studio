@@ -1,0 +1,196 @@
+diff --git a/client.js b/client.js
+index c2b9cd6e46f9f66f901af259661bc2d2f8b38936..9b6b3af1a6573e1ccaf3a1c5f41b48df198cbbe0 100644
+--- a/client.js
++++ b/client.js
+@@ -26,7 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.AnthropicVertex = exports.BaseAnthropic = void 0;
+ const client_1 = require("@anthropic-ai/sdk/client");
+ const Resources = __importStar(require("@anthropic-ai/sdk/resources/index"));
+-const google_auth_library_1 = require("google-auth-library");
++// const google_auth_library_1 = require("google-auth-library");
+ const env_1 = require("./internal/utils/env.js");
+ const values_1 = require("./internal/utils/values.js");
+ const headers_1 = require("./internal/headers.js");
+@@ -56,7 +56,7 @@ class AnthropicVertex extends client_1.BaseAnthropic {
+             throw new Error('No region was given. The client should be instantiated with the `region` option or the `CLOUD_ML_REGION` environment variable should be set.');
+         }
+         super({
+-            baseURL: baseURL || `https://${region}-aiplatform.googleapis.com/v1`,
++            baseURL: baseURL || (region === 'global' ? 'https://aiplatform.googleapis.com/v1' : `https://${region}-aiplatform.googleapis.com/v1`),
+             ...opts,
+         });
+         this.messages = makeMessagesResource(this);
+@@ -64,22 +64,22 @@ class AnthropicVertex extends client_1.BaseAnthropic {
+         this.region = region;
+         this.projectId = projectId;
+         this.accessToken = opts.accessToken ?? null;
+-        this._auth =
+-            opts.googleAuth ?? new google_auth_library_1.GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+-        this._authClientPromise = this._auth.getClient();
++        // this._auth =
++        //    opts.googleAuth ?? new google_auth_library_1.GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
++        // this._authClientPromise = this._auth.getClient();
+     }
+     validateHeaders() {
+         // auth validation is handled in prepareOptions since it needs to be async
+     }
+-    async prepareOptions(options) {
+-        const authClient = await this._authClientPromise;
+-        const authHeaders = await authClient.getRequestHeaders();
+-        const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
+-        if (!this.projectId && projectId) {
+-            this.projectId = projectId;
+-        }
+-        options.headers = (0, headers_1.buildHeaders)([authHeaders, options.headers]);
+-    }
++        // async prepareOptions(options) {
++        //     const authClient = await this._authClientPromise;
++        //     const authHeaders = await authClient.getRequestHeaders();
++        //     const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
++        //     if (!this.projectId && projectId) {
++        //         this.projectId = projectId;
++        //     }
++        //     options.headers = (0, headers_1.buildHeaders)([authHeaders, options.headers]);
++        // }
+     buildRequest(options) {
+         if ((0, values_1.isObj)(options.body)) {
+             // create a shallow copy of the request body so that code that mutates it later
+diff --git a/client.mjs b/client.mjs
+index 70274cbf38f69f87cbcca9567e77e4a7b938cf90..4dea954b6f4afad565663426b7adfad5de973a7d 100644
+--- a/client.mjs
++++ b/client.mjs
+@@ -1,6 +1,6 @@
+ import { BaseAnthropic } from '@anthropic-ai/sdk/client';
+ import * as Resources from '@anthropic-ai/sdk/resources/index';
+-import { GoogleAuth } from 'google-auth-library';
++// import { GoogleAuth } from 'google-auth-library';
+ import { readEnv } from "./internal/utils/env.mjs";
+ import { isObj } from "./internal/utils/values.mjs";
+ import { buildHeaders } from "./internal/headers.mjs";
+@@ -29,7 +29,7 @@ export class AnthropicVertex extends BaseAnthropic {
+             throw new Error('No region was given. The client should be instantiated with the `region` option or the `CLOUD_ML_REGION` environment variable should be set.');
+         }
+         super({
+-            baseURL: baseURL || `https://${region}-aiplatform.googleapis.com/v1`,
++            baseURL: baseURL || (region === 'global' ? 'https://aiplatform.googleapis.com/v1' : `https://${region}-aiplatform.googleapis.com/v1`),
+             ...opts,
+         });
+         this.messages = makeMessagesResource(this);
+@@ -37,22 +37,22 @@ export class AnthropicVertex extends BaseAnthropic {
+         this.region = region;
+         this.projectId = projectId;
+         this.accessToken = opts.accessToken ?? null;
+-        this._auth =
+-            opts.googleAuth ?? new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+-        this._authClientPromise = this._auth.getClient();
++        // this._auth =
++        //    opts.googleAuth ?? new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
++        //this._authClientPromise = this._auth.getClient();
+     }
+     validateHeaders() {
+         // auth validation is handled in prepareOptions since it needs to be async
+     }
+-    async prepareOptions(options) {
+-        const authClient = await this._authClientPromise;
+-        const authHeaders = await authClient.getRequestHeaders();
+-        const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
+-        if (!this.projectId && projectId) {
+-            this.projectId = projectId;
+-        }
+-        options.headers = buildHeaders([authHeaders, options.headers]);
+-    }
++    // async prepareOptions(options) {
++    //     const authClient = await this._authClientPromise;
++    //     const authHeaders = await authClient.getRequestHeaders();
++    //     const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
++    //     if (!this.projectId && projectId) {
++    //         this.projectId = projectId;
++    //     }
++    //     options.headers = buildHeaders([authHeaders, options.headers]);
++    // }
+     buildRequest(options) {
+         if (isObj(options.body)) {
+             // create a shallow copy of the request body so that code that mutates it later
+diff --git a/src/client.ts b/src/client.ts
+index a6f9c6be65e4189f4f9601fb560df3f68e7563eb..37b1ad2802e3ca0dae4ca35f9dcb5b22dcf09796 100644
+--- a/src/client.ts
++++ b/src/client.ts
+@@ -12,22 +12,22 @@ export { BaseAnthropic } from '@anthropic-ai/sdk/client';
+ const DEFAULT_VERSION = 'vertex-2023-10-16';
+ const MODEL_ENDPOINTS = new Set<string>(['/v1/messages', '/v1/messages?beta=true']);
+ 
+-export type ClientOptions = Omit<CoreClientOptions, 'apiKey' | 'authToken'> & {
+-  region?: string | null | undefined;
+-  projectId?: string | null | undefined;
+-  accessToken?: string | null | undefined;
+-
+-  /**
+-   * Override the default google auth config using the
+-   * [google-auth-library](https://www.npmjs.com/package/google-auth-library) package.
+-   *
+-   * Note that you'll likely have to set `scopes`, e.g.
+-   * ```ts
+-   * new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' })
+-   * ```
+-   */
+-  googleAuth?: GoogleAuth | null | undefined;
+-};
++// export type ClientOptions = Omit<CoreClientOptions, 'apiKey' | 'authToken'> & {
++//   region?: string | null | undefined;
++//   projectId?: string | null | undefined;
++//   accessToken?: string | null | undefined;
++
++//   /**
++//    * Override the default google auth config using the
++//    * [google-auth-library](https://www.npmjs.com/package/google-auth-library) package.
++//    *
++//    * Note that you'll likely have to set `scopes`, e.g.
++//    * ```ts
++//    * new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' })
++//    * ```
++//    */
++//   googleAuth?: GoogleAuth | null | undefined;
++// };
+ 
+ export class AnthropicVertex extends BaseAnthropic {
+   region: string;
+@@ -74,9 +74,9 @@ export class AnthropicVertex extends BaseAnthropic {
+     this.projectId = projectId;
+     this.accessToken = opts.accessToken ?? null;
+ 
+-    this._auth =
+-      opts.googleAuth ?? new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+-    this._authClientPromise = this._auth.getClient();
++    // this._auth =
++    //   opts.googleAuth ?? new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
++    // this._authClientPromise = this._auth.getClient();
+   }
+ 
+   messages: MessagesResource = makeMessagesResource(this);
+@@ -86,17 +86,17 @@ export class AnthropicVertex extends BaseAnthropic {
+     // auth validation is handled in prepareOptions since it needs to be async
+   }
+ 
+-  protected override async prepareOptions(options: FinalRequestOptions): Promise<void> {
+-    const authClient = await this._authClientPromise;
++  // protected override async prepareOptions(options: FinalRequestOptions): Promise<void> {
++  //   const authClient = await this._authClientPromise;
+ 
+-    const authHeaders = await authClient.getRequestHeaders();
+-    const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
+-    if (!this.projectId && projectId) {
+-      this.projectId = projectId;
+-    }
++  //   const authHeaders = await authClient.getRequestHeaders();
++  //   const projectId = authClient.projectId ?? authHeaders['x-goog-user-project'];
++  //   if (!this.projectId && projectId) {
++  //     this.projectId = projectId;
++  //   }
+ 
+-    options.headers = buildHeaders([authHeaders, options.headers]);
+-  }
++  //   options.headers = buildHeaders([authHeaders, options.headers]);
++  // }
+ 
+   override buildRequest(options: FinalRequestOptions): {
+     req: FinalizedRequestInit;

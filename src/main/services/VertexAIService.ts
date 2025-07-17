@@ -114,6 +114,37 @@ class VertexAIService {
     }
   }
 
+  async getAccessToken(params: VertexAIAuthParams): Promise<string> {
+    const { projectId, serviceAccount } = params
+
+    if (!serviceAccount?.privateKey || !serviceAccount?.clientEmail) {
+      throw new Error('Service account credentials are required')
+    }
+
+    const formattedPrivateKey = this.formatPrivateKey(serviceAccount.privateKey)
+
+    const cacheKey = `${projectId}-${serviceAccount.clientEmail}`
+
+    let auth = this.authClients.get(cacheKey)
+
+    if (!auth) {
+      auth = new GoogleAuth({
+        credentials: {
+          private_key: formattedPrivateKey,
+          client_email: serviceAccount.clientEmail
+        },
+        projectId,
+        scopes: [REQUIRED_VERTEX_AI_SCOPE]
+      })
+
+      this.authClients.set(cacheKey, auth)
+    }
+
+    const accessToken = await auth.getAccessToken()
+
+    return accessToken || ''
+  }
+
   /**
    * 清理指定项目的认证缓存
    */
