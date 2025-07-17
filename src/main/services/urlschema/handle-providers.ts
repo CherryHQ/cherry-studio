@@ -1,7 +1,15 @@
 import { isMac } from '@main/constant'
 import Logger from 'electron-log'
-
 import { windowService } from '../WindowService'
+
+function ParseData(data: string) {
+  try {
+    const result = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'))
+    return result
+  } catch (error) {
+    return null
+  }
+}
 
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
@@ -19,7 +27,13 @@ export async function handleProvidersProtocolUrl(url: URL) {
       // replace + and / to _ and - because + and / are processed by URLSearchParams
       const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
       const params = new URLSearchParams(processedSearch)
-      const data = params.get('data')
+      const data = ParseData(params.get('data') || '')
+
+      if (!data) {
+        Logger.error('handleProvidersProtocolUrl data is null or invalid')
+        return
+      }
+
       const mainWindow = windowService.getMainWindow()
       const version = params.get('v')
       if (version == '1') {
