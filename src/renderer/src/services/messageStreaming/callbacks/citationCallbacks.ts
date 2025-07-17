@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import type { ExternalToolResult } from '@renderer/types'
 import { CitationMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 
 import { BlockManager } from '../BlockManager'
+
+const logger = loggerService.withContext('CitationCallbacks')
 
 interface CitationCallbacksDependencies {
   blockManager: BlockManager
@@ -33,7 +36,7 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         }
         blockManager.smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
       } else {
-        console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
+        logger.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
       }
     },
 

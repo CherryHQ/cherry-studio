@@ -22,8 +22,8 @@ const MAIN_LOG_LEVEL = 'warn'
 /**
  * IMPORTANT: How to use LoggerService
  * please refer to
- *   English: `docs/how-to-use-logger-en.md`
- *   Chinese: `docs/how-to-use-logger-zh.md`
+ *   English: `docs/technical/how-to-use-logger-en.md`
+ *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 export class LoggerService {
   private static instance: LoggerService

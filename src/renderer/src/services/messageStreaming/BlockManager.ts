@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+
+const logger = loggerService.withContext('BlockManager')
 
 interface ActiveBlockInfo {
   id: string
@@ -128,7 +131,7 @@ export class BlockManager {
         newBlock
       ])
     } else {
-      console.error(
+      logger.error(
         `[handleBlockTransition] Failed to get updated message ${this.deps.assistantMsgId} from state for DB save.`
       )
     }
