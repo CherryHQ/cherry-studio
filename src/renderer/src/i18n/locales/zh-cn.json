@@ -813,6 +813,9 @@
       "title": "小程序"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
+      },
       "clipboard": {
         "empty": "剪贴板为空"
       },

@@ -813,6 +813,9 @@
       "title": "小工具"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "提示：如遇到Google登入提示\"不受信任的瀏覽器\"，請先在小程序列表中的Google小程序中完成帳號登入，再在其它小程序使用Google登入"
+      },
       "clipboard": {
         "empty": "剪貼簿為空"
       },

@@ -39,6 +39,109 @@ interface AppExtraInfo {
 
 type AppInfo = MinAppType & AppExtraInfo
 
+/** Google login tip component */
+const GoogleLoginTip = ({
+  isReady,
+  currentUrl
+}: {
+  appId?: string | null
+  isReady: boolean
+  currentUrl: string | null
+}) => {
+  const { t } = useTranslation()
+  const [visible, setVisible] = useState(false)
+
+  // 判断当前URL是否涉及Google登录
+  const needsGoogleLogin = useMemo(() => {
+    if (!currentUrl) return false
+
+    const googleLoginPatterns = [
+      'accounts.google.com',
+      'signin/oauth',
+      'auth/google',
+      'login/google',
+      'sign-in/google',
+      'google.com/signin',
+      'gsi/client'
+    ]
+
+    return googleLoginPatterns.some((pattern) => currentUrl.toLowerCase().includes(pattern.toLowerCase()))
+  }, [currentUrl])
+
+  // 在URL更新时检查是否需要显示提示
+  useEffect(() => {
+    let showTimer: NodeJS.Timeout | null = null
+    let hideTimer: NodeJS.Timeout | null = null
+
+    // 如果是Google登录相关URL且小程序已加载完成，则延迟显示提示
+    if (needsGoogleLogin && isReady) {
+      showTimer = setTimeout(() => {
+        setVisible(true)
+        hideTimer = setTimeout(() => {
+          setVisible(false)
+        }, 30000)
+      }, 500)
+    } else {
+      setVisible(false)
+    }
+
+    return () => {
+      if (showTimer) clearTimeout(showTimer)
+      if (hideTimer) clearTimeout(hideTimer)
+    }
+  }, [needsGoogleLogin, isReady, currentUrl])
+
+  // 处理关闭提示
+  const handleClose = () => {
+    setVisible(false)
+  }
+
+  // 只在需要Google登录时显示提示
+  if (!needsGoogleLogin || !visible) return null
+
+  // 使用直接的消息文本
+  const message = t('miniwindow.alert.google_login')
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '60px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 9999,
+        width: '80%',
+        maxWidth: '600px',
+        padding: '10px 15px',
+        backgroundColor: '#fffbe6',
+        border: '1px solid #ffe58f',
+        borderRadius: '4px',
+        boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        animation: 'fadeIn 0.3s ease-in-out'
+      }}>
+      <div style={{ fontSize: '13px', color: '#d48806' }}>{message}</div>
+      <button
+        onClick={handleClose}
+        type="button"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          color: '#d48806',
+          marginLeft: '15px',
+          padding: '0 5px'
+        }}>
+        ✕
+      </button>
+    </div>
+  )
+}
+
 /** The main container for MinApp popup */
 const MinappPopupContainer: React.FC = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
@@ -198,9 +301,11 @@ const MinappPopupContainer: React.FC = () => {
     }
   }
 
-  /** the callback function to handle the webview navigate to new url */
+  /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
+    // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
+      console.log('URL changed:', url)
       setCurrentUrl(url)
     }
   }
@@ -399,6 +504,8 @@ const MinappPopupContainer: React.FC = () => {
         marginLeft: 'var(--sidebar-width)',
         backgroundColor: window.root.style.background
       }}>
+      {/* 在所有小程序中显示GoogleLoginTip */}
+      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} />
       {!isReady && (
         <EmptyView>
           <Avatar
