@@ -47,16 +47,22 @@ export const useMinappPopup = () => {
     })
   }
 
-  if (!minAppsCache || minAppsCache.max !== maxKeepAliveMinapps) {
-    const oldEntries = minAppsCache ? Array.from(minAppsCache.entries()).slice(0, maxKeepAliveMinapps) : []
-
+  // 缓存不存在
+  if (!minAppsCache) {
     minAppsCache = createLRUCache()
+  }
 
-    if (oldEntries.length > 0) {
+  // 缓存数量大小发生了改变
+  if (minAppsCache.max !== maxKeepAliveMinapps) {
+    // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
+    if (minAppsCache.size <= maxKeepAliveMinapps) {
+      const oldEntries = Array.from(minAppsCache.entries())
+      minAppsCache = createLRUCache()
       oldEntries.forEach(([key, value]) => {
         minAppsCache.set(key, value)
       })
     }
+    // 2. 大于设置的缓存的话，就直到数量减少到设置的缓存数量
   }
 
   /** Open a minapp (popup shows and minapp loaded) */
