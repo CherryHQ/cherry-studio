@@ -364,6 +364,7 @@ if (process.contextIsolated) {
       getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
     })
   } catch (error) {
+    // eslint-disable-next-line no-restricted-syntax
     console.error(error)
   }
 } else {
