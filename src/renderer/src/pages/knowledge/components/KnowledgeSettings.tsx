@@ -17,6 +17,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('KnowledgeSettings')
 interface ShowParams {
   base: KnowledgeBase
 }
@@ -24,8 +25,6 @@ interface ShowParams {
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
-
-const logger = loggerService.withContext('KnowledgeSettings')
 
 const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const { preprocessProviders } = usePreprocessProviders()
@@ -96,7 +95,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const onOk = async () => {
     try {
-      console.log('newbase', newBase)
+      logger.debug('newbase', newBase)
       updateKnowledgeBase(newBase)
       setOpen(false)
       resolve(newBase)

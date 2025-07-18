@@ -43,9 +43,9 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
     onLLMWebSearchInProgress: async () => {
       if (blockManager.hasInitialPlaceholder) {
         // blockManager.lastBlockType = MessageBlockType.CITATION
-        console.log('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)
+        logger.debug('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)
         citationBlockId = blockManager.initialPlaceholderBlockId!
-        console.log('citationBlockId', citationBlockId)
+        logger.debug('citationBlockId', citationBlockId)
 
         const changes = {
           type: MessageBlockType.CITATION,
