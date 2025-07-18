@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -17,6 +18,8 @@ import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
+
+const logger = loggerService.withContext('CodeBlockView')
 
 interface Props {
   children: string
@@ -93,7 +96,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         setExecutionResult(result)
       })
       .catch((error) => {
-        console.error('Unexpected error:', error)
+        logger.error('Unexpected error:', error)
         setExecutionResult({
           text: `Unexpected error: ${error.message || 'Unknown error'}`
         })

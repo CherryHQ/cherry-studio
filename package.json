@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -72,7 +72,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.6",
+    "selection-hook": "^1.0.7",
     "turndown": "7.2.0"
   },
   "devDependencies": {
@@ -163,7 +163,6 @@
     "electron": "35.6.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
-    "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "6.6.4",
     "electron-vite": "^3.1.0",
@@ -224,6 +223,7 @@
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.88.0",
     "shiki": "^3.7.0",
+    "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
     "styled-components": "^6.1.11",
     "tar": "^7.4.3",
@@ -236,6 +236,8 @@
     "vite": "6.2.6",
     "vitest": "^3.1.4",
     "webdav": "^5.8.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
     "zipread": "^1.3.3"
   },

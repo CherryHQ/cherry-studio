@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -9,7 +10,6 @@ import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
-import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
 import appService from './services/AppService'
@@ -43,6 +43,8 @@ import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
+const logger = loggerService.withContext('IPC')
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -66,7 +68,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path,
+    logsPath: logger.getLogsDir(),
     arch: arch(),
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
     installPath: path.dirname(app.getPath('exe'))
@@ -145,7 +147,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    log.info('set test plan', isActive)
+    logger.info('set test plan', isActive)
     if (isActive !== configManager.getTestPlan()) {
       appUpdater.cancelDownload()
       configManager.setTestPlan(isActive)
@@ -153,7 +155,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    log.info('set test channel', channel)
+    logger.info('set test channel', channel)
     if (channel !== configManager.getTestChannel()) {
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
@@ -205,10 +207,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         })
       )
       await fileManager.clearTemp()
-      await fs.writeFileSync(log.transports.file.getFile().path, '')
+      // do not clear logs for now
+      // TODO clear logs
+      // await fs.writeFileSync(log.transports.file.getFile().path, '')
       return { success: true }
     } catch (error: any) {
-      log.error('Failed to clear cache:', error)
+      logger.error('Failed to clear cache:', error)
       return { success: false, error: error.message }
     }
   })
@@ -216,14 +220,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
     const cachePath = getCacheDir()
-    log.info(`Calculating cache size for path: ${cachePath}`)
+    logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
       const sizeInBytes = await calculateDirectorySize(cachePath)
       const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
       return `${sizeInMB}`
     } catch (error: any) {
-      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      logger.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
       return '0'
     }
   })
@@ -260,7 +264,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       }
       return filePaths[0]
     } catch (error: any) {
-      log.error('Failed to select app data path:', error)
+      logger.error('Failed to select app data path:', error)
       return null
     }
   })
@@ -313,7 +317,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       })
       return { success: true }
     } catch (error: any) {
-      log.error('Failed to copy user data:', error)
+      logger.error('Failed to copy user data:', error)
       return { success: false, error: error.message }
     }
   })
@@ -322,7 +326,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
     // Fix for .AppImage
     if (isLinux && process.env.APPIMAGE) {
-      log.info('Relaunching app with options:', process.env.APPIMAGE, options)
+      logger.info('Relaunching app with options:', process.env.APPIMAGE, options)
       // On Linux, we need to use the APPIMAGE environment variable to relaunch
       // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
       options = options || {}
@@ -554,7 +558,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       // Process DXT file using the temporary path
       return await dxtService.uploadDxt(event, tempPath)
     } catch (error) {
-      log.error('[IPC] DXT upload error:', error)
+      logger.error('DXT upload error:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to upload DXT file'

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
@@ -16,6 +17,8 @@ import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import TranslationBlock from './TranslationBlock'
+
+const logger = loggerService.withContext('MessageBlockRenderer')
 
 interface AnimatedBlockWrapperProps {
   children: React.ReactNode
@@ -144,7 +147,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <TranslationBlock key={block.id} block={block} />
             break
           default:
-            console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
+            logger.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
             break
         }
 

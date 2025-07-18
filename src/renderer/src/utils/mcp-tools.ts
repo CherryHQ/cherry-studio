@@ -1,6 +1,6 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -28,6 +28,8 @@ import {
 
 import { CompletionsParams } from '../aiCore/middleware/schemas'
 import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from './userConfirmation'
+
+const logger = loggerService.withContext('Utils:MCPTools')
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -259,7 +261,7 @@ export function openAIToolsToMcpTool(
   })
 
   if (!tool) {
-    console.warn('No MCP Tool found for tool call:', toolCall)
+    logger.warn('No MCP Tool found for tool call:', toolCall)
     return undefined
   }
 
@@ -267,7 +269,7 @@ export function openAIToolsToMcpTool(
 }
 
 export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
-  Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -299,10 +301,10 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       }
     }
 
-    Logger.log(`[MCP] Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
+    logger.info(`Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
     return resp
   } catch (e) {
-    console.error(`[MCP] Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
+    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
     return Promise.resolve({
       isError: true,
       content: [
@@ -504,7 +506,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: num
     // Logger.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
     const mcpTool = mcpTools.find((tool) => tool.id === toolName)
     if (!mcpTool) {
-      Logger.error(`Tool "${toolName}" not found in MCP tools`)
+      logger.error(`Tool "${toolName}" not found in MCP tools`)
       window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
       continue
     }
@@ -654,7 +656,7 @@ export async function parseAndCallTools<R>(
               toolResults.push(convertedMessage)
             }
           } catch (error) {
-            Logger.error(`🔧 [MCP] Error executing tool ${toolResponse.id}:`, error)
+            logger.error(`Error executing tool ${toolResponse.id}:`, error)
             // 更新为错误状态
             upsertMCPToolResponse(
               allToolResponses,
@@ -696,7 +698,7 @@ export async function parseAndCallTools<R>(
         }
       })
       .catch((error) => {
-        Logger.error(`🔧 [MCP] Error waiting for tool confirmation ${toolResponse.id}:`, error)
+        logger.error(`Error waiting for tool confirmation ${toolResponse.id}:`, error)
         // 立即更新为cancelled状态
         upsertMCPToolResponse(
           allToolResponses,

@@ -1,12 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios from 'axios'
-import Logger from 'electron-log'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
+
+const logger = loggerService.withContext('MineruPreprocessProvider')
 
 type ApiResponse<T> = {
   code: number
@@ -61,16 +63,16 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
     try {
-      Logger.info(`MinerU preprocess processing started: ${file.path}`)
+      logger.info(`MinerU preprocess processing started: ${file.path}`)
       await this.validateFile(file.path)
 
       // 1. 获取上传URL并上传文件
       const batchId = await this.uploadFile(file)
-      Logger.info(`MinerU file upload completed: batch_id=${batchId}`)
+      logger.info(`MinerU file upload completed: batch_id=${batchId}`)
 
       // 2. 等待处理完成并获取结果
       const extractResult = await this.waitForCompletion(sourceId, batchId, file.origin_name)
-      Logger.info(`MinerU processing completed for batch: ${batchId}`)
+      logger.info(`MinerU processing completed for batch: ${batchId}`)
 
       // 3. 下载并解压文件
       const { path: outputPath } = await this.downloadAndExtractFile(extractResult.full_zip_url!, file)
@@ -84,7 +86,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         quota
       }
     } catch (error: any) {
-      Logger.error(`MinerU preprocess processing failed for ${file.path}: ${error.message}`)
+      logger.error(`MinerU preprocess processing failed for ${file.path}: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -105,7 +107,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       const response: QuotaResponse = await quota.json()
       return response.data.user_left_quota
     } catch (error) {
-      console.error('Error checking quota:', error)
+      logger.error('Error checking quota:', error)
       throw error
     }
   }
@@ -143,16 +145,16 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         try {
           fs.renameSync(originalMdPath, newMdPath)
           finalPath = newMdPath
-          Logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
+          logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
         } catch (renameError) {
-          Logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
+          logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
           // 如果重命名失败，使用原文件
           finalPath = originalMdPath
           finalName = mdFile
         }
       }
     } catch (error) {
-      Logger.warn(`Failed to read output directory ${outputPath}: ${error}`)
+      logger.warn(`Failed to read output directory ${outputPath}: ${error}`)
       finalPath = path.join(outputPath, `${file.id}.md`)
     }
 
@@ -171,13 +173,13 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     const zipPath = path.join(dirPath, `${file.id}.zip`)
     const extractPath = path.join(dirPath, `${file.id}`)
 
-    Logger.info(`Downloading MinerU result to: ${zipPath}`)
+    logger.info(`Downloading MinerU result to: ${zipPath}`)
 
     try {
       // 下载ZIP文件
       const response = await axios.get(zipUrl, { responseType: 'arraybuffer' })
       fs.writeFileSync(zipPath, response.data)
-      Logger.info(`Downloaded ZIP file: ${zipPath}`)
+      logger.info(`Downloaded ZIP file: ${zipPath}`)
 
       // 确保提取目录存在
       if (!fs.existsSync(extractPath)) {
@@ -187,14 +189,14 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       // 解压文件
       const zip = new AdmZip(zipPath)
       zip.extractAllTo(extractPath, true)
-      Logger.info(`Extracted files to: ${extractPath}`)
+      logger.info(`Extracted files to: ${extractPath}`)
 
       // 删除临时ZIP文件
       fs.unlinkSync(zipPath)
 
       return { path: extractPath }
     } catch (error: any) {
-      Logger.error(`Failed to download and extract file: ${error.message}`)
+      logger.error(`Failed to download and extract file: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -203,16 +205,16 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       // 步骤1: 获取上传URL
       const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
-      Logger.info(`Got upload URLs for batch: ${batchId}`)
+      logger.info(`Got upload URLs for batch: ${batchId}`)
 
       console.log('batchId:', batchId, 'fileurls:', fileUrls)
       // 步骤2: 上传文件到获取的URL
       await this.putFileToUrl(file.path, fileUrls[0])
-      Logger.info(`File uploaded successfully: ${file.path}`)
+      logger.info(`File uploaded successfully: ${file.path}`)
 
       return batchId
     } catch (error: any) {
-      Logger.error(`Failed to upload file ${file.path}: ${error.message}`)
+      logger.error(`Failed to upload file ${file.path}: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -260,7 +262,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error: any) {
-      Logger.error(`Failed to get batch upload URLs: ${error.message}`)
+      logger.error(`Failed to get batch upload URLs: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -296,16 +298,16 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
             body: responseBody
           }
 
-          console.error('Response details:', errorInfo)
+          logger.error('Response details:', errorInfo)
           throw new Error(`Upload failed with status ${response.status}: ${responseBody}`)
         } catch (parseError) {
           throw new Error(`Upload failed with status ${response.status}. Could not parse response body.`)
         }
       }
 
-      Logger.info(`File uploaded successfully to: ${uploadUrl}`)
+      logger.info(`File uploaded successfully to: ${uploadUrl}`)
     } catch (error: any) {
-      Logger.error(`Failed to upload file to URL ${uploadUrl}: ${error}`)
+      logger.error(`Failed to upload file to URL ${uploadUrl}: ${error}`)
       throw new Error(error.message)
     }
   }
@@ -334,7 +336,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error: any) {
-      Logger.error(`Failed to get extract results for batch ${batchId}: ${error.message}`)
+      logger.error(`Failed to get extract results for batch ${batchId}: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -360,7 +362,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
         // 检查处理状态
         if (fileResult.state === 'done' && fileResult.full_zip_url) {
-          Logger.info(`Processing completed for file: ${fileName}`)
+          logger.info(`Processing completed for file: ${fileName}`)
           return fileResult
         } else if (fileResult.state === 'failed') {
           throw new Error(`Processing failed for file: ${fileName}, error: ${fileResult.err_msg}`)
@@ -371,15 +373,15 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
               (fileResult.extract_progress.extracted_pages / fileResult.extract_progress.total_pages) * 100
             )
             await this.sendPreprocessProgress(sourceId, progress)
-            Logger.info(`File ${fileName} processing progress: ${progress}%`)
+            logger.info(`File ${fileName} processing progress: ${progress}%`)
           } else {
             // 如果没有具体进度信息，发送一个通用进度
             await this.sendPreprocessProgress(sourceId, 50)
-            Logger.info(`File ${fileName} is still processing...`)
+            logger.info(`File ${fileName} is still processing...`)
           }
         }
       } catch (error) {
-        Logger.warn(`Failed to check status for batch ${batchId}, retry ${retries + 1}/${maxRetries}`)
+        logger.warn(`Failed to check status for batch ${batchId}, retry ${retries + 1}/${maxRetries}`)
         if (retries === maxRetries - 1) {
           throw error
         }

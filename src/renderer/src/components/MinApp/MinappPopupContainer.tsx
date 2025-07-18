@@ -22,7 +22,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
-import { Avatar, Drawer, Tooltip } from 'antd'
+import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +38,100 @@ interface AppExtraInfo {
 }
 
 type AppInfo = MinAppType & AppExtraInfo
+
+/** Google login tip component */
+const GoogleLoginTip = ({
+  isReady,
+  currentUrl,
+  currentAppId
+}: {
+  appId?: string | null
+  isReady: boolean
+  currentUrl: string | null
+  currentAppId: string | null
+}) => {
+  const { t } = useTranslation()
+  const [visible, setVisible] = useState(false)
+  const { openMinappById } = useMinappPopup()
+
+  // 判断当前URL是否涉及Google登录
+  const needsGoogleLogin = useMemo(() => {
+    // 如果当前已经在Google小程序中，不需要显示提示
+    if (currentAppId === 'google') return false
+
+    if (!currentUrl) return false
+
+    const googleLoginPatterns = [
+      'accounts.google.com',
+      'signin/oauth',
+      'auth/google',
+      'login/google',
+      'sign-in/google',
+      'google.com/signin',
+      'gsi/client'
+    ]
+
+    return googleLoginPatterns.some((pattern) => currentUrl.toLowerCase().includes(pattern.toLowerCase()))
+  }, [currentUrl, currentAppId])
+
+  // 在URL更新时检查是否需要显示提示
+  useEffect(() => {
+    let showTimer: NodeJS.Timeout | null = null
+    let hideTimer: NodeJS.Timeout | null = null
+
+    // 如果是Google登录相关URL且小程序已加载完成，则延迟显示提示
+    if (needsGoogleLogin && isReady) {
+      showTimer = setTimeout(() => {
+        setVisible(true)
+        hideTimer = setTimeout(() => {
+          setVisible(false)
+        }, 30000)
+      }, 500)
+    } else {
+      setVisible(false)
+    }
+
+    return () => {
+      if (showTimer) clearTimeout(showTimer)
+      if (hideTimer) clearTimeout(hideTimer)
+    }
+  }, [needsGoogleLogin, isReady, currentUrl])
+
+  // 处理关闭提示
+  const handleClose = () => {
+    setVisible(false)
+  }
+
+  // 跳转到Google小程序
+  const openGoogleMinApp = () => {
+    // 使用openMinappById方法打开Google小程序
+    openMinappById('google', true)
+    // 关闭提示
+    setVisible(false)
+  }
+
+  // 只在需要Google登录时显示提示
+  if (!needsGoogleLogin || !visible) return null
+
+  // 使用直接的消息文本
+  const message = t('miniwindow.alert.google_login')
+
+  return (
+    <Alert
+      message={message}
+      type="warning"
+      showIcon
+      closable
+      onClose={handleClose}
+      action={
+        <Button type="primary" size="small" onClick={openGoogleMinApp}>
+          {t('common.open')} Google
+        </Button>
+      }
+      style={{ zIndex: 10, animation: 'fadeIn 0.3s ease-in-out' }}
+    />
+  )
+}
 
 /** The main container for MinApp popup */
 const MinappPopupContainer: React.FC = () => {
@@ -198,9 +292,11 @@ const MinappPopupContainer: React.FC = () => {
     }
   }
 
-  /** the callback function to handle the webview navigate to new url */
+  /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
+    // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
+      console.log('URL changed:', url)
       setCurrentUrl(url)
     }
   }
@@ -297,36 +393,36 @@ const MinappPopupContainer: React.FC = () => {
         </Tooltip>
         {appInfo.canOpenExternalLink && (
           <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
+            <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
               <ExportOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         )}
         <Spacer />
         <ButtonsGroup className={isWin || isLinux ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoBack(appInfo.id)}>
+            <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleGoForward(appInfo.id)}>
+            <TitleButton onClick={() => handleGoForward(appInfo.id)}>
               <ArrowRightOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handleReload(appInfo.id)}>
+            <TitleButton onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           {appInfo.canPinned && (
             <Tooltip
               title={appInfo.isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title')}
               mouseEnterDelay={0.8}
               placement="bottom">
-              <Button onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
+              <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           <Tooltip
@@ -337,28 +433,28 @@ const MinappPopupContainer: React.FC = () => {
             }
             mouseEnterDelay={0.8}
             placement="bottom">
-            <Button onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
+            <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
               <LinkOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
           {isInDevelopment && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handleOpenDevTools(appInfo.id)}>
+              <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           {canMinimize && (
             <Tooltip title={t('minapp.popup.minimize')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handlePopupMinimize()}>
+              <TitleButton onClick={() => handlePopupMinimize()}>
                 <MinusOutlined />
-              </Button>
+              </TitleButton>
             </Tooltip>
           )}
           <Tooltip title={t('minapp.popup.close')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handlePopupClose(appInfo.id)}>
+            <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
               <CloseOutlined />
-            </Button>
+            </TitleButton>
           </Tooltip>
         </ButtonsGroup>
       </TitleContainer>
@@ -399,6 +495,8 @@ const MinappPopupContainer: React.FC = () => {
         marginLeft: 'var(--sidebar-width)',
         backgroundColor: window.root.style.background
       }}>
+      {/* 在所有小程序中显示GoogleLoginTip */}
+      <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
         <EmptyView>
           <Avatar
@@ -460,7 +558,7 @@ const ButtonsGroup = styled.div`
   }
 `
 
-const Button = styled.div`
+const TitleButton = styled.div`
   cursor: pointer;
   width: 30px;
   height: 30px;

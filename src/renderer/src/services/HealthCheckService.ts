@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import { Model, Provider } from '@renderer/types'
 
 import { checkModel } from './ModelService'
+
+const logger = loggerService.withContext('HealthCheckService')
 
 /**
  * Model check status states
@@ -224,7 +227,7 @@ export async function checkModelsHealth(
       }
     }
   } catch (error) {
-    console.error('Model health check failed:', error)
+    logger.error('Model health check failed:', error)
   }
 
   return results

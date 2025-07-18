@@ -1,12 +1,14 @@
+import { loggerService } from '@logger'
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
-import Logger from 'electron-log'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+
+const logger = loggerService.withContext('ProxyManager')
 
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
@@ -59,7 +61,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    Logger.info('configureProxy', config.mode, config.proxyRules)
+    logger.info('configureProxy', config.mode, config.proxyRules)
     if (this.isSettingProxy) {
       return
     }
@@ -68,7 +70,7 @@ export class ProxyManager {
 
     try {
       if (config?.mode === this.config?.mode && config?.proxyRules === this.config?.proxyRules) {
-        Logger.info('proxy config is the same, skip configure')
+        logger.info('proxy config is the same, skip configure')
         return
       }
 
@@ -77,7 +79,7 @@ export class ProxyManager {
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          Logger.info('current system proxy', currentProxy.proxyUrl)
+          logger.info('current system proxy', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
           this.monitorSystemProxy()
         } else {
@@ -88,7 +90,7 @@ export class ProxyManager {
 
       this.setGlobalProxy()
     } catch (error) {
-      Logger.error('Failed to config proxy:', error)
+      logger.error('Failed to config proxy:', error)
       throw error
     } finally {
       this.isSettingProxy = false

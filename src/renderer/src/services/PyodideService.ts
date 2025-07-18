@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils'
+
+const logger = loggerService.withContext('PyodideService')
 
 // 定义结果类型接口
 export interface PyodideOutput {
@@ -137,7 +140,7 @@ class PyodideService {
     try {
       await this.initialize()
     } catch (error: unknown) {
-      console.error('Pyodide initialization failed, cannot execute Python code', error)
+      logger.error('Pyodide initialization failed, cannot execute Python code', error)
       const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
       return { text }
     }

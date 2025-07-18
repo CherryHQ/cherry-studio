@@ -437,6 +437,7 @@
       "more": "もっと",
       "name": "名前",
       "no_results": "検索結果なし",
+      "open": "開く",
       "paste": "貼り付け",
       "prompt": "プロンプト",
       "provider": "プロバイダー",
@@ -460,7 +461,8 @@
       "swap": "交換",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "i_know": "わかりました"
     },
     "docs": {
       "title": "ドキュメント"
@@ -812,6 +814,9 @@
       "title": "ミニアプリ"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
+      },
       "clipboard": {
         "empty": "クリップボードが空です"
       },
@@ -2455,6 +2460,7 @@
       "visualization": "可視化"
     },
     "memory": {
+      "title": "グローバルメモリ",
       "add_memory": "メモリーを追加",
       "edit_memory": "メモリーを編集",
       "memory_content": "メモリー内容",
@@ -2476,7 +2482,6 @@
       "user": "ユーザー",
       "content": "内容",
       "score": "スコア",
-      "title": "メモリー",
       "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
       "search_placeholder": "メモリーを検索...",
       "start_date": "開始日",
@@ -2557,7 +2562,8 @@
       "please_select_embedding_model": "埋め込みモデルを選択してください",
       "select_embedding_model_placeholder": "埋め込みモデルを選択",
       "embedding_dimensions": "埋め込み次元",
-      "stored_memories": "保存された記憶"
+      "stored_memories": "保存された記憶",
+      "global_memory_description": "メモリ機能を使用するには、アシスタント設定でグローバルメモリを有効にしてください。"
     }
   }
 }

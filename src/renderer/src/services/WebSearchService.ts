@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
-import Logger from '@renderer/config/logger'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
@@ -27,6 +27,8 @@ import { sliceByTokens } from 'tokenx'
 import { getKnowledgeBaseParams } from './KnowledgeService'
 import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
 
+const logger = loggerService.withContext('WebSearchService')
+
 interface RequestState {
   signal: AbortSignal | null
   searchBase?: KnowledgeBase
@@ -53,7 +55,7 @@ class WebSearchService {
       if (!requestState.searchBase) return
       window.api.knowledgeBase
         .delete(requestState.searchBase.id)
-        .catch((error) => Logger.warn(`[WebSearchService] Failed to cleanup search base for ${requestId}:`, error))
+        .catch((error) => logger.warn(`Failed to cleanup search base for ${requestId}:`, error))
     }
   })
 
@@ -190,7 +192,7 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-      Logger.log('[checkSearch] Search response:', response)
+      logger.debug('Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
       return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
@@ -357,7 +359,7 @@ class WebSearchService {
     // 4. 使用 Round Robin 策略选择引用
     const selectedReferences = selectReferences(rawResults, references, totalDocumentCount)
 
-    Logger.log('[WebSearchService] With RAG, the number of search results:', {
+    logger.verbose('With RAG, the number of search results:', {
       raw: rawResults.length,
       retrieved: references.length,
       selected: selectedReferences.length
@@ -379,7 +381,7 @@ class WebSearchService {
     config: CompressionConfig
   ): Promise<WebSearchProviderResult[]> {
     if (!config.cutoffLimit) {
-      Logger.warn('[WebSearchService] Cutoff limit is not set, skipping compression')
+      logger.warn('Cutoff limit is not set, skipping compression')
       return rawResults
     }
 
@@ -431,7 +433,7 @@ class WebSearchService {
 
     // 检查 websearch 和 question 是否有效
     if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
-      Logger.log('[processWebsearch] No valid question found in extractResults.websearch')
+      logger.info('No valid question found in extractResults.websearch')
       return { results: [] }
     }
 
@@ -504,7 +506,7 @@ class WebSearchService {
           1000
         )
       } catch (error) {
-        Logger.warn('[WebSearchService] RAG compression failed, will return empty results:', error)
+        logger.warn('RAG compression failed, will return empty results:', error)
         window.message.error({
           key: 'websearch-rag-failed',
           duration: 10,

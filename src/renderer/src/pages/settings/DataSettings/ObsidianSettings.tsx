@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -7,6 +8,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('ObsidianSettings')
 
 const { Option } = Select
 
@@ -40,7 +43,7 @@ const ObsidianSettings: FC = () => {
           dispatch(setDefaultObsidianVault(vaultsData[0].name))
         }
       } catch (error) {
-        console.error('获取Obsidian Vault失败:', error)
+        logger.error('获取Obsidian Vault失败:', error)
         setError(t('settings.data.obsidian.default_vault_fetch_error'))
       } finally {
         setLoading(false)

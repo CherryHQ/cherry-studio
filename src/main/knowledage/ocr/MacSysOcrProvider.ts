@@ -1,11 +1,13 @@
+import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
 import { FileMetadata, OcrProvider } from '@types'
-import Logger from 'electron-log'
 import * as fs from 'fs'
 import * as path from 'path'
 import { TextItem } from 'pdfjs-dist/types/src/display/api'
 
 import BaseOcrProvider from './BaseOcrProvider'
+
+const logger = loggerService.withContext('MacSysOcrProvider')
 
 export default class MacSysOcrProvider extends BaseOcrProvider {
   private readonly MIN_TEXT_LENGTH = 1000
@@ -21,7 +23,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
         const module = await import('@cherrystudio/mac-system-ocr')
         this.MacOCR = module.default
       } catch (error) {
-        Logger.error('[OCR] Failed to load mac-system-ocr:', error)
+        logger.error('Failed to load mac-system-ocr:', error)
         throw error
       }
     }
@@ -83,7 +85,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
   }
 
   public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
-    Logger.info(`[OCR] Starting OCR process for file: ${file.name}`)
+    logger.info(`Starting OCR process for file: ${file.name}`)
     if (file.ext === '.pdf') {
       try {
         const { pdf } = await import('@cherrystudio/pdf-to-img-napi')
@@ -103,7 +105,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
 
         await new Promise<void>((resolve, reject) => {
           writeStream.end(() => {
-            Logger.info(`[OCR] OCR process completed successfully for ${file.origin_name}`)
+            logger.info(`OCR process completed successfully for ${file.origin_name}`)
             resolve()
           })
           writeStream.on('error', reject)
@@ -119,7 +121,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
           }
         }
       } catch (error) {
-        Logger.error('[OCR] Error during OCR process:', error)
+        logger.error('Error during OCR process:', error)
         throw error
       }
     }

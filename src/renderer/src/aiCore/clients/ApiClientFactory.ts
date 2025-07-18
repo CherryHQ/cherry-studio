@@ -72,6 +72,7 @@ export class ApiClientFactory {
   }
 }
 
-export function isOpenAIProvider(provider: Provider) {
-  return !['anthropic', 'gemini'].includes(provider.type)
-}
+// 移除这个函数，它已经移动到 utils/index.ts
+// export function isOpenAIProvider(provider: Provider) {
+//   return !['anthropic', 'gemini'].includes(provider.type)
+// }

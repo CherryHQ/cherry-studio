@@ -1,7 +1,9 @@
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@renderer/config/constant'
-import Logger from '@renderer/config/logger'
 import type { SendMessageShortcut } from '@renderer/store/settings'
 import { FileMetadata } from '@renderer/types'
+
+const logger = loggerService.withContext('Utils:Input')
 
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileMetadata[]> => {
   if (e.dataTransfer.files.length > 0) {
@@ -15,7 +17,7 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
         }
         return null
       } catch (error) {
-        Logger.error('[src/renderer/src/utils/input.ts] getFilesFromDropEvent - getPathForFile error:', error)
+        logger.error('getFilesFromDropEvent - getPathForFile error:', error)
         return null
       }
     })
@@ -26,7 +28,7 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
       if (result.status === 'fulfilled' && result.value !== null) {
         list.push(result.value)
       } else if (result.status === 'rejected') {
-        Logger.error('[src/renderer/src/utils/input.ts] getFilesFromDropEvent:', result.reason)
+        logger.error('getFilesFromDropEvent:', result.reason)
       }
     }
     return list

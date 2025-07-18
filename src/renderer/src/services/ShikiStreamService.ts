@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   DEFAULT_LANGUAGES,
   DEFAULT_THEMES,
@@ -9,6 +10,8 @@ import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
 import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
+
+const logger = loggerService.withContext('ShikiStreamService')
 
 export type ShikiPreProperties = {
   class: string
@@ -101,7 +104,7 @@ class ShikiStreamService {
     if (this.worker) return
 
     if (this.workerInitRetryCount >= ShikiStreamService.MAX_WORKER_INIT_RETRY) {
-      console.debug('ShikiStream worker initialization failed too many times, stop trying')
+      logger.debug('ShikiStream worker initialization failed too many times, stop trying')
       return
     }
 
@@ -329,7 +332,7 @@ class ShikiStreamService {
       return result
     } catch (error) {
       // 处理失败时不更新缓存，保持之前的状态
-      console.error('Failed to highlight streaming code:', error)
+      logger.error('Failed to highlight streaming code:', error)
       throw error
     }
   }
@@ -361,7 +364,7 @@ class ShikiStreamService {
       try {
         await this.initWorker()
       } catch (error) {
-        console.warn('Failed to initialize worker, falling back to main thread:', error)
+        logger.warn('Failed to initialize worker, falling back to main thread:', error)
       }
     }
 
@@ -380,7 +383,7 @@ class ShikiStreamService {
         // Worker 处理失败，记录callerId并永久降级到主线程
         // FIXME: 这种情况如果出现，流式高亮语法状态就会丢失，目前用降级策略来处理
         this.workerDegradationCache.set(callerId, true)
-        console.error(
+        logger.error(
           `Worker highlight failed for callerId ${callerId}, permanently falling back to main thread:`,
           error
         )
@@ -416,7 +419,7 @@ class ShikiStreamService {
         recall: result.recall
       }
     } catch (error) {
-      console.error('Failed to highlight code chunk:', error)
+      logger.error('Failed to highlight code chunk:', error)
 
       // 提供简单的 fallback
       const fallbackToken: ThemedToken = { content: chunk || '', color: '#000000', offset: 0 }
@@ -474,7 +477,7 @@ class ShikiStreamService {
         type: 'cleanup',
         callerId
       }).catch((error) => {
-        console.error('Failed to cleanup worker tokenizer:', error)
+        logger.error('Failed to cleanup worker tokenizer:', error)
       })
     }
 
@@ -499,7 +502,7 @@ class ShikiStreamService {
   dispose() {
     if (this.worker) {
       this.sendWorkerMessage({ type: 'dispose' }).catch((error) => {
-        console.warn('Failed to dispose worker:', error)
+        logger.warn('Failed to dispose worker:', error)
       })
       this.worker.terminate()
       this.worker = null
