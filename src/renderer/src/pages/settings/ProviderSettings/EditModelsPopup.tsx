@@ -1,4 +1,5 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
@@ -33,6 +34,7 @@ import styled from 'styled-components'
 
 import { TopView } from '../../../components/TopView'
 
+const logger = loggerService.withContext('EditModelsPopup')
 interface ShowParams {
   provider: Provider
 }
@@ -180,7 +182,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             .filter((model) => !isEmpty(model.name))
         )
       } catch (error) {
-        console.error('Failed to fetch models', error)
+        logger.error('Failed to fetch models', error)
       } finally {
         setTimeout(() => setLoading(false), 300)
       }

@@ -1,5 +1,6 @@
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/filesystem/index.ts
 
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ToolSchema } from '@modelcontextprotocol/sdk/types.js'
 import { createTwoFilesPatch } from 'diff'
@@ -9,6 +10,8 @@ import os from 'os'
 import path from 'path'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+
+const logger = loggerService.withContext('MCP:FileSystemServer')
 
 // Normalize all paths consistently
 function normalizePath(p: string): string {
@@ -294,7 +297,7 @@ class FileSystemServer {
 
     // Validate that all directories exist and are accessible
     this.validateDirs().catch((error) => {
-      console.error('Error validating allowed directories:', error)
+      logger.error('Error validating allowed directories:', error)
       throw new Error(`Error validating allowed directories: ${error}`)
     })
 
@@ -319,11 +322,11 @@ class FileSystemServer {
         try {
           const stats = await fs.stat(expandHome(dir))
           if (!stats.isDirectory()) {
-            console.error(`Error: ${dir} is not a directory`)
+            logger.error(`Error: ${dir} is not a directory`)
             throw new Error(`Error: ${dir} is not a directory`)
           }
         } catch (error: any) {
-          console.error(`Error accessing directory ${dir}:`, error)
+          logger.error(`Error accessing directory ${dir}:`, error)
           throw new Error(`Error accessing directory ${dir}:`, error)
         }
       })

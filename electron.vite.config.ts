@@ -18,16 +18,19 @@ export default defineConfig({
       alias: {
         '@main': resolve('src/main'),
         '@types': resolve('src/renderer/src/types'),
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/main/services/LoggerService')
       }
     },
     build: {
       rollupOptions: {
         external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
-        output: {
-          manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          inlineDynamicImports: true // 内联所有动态导入，这是关键配置
-        }
+        output: isProd
+          ? {
+              manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
+              inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+            }
+          : undefined
       },
       sourcemap: isDev
     },
@@ -68,7 +71,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/renderer/src/services/LoggerService')
       }
     },
     optimizeDeps: {

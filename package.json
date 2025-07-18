@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -72,7 +72,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.6",
+    "selection-hook": "^1.0.7",
     "turndown": "7.2.0"
   },
   "devDependencies": {
@@ -163,7 +163,6 @@
     "electron": "35.6.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
-    "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "6.6.4",
     "electron-vite": "^3.1.0",
@@ -177,6 +176,7 @@
     "eslint-plugin-unused-imports": "^4.1.4",
     "fast-diff": "^1.3.0",
     "fast-xml-parser": "^5.2.0",
+    "fetch-socks": "1.3.2",
     "franc-min": "^6.2.0",
     "fs-extra": "^11.2.0",
     "google-auth-library": "^9.15.1",
@@ -223,17 +223,21 @@
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.88.0",
     "shiki": "^3.7.0",
+    "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
     "styled-components": "^6.1.11",
     "tar": "^7.4.3",
     "tiny-pinyin": "^1.3.2",
     "tokenx": "^1.1.0",
     "typescript": "^5.6.2",
+    "undici": "6.21.2",
     "unified": "^11.0.5",
     "uuid": "^10.0.0",
     "vite": "6.2.6",
     "vitest": "^3.1.4",
     "webdav": "^5.8.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
     "zipread": "^1.3.3"
   },
@@ -250,7 +254,8 @@
     "app-builder-lib@npm:26.0.13": "patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch",
     "openai@npm:^4.87.3": "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch",
     "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch",
-    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch"
+    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch",
+    "undici": "6.21.2"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {

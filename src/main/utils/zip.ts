@@ -1,7 +1,9 @@
 import util from 'node:util'
 import zlib from 'node:zlib'
 
-import logger from 'electron-log'
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('Utils:Zip')
 
 // 将 zlib 的 gzip 和 gunzip 方法转换为 Promise 版本
 const gzipPromise = util.promisify(zlib.gzip)

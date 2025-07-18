@@ -1,9 +1,11 @@
+import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
 import { Provider } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
+const logger = loggerService.withContext('PPIOAPIClient')
 export class PPIOAPIClient extends OpenAIAPIClient {
   constructor(provider: Provider) {
     super(provider)
@@ -58,7 +60,7 @@ export class PPIOAPIClient extends OpenAIAPIClient {
 
       return processedModels.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing PPIO models:', error)
+      logger.error('Error listing PPIO models:', error)
       return []
     }
   }

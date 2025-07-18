@@ -46,7 +46,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         total: files.length
       }))
     } catch (error: any) {
-      message.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
+      window.message.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -91,13 +91,13 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           for (const key of selectedRowKeys) {
             await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
           }
-          message.success(
+          window.message.success(
             t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
           )
           setSelectedRowKeys([])
           await fetchBackupFiles()
         } catch (error: any) {
-          message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+          window.message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -124,7 +124,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           message.success(t('settings.data.local.backup.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
-          message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+          window.message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -151,7 +151,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           message.success(t('settings.data.local.backup.manager.restore.success'))
           onClose() // Close the modal
         } catch (error: any) {
-          message.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
+          window.message.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
         } finally {
           setRestoring(false)
         }

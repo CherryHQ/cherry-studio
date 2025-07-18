@@ -1,7 +1,7 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import Scrollbar from '@renderer/components/Scrollbar'
-import Logger from '@renderer/config/logger'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
@@ -23,6 +23,8 @@ import {
   RefreshIcon,
   StatusIconWrapper
 } from '../KnowledgeContent'
+
+const logger = loggerService.withContext('KnowledgeDirectories')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -54,7 +56,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     }
 
     const path = await window.api.file.selectFolder()
-    Logger.log('[KnowledgeContent] Selected directory:', path)
+    logger.info('Selected directory:', path)
     path && addDirectory(path)
   }
 

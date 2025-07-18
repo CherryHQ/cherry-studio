@@ -2708,7 +2708,7 @@ export function isWebSearchModel(model: Model): boolean {
     }
   }
 
-  if (provider.id === 'gemini' || provider?.type === 'gemini') {
+  if (provider.id === 'gemini' || provider?.type === 'gemini' || provider.type === 'vertexai') {
     return GEMINI_SEARCH_REGEX.test(baseName)
   }
 

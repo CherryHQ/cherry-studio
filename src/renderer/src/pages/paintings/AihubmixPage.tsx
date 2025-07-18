@@ -1,4 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -34,6 +35,8 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
+
+const logger = loggerService.withContext('AihubmixPage')
 
 // 使用函数创建配置项
 const modeConfigs = createModeConfigs()
@@ -104,7 +107,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       urls.map(async (url) => {
         try {
           if (!url?.trim()) {
-            console.error('图像URL为空，可能是提示词违禁')
+            logger.error('图像URL为空，可能是提示词违禁')
             window.message.warning({
               content: t('message.empty_url'),
               key: 'empty-url-warning'
@@ -113,7 +116,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          console.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -267,7 +270,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
             if (!response.ok) {
               const errorData = await response.json()
-              console.error('V3 API错误:', errorData)
+              logger.error('V3 API错误:', errorData)
               throw new Error(errorData.error?.message || '生成图像失败')
             }
 
@@ -383,7 +386,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           if (!response.ok) {
             const errorData = await response.json()
-            console.error('V3 Remix API错误:', errorData)
+            logger.error('V3 Remix API错误:', errorData)
             throw new Error(errorData.error?.message || '图像混合失败')
           }
 
@@ -453,7 +456,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('通用API错误:', errorData)
+          logger.error('通用API错误:', errorData)
           throw new Error(errorData.error?.message || '生成图像失败')
         }
 
@@ -547,7 +550,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error)
     } finally {
       setIsTranslating(false)
     }

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
@@ -10,7 +11,6 @@ import {
   SaveDialogReturnValue,
   shell
 } from 'electron'
-import logger from 'electron-log'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -20,6 +20,8 @@ import * as path from 'path'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
+
+const logger = loggerService.withContext('FileStorage')
 
 class FileStorage {
   private storageDir = getFilesDir()
@@ -38,7 +40,7 @@ class FileStorage {
         fs.mkdirSync(this.tempDir, { recursive: true })
       }
     } catch (error) {
-      logger.error('[FileStorage] Failed to initialize storage directories:', error)
+      logger.error('Failed to initialize storage directories:', error)
       throw error
     }
   }
@@ -136,9 +138,9 @@ class FileStorage {
       if (fileSizeInMB > 1) {
         try {
           await fs.promises.copyFile(sourcePath, destPath)
-          logger.info('[FileStorage] Image compressed successfully:', sourcePath)
+          logger.debug('Image compressed successfully:', sourcePath)
         } catch (jimpError) {
-          logger.error('[FileStorage] Image compression failed:', jimpError)
+          logger.error('Image compression failed:', jimpError)
           await fs.promises.copyFile(sourcePath, destPath)
         }
       } else {
@@ -146,7 +148,7 @@ class FileStorage {
         await fs.promises.copyFile(sourcePath, destPath)
       }
     } catch (error) {
-      logger.error('[FileStorage] Image handling failed:', error)
+      logger.error('Image handling failed:', error)
       // 错误情况下直接复制原文件
       await fs.promises.copyFile(sourcePath, destPath)
     }
@@ -188,7 +190,7 @@ class FileStorage {
       count: 1
     }
 
-    logger.info('[FileStorage] File uploaded:', fileMetadata)
+    logger.debug('File uploaded:', fileMetadata)
 
     return fileMetadata
   }
@@ -257,7 +259,7 @@ class FileStorage {
         return data
       } catch (error) {
         chdir(originalCwd)
-        logger.error(error)
+        logger.error('Failed to read file:', error)
         throw error
       }
     }
@@ -269,7 +271,7 @@ class FileStorage {
         return fs.readFileSync(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error(error)
+      logger.error('Failed to read file:', error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
@@ -319,7 +321,7 @@ class FileStorage {
       const ext = '.png'
       const destPath = path.join(this.storageDir, uuid + ext)
 
-      logger.info('[FileStorage] Saving base64 image:', {
+      logger.debug('Saving base64 image:', {
         storageDir: this.storageDir,
         destPath,
         bufferSize: buffer.length
@@ -346,7 +348,7 @@ class FileStorage {
 
       return fileMetadata
     } catch (error) {
-      logger.error('[FileStorage] Failed to save base64 image:', error)
+      logger.error('Failed to save base64 image:', error)
       throw error
     }
   }
@@ -560,7 +562,7 @@ class FileStorage {
 
       return fileMetadata
     } catch (error) {
-      logger.error('[FileStorage] Download file error:', error)
+      logger.error('Download file error:', error)
       throw error
     }
   }
@@ -596,9 +598,9 @@ class FileStorage {
 
       // 复制文件
       await fs.promises.copyFile(sourcePath, destPath)
-      logger.info('[FileStorage] File copied successfully:', { from: sourcePath, to: destPath })
+      logger.debug('File copied successfully:', { from: sourcePath, to: destPath })
     } catch (error) {
-      logger.error('[FileStorage] Copy file failed:', error)
+      logger.error('Copy file failed:', error)
       throw error
     }
   }
@@ -606,18 +608,18 @@ class FileStorage {
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {
       const filePath = path.join(this.storageDir, id)
-      logger.info('[FileStorage] Writing file:', filePath)
+      logger.debug('Writing file:', filePath)
 
       // 确保目录存在
       if (!fs.existsSync(this.storageDir)) {
-        logger.info('[FileStorage] Creating storage directory:', this.storageDir)
+        logger.debug('Creating storage directory:', this.storageDir)
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
 
       await fs.promises.writeFile(filePath, content, 'utf8')
-      logger.info('[FileStorage] File written successfully:', filePath)
+      logger.debug('File written successfully:', filePath)
     } catch (error) {
-      logger.error('[FileStorage] Failed to write file:', error)
+      logger.error('Failed to write file:', error)
       throw error
     }
   }
