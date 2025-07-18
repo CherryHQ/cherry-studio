@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isLinux, isPortable } from '@main/constant'
+import { isLinux, isPortable, isWin } from '@main/constant'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
@@ -72,6 +72,10 @@ function getAppDataPathFromConfig() {
       executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
     }
 
+    if (isWin && isPortable) {
+      executablePath = path.join(process.env.PORTABLE_EXECUTABLE_DIR || '', 'cherry-studio-portable.exe')
+    }
+
     let appDataPath = null
     // 兼容旧版本
     if (config.appDataPath && typeof config.appDataPath === 'string') {
@@ -106,6 +110,11 @@ export function updateAppDataConfig(appDataPath: string) {
   let executablePath = app.getPath('exe')
   if (isLinux && process.env.APPIMAGE) {
     executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
+  }
+
+  // 如果是 Windows 可移植版本，则使用 PORTABLE_EXECUTABLE_FILE 环境变量
+  if (isWin && isPortable) {
+    executablePath = path.join(process.env.PORTABLE_EXECUTABLE_DIR || '', 'cherry-studio-portable.exe')
   }
 
   if (!fs.existsSync(configPath)) {
