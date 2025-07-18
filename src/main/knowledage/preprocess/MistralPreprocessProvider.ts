@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { loggerService } from '@logger'
 import { MistralClientManager } from '@main/services/MistralClientManager'
 import { MistralService } from '@main/services/remotefile/MistralService'
 import { Mistral } from '@mistralai/mistralai'
@@ -7,12 +8,13 @@ import { DocumentURLChunk } from '@mistralai/mistralai/models/components/documen
 import { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
 import { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
 import { FileMetadata, FileTypes, PreprocessProvider, Provider } from '@types'
-import Logger from 'electron-log'
 import path from 'path'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
 type PreuploadResponse = DocumentURLChunk | ImageURLChunk
+
+const logger = loggerService.withContext('MistralPreprocessProvider')
 
 export default class MistralPreprocessProvider extends BasePreprocessProvider {
   private sdk: Mistral
@@ -36,20 +38,20 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
 
   private async preupload(file: FileMetadata): Promise<PreuploadResponse> {
     let document: PreuploadResponse
-    Logger.info(`preprocess preupload started for local file: ${file.path}`)
+    logger.info(`preprocess preupload started for local file: ${file.path}`)
 
     if (file.ext.toLowerCase() === '.pdf') {
       const uploadResponse = await this.fileService.uploadFile(file)
 
       if (uploadResponse.status === 'failed') {
-        Logger.error('File upload failed:', uploadResponse)
+        logger.error('File upload failed:', uploadResponse)
         throw new Error('Failed to upload file: ' + uploadResponse.displayName)
       }
       await this.sendPreprocessProgress(file.id, 15)
       const fileUrl = await this.sdk.files.getSignedUrl({
         fileId: uploadResponse.fileId
       })
-      Logger.info('Got signed URL:', fileUrl)
+      logger.info('Got signed URL:', fileUrl)
       await this.sendPreprocessProgress(file.id, 20)
       document = {
         type: 'document_url',
@@ -152,7 +154,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
 
             counter++
           } catch (error) {
-            Logger.error(`Failed to save image ${imageFileName}:`, error)
+            logger.error(`Failed to save image ${imageFileName}:`, error)
           }
         }
       })

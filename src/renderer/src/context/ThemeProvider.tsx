@@ -1,4 +1,4 @@
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
@@ -40,7 +40,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Set initial theme and OS attributes on body
-    document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+    document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
     document.body.setAttribute('theme-mode', actualTheme)
 
     // if theme is old auto, then set theme to system

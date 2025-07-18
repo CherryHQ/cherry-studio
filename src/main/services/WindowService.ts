@@ -2,11 +2,11 @@
 import './ThemeService'
 
 import { is } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
-import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -18,6 +18,9 @@ import { initSessionUserAgent } from './WebviewService'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
+
+// const logger = loggerService.withContext('WindowService')
+const logger = loggerService.withContext('WindowService')
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -118,14 +121,14 @@ export class WindowService {
         const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
-        Logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to set spell check languages:', error as Error)
       }
     }
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -272,7 +275,7 @@ export class WindowService {
         const fileName = url.replace('http://file/', '')
         const storageDir = getFilesDir()
         const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => Logger.error('Failed to open file:', err))
+        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
         shell.openExternal(details.url)
       }
@@ -625,7 +628,7 @@ export class WindowService {
         }, 100)
       }
     } catch (error) {
-      Logger.error('Failed to quote to main window:', error as Error)
+      logger.error('Failed to quote to main window:', error as Error)
     }
   }
 }

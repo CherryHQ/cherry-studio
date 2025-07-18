@@ -4,7 +4,8 @@
     "src/renderer/src/**/*",
     "src/preload/*.d.ts",
     "local/src/renderer/**/*",
-    "packages/shared/**/*"
+    "packages/shared/**/*",
+    "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -14,7 +15,8 @@
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],
-      "@types": ["src/renderer/src/types/index.ts"]
+      "@types": ["src/renderer/src/types/index.ts"],
+      "@logger": ["src/renderer/src/services/LoggerService"]
     }
   }
 }

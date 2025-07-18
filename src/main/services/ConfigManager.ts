@@ -25,7 +25,8 @@ export enum ConfigKeys {
   SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
-  DisableHardwareAcceleration = 'disableHardwareAcceleration'
+  DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  Proxy = 'proxy'
 }
 
 export class ConfigManager {

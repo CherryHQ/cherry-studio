@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
-import Logger from '@renderer/config/logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -13,6 +13,8 @@ import { find, sortBy } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('RagSettings')
 
 const INPUT_BOX_WIDTH = '200px'
 
@@ -91,14 +93,14 @@ const RagSettings = () => {
 
   const handleAutoGetDimensions = async () => {
     if (!compressionConfig?.embeddingModel) {
-      Logger.log('[RagSettings] handleAutoGetDimensions: no embedding model')
+      logger.info('handleAutoGetDimensions: no embedding model')
       window.message.error(t('settings.tool.websearch.compression.error.embedding_model_required'))
       return
     }
 
     const provider = providers.find((p) => p.id === compressionConfig.embeddingModel?.provider)
     if (!provider) {
-      Logger.log('[RagSettings] handleAutoGetDimensions: provider not found')
+      logger.info('handleAutoGetDimensions: provider not found')
       window.message.error(t('settings.tool.websearch.compression.error.provider_not_found'))
       return
     }
@@ -112,7 +114,7 @@ const RagSettings = () => {
 
       window.message.success(t('settings.tool.websearch.compression.info.dimensions_auto_success', { dimensions }))
     } catch (error) {
-      Logger.error('[RagSettings] handleAutoGetDimensions: failed to get embedding dimensions', error)
+      logger.error('handleAutoGetDimensions: failed to get embedding dimensions', error)
       window.message.error(t('settings.tool.websearch.compression.error.dimensions_auto_failed'))
     } finally {
       setLoadingDimensions(false)

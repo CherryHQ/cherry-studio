@@ -1,10 +1,12 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { Model, Provider } from '@renderer/types'
 import { ApiKeyWithStatus, HealthStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
 
 import { checkModel } from './ModelService'
+
+const logger = loggerService.withContext('HealthCheckService')
 
 /**
  * 用多个 API 密钥检查单个模型的连通性
@@ -83,7 +85,7 @@ export async function checkModelsHealth(
       }
     }
   } catch (error) {
-    Logger.error('[HealthCheckService] Model health check failed:', error)
+    logger.error('[HealthCheckService] Model health check failed:', error)
   }
 
   return results

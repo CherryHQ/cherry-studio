@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import type { Topic } from '@renderer/types'
@@ -11,6 +12,8 @@ import {
 } from '@renderer/utils/export'
 import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
+
+const logger = loggerService.withContext('ObsidianExportDialog')
 
 const { Option } = Select
 
@@ -192,7 +195,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           setFiles(filesData)
         }
       } catch (error) {
-        console.error('获取Obsidian Vault失败:', error)
+        logger.error('获取Obsidian Vault失败:', error)
         setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
       } finally {
         setLoading(false)
@@ -210,7 +213,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           const filesData = await window.obsidian.getFiles(selectedVault)
           setFiles(filesData)
         } catch (error) {
-          console.error('获取Obsidian文件失败:', error)
+          logger.error('获取Obsidian文件失败:', error)
           setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
         } finally {
           setLoading(false)
