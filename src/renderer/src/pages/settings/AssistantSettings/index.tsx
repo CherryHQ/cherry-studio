@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AssistantDocumentSettings from './AssistantDocumentSettings'
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantMemorySettings from './AssistantMemorySettings'
@@ -29,6 +30,7 @@ type AssistantSettingPopupTab =
   | 'mcp'
   | 'regular_phrases'
   | 'memory'
+  | 'document'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -69,6 +71,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'model',
       label: t('assistants.settings.model')
+    },
+    {
+      key: 'document',
+      label: t('assistants.settings.reader')
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',
@@ -158,6 +164,13 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
               onClose={onCancel}
+            />
+          )}
+          {menu === 'document' && (
+            <AssistantDocumentSettings
+              assistant={assistant}
+              updateAssistant={updateAssistant}
+              updateAssistantSettings={updateAssistantSettings}
             />
           )}
         </Settings>

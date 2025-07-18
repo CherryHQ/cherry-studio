@@ -149,6 +149,7 @@ export enum IpcChannel {
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
+  File_BinaryFile = 'file:binaryFile',
   Fs_Read = 'fs:read',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
 
