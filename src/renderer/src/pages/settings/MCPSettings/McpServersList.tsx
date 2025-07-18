@@ -203,11 +203,13 @@ const McpServersList: FC = () => {
                 </Tag>
               )}
               {server.tags &&
-                server.tags.map((tag) => (
-                  <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
-                    {tag}
-                  </Tag>
-                ))}
+                server.tags.map((tag) =>
+                  typeof tag !== 'string' ? null : (
+                    <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
+                      {tag}
+                    </Tag>
+                  )
+                )}
             </ServerFooter>
           </ServerCard>
         )}
