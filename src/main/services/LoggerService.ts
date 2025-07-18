@@ -95,6 +95,7 @@ export class LoggerService {
 
     // Handle transport events
     this.logger.on('error', (error) => {
+      // eslint-disable-next-line no-restricted-syntax
       console.error('LoggerService fatal error:', error)
     })
 
@@ -140,8 +141,6 @@ export class LoggerService {
         'CYAN'
       )
 
-      console.log('processLog', source.process, this.module, this.context)
-
       let moduleString = ''
       if (source.process === 'main') {
         moduleString = this.module ? ` [${colorText(this.module, 'UNDERLINE')}] ` : ' '
@@ -152,33 +151,39 @@ export class LoggerService {
 
       switch (level) {
         case 'error':
+          // eslint-disable-next-line no-restricted-syntax
           console.error(
             `${datetimeColored} ${colorText(colorText('<ERROR>', 'RED'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case 'warn':
+          // eslint-disable-next-line no-restricted-syntax
           console.warn(
             `${datetimeColored} ${colorText(colorText('<WARN>', 'YELLOW'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case 'info':
+          // eslint-disable-next-line no-restricted-syntax
           console.info(
             `${datetimeColored} ${colorText(colorText('<INFO>', 'GREEN'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case 'debug':
+          // eslint-disable-next-line no-restricted-syntax
           console.debug(
             `${datetimeColored} ${colorText(colorText('<DEBUG>', 'BLUE'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case 'verbose':
+          // eslint-disable-next-line no-restricted-syntax
           console.log(`${datetimeColored} ${colorText('<VERBOSE>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
         case 'silly':
+          // eslint-disable-next-line no-restricted-syntax
           console.log(`${datetimeColored} ${colorText('<SILLY>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
       }
