@@ -1,12 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios, { AxiosRequestConfig } from 'axios'
-import Logger from 'electron-log'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
+
+const logger = loggerService.withContext('Doc2xPreprocessProvider')
 
 type ApiResponse<T> = {
   code: string
@@ -52,11 +54,11 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
 
   public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
-      Logger.info(`Preprocess processing started: ${file.path}`)
+      logger.info(`Preprocess processing started: ${file.path}`)
 
       // 步骤1: 准备上传
       const { uid, url } = await this.preupload()
-      Logger.info(`Preprocess preupload completed: uid=${uid}`)
+      logger.info(`Preprocess preupload completed: uid=${uid}`)
 
       await this.validateFile(file.path)
 
@@ -65,7 +67,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
 
       // 步骤3: 等待处理完成
       await this.waitForProcessing(sourceId, uid)
-      Logger.info(`Preprocess parsing completed successfully for: ${file.path}`)
+      logger.info(`Preprocess parsing completed successfully for: ${file.path}`)
 
       // 步骤4: 导出文件
       const { path: outputPath } = await this.exportFile(file, uid)
@@ -75,7 +77,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         processedFile: this.createProcessedFileInfo(file, outputPath)
       }
     } catch (error) {
-      Logger.error(
+      logger.error(
         `Preprocess processing failed for ${file.path}: ${error instanceof Error ? error.message : String(error)}`
       )
       throw error
@@ -100,11 +102,11 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @returns 导出文件的路径
    */
   public async exportFile(file: FileMetadata, uid: string): Promise<{ path: string }> {
-    Logger.info(`Exporting file: ${file.path}`)
+    logger.info(`Exporting file: ${file.path}`)
 
     // 步骤1: 转换文件
     await this.convertFile(uid, file.path)
-    Logger.info(`File conversion completed for: ${file.path}`)
+    logger.info(`File conversion completed for: ${file.path}`)
 
     // 步骤2: 等待导出并获取URL
     const exportUrl = await this.waitForExport(uid)
@@ -123,7 +125,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
       await this.delay(1000)
       const { status, progress } = await this.getStatus(uid)
       await this.sendPreprocessProgress(sourceId, progress)
-      Logger.info(`Preprocess processing status: ${status}, progress: ${progress}%`)
+      logger.info(`Preprocess processing status: ${status}, progress: ${progress}%`)
 
       if (status === 'success') {
         return
@@ -142,7 +144,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
     while (true) {
       await this.delay(1000)
       const { status, url } = await this.getParsedFile(uid)
-      Logger.info(`Export status: ${status}`)
+      logger.info(`Export status: ${status}`)
 
       if (status === 'success' && url) {
         return url
@@ -169,7 +171,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
       }
     } catch (error) {
-      Logger.error(`Failed to get preupload URL: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`Failed to get preupload URL: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to get preupload URL')
     }
   }
@@ -188,7 +190,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`HTTP status ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
-      Logger.error(`Failed to upload file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`Failed to upload file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to upload file')
     }
   }
@@ -206,7 +208,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`API returned error: ${response.data.message || JSON.stringify(response.data)}`)
       }
     } catch (error) {
-      Logger.error(`Failed to get status for uid ${uid}: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`Failed to get status for uid ${uid}: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to get processing status')
     }
   }
@@ -242,7 +244,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`API returned error: ${response.data.message || JSON.stringify(response.data)}`)
       }
     } catch (error) {
-      Logger.error(`Failed to convert file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`Failed to convert file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to convert file')
     }
   }
@@ -265,7 +267,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         throw new Error(`HTTP status ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
-      Logger.error(
+      logger.error(
         `Failed to get parsed file for uid ${uid}: ${error instanceof Error ? error.message : String(error)}`
       )
       throw new Error('Failed to get parsed file information')
@@ -288,7 +290,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
     fs.mkdirSync(dirPath, { recursive: true })
     fs.mkdirSync(extractPath, { recursive: true })
 
-    Logger.info(`Downloading to export path: ${zipPath}`)
+    logger.info(`Downloading to export path: ${zipPath}`)
 
     try {
       // 下载文件
@@ -303,14 +305,14 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
       // 解压文件
       const zip = new AdmZip(zipPath)
       zip.extractAllTo(extractPath, true)
-      Logger.info(`Extracted files to: ${extractPath}`)
+      logger.info(`Extracted files to: ${extractPath}`)
 
       // 删除临时ZIP文件
       fs.unlinkSync(zipPath)
 
       return { path: extractPath }
     } catch (error) {
-      Logger.error(`Failed to download and extract file: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error(`Failed to download and extract file: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to download and extract file')
     }
   }

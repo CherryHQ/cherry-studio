@@ -1,5 +1,6 @@
 import '@renderer/assets/styles/selection-toolbar.scss'
 
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -15,11 +16,13 @@ import { useTranslation } from 'react-i18next'
 import { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('SelectionToolbar')
+
 //tell main the actual size of the content
 const updateWindowSize = () => {
   const rootElement = document.getElementById('root')
   if (!rootElement) {
-    console.error('SelectionToolbar: Root element not found')
+    logger.error('Root element not found')
     return
   }
   window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)

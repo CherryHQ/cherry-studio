@@ -1,8 +1,11 @@
+import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
 import { flushLinkConverterBuffer, smartLinkConverter } from '@renderer/utils/linkConverter'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
+
+const logger = loggerService.withContext('WebSearchMiddleware')
 
 export const MIDDLEWARE_NAME = 'WebSearchMiddleware'
 
@@ -99,7 +102,7 @@ export const WebSearchMiddleware: CompletionsMiddleware =
           stream: enhancedStream
         }
       } else {
-        console.log(`[${MIDDLEWARE_NAME}] No stream to process or not a ReadableStream.`)
+        logger.debug(`No stream to process or not a ReadableStream.`)
       }
     }
 

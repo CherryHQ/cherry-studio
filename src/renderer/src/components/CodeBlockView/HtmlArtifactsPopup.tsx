@@ -226,10 +226,11 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
   }
 
   .ant-modal-header {
-    padding: 10px 12px !important;
+    padding: 10px !important;
     border-bottom: 1px solid var(--color-border);
     background: var(--color-background);
     margin-bottom: 0 !important;
+    border-radius: 0 !important;
   }
 `
 

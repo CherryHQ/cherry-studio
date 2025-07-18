@@ -1,8 +1,8 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import Logger from '@renderer/config/logger'
 import store from '@renderer/store'
 import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -10,6 +10,8 @@ import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
+
+const logger = loggerService.withContext('KnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
@@ -59,7 +61,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
 }
 
 export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> => {
-  console.log('getFileFromUrl', url)
+  logger.debug('getFileFromUrl', url)
   let fileName = ''
 
   if (url && url.includes('CherryStudio')) {
@@ -71,10 +73,10 @@ export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> 
       fileName = url.split('\\Data\\Files\\')[1]
     }
   }
-  console.log('fileName', fileName)
+  logger.debug('fileName', fileName)
   if (fileName) {
     const actualFileName = fileName.split(/[/\\]/).pop() || fileName
-    console.log('actualFileName', actualFileName)
+    logger.debug('actualFileName', actualFileName)
     const fileId = actualFileName.split('.')[0]
     const file = await FileManager.getFile(fileId)
     if (file) {
@@ -133,12 +135,12 @@ export const searchKnowledgeBase = async (
     return await Promise.all(
       limitedResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
-        console.log('Knowledge search item:', item, 'File:', file)
+        logger.debug('Knowledge search item:', item, 'File:', file)
         return { ...item, file }
       })
     )
   } catch (error) {
-    Logger.error(`Error searching knowledge base ${base.name}:`, error)
+    logger.error(`Error searching knowledge base ${base.name}:`, error)
     throw error
   }
 }
@@ -152,7 +154,7 @@ export const processKnowledgeSearch = async (
     extractResults.knowledge.question.length === 0 ||
     isEmpty(knowledgeBaseIds)
   ) {
-    Logger.log('No valid question found in extractResults.knowledge')
+    logger.info('No valid question found in extractResults.knowledge')
     return []
   }
 
@@ -161,7 +163,7 @@ export const processKnowledgeSearch = async (
 
   const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
   if (!bases || bases.length === 0) {
-    Logger.log('Skipping knowledge search: No matching knowledge bases found.')
+    logger.info('Skipping knowledge search: No matching knowledge bases found.')
     return []
   }
 

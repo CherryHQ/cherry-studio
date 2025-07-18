@@ -1,5 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
@@ -26,6 +27,8 @@ import AddProviderPopup from './AddProviderPopup'
 import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
+const logger = loggerService.withContext('ProvidersList')
+
 const ProvidersList: FC = () => {
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
@@ -47,7 +50,7 @@ const ProvidersList: FC = () => {
               logos[provider.id] = logoData
             }
           } catch (error) {
-            console.error(`Failed to load logo for provider ${provider.id}`, error)
+            logger.error(`Failed to load logo for provider ${provider.id}`, error)
           }
         }
       }
@@ -246,16 +249,7 @@ const ProvidersList: FC = () => {
     }
 
     try {
-      const base64Decode = (base64EncodedString: string) =>
-        new TextDecoder().decode(Uint8Array.from(atob(base64EncodedString), (m) => m.charCodeAt(0)))
-      const {
-        id,
-        apiKey: newApiKey,
-        baseUrl,
-        type,
-        name
-      } = JSON.parse(base64Decode(addProviderData.replaceAll('_', '+').replaceAll('-', '/')))
-
+      const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         window.navigate('/settings/provider')
@@ -308,7 +302,7 @@ const ProvidersList: FC = () => {
         }
         setProviderLogos(updatedLogos)
       } catch (error) {
-        console.error('Failed to save logo', error)
+        logger.error('Failed to save logo', error)
         window.message.error('保存Provider Logo失败')
       }
     }
@@ -343,7 +337,7 @@ const ProvidersList: FC = () => {
                   [provider.id]: logo
                 }))
               } catch (error) {
-                console.error('Failed to save logo', error)
+                logger.error('Failed to save logo', error)
                 window.message.error('更新Provider Logo失败')
               }
             } else if (logo === undefined && logoFile === undefined) {
@@ -355,7 +349,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                console.error('Failed to reset logo', error)
+                logger.error('Failed to reset logo', error)
               }
             }
           }
@@ -386,7 +380,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                console.error('Failed to delete logo', error)
+                logger.error('Failed to delete logo', error)
               }
             }
 

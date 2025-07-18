@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
@@ -10,6 +11,8 @@ import { t } from 'i18next'
 import { sortBy } from 'lodash'
 import { FC, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+
+const logger = loggerService.withContext('MemoriesSettingsModal')
 
 interface MemoriesSettingsModalProps {
   visible: boolean
@@ -80,7 +83,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
             const aiProvider = new AiProvider(provider)
             finalDimensions = await aiProvider.getEmbeddingDimensions(embedderModel)
           } catch (error) {
-            console.error('Error getting embedding dimensions:', error)
+            logger.error('Error getting embedding dimensions:', error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
@@ -117,7 +120,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         setLoading(false)
       }
     } catch (error) {
-      console.error('Error submitting form:', error)
+      logger.error('Error submitting form:', error)
       setLoading(false)
     }
   }

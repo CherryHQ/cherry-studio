@@ -611,7 +611,7 @@ const QuickPanelContainer = styled.div<{
   left: 0;
   right: 0;
   width: 100%;
-  padding: 0 30px 0 30px;
+  padding: 0 35px 0 35px;
   transform: translateY(-100%);
   transform-origin: bottom;
   transition: max-height 0.2s ease;
