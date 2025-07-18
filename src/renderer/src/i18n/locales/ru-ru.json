@@ -270,14 +270,6 @@
         "select.content.tip": "Выбрано {{count}} элементов, текстовые типы будут объединены и сохранены как одна заметка"
       },
       "settings.code.title": "Настройки кода",
-      "settings.code_cache_max_size": "Максимальный размер кэша",
-      "settings.code_cache_max_size.tip": "Максимальное количество символов, которое может быть кэшировано (тысяч символов), рассчитывается по кэшированному коду. Длина кэшированного кода значительно превышает длину чистого текста.",
-      "settings.code_cache_threshold": "Пороговое значение кэша",
-      "settings.code_cache_threshold.tip": "Минимальное количество символов для кэширования (тысяч символов), рассчитывается по фактическому коду. Будут кэшированы только те блоки кода, которые превышают пороговое значение",
-      "settings.code_cache_ttl": "Время жизни кэша",
-      "settings.code_cache_ttl.tip": "Время жизни кэша (минуты)",
-      "settings.code_cacheable": "Кэш блока кода",
-      "settings.code_cacheable.tip": "Кэширование блока кода может уменьшить время рендеринга длинных блоков кода, но увеличит использование памяти",
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_editor": {
         "autocompletion": "Автодополнение",
@@ -451,6 +443,7 @@
       "more": "Ещё",
       "name": "Имя",
       "no_results": "Результатов не найдено",
+      "open": "Открыть",
       "paste": "Вставить",
       "prompt": "Промпт",
       "provider": "Провайдер",
@@ -474,7 +467,8 @@
       "swap": "Поменять местами",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "i_know": "Я понял"
     },
     "docs": {
       "title": "Документация"
@@ -826,6 +820,9 @@
       "title": "Встроенные приложения"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
+      },
       "clipboard": {
         "empty": "Буфер обмена пуст"
       },
@@ -1776,6 +1773,13 @@
         "addServer.importFrom.invalid": "Неверный ввод, проверьте формат JSON",
         "addServer.importFrom.nameExists": "Сервер уже существует: {{name}}",
         "addServer.importFrom.oneServer": "Можно сохранить только один конфигурационный файл MCP",
+        "addServer.importFrom.method": "Метод импорта",
+        "addServer.importFrom.dxtFile": "DXT-пакет",
+        "addServer.importFrom.dxtHelp": "Выберите .dxt файл, содержащий MCP сервер",
+        "addServer.importFrom.selectDxtFile": "Выбрать DXT-файл",
+        "addServer.importFrom.noDxtFile": "Пожалуйста, выберите DXT-файл",
+        "addServer.importFrom.dxtProcessFailed": "Не удалось обработать DXT-файл",
+        "addServer.importFrom.dxt": "Импорт DXT-пакета",
         "addServer.importFrom.placeholder": "Вставьте JSON-конфигурацию сервера MCP",
         "addServer.importFrom.tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода.",
         "addSuccess": "Сервер успешно добавлен",
@@ -2241,9 +2245,8 @@
           "system": "Системный прокси",
           "title": "Режим прокси"
         },
-        "title": "Настройки прокси"
+        "address": "Адрес прокси"
       },
-      "proxy.title": "Адрес прокси",
       "quickAssistant": {
         "click_tray_to_show": "Нажмите на иконку трея для запуска",
         "enable_quick_assistant": "Включить быстрый помощник",
@@ -2470,6 +2473,7 @@
       "visualization": "Визуализация"
     },
     "memory": {
+      "title": "Глобальная память",
       "add_memory": "Добавить память",
       "edit_memory": "Редактировать память",
       "memory_content": "Содержимое памяти",
@@ -2546,7 +2550,6 @@
       "total_memories": "всего воспоминаний",
       "default": "По умолчанию",
       "custom": "Пользовательский",
-      "title": "Воспоминания",
       "description": "Память позволяет хранить и управлять информацией о ваших взаимодействиях с ассистентом. Вы можете добавлять, редактировать и удалять воспоминания, а также фильтровать и искать их.",
       "global_memory_enabled": "Глобальная память включена",
       "global_memory": "Глобальная память",
@@ -2572,7 +2575,8 @@
       "please_select_embedding_model": "Пожалуйста, выберите модель для внедрения",
       "select_embedding_model_placeholder": "Выберите модель внедрения",
       "embedding_dimensions": "Размерность вложения",
-      "stored_memories": "Запасённые воспоминания"
+      "stored_memories": "Запасённые воспоминания",
+      "global_memory_description": "Для использования функций памяти необходимо включить глобальную память в настройках ассистента."
     },
     "reader": {
       "outlineEmpty": "Нет доступного оглавления",

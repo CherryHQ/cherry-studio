@@ -270,14 +270,6 @@
         "select.content.tip": "已選擇 {{count}} 項內容，文本類型將合併儲存為一個筆記"
       },
       "settings.code.title": "程式碼區塊",
-      "settings.code_cache_max_size": "快取上限",
-      "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多",
-      "settings.code_cache_threshold": "快取門檻",
-      "settings.code_cache_threshold.tip": "允許快取的最小程式碼長度（千字符），超過門檻的程式碼區塊才會被快取",
-      "settings.code_cache_ttl": "快取期限",
-      "settings.code_cache_ttl.tip": "快取的存活時間（分鐘）",
-      "settings.code_cacheable": "程式碼區塊快取",
-      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_editor": {
         "autocompletion": "自動補全",
@@ -451,6 +443,7 @@
       "more": "更多",
       "name": "名稱",
       "no_results": "沒有結果",
+      "open": "開啟",
       "paste": "貼上",
       "prompt": "提示詞",
       "provider": "供應商",
@@ -474,7 +467,8 @@
       "swap": "交換",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "i_know": "我知道了"
     },
     "docs": {
       "title": "說明文件"
@@ -826,6 +820,9 @@
       "title": "小工具"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "提示：如遇到Google登入提示\"不受信任的瀏覽器\"，請先在小程序列表中的Google小程序中完成帳號登入，再在其它小程序使用Google登入"
+      },
       "clipboard": {
         "empty": "剪貼簿為空"
       },
@@ -1776,6 +1773,13 @@
         "addServer.importFrom.invalid": "無效的輸入，請檢查 JSON 格式",
         "addServer.importFrom.nameExists": "伺服器已存在：{{name}}",
         "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.method": "導入方式",
+        "addServer.importFrom.dxtFile": "DXT 包文件",
+        "addServer.importFrom.dxtHelp": "選擇包含 MCP 服務器的 .dxt 文件",
+        "addServer.importFrom.selectDxtFile": "選擇 DXT 文件",
+        "addServer.importFrom.noDxtFile": "請選擇一個 DXT 文件",
+        "addServer.importFrom.dxtProcessFailed": "處理 DXT 文件失敗",
+        "addServer.importFrom.dxt": "導入 DXT 包",
         "addServer.importFrom.placeholder": "貼上 MCP 伺服器 JSON 設定",
         "addServer.importFrom.tooltip": "請從 MCP Servers 的介紹頁面複製配置 JSON（優先使用\n NPX 或 UVX 配置），並粘貼到輸入框中",
         "addSuccess": "伺服器新增成功",
@@ -2241,9 +2245,8 @@
           "system": "系統代理伺服器",
           "title": "代理伺服器模式"
         },
-        "title": "代理伺服器設定"
+        "address": "代理伺服器位址"
       },
-      "proxy.title": "代理伺服器地址",
       "quickAssistant": {
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
@@ -2323,7 +2326,7 @@
           },
           "provider": "OCR 供應商",
           "provider_placeholder": "選擇一個OCR服務提供商",
-          "title": "光學字符識別"
+          "title": "OCR 文字識別"
         },
         "preprocess": {
           "provider": "前置處理供應商",
@@ -2470,6 +2473,7 @@
       "visualization": "視覺化"
     },
     "memory": {
+      "title": "全域記憶",
       "add_memory": "新增記憶",
       "edit_memory": "編輯記憶",
       "memory_content": "記憶內容",
@@ -2491,7 +2495,6 @@
       "user": "使用者",
       "content": "內容",
       "score": "分數",
-      "title": "記憶",
       "memories_description": "顯示 {{count}} / {{total}} 條記憶",
       "search_placeholder": "搜尋記憶...",
       "start_date": "開始日期",
@@ -2572,7 +2575,8 @@
       "please_select_embedding_model": "請選擇一個嵌入模型",
       "select_embedding_model_placeholder": "選擇嵌入模型",
       "embedding_dimensions": "嵌入維度",
-      "stored_memories": "儲存的記憶"
+      "stored_memories": "儲存的記憶",
+      "global_memory_description": "需要開啟助手設定中的全域記憶才能使用"
     },
     "reader": {
       "outlineEmpty": "無可讀目錄",

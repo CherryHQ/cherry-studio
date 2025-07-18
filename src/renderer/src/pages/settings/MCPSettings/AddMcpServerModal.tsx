@@ -1,4 +1,5 @@
 import { UploadOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { useAppDispatch } from '@renderer/store'
@@ -7,6 +8,8 @@ import { MCPServer } from '@renderer/types'
 import { Button, Form, Modal, Upload } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AddMcpServerModal')
 
 interface AddMcpServerModalProps {
   visible: boolean
@@ -127,7 +130,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             })
             .filter((arg) => arg.trim() !== '' && arg !== '--' && arg !== '=' && !arg.startsWith('--='))
 
-          console.log('Processed DXT args:', processedArgs)
+          logger.debug('Processed DXT args:', processedArgs)
 
           // Create MCPServer from DXT manifest
           const newServer: MCPServer = {
@@ -160,19 +163,19 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             window.api.mcp
               .checkMcpConnectivity(newServer)
               .then((isConnected) => {
-                console.log(`Connectivity check for ${newServer.name}: ${isConnected}`)
+                logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
                 dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
               })
               .catch((connError: any) => {
-                console.error(`Connectivity check failed for ${newServer.name}:`, connError)
+                logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
                 // Don't show error for DXT servers as they might need additional setup
-                console.warn(
+                logger.warn(
                   `DXT server ${newServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
                 )
               })
           }, 1000) // Delay to ensure server is properly added to store
         } catch (error) {
-          console.error('DXT processing error:', error)
+          logger.error('DXT processing error:', error)
           window.message.error({
             content: t('settings.mcp.addServer.importFrom.dxtProcessFailed'),
             key: 'mcp-dxt-error'
@@ -236,11 +239,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         window.api.mcp
           .checkMcpConnectivity(newServer)
           .then((isConnected) => {
-            console.log(`Connectivity check for ${newServer.name}: ${isConnected}`)
+            logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
             dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
           })
           .catch((connError: any) => {
-            console.error(`Connectivity check failed for ${newServer.name}:`, connError)
+            logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
             window.message.error({
               content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
               key: 'mcp-quick-add-failed'
@@ -368,7 +371,7 @@ const parseAndExtractServer = (
       serverToAdd = { ...potentialServer }
       serverToAdd!.name = potentialServer.name ?? firstServerKey
     } else {
-      console.error('Invalid server data under mcpServers key:', potentialServer)
+      logger.error('Invalid server data under mcpServers key:', potentialServer)
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 0) {
@@ -377,7 +380,7 @@ const parseAndExtractServer = (
       serverToAdd = { ...parsedJson[0] }
       serverToAdd!.name = parsedJson[0].name ?? t('settings.mcp.newServer')
     } else {
-      console.error('Invalid server data in array:', parsedJson[0])
+      logger.error('Invalid server data in array:', parsedJson[0])
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
   } else if (
@@ -401,7 +404,7 @@ const parseAndExtractServer = (
 
   // 確保 serverToAdd 存在且 name 存在
   if (!serverToAdd || !serverToAdd.name) {
-    console.error('Invalid JSON structure for server config or missing name:', parsedJson)
+    logger.error('Invalid JSON structure for server config or missing name:', parsedJson)
     return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
   }
 

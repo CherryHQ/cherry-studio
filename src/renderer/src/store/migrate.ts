@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
@@ -19,6 +20,8 @@ import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
+
+const logger = loggerService.withContext('Migrate')
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -1153,7 +1156,7 @@ const migrateConfig = {
       state.settings.trayOnClose = true
       return state
     } catch (error) {
-      console.error(error)
+      logger.error('migrate 83 error', error)
       return state
     }
   },
@@ -1162,7 +1165,7 @@ const migrateConfig = {
       addProvider(state, 'voyageai')
       return state
     } catch (error) {
-      console.error(error)
+      logger.error('migrate 84 error', error)
       return state
     }
   },
@@ -1175,7 +1178,6 @@ const migrateConfig = {
       state.settings.gridPopoverTrigger = 'click'
       return state
     } catch (error) {
-      console.error(error)
       return state
     }
   },
@@ -1188,7 +1190,6 @@ const migrateConfig = {
         }))
       }
     } catch (error) {
-      console.error(error)
       return state
     }
     return state
@@ -1385,6 +1386,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
+      logger.error('migrate 100 error', error)
       return state
     }
   },
@@ -1412,6 +1414,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 101 error', error)
       return state
     }
   },
@@ -1446,6 +1449,7 @@ const migrateConfig = {
       delete state.settings.codeCacheThreshold
       return state
     } catch (error) {
+      logger.error('migrate 102 error', error)
       return state
     }
   },
@@ -1474,6 +1478,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 103 error', error)
       return state
     }
   },
@@ -1483,6 +1488,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
       return state
     } catch (error) {
+      logger.error('migrate 104 error', error)
       return state
     }
   },
@@ -1498,6 +1504,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 105 error', error)
       return state
     }
   },
@@ -1507,6 +1514,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
       return state
     } catch (error) {
+      logger.error('migrate 106 error', error)
       return state
     }
   },
@@ -1517,6 +1525,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 107 error', error)
       return state
     }
   },
@@ -1526,6 +1535,7 @@ const migrateConfig = {
       state.inputTools.isCollapsed = false
       return state
     } catch (error) {
+      logger.error('migrate 108 error', error)
       return state
     }
   },
@@ -1534,6 +1544,7 @@ const migrateConfig = {
       state.settings.userTheme = settingsInitialState.userTheme
       return state
     } catch (error) {
+      logger.error('migrate 109 error', error)
       return state
     }
   },
@@ -1546,6 +1557,7 @@ const migrateConfig = {
       state.settings.testPlan = false
       return state
     } catch (error) {
+      logger.error('migrate 110 error', error)
       return state
     }
   },
@@ -1564,6 +1576,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
+      logger.error('migrate 111 error', error)
       return state
     }
   },
@@ -1577,6 +1590,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
       return state
     } catch (error) {
+      logger.error('migrate 112 error', error)
       return state
     }
   },
@@ -1594,6 +1608,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
+      logger.error('migrate 113 error', error)
       return state
     }
   },
@@ -1610,6 +1625,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 114 error', error)
       return state
     }
   },
@@ -1630,6 +1646,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
+      logger.error('migrate 115 error', error)
       return state
     }
   },
@@ -1658,6 +1675,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
+      logger.error('migrate 116 error', error)
       return state
     }
   },
@@ -1695,6 +1713,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
+      logger.error('migrate 117 error', error)
       return state
     }
   },
@@ -1715,6 +1734,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
+      logger.error('migrate 118 error', error)
       return state
     }
   },
@@ -1732,6 +1752,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      logger.error('migrate 119 error', error)
       return state
     }
   },
@@ -1779,6 +1800,7 @@ const migrateConfig = {
       state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
+      logger.error('migrate 120 error', error)
       return state
     }
   },
@@ -1810,6 +1832,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
+      logger.error('migrate 121 error', error)
       return state
     }
   }

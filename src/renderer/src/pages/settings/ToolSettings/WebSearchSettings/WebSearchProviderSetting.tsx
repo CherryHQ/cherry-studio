@@ -1,4 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
@@ -20,6 +21,7 @@ import {
   SettingTitle
 } from '../..'
 
+const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
   providerId: string
 }
@@ -116,7 +118,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
       setApiValid(valid)
     } catch (err) {
-      console.error('Check search error:', err)
+      logger.error('Check search error:', err)
       setApiValid(false)
       window.message.error({
         key: 'check-search-error',

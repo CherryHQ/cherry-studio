@@ -1,13 +1,15 @@
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import { OAuthClientInformation, OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth'
-import Logger from 'electron-log'
 import open from 'open'
 
 import { JsonFileStorage } from './storage'
 import { OAuthProviderOptions } from './types'
+
+const logger = loggerService.withContext('MCP:OAuthClientProvider')
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
@@ -61,9 +63,9 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     try {
       // Open the browser to the authorization URL
       await open(authorizationUrl.toString())
-      Logger.info('Browser opened automatically.')
+      logger.debug('Browser opened automatically.')
     } catch (error) {
-      Logger.error('Could not open browser automatically.')
+      logger.error('Could not open browser automatically.')
       throw error // Let caller handle the error
     }
   }

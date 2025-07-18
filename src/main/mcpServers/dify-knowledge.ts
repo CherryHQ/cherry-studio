@@ -1,8 +1,11 @@
 // inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
+import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ToolSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+
+const logger = loggerService.withContext('DifyKnowledgeServer')
 
 interface DifyKnowledgeServerConfig {
   difyKey: string
@@ -168,7 +171,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      console.error('获取知识库列表时出错:', error)
+      logger.error('Error fetching knowledge list:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 返回包含错误信息的 MCP 响应
       return {
@@ -247,7 +250,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      console.error('搜索知识库时出错:', error)
+      logger.error('Error searching knowledge:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       return {
         content: [{ type: 'text', text: `Search Knowledge Error: ${errorMessage}` }],

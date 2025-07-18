@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
-import Logger from '@renderer/config/logger'
 import {
   isEmbeddingModel,
   isGenerateImageModel,
@@ -59,6 +59,8 @@ import {
   filterUserRoleStartMessages
 } from './MessagesService'
 import WebSearchService from './WebSearchService'
+
+const logger = loggerService.withContext('ApiService')
 
 // TODO：考虑拆开
 async function fetchExternalTool(
@@ -123,7 +125,7 @@ async function fetchExternalTool(
         knowledge: needKnowledgeExtract ? extracted?.knowledge : undefined
       }
     } catch (e: any) {
-      console.error('extract error', e)
+      logger.error('extract error', e)
       if (isAbortError(e)) throw e
       return getFallbackResult()
     }
@@ -148,7 +150,7 @@ async function fetchExternalTool(
 
     // Add check for extractResults existence early
     if (!extractResults?.websearch) {
-      console.warn('searchTheWeb called without valid extractResults.websearch')
+      logger.warn('searchTheWeb called without valid extractResults.websearch')
       return
     }
 
@@ -156,7 +158,7 @@ async function fetchExternalTool(
 
     // Add check for assistant.model before using it
     if (!assistant.model) {
-      console.warn('searchTheWeb called without assistant.model')
+      logger.warn('searchTheWeb called without assistant.model')
       return undefined
     }
 
@@ -174,7 +176,7 @@ async function fetchExternalTool(
       }
     } catch (error) {
       if (isAbortError(error)) throw error
-      console.error('Web search failed:', error)
+      logger.error('Web search failed:', error)
       return
     }
   }
@@ -185,7 +187,7 @@ async function fetchExternalTool(
       const memoryConfig = selectMemoryConfig(store.getState())
       const content = getMainTextContent(lastUserMessage)
       if (!content) {
-        console.warn('searchMemory called without valid content in lastUserMessage')
+        logger.warn('searchMemory called without valid content in lastUserMessage')
         return []
       }
 
@@ -193,7 +195,7 @@ async function fetchExternalTool(
         const currentUserId = selectCurrentUserId(store.getState())
         // Search for relevant memories
         const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        console.log('Searching for relevant memories with content:', content)
+        logger.info('Searching for relevant memories with content:', content)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -202,17 +204,17 @@ async function fetchExternalTool(
         )
 
         if (relevantMemories?.length > 0) {
-          console.log('Found relevant memories:', relevantMemories)
+          logger.info('Found relevant memories:', relevantMemories)
 
           return relevantMemories
         }
         return []
       } else {
-        console.warn('Memory is enabled but embedding or LLM model is not configured')
+        logger.warn('Memory is enabled but embedding or LLM model is not configured')
         return []
       }
     } catch (error) {
-      console.error('Error processing memory search:', error)
+      logger.error('Error processing memory search:', error)
       // Continue with conversation even if memory processing fails
       return []
     }
@@ -232,7 +234,7 @@ async function fetchExternalTool(
     } else {
       // auto mode
       if (!extractResults?.knowledge) {
-        console.warn('searchKnowledgeBase: No valid search criteria in auto mode')
+        logger.warn('searchKnowledgeBase: No valid search criteria in auto mode')
         return
       }
       searchCriteria = extractResults.knowledge
@@ -253,7 +255,7 @@ async function fetchExternalTool(
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
       return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
     } catch (error) {
-      console.error('Knowledge base search failed:', error)
+      logger.error('Knowledge base search failed:', error)
       return
     }
   }
@@ -265,7 +267,7 @@ async function fetchExternalTool(
     // 根据配置决定是否需要提取
     if (shouldWebSearch || hasKnowledgeBase) {
       extractResults = await extract()
-      Logger.log('[fetchExternalTool] Extraction results:', extractResults)
+      logger.info('[fetchExternalTool] Extraction results:', extractResults)
     }
 
     let webSearchResponseFromSearch: WebSearchResponse | undefined
@@ -322,7 +324,7 @@ async function fetchExternalTool(
             const tools = await window.api.mcp.listTools(mcpServer)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
-            console.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
             return []
           }
         })
@@ -332,14 +334,14 @@ async function fetchExternalTool(
           .map((result) => result.value)
           .flat()
       } catch (toolError) {
-        console.error('Error fetching MCP tools:', toolError)
+        logger.error('Error fetching MCP tools:', toolError)
       }
     }
 
     return { mcpTools }
   } catch (error) {
     if (isAbortError(error)) throw error
-    console.error('Tool execution failed:', error)
+    logger.error('Tool execution failed:', error)
 
     // 发送错误状态
     const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
@@ -379,7 +381,7 @@ export async function fetchChatCompletion({
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
   if (!lastUserMessage) {
-    console.error('fetchChatCompletion returning early: Missing lastUserMessage or lastAnswer')
+    logger.error('fetchChatCompletion returning early: Missing lastUserMessage or lastAnswer')
     return
   }
   // try {
@@ -457,14 +459,14 @@ async function processConversationMemory(messages: Message[], assistant: Assista
       getFirstEmbeddingModel()
 
     if (!embedderModel) {
-      console.warn(
+      logger.warn(
         'Memory processing skipped: no embedding model available. Please configure an embedding model in memory settings.'
       )
       return
     }
 
     if (!llmModel) {
-      console.warn('Memory processing skipped: LLM model not available')
+      logger.warn('Memory processing skipped: LLM model not available')
       return
     }
 
@@ -525,10 +527,10 @@ async function processConversationMemory(messages: Message[], assistant: Assista
         }
       })
       .catch((error) => {
-        console.error('Background memory processing failed:', error)
+        logger.error('Background memory processing failed:', error)
       })
   } catch (error) {
-    console.error('Error in post-conversation memory processing:', error)
+    logger.error('Error in post-conversation memory processing:', error)
   }
 }
 

@@ -1,9 +1,10 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
+import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
 import { createStreamProcessor } from '@renderer/services/StreamProcessingService'
 import type { AppDispatch } from '@renderer/store'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
-import { streamCallback } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -12,6 +13,32 @@ import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@r
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
+
+const createMockCallbacks = (
+  mockAssistantMsgId: string,
+  mockTopicId: string,
+  mockAssistant: Assistant,
+  dispatch: AppDispatch,
+  getState: () => ReturnType<typeof reducer> & RootState
+) =>
+  createCallbacks({
+    blockManager: new BlockManager({
+      dispatch,
+      getState,
+      saveUpdatedBlockToDB: vi.fn(),
+      saveUpdatesToDB: vi.fn(),
+      assistantMsgId: mockAssistantMsgId,
+      topicId: mockTopicId,
+      throttledBlockUpdate: vi.fn(),
+      cancelThrottledBlockUpdate: vi.fn()
+    }),
+    dispatch,
+    getState,
+    topicId: mockTopicId,
+    assistantMsgId: mockAssistantMsgId,
+    saveUpdatesToDB: vi.fn(),
+    assistant: mockAssistant
+  })
 
 // Mock external dependencies
 vi.mock('@renderer/config/models', () => ({
@@ -186,7 +213,8 @@ vi.mock('@renderer/utils/queue', () => ({
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   default: {},
   findMainTextBlocks: vi.fn(() => []),
-  getMainTextContent: vi.fn(() => 'Test content')
+  getMainTextContent: vi.fn(() => 'Test content'),
+  findAllBlocks: vi.fn(() => [])
 }))
 
 vi.mock('i18next', () => {
@@ -239,7 +267,7 @@ const createMockStore = () => {
 }
 
 // Helper function to simulate processing chunks through the stream processor
-const processChunks = async (chunks: Chunk[], callbacks: ReturnType<typeof streamCallback>) => {
+const processChunks = async (chunks: Chunk[], callbacks: ReturnType<typeof createCallbacks>) => {
   const streamProcessor = createStreamProcessor(callbacks)
 
   const stream = new ReadableStream<Chunk>({
@@ -326,7 +354,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle complete text streaming flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -369,7 +397,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle thinking flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -394,7 +422,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle tool call flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockTool: MCPTool = {
       id: 'tool-1',
@@ -464,7 +492,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle image generation flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
@@ -504,7 +532,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle web search flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockWebSearchResult = {
       source: WebSearchSource.WEBSEARCH,
@@ -523,7 +551,6 @@ describe('streamCallback Integration Tests', () => {
     // 验证 Redux 状态
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
-
     const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
     expect(citationBlock).toBeDefined()
     expect(citationBlock?.response?.source).toEqual(mockWebSearchResult.source)
@@ -531,7 +558,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle mixed content flow (thinking + tool + text)', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockCalculatorTool: MCPTool = {
       id: 'tool-1',
@@ -632,7 +659,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle error flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockError = new Error('Test error')
 
@@ -662,7 +689,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle external tool flow', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockExternalToolResult: ExternalToolResult = {
       webSearch: {
@@ -700,7 +727,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should handle abort error correctly', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     // 创建一个模拟的 abort 错误
     const abortError = new Error('Request aborted')
@@ -731,7 +758,7 @@ describe('streamCallback Integration Tests', () => {
   })
 
   it('should maintain block reference integrity during streaming', async () => {
-    const callbacks = streamCallback(dispatch, getState, mockTopicId, mockAssistant, mockAssistantMsgId)
+    const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const chunks: Chunk[] = [
       { type: ChunkType.LLM_RESPONSE_CREATED },
