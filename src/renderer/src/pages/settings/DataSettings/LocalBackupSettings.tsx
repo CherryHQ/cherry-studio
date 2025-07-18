@@ -1,4 +1,5 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
@@ -21,6 +22,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
   const dispatch = useAppDispatch()
@@ -133,7 +136,7 @@ const LocalBackupSettings: React.FC = () => {
 
       handleLocalBackupDirChange(newLocalBackupDir)
     } catch (error) {
-      console.error('Failed to select directory:', error)
+      logger.error('Failed to select directory:', error)
     }
   }
 

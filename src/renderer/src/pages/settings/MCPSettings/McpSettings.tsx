@@ -1,4 +1,5 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
@@ -16,6 +17,8 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
+
+const logger = loggerService.withContext('McpSettings')
 
 interface MCPFormValues {
   name: string
@@ -315,7 +318,7 @@ const McpSettings: React.FC = () => {
       setLoading(false)
     } catch (error: any) {
       setLoading(false)
-      console.error('Failed to save MCP server settings:', error)
+      logger.error('Failed to save MCP server settings:', error)
     }
   }
 

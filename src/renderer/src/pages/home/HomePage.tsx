@@ -29,6 +29,7 @@ const HomePage: FC = () => {
 
   const setActiveAssistant = useCallback(
     (newAssistant: Assistant) => {
+      if (newAssistant.id === activeAssistant.id) return
       startTransition(() => {
         _setActiveAssistant(newAssistant)
         // 同步更新 active topic，避免不必要的重新渲染
@@ -36,7 +37,7 @@ const HomePage: FC = () => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
       })
     },
-    [_setActiveTopic]
+    [_setActiveTopic, activeAssistant]
   )
 
   const setActiveTopic = useCallback(

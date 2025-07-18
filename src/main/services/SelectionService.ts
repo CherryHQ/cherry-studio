@@ -1,8 +1,8 @@
+import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
-import Logger from 'electron-log'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -16,6 +16,8 @@ import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
 import storeSyncService from './StoreSyncService'
 
+const logger = loggerService.withContext('SelectionService')
+
 const isSupportedOS = isWin || isMac
 
 let SelectionHook: SelectionHookConstructor | null = null
@@ -25,7 +27,7 @@ try {
     SelectionHook = require('selection-hook')
   }
 } catch (error) {
-  Logger.error('Failed to load selection-hook:', error)
+  logger.error('Failed to load selection-hook:', error)
 }
 
 // Type definitions
@@ -1257,14 +1259,15 @@ export class SelectionService {
 
     // Center of the screen
     if (!this.isFollowToolbar || !this.toolbarWindow) {
-      const centerX = workArea.x + (workArea.width - actionWindowWidth) / 2
-      const centerY = workArea.y + (workArea.height - actionWindowHeight) / 2
+      const centerX = Math.round(workArea.x + (workArea.width - actionWindowWidth) / 2)
+      const centerY = Math.round(workArea.y + (workArea.height - actionWindowHeight) / 2)
 
+      actionWindow.setPosition(centerX, centerY, false)
       actionWindow.setBounds({
         width: actionWindowWidth,
         height: actionWindowHeight,
-        x: Math.round(centerX),
-        y: Math.round(centerY)
+        x: centerX,
+        y: centerY
       })
     } else {
       // Follow toolbar position
@@ -1503,12 +1506,12 @@ export class SelectionService {
 
   private logInfo(message: string, forceShow: boolean = false): void {
     if (isDev || forceShow) {
-      Logger.info('[SelectionService] Info: ', message)
+      logger.info(message)
     }
   }
 
   private logError(...args: [...string[], Error]): void {
-    Logger.error('[SelectionService] Error: ', ...args)
+    logger.error('[SelectionService] Error: ', ...args)
   }
 }
 
@@ -1524,7 +1527,7 @@ export function initSelectionService(): boolean {
     //avoid closure
     const ss = SelectionService.getInstance()
     if (!ss) {
-      Logger.error('SelectionService not initialized: instance is null')
+      logger.error('SelectionService not initialized: instance is null')
       return
     }
 
@@ -1539,7 +1542,7 @@ export function initSelectionService(): boolean {
 
   const ss = SelectionService.getInstance()
   if (!ss) {
-    Logger.error('SelectionService not initialized: instance is null')
+    logger.error('SelectionService not initialized: instance is null')
     return false
   }
 

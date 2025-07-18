@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { Provider } from 'react-redux'
 import { HashRouter, Route, Routes } from 'react-router-dom'
@@ -22,7 +23,11 @@ import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
+const logger = loggerService.withContext('App.tsx')
+
 function App(): React.ReactElement {
+  logger.error('App initialized')
+
   return (
     <Provider store={store}>
       <StyleSheetManager>

@@ -240,7 +240,7 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.title')}</SettingRowTitle>
+              <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
               <Input
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
