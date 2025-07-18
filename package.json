@@ -223,6 +223,7 @@
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.88.0",
     "shiki": "^3.7.0",
+    "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
     "styled-components": "^6.1.11",
     "tar": "^7.4.3",

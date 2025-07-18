@@ -7003,6 +7003,7 @@ __metadata:
     sass: "npm:^1.88.0"
     selection-hook: "npm:^1.0.7"
     shiki: "npm:^3.7.0"
+    strict-url-sanitise: "npm:^0.0.1"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
@@ -18507,6 +18508,13 @@ __metadata:
     bare-events:
       optional: true
   checksum: 10c0/f5017998a5b6360ba652599d20ef308c8c8ab0e26c8e5f624f0706f0ea12624e94fdf1ec18318124498529a1b106a1ab1c94a1b1e1ad6c2eec7cb9c8ac1b9198
+  languageName: node
+  linkType: hard
+
+"strict-url-sanitise@npm:^0.0.1":
+  version: 0.0.1
+  resolution: "strict-url-sanitise@npm:0.0.1"
+  checksum: 10c0/9a93aff625f7bb369a299e295b10a73116f9a7fd94e3382bd0b85f6b6d4086d8285b4baf4bfed5dfa951573522e81f8cc937f8ffac4ee21385ca8316217a83c7
   languageName: node
   linkType: hard
 

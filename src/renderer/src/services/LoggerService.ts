@@ -69,6 +69,7 @@ export class LoggerService {
 
   private processLog(level: LogLevel, message: string, data: any[]): void {
     if (!this.window) {
+      // eslint-disable-next-line no-restricted-syntax
       console.error('LoggerService: window source not initialized, please initialize window source first')
       return
     }
@@ -83,21 +84,27 @@ export class LoggerService {
 
     switch (level) {
       case 'error':
+        // eslint-disable-next-line no-restricted-syntax
         console.error(logMessage, ...data)
         break
       case 'warn':
+        // eslint-disable-next-line no-restricted-syntax
         console.warn(logMessage, ...data)
         break
       case 'info':
+        // eslint-disable-next-line no-restricted-syntax
         console.info(logMessage, ...data)
         break
       case 'verbose':
+        // eslint-disable-next-line no-restricted-syntax
         console.log(logMessage, ...data)
         break
       case 'debug':
+        // eslint-disable-next-line no-restricted-syntax
         console.debug(logMessage, ...data)
         break
       case 'silly':
+        // eslint-disable-next-line no-restricted-syntax
         console.log(logMessage, ...data)
         break
     }
