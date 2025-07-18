@@ -664,7 +664,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://maas-api.lanyun.net'
     },
     websites: {
-      official: 'https://console.lanyun.net/#/register?promoterCode=0148',
+      official: 'https://maas.lanyun.net',
       apiKey: 'https://maas.lanyun.net/#/system/apiKey',
       docs: 'https://archive.lanyun.net/#/maas/',
       models: 'https://maas.lanyun.net/#/model/modelSquare'
