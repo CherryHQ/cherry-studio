@@ -25,7 +25,7 @@ const MAIN_LOG_LEVEL = 'warn'
  *   English: `docs/technical/how-to-use-logger-en.md`
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
-export class LoggerService {
+class LoggerService {
   private static instance: LoggerService
 
   private level: LogLevel = DEFAULT_LEVEL
@@ -39,6 +39,9 @@ export class LoggerService {
     //
   }
 
+  /**
+   * Get the singleton instance of LoggerService
+   */
   public static getInstance(): LoggerService {
     if (!LoggerService.instance) {
       LoggerService.instance = new LoggerService()
@@ -46,17 +49,31 @@ export class LoggerService {
     return LoggerService.instance
   }
 
-  // init window source for renderer process
-  // can only be called once
-  public initWindowSource(window: string): boolean {
+  /**
+   * Initialize window source for renderer process (can only be called once)
+   * @param window - The window identifier
+   * @returns The logger service instance
+   */
+  public initWindowSource(window: string): LoggerService {
     if (this.window) {
-      return false
+      // eslint-disable-next-line no-restricted-syntax
+      console.warn(
+        '[LoggerService] window source already initialized, current: %s, want to set: %s',
+        this.window,
+        window
+      )
+      return this
     }
     this.window = window
-    return true
+    return this
   }
 
-  // create a new logger with a new context
+  /**
+   * Create a new logger with module name and additional context
+   * @param module - The module name for logging
+   * @param context - Additional context data
+   * @returns A new logger instance with the specified context
+   */
   public withContext(module: string, context?: Record<string, any>): LoggerService {
     const newLogger = Object.create(this)
 
@@ -67,10 +84,16 @@ export class LoggerService {
     return newLogger
   }
 
+  /**
+   * Process and output log messages based on level and configuration
+   * @param level - The log level
+   * @param message - The log message
+   * @param data - Additional data to log
+   */
   private processLog(level: LogLevel, message: string, data: any[]): void {
     if (!this.window) {
       // eslint-disable-next-line no-restricted-syntax
-      console.error('LoggerService: window source not initialized, please initialize window source first')
+      console.error('[LoggerService] window source not initialized, please initialize window source first')
       return
     }
 
@@ -132,46 +155,90 @@ export class LoggerService {
     }
   }
 
+  /**
+   * Log error message
+   */
   public error(message: string, ...data: any[]): void {
     this.processLog('error', message, data)
   }
+
+  /**
+   * Log warning message
+   */
   public warn(message: string, ...data: any[]): void {
     this.processLog('warn', message, data)
   }
+
+  /**
+   * Log info message
+   */
   public info(message: string, ...data: any[]): void {
     this.processLog('info', message, data)
   }
+
+  /**
+   * Log verbose message
+   */
   public verbose(message: string, ...data: any[]): void {
     this.processLog('verbose', message, data)
   }
+
+  /**
+   * Log debug message
+   */
   public debug(message: string, ...data: any[]): void {
     this.processLog('debug', message, data)
   }
+
+  /**
+   * Log silly level message
+   */
   public silly(message: string, ...data: any[]): void {
     this.processLog('silly', message, data)
   }
 
+  /**
+   * Set the minimum log level
+   * @param level - The log level to set
+   */
   public setLevel(level: LogLevel): void {
     this.level = level
   }
 
+  /**
+   * Get the current log level
+   * @returns The current log level
+   */
   public getLevel(): string {
     return this.level
   }
 
-  // Method to reset log level to environment default
+  /**
+   * Reset log level to environment default
+   */
   public resetLevel(): void {
     this.setLevel(DEFAULT_LEVEL)
   }
 
+  /**
+   * Set the minimum level for logging to main process
+   * @param level - The log level to set
+   */
   public setLogToMainLevel(level: LogLevel): void {
     this.logToMainLevel = level
   }
 
+  /**
+   * Get the current log to main level
+   * @returns The current log to main level
+   */
   public getLogToMainLevel(): LogLevel {
     return this.logToMainLevel
   }
 
+  /**
+   * Reset log to main level to default
+   */
   public resetLogToMainLevel(): void {
     this.setLogToMainLevel(MAIN_LOG_LEVEL)
   }

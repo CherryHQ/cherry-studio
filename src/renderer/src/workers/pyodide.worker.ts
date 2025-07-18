@@ -2,7 +2,7 @@
 
 import { loggerService } from '@logger'
 
-const logger = loggerService.withContext('PyodideWorker')
+const logger = loggerService.initWindowSource('Worker').withContext('Pyodide')
 
 // 定义输出结构类型
 interface PyodideOutput {
