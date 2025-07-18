@@ -437,7 +437,6 @@
       "more": "更多",
       "name": "名稱",
       "no_results": "沒有結果",
-      "open": "開啟",
       "paste": "貼上",
       "prompt": "提示詞",
       "provider": "供應商",
@@ -461,8 +460,7 @@
       "swap": "交換",
       "topics": "話題",
       "warning": "警告",
-      "you": "您",
-      "i_know": "我知道了"
+      "you": "您"
     },
     "docs": {
       "title": "說明文件"
@@ -814,9 +812,6 @@
       "title": "小工具"
     },
     "miniwindow": {
-      "alert": {
-        "google_login": "提示：如遇到Google登入提示\"不受信任的瀏覽器\"，請先在小程序列表中的Google小程序中完成帳號登入，再在其它小程序使用Google登入"
-      },
       "clipboard": {
         "empty": "剪貼簿為空"
       },
@@ -2121,7 +2116,7 @@
         "api.key.new_key.placeholder": "輸入一個或多個密鑰",
         "api.url.preview": "預覽：{{url}}",
         "api.url.reset": "重設",
-        "api.url.tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址",
+        "api.url.tip": "",
         "api_host": "API 主機地址",
         "api_key": "API 金鑰",
         "api_key.tip": "多個金鑰使用逗號或空格分隔",
@@ -2313,7 +2308,7 @@
           },
           "provider": "OCR 供應商",
           "provider_placeholder": "選擇一個OCR服務提供商",
-          "title": "OCR 文字識別"
+          "title": "光學字符識別"
         },
         "preprocess": {
           "provider": "前置處理供應商",
@@ -2460,7 +2455,6 @@
       "visualization": "視覺化"
     },
     "memory": {
-      "title": "全域記憶",
       "add_memory": "新增記憶",
       "edit_memory": "編輯記憶",
       "memory_content": "記憶內容",
@@ -2482,6 +2476,7 @@
       "user": "使用者",
       "content": "內容",
       "score": "分數",
+      "title": "記憶",
       "memories_description": "顯示 {{count}} / {{total}} 條記憶",
       "search_placeholder": "搜尋記憶...",
       "start_date": "開始日期",
@@ -2562,8 +2557,7 @@
       "please_select_embedding_model": "請選擇一個嵌入模型",
       "select_embedding_model_placeholder": "選擇嵌入模型",
       "embedding_dimensions": "嵌入維度",
-      "stored_memories": "儲存的記憶",
-      "global_memory_description": "需要開啟助手設定中的全域記憶才能使用"
+      "stored_memories": "儲存的記憶"
     }
   }
 }

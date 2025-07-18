@@ -7,7 +7,6 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
@@ -62,7 +61,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [modelSearchText, setModelSearchText] = useState('')
   const deferredModelSearchText = useDeferredValue(modelSearchText)
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
@@ -71,8 +70,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
+  const platformWebsite = provider.id === 'moonshot'
+    ? (['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://platform.moonshot.cn/' : 'https://platform.moonshot.ai/')
+    : providerConfig?.websites?.platform
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const configedApiHost = providerConfig?.api?.url
+  const configedApiHost = provider.id === 'moonshot'
+    ? (['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://api.moonshot.cn' : 'https://api.moonshot.ai')
+    : providerConfig?.api?.url
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
@@ -316,7 +320,18 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
     setApiHost(provider.apiHost)
-  }, [provider.apiHost, provider.id])
+  }, [provider.apiHost, provider.id, i18n.language])
+
+  // 当语言变化时，更新月之暗面的API地址
+  useEffect(() => {
+    if (provider.id === 'moonshot') {
+      const newApiHost = ['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://api.moonshot.cn' : 'https://api.moonshot.ai'
+      if (provider.apiHost !== newApiHost) {
+        setApiHost(newApiHost)
+        updateProvider({ apiHost: newApiHost })
+      }
+    }
+  }, [i18n.language, provider.id, provider.apiHost, updateProvider])
 
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
@@ -348,6 +363,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           }}
         />
       </SettingTitle>
+      {platformWebsite && (
+        <SettingHelpTextRow style={{ marginTop: 8 }}>
+          <Link target="_blank" href={platformWebsite}>
+            {platformWebsite}
+          </Link>
+        </SettingHelpTextRow>
+      )}
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
