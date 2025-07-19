@@ -6,6 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
 import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
 import { Trash } from 'lucide-react'
 import { FC, useState } from 'react'
@@ -14,7 +15,7 @@ import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiKeyWithStatus, ApiProviderKind, ApiProviderUnion } from './types'
+import { ApiProviderKind, ApiProviderUnion } from './types'
 
 interface ApiKeyListProps {
   provider: ApiProviderUnion
@@ -81,7 +82,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
         ...keys,
         {
           key: pendingNewKey.key,
-          status: 'not_checked',
+          status: HealthStatus.NOT_CHECKED,
           checking: false
         }
       ]

@@ -80,7 +80,6 @@ import { ChunkType } from '@renderer/types' // 调整路径
 
 export const createSimpleLoggingMiddleware = (): CompletionsMiddleware => {
   return (api: MiddlewareAPI<AiProviderMiddlewareCompletionsContext, [CompletionsParams]>) => {
-
     return (next: (context: AiProviderMiddlewareCompletionsContext, params: CompletionsParams) => Promise<any>) => {
       return async (context: AiProviderMiddlewareCompletionsContext, params: CompletionsParams): Promise<void> => {
         const startTime = Date.now()

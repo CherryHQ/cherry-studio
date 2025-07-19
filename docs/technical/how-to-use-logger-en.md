@@ -42,11 +42,13 @@ In your code, you can call `logger` at any time to record logs. The supported me
 For the meaning of each level, please refer to the section below.
 
 The following examples show how to use `logger.info` and `logger.error`. Other levels are used in the same way:
+
 ```typescript
 logger.info('message', CONTEXT)
 logger.info('message %s %d', 'hello', 123, CONTEXT)
 logger.error('message', new Error('error message'), CONTEXT)
 ```
+
 - `message` is a required string. All other options are optional.
 - `CONTEXT` as `{ key: value, ... }` is optional and will be recorded in the log file.
 - If an `Error` type is passed, the error stack will be automatically recorded.
@@ -57,6 +59,7 @@ logger.error('message', new Error('error message'), CONTEXT)
 - In the production environment, the default log level is `info`. Logs are only recorded to the file and are not printed to the terminal.
 
 Changing the log level:
+
 - You can change the log level with `logger.setLevel('newLevel')`.
 - `logger.resetLevel()` resets it to the default level.
 - `logger.getLevel()` gets the current log level.
@@ -65,7 +68,7 @@ Changing the log level:
 
 ## Usage in the `renderer` process
 
-Usage in the `renderer` process for *importing*, *setting module information*, and *setting context information* is **exactly the same** as in the `main` process.
+Usage in the `renderer` process for _importing_, _setting module information_, and _setting context information_ is **exactly the same** as in the `main` process.
 The following section focuses on the differences.
 
 ### `initWindowSource`
@@ -77,6 +80,7 @@ loggerService.initWindowSource('windowName')
 ```
 
 As a rule, we will set this in the `window`'s `entryPoint.tsx`. This ensures that `windowName` is set before it's used.
+
 - An error will be thrown if `windowName` is not set, and the `logger` will not work.
 - `windowName` can only be set once; subsequent attempts to set it will have no effect.
 - `windowName` will not be printed in the `devTool`'s `console`, but it will be recorded in the `main` process terminal and the file log.
@@ -109,8 +113,8 @@ logger.setLogToMainLevel('newLevel')
 logger.resetLogToMainLevel()
 logger.getLogToMainLevel()
 ```
-**Note:** This method has a global effect. Please do not change it arbitrarily in your code unless you are very clear about what you are doing.
 
+**Note:** This method has a global effect. Please do not change it arbitrarily in your code unless you are very clear about what you are doing.
 
 ##### Per-log Change
 
