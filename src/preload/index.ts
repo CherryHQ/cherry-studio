@@ -1,7 +1,7 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { UpgradeChannel } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
