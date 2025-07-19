@@ -3,6 +3,7 @@ Object.defineProperty(exports, '__esModule', { value: true })
 exports.main = main
 var fs = require('fs')
 var path = require('path')
+var sort_1 = require('./sort')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
@@ -39,6 +40,11 @@ function checkRecursively(target, template) {
       throw new Error('\u591A\u4F59\u5C5E\u6027 '.concat(targetKey))
     }
   }
+}
+function isSortedI18N(obj) {
+  // fs.writeFileSync('./test_origin.json', JSON.stringify(obj))
+  // fs.writeFileSync('./test_sorted.json', JSON.stringify(sortedObjectByKeys(obj)))
+  return JSON.stringify(obj) === JSON.stringify((0, sort_1.sortedObjectByKeys)(obj))
 }
 /**
  * 检查 JSON 对象中是否存在重复键，并收集所有重复键
@@ -96,6 +102,15 @@ function checkTranslations() {
         .concat(duplicateKeys.join('\n'))
     )
   }
+  // 检查主模板是否有序
+  if (!isSortedI18N(baseJson)) {
+    throw new Error(
+      '\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(
+        baseFileName,
+        ' \u7684\u952E\u503C\u672A\u6309\u5B57\u5178\u5E8F\u6392\u5E8F\u3002'
+      )
+    )
+  }
   var files = fs.readdirSync(translationsDir).filter(function (file) {
     return file.endsWith('.json') && file !== baseFileName
   })
@@ -109,6 +124,12 @@ function checkTranslations() {
       targetJson = JSON.parse(fileContent)
     } catch (error) {
       throw new Error('\u89E3\u6790 '.concat(file, ' \u51FA\u9519\u3002'))
+    }
+    // 检查有序性
+    if (!isSortedI18N(targetJson)) {
+      throw new Error(
+        '\u7FFB\u8BD1\u6587\u4EF6 '.concat(file, ' \u7684\u952E\u503C\u672A\u6309\u5B57\u5178\u5E8F\u6392\u5E8F\u3002')
+      )
     }
     try {
       checkRecursively(targetJson, baseJson)

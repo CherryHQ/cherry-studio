@@ -1,6 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { sortedObjectByKeys } from './sort'
+
 const translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const baseLocale = 'zh-cn'
 const baseFileName = `${baseLocale}.json`
@@ -42,6 +44,12 @@ function checkRecursively(target: I18N, template: I18N): void {
       throw new Error(`多余属性 ${targetKey}`)
     }
   }
+}
+
+function isSortedI18N(obj: I18N): boolean {
+  // fs.writeFileSync('./test_origin.json', JSON.stringify(obj))
+  // fs.writeFileSync('./test_sorted.json', JSON.stringify(sortedObjectByKeys(obj)))
+  return JSON.stringify(obj) === JSON.stringify(sortedObjectByKeys(obj))
 }
 
 /**
@@ -96,6 +104,11 @@ function checkTranslations() {
     throw new Error(`主模板文件 ${baseFileName} 存在以下重复键：\n${duplicateKeys.join('\n')}`)
   }
 
+  // 检查主模板是否有序
+  if (!isSortedI18N(baseJson)) {
+    throw new Error(`主模板文件 ${baseFileName} 的键值未按字典序排序。`)
+  }
+
   const files = fs.readdirSync(translationsDir).filter((file) => file.endsWith('.json') && file !== baseFileName)
 
   // 同步键
@@ -107,6 +120,11 @@ function checkTranslations() {
       targetJson = JSON.parse(fileContent)
     } catch (error) {
       throw new Error(`解析 ${file} 出错。`)
+    }
+
+    // 检查有序性
+    if (!isSortedI18N(targetJson)) {
+      throw new Error(`翻译文件 ${file} 的键值未按字典序排序。`)
     }
 
     try {
