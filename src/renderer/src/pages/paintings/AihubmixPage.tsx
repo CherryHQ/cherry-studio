@@ -207,7 +207,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           // 确保渲染速度参数正确传递
           const renderSpeed = painting.renderingSpeed || 'DEFAULT'
-          console.log('使用渲染速度:', renderSpeed)
+          logger.silly(`使用渲染速度: ${renderSpeed}`)
           formData.append('rendering_speed', renderSpeed)
 
           formData.append('num_images', String(painting.numImages || 1))
@@ -215,7 +215,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           // Convert aspect ratio format from ASPECT_1_1 to 1x1 for V3 API
           if (painting.aspectRatio) {
             const aspectRatioValue = painting.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase()
-            console.log('转换后的宽高比:', aspectRatioValue)
+            logger.silly(`转换后的宽高比: ${aspectRatioValue}`)
             formData.append('aspect_ratio', aspectRatioValue)
           }
 
@@ -223,39 +223,39 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             // 确保样式类型与API文档一致，保持大写形式
             // V3 API支持的样式类型: AUTO, GENERAL, REALISTIC, DESIGN
             const styleType = painting.styleType
-            console.log('使用样式类型:', styleType)
+            logger.silly(`使用样式类型: ${styleType}`)
             formData.append('style_type', styleType)
           } else {
             // 确保明确设置默认样式类型
-            console.log('使用默认样式类型: AUTO')
+            logger.silly('使用默认样式类型: AUTO')
             formData.append('style_type', 'AUTO')
           }
 
           if (painting.seed) {
-            console.log('使用随机种子:', painting.seed)
+            logger.silly(`使用随机种子: ${painting.seed}`)
             formData.append('seed', painting.seed)
           }
 
           if (painting.negativePrompt) {
-            console.log('使用负面提示词:', painting.negativePrompt)
+            logger.silly(`使用负面提示词: ${painting.negativePrompt}`)
             formData.append('negative_prompt', painting.negativePrompt)
           }
 
           if (painting.magicPromptOption !== undefined) {
             const magicPrompt = painting.magicPromptOption ? 'ON' : 'OFF'
-            console.log('使用魔法提示词:', magicPrompt)
+            logger.silly(`使用魔法提示词: ${magicPrompt}`)
             formData.append('magic_prompt', magicPrompt)
           }
 
           // 打印所有FormData内容
-          console.log('FormData内容:')
+          logger.silly('FormData内容:')
           for (const pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1])
+            logger.silly(`${pair[0]}: ${pair[1]}`)
           }
 
           body = formData
           // For V3 endpoints - 使用模板字符串而不是字符串连接
-          console.log('API 端点:', `${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
+          logger.silly(`API 端点: ${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
 
           // 调整请求头，可能需要指定multipart/form-data
           // 注意：FormData会自动设置Content-Type，不应手动设置
@@ -275,7 +275,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             }
 
             const data = await response.json()
-            console.log('V3 API响应:', data)
+            logger.silly(`V3 API响应: ${data}`)
             const urls = data.data.map((item) => item.url)
 
             if (urls.length > 0) {
@@ -391,7 +391,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
 
           const data = await response.json()
-          console.log('V3 Remix API响应:', data)
+          logger.silly(`V3 Remix API响应: ${data}`)
           const urls = data.data.map((item) => item.url)
 
           // Handle the downloaded images
@@ -461,7 +461,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
 
         const data = await response.json()
-        console.log('通用API响应:', data)
+        logger.silly(`通用API响应: ${data}`)
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
         const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 

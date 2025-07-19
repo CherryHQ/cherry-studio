@@ -622,7 +622,7 @@ class McpService {
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args }, undefined, {
         onprogress: (process) => {
-          console.log('[MCP] Progress:', process.progress / (process.total || 1))
+          logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
           window.api.mcp.setProgress(process.progress / (process.total || 1))
         },
         timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute

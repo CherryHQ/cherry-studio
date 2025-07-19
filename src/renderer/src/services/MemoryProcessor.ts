@@ -238,7 +238,7 @@ export class MemoryProcessor {
         limit
       })
 
-      console.log(
+      logger.debug(
         'Searching memories with query:',
         query,
         'for user:',

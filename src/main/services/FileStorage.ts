@@ -57,7 +57,7 @@ class FileStorage {
 
   findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
-    console.log('stats', stats, filePath)
+    logger.debug('stats', stats, filePath)
     const fileSize = stats.size
 
     const files = await fs.promises.readdir(this.storageDir)
