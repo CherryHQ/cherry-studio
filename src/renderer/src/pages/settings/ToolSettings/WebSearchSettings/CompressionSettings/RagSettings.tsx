@@ -121,6 +121,7 @@ const RagSettings = () => {
     }
   }
 
+  // FIXME: 还得考虑下怎么处理isAutoDimensions
   return (
     <>
       <SettingRow>

@@ -5,10 +5,19 @@ import EmbeddingsFactory from './EmbeddingsFactory'
 
 export default class Embeddings {
   private sdk: BaseEmbeddings
-  constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
+  constructor({
+    embedApiClient,
+    dimensions,
+    isAutoDimensions
+  }: {
+    embedApiClient: ApiClient
+    dimensions?: number
+    isAutoDimensions?: boolean
+  }) {
     this.sdk = EmbeddingsFactory.create({
       embedApiClient,
-      dimensions
+      dimensions,
+      isAutoDimensions
     })
   }
   public async init(): Promise<void> {

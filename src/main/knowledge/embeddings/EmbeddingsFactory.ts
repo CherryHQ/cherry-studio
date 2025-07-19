@@ -5,18 +5,31 @@ import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-op
 import { getInstanceName } from '@main/utils'
 import { ApiClient } from '@types'
 
-import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
+import { EMBEDDING_MODEL_DEFAULT_DIMS, getLowerBaseModelName, VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
-  static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): BaseEmbeddings {
+  static create({
+    embedApiClient,
+    dimensions,
+    isAutoDimensions
+  }: {
+    embedApiClient: ApiClient
+    dimensions?: number
+    isAutoDimensions?: boolean
+  }): BaseEmbeddings {
     const batchSize = 10
     const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
     if (provider === 'voyageai') {
+      const newDimensions = isAutoDimensions
+        ? undefined
+        : VOYAGE_SUPPORTED_DIM_MODELS.includes(model)
+          ? dimensions
+          : undefined
       return new VoyageEmbeddings({
         modelName: model,
         apiKey,
-        outputDimension: VOYAGE_SUPPORTED_DIM_MODELS.includes(model) ? dimensions : undefined,
+        outputDimension: newDimensions,
         batchSize: 8
       })
     }
@@ -27,7 +40,7 @@ export default class EmbeddingsFactory {
           baseUrl: baseURL.replace('v1/', ''),
           requestOptions: {
             // @ts-ignore expected
-            'encoding-format': 'float'
+            encoding_format: 'float'
           }
         })
       }
@@ -36,7 +49,7 @@ export default class EmbeddingsFactory {
         baseUrl: baseURL,
         requestOptions: {
           // @ts-ignore expected
-          'encoding-format': 'float'
+          encoding_format: 'float'
         }
       })
     }
@@ -50,10 +63,23 @@ export default class EmbeddingsFactory {
         batchSize
       })
     }
+
+    let newDimensions: number | undefined = dimensions
+
+    // 兼容旧版本无autoDims字段的知识库
+    if (isAutoDimensions) {
+      newDimensions = undefined
+    } else {
+      const baseModelName = getLowerBaseModelName(model)
+      if (dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[baseModelName]) {
+        newDimensions = undefined
+      }
+    }
+
     return new OpenAiEmbeddings({
       model,
       apiKey,
-      dimensions,
+      dimensions: newDimensions,
       batchSize,
       configuration: { baseURL }
     })

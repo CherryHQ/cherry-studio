@@ -722,7 +722,8 @@ export class MemoryService {
 
         this.embeddings = new Embeddings({
           embedApiClient: this.config.embedderApiClient,
-          dimensions: this.config.embedderDimensions
+          dimensions: this.config.embedderDimensions,
+          isAutoDimensions: this.config.isAutoDimensions
         })
         await this.embeddings.init()
       }
