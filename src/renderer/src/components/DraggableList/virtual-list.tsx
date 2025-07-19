@@ -82,7 +82,7 @@ function DraggableVirtualList<T>({
   const parentRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
-    count: list.length,
+    count: list?.length ?? 0,
     getScrollElement: useCallback(() => parentRef.current, []),
     getItemKey: itemKey,
     estimateSize: useCallback(() => 50, []),

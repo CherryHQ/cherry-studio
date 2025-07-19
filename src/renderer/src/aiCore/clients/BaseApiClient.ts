@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
@@ -16,6 +17,7 @@ import {
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
+  MemoryItem,
   Model,
   OpenAIServiceTier,
   Provider,
@@ -37,13 +39,14 @@ import {
 } from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
-import { findFileBlocks, getContentWithTools, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
-import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
 import { CompletionsContext } from '../middleware/types'
 import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+
+const logger = loggerService.withContext('BaseApiClient')
 
 /**
  * Abstract base class for API clients.
@@ -209,7 +212,7 @@ export abstract class BaseApiClient<
   }
 
   public async getMessageContent(message: Message): Promise<string> {
-    const content = getContentWithTools(message)
+    const content = getMainTextContent(message)
 
     if (isEmpty(content)) {
       return ''
@@ -217,6 +220,7 @@ export abstract class BaseApiClient<
 
     const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
     const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
+    const memoryReferences = this.getMemoryReferencesFromCache(message)
 
     // 添加偏移量以避免ID冲突
     const reindexedKnowledgeReferences = knowledgeReferences.map((ref) => ({
@@ -224,9 +228,9 @@ export abstract class BaseApiClient<
       id: ref.id + webSearchReferences.length // 为知识库引用的ID添加网络搜索引用的数量作为偏移量
     }))
 
-    const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
+    const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences, ...memoryReferences]
 
-    Logger.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+    logger.debug(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
@@ -266,6 +270,20 @@ export abstract class BaseApiClient<
     return ''
   }
 
+  private getMemoryReferencesFromCache(message: Message) {
+    const memories = window.keyv.get(`memory-search-${message.id}`) as MemoryItem[] | undefined
+    if (memories) {
+      const memoryReferences: KnowledgeReference[] = memories.map((mem, index) => ({
+        id: index + 1,
+        content: `${mem.memory} -- Created at: ${mem.createdAt}`,
+        sourceUrl: '',
+        type: 'memory'
+      }))
+      return memoryReferences
+    }
+    return []
+  }
+
   private async getWebSearchReferencesFromCache(message: Message) {
     const content = getMainTextContent(message)
     if (isEmpty(content)) {
@@ -301,10 +319,10 @@ export abstract class BaseApiClient<
 
     if (!isEmpty(knowledgeReferences)) {
       window.keyv.remove(`knowledge-search-${message.id}`)
-      // Logger.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      logger.debug(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    // Logger.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    logger.debug(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
 import { generateUserAgent } from '@main/utils/systemInfo'
@@ -5,12 +6,13 @@ import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
-import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
+
+const logger = loggerService.withContext('AppUpdater')
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
@@ -19,8 +21,6 @@ export default class AppUpdater {
   private updateCheckResult: UpdateCheckResult | null = null
 
   constructor(mainWindow: BrowserWindow) {
-    logger.transports.file.level = 'info'
-
     autoUpdater.logger = logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()

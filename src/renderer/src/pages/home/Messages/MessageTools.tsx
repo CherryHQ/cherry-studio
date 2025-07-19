@@ -1,13 +1,13 @@
-import { CheckOutlined, CloseOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Tooltip } from 'antd'
+import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { message } from 'antd'
-import Logger from 'electron-log/renderer'
 import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,8 @@ import styled from 'styled-components'
 interface Props {
   block: ToolMessageBlock
 }
+
+const logger = loggerService.withContext('MessageTools')
 
 const COUNTDOWN_TIME = 30
 
@@ -26,6 +28,7 @@ const MessageTools: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
   const { mcpServers, updateMCPServer } = useMCPServers()
+  const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -41,7 +44,7 @@ const MessageTools: FC<Props> = ({ block }) => {
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
-        console.log('countdown', countdown)
+        logger.debug('countdown', countdown)
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
@@ -113,12 +116,12 @@ const MessageTools: FC<Props> = ({ block }) => {
       try {
         const success = await window.api.mcp.abortTool(toolResponse.id)
         if (success) {
-          message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
+          window.message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
         } else {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
       } catch (error) {
-        Logger.error('Failed to abort tool:', error)
+        logger.error('Failed to abort tool:', error)
         message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
@@ -151,7 +154,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     // Also confirm the current tool
     confirmToolAction(id)
 
-    message.success({
+    window.message.success({
       content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
       key: 'auto-approve'
     })
@@ -221,6 +224,20 @@ const MessageTools: FC<Props> = ({ block }) => {
             <StatusIndicator status={status} hasError={hasError}>
               {renderStatusIndicator(status, hasError)}
             </StatusIndicator>
+            <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+              <ActionButton
+                className="message-action-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpandedResponse({
+                    content: JSON.stringify(response, null, 2),
+                    title: tool.name
+                  })
+                }}
+                aria-label={t('common.expand')}>
+                <ExpandOutlined />
+              </ActionButton>
+            </Tooltip>
             {!isPending && !isInvoking && (
               <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
                 <ActionButton
@@ -259,92 +276,173 @@ const MessageTools: FC<Props> = ({ block }) => {
     return items
   }
 
-  return (
-    <ConfigProvider
-      theme={{
-        components: {
-          Button: {
-            borderRadiusSM: 6
-          }
-        }
-      }}>
-      <ToolContainer>
-        <ToolContentWrapper className={status}>
-          <CollapseContainer
-            ghost
-            activeKey={activeKeys}
-            size="small"
-            onChange={handleCollapseChange}
-            className="message-tools-container"
-            items={getCollapseItems()}
-            expandIconPosition="end"
-            expandIcon={({ isActive }) => (
-              <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
-            )}
-          />
-          {(isPending || isInvoking) && (
-            <ActionsBar>
-              <ActionLabel>
-                {isPending ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
-              </ActionLabel>
+  const renderPreview = (content: string) => {
+    if (!content) return null
 
-              <ActionButtonsGroup>
-                {isPending && (
-                  <Button
-                    color="danger"
-                    variant="filled"
-                    size="small"
-                    onClick={() => {
-                      handleCancelTool()
-                    }}>
-                    <CircleX size={15} className="lucide-custom" />
-                    {t('common.cancel')}
-                  </Button>
-                )}
-                {isInvoking && toolResponse?.id ? (
-                  <Button
-                    size="small"
-                    color="danger"
-                    variant="solid"
-                    className="abort-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleAbortTool()
-                    }}>
-                    <PauseCircle className="lucide-custom" size={14} />
-                    {t('chat.input.pause')}
-                  </Button>
-                ) : (
-                  <StyledDropdownButton
-                    size="small"
-                    type="primary"
-                    icon={<ChevronDown size={14} />}
-                    onClick={() => {
-                      handleConfirmTool()
-                    }}
-                    menu={{
-                      items: [
-                        {
-                          key: 'autoApprove',
-                          label: t('settings.mcp.tools.autoApprove'),
-                          onClick: () => {
-                            handleAutoApprove()
+    try {
+      const parsedResult = JSON.parse(content)
+      switch (parsedResult.content[0]?.type) {
+        case 'text':
+          return (
+            <CollapsedContent
+              isExpanded={true}
+              resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
+            />
+          )
+
+        default:
+          return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
+      }
+    } catch (e) {
+      logger.error('failed to render the preview of mcp results:', e)
+      return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
+    }
+  }
+
+  return (
+    <>
+      <ConfigProvider
+        theme={{
+          components: {
+            Button: {
+              borderRadiusSM: 6
+            }
+          }
+        }}>
+        <ToolContainer>
+          <ToolContentWrapper className={status}>
+            <CollapseContainer
+              ghost
+              activeKey={activeKeys}
+              size="small"
+              onChange={handleCollapseChange}
+              className="message-tools-container"
+              items={getCollapseItems()}
+              expandIconPosition="end"
+              expandIcon={({ isActive }) => (
+                <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
+              )}
+            />
+            {(isPending || isInvoking) && (
+              <ActionsBar>
+                <ActionLabel>
+                  {isPending ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
+                </ActionLabel>
+
+                <ActionButtonsGroup>
+                  {isPending && (
+                    <Button
+                      color="danger"
+                      variant="filled"
+                      size="small"
+                      onClick={() => {
+                        handleCancelTool()
+                      }}>
+                      <CircleX size={15} className="lucide-custom" />
+                      {t('common.cancel')}
+                    </Button>
+                  )}
+                  {isInvoking && toolResponse?.id ? (
+                    <Button
+                      size="small"
+                      color="danger"
+                      variant="solid"
+                      className="abort-button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAbortTool()
+                      }}>
+                      <PauseCircle className="lucide-custom" size={14} />
+                      {t('chat.input.pause')}
+                    </Button>
+                  ) : (
+                    <StyledDropdownButton
+                      size="small"
+                      type="primary"
+                      icon={<ChevronDown size={14} />}
+                      onClick={() => {
+                        handleConfirmTool()
+                      }}
+                      menu={{
+                        items: [
+                          {
+                            key: 'autoApprove',
+                            label: t('settings.mcp.tools.autoApprove'),
+                            onClick: () => {
+                              handleAutoApprove()
+                            }
                           }
-                        }
-                      ]
-                    }}>
-                    <CirclePlay size={15} className="lucide-custom" />
-                    <CountdownText>
-                      {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
-                    </CountdownText>
-                  </StyledDropdownButton>
-                )}
-              </ActionButtonsGroup>
-            </ActionsBar>
-          )}
-        </ToolContentWrapper>
-      </ToolContainer>
-    </ConfigProvider>
+                        ]
+                      }}>
+                      <CirclePlay size={15} className="lucide-custom" />
+                      <CountdownText>
+                        {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
+                      </CountdownText>
+                    </StyledDropdownButton>
+                  )}
+                </ActionButtonsGroup>
+              </ActionsBar>
+            )}
+          </ToolContentWrapper>
+        </ToolContainer>
+      </ConfigProvider>
+      <Modal
+        title={expandedResponse?.title}
+        open={!!expandedResponse}
+        onCancel={() => setExpandedResponse(null)}
+        footer={null}
+        width="80%"
+        centered
+        transitionName="animation-move-down"
+        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
+        {expandedResponse && (
+          <ExpandedResponseContainer
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
+            <Tabs
+              tabBarExtraContent={
+                <ActionButton
+                  className="copy-expanded-button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      typeof expandedResponse.content === 'string'
+                        ? expandedResponse.content
+                        : JSON.stringify(expandedResponse.content, null, 2)
+                    )
+                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+                  }}
+                  aria-label={t('common.copy')}>
+                  <i className="iconfont icon-copy"></i>
+                </ActionButton>
+              }
+              items={[
+                {
+                  key: 'preview',
+                  label: t('message.tools.preview'),
+                  children: renderPreview(expandedResponse.content)
+                },
+                {
+                  key: 'raw',
+                  label: t('message.tools.raw'),
+                  children: (
+                    <CollapsedContent
+                      isExpanded={true}
+                      resultString={
+                        typeof expandedResponse.content === 'string'
+                          ? expandedResponse.content
+                          : JSON.stringify(expandedResponse.content, null, 2)
+                      }
+                    />
+                  )
+                }
+              ]}
+            />
+          </ExpandedResponseContainer>
+        )}
+      </Modal>
+    </>
   )
 }
 
@@ -561,6 +659,29 @@ const ToolResponseContainer = styled.div`
   max-height: 300px;
   border-top: none;
   position: relative;
+`
+
+const ExpandedResponseContainer = styled.div`
+  background: var(--color-bg-1);
+  border-radius: 8px;
+  padding: 16px;
+  position: relative;
+
+  .copy-expanded-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: var(--color-bg-2);
+    border-radius: 4px;
+    z-index: 1;
+  }
+
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--color-text);
+  }
 `
 
 export default memo(MessageTools)

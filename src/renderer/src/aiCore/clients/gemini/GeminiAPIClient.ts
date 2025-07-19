@@ -16,6 +16,7 @@ import {
   ThinkingConfig,
   Tool
 } from '@google/genai'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
@@ -63,6 +64,8 @@ import { defaultTimeout, MB } from '@shared/config/constant'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
+
+const logger = loggerService.withContext('GeminiAPIClient')
 
 export class GeminiAPIClient extends BaseApiClient<
   GoogleGenAI,
@@ -139,7 +142,7 @@ export class GeminiAPIClient extends BaseApiClient<
       //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
       return images
     } catch (error) {
-      console.error('[generateImage] error:', error)
+      logger.error('[generateImage] error:', error)
       throw error
     }
   }
@@ -443,7 +446,7 @@ export class GeminiAPIClient extends BaseApiClient<
         messages: GeminiSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableUrlContext, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
         let systemInstruction = assistant.prompt
 
@@ -480,6 +483,12 @@ export class GeminiAPIClient extends BaseApiClient<
         if (enableWebSearch) {
           tools.push({
             googleSearch: {}
+          })
+        }
+
+        if (enableUrlContext) {
+          tools.push({
+            urlContext: {}
           })
         }
 

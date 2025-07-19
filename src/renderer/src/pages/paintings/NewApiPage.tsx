@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -32,6 +33,8 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+
+const logger = loggerService.withContext('NewApiPage')
 
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
@@ -171,7 +174,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       urls.map(async (url) => {
         try {
           if (!url?.trim()) {
-            console.error('图像URL为空')
+            logger.error('图像URL为空')
             window.message.warning({
               content: t('message.empty_url'),
               key: 'empty-url-warning'
@@ -180,7 +183,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          console.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -393,7 +396,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error)
     } finally {
       setIsTranslating(false)
     }

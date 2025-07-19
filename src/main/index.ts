@@ -5,13 +5,13 @@ import './bootstrap'
 
 import '@main/config'
 
+import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-import Logger from 'electron-log'
 
-import { isDev, isWin } from './constant'
+import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -26,7 +26,7 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 
-Logger.initialize()
+const logger = loggerService.withContext('MainEntry')
 
 /**
  * Disable hardware acceleration if setting is enabled
@@ -46,6 +46,14 @@ if (isWin) {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
 }
 
+/**
+ * Enable GlobalShortcutsPortal for Linux Wayland Protocol
+ * see: https://www.electronjs.org/docs/latest/api/global-shortcut
+ */
+if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
+  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
+}
+
 // Enable features for unresponsive renderer js call stacks
 app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
 app.on('web-contents-created', (_, webContents) => {
@@ -60,9 +68,9 @@ app.on('web-contents-created', (_, webContents) => {
 
   webContents.on('unresponsive', async () => {
     // Interrupt execution and collect call stack from unresponsive renderer
-    Logger.error('Renderer unresponsive start')
+    logger.error('Renderer unresponsive start')
     const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    Logger.error('Renderer unresponsive js call stack\n', callStack)
+    logger.error('Renderer unresponsive js call stack\n', callStack)
   })
 })
 
@@ -70,12 +78,12 @@ app.on('web-contents-created', (_, webContents) => {
 if (!isDev) {
   // handle uncaught exception
   process.on('uncaughtException', (error) => {
-    Logger.error('Uncaught Exception:', error)
+    logger.error('Uncaught Exception:', error)
   })
 
   // handle unhandled rejection
   process.on('unhandledRejection', (reason, promise) => {
-    Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
   })
 }
 
@@ -121,8 +129,8 @@ if (!app.requestSingleInstanceLock()) {
 
     if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
-        .then((name) => console.log(`Added Extension:  ${name}`))
-        .catch((err) => console.log('An error occurred: ', err))
+        .then((name) => logger.info(`Added Extension:  ${name}`))
+        .catch((err) => logger.error('An error occurred: ', err))
     }
 
     //start selection assistant service
@@ -173,8 +181,11 @@ if (!app.requestSingleInstanceLock()) {
     try {
       await mcpService.cleanup()
     } catch (error) {
-      Logger.error('Error cleaning up MCP service:', error)
+      logger.error('Error cleaning up MCP service:', error)
     }
+
+    // finish the logger
+    logger.finish()
   })
 
   // In this file you can include the rest of your app"s specific main process

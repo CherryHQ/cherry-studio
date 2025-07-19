@@ -133,7 +133,7 @@ const Container = styled.div`
   align-items: center;
   gap: 10px;
   position: relative;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
 `
 
 const UserWrap = styled.div`

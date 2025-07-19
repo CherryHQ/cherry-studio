@@ -1,14 +1,20 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
+  AddMemoryOptions,
+  AssistantMessage,
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
   KnowledgeBaseParams,
   KnowledgeItem,
   MCPServer,
+  MemoryConfig,
+  MemoryListOptions,
+  MemorySearchOptions,
   Provider,
   S3Config,
   Shortcut,
@@ -54,6 +60,8 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
+    ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -184,6 +192,22 @@ const api = {
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
       ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId)
   },
+  memory: {
+    add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
+      ipcRenderer.invoke(IpcChannel.Memory_Add, messages, options),
+    search: (query: string, options: MemorySearchOptions) =>
+      ipcRenderer.invoke(IpcChannel.Memory_Search, query, options),
+    list: (options?: MemoryListOptions) => ipcRenderer.invoke(IpcChannel.Memory_List, options),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Delete, id),
+    update: (id: string, memory: string, metadata?: Record<string, any>) =>
+      ipcRenderer.invoke(IpcChannel.Memory_Update, id, memory, metadata),
+    get: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Get, id),
+    setConfig: (config: MemoryConfig) => ipcRenderer.invoke(IpcChannel.Memory_SetConfig, config),
+    deleteUser: (userId: string) => ipcRenderer.invoke(IpcChannel.Memory_DeleteUser, userId),
+    deleteAllMemoriesForUser: (userId: string) =>
+      ipcRenderer.invoke(IpcChannel.Memory_DeleteAllMemoriesForUser, userId),
+    getUsersList: () => ipcRenderer.invoke(IpcChannel.Memory_GetUsersList)
+  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
@@ -240,8 +264,13 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
+    uploadDxt: async (file: File) => {
+      const buffer = await file.arrayBuffer()
+      return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
+    },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress)
+    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress),
+    getServerVersion: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server)
   },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>
@@ -335,6 +364,7 @@ if (process.contextIsolated) {
       getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
     })
   } catch (error) {
+    // eslint-disable-next-line no-restricted-syntax
     console.error(error)
   }
 } else {

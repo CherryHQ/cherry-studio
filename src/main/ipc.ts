@@ -2,14 +2,14 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
-import { isLinux, isMac, isWin } from '@main/constant'
+import { loggerService } from '@logger'
+import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
-import log from 'electron-log'
+import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
 import appService from './services/AppService'
@@ -17,15 +17,17 @@ import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
+import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import FileStorage from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import MemoryService from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
@@ -41,11 +43,15 @@ import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
+const logger = loggerService.withContext('IPC')
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
+const memoryService = MemoryService.getInstance()
+const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -62,7 +68,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path,
+    logsPath: logger.getLogsDir(),
     arch: arch(),
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
     installPath: path.dirname(app.getPath('exe'))
@@ -74,9 +80,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (proxy === 'system') {
       proxyConfig = { mode: 'system' }
     } else if (proxy) {
-      proxyConfig = { mode: 'custom', url: proxy }
+      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
     } else {
-      proxyConfig = { mode: 'none' }
+      proxyConfig = { mode: 'direct' }
     }
 
     await proxyManager.configureProxy(proxyConfig)
@@ -141,7 +147,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    log.info('set test plan', isActive)
+    logger.info('set test plan', isActive)
     if (isActive !== configManager.getTestPlan()) {
       appUpdater.cancelDownload()
       configManager.setTestPlan(isActive)
@@ -149,7 +155,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    log.info('set test channel', channel)
+    logger.info('set test channel', channel)
     if (channel !== configManager.getTestChannel()) {
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
@@ -201,10 +207,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         })
       )
       await fileManager.clearTemp()
-      await fs.writeFileSync(log.transports.file.getFile().path, '')
+      // do not clear logs for now
+      // TODO clear logs
+      // await fs.writeFileSync(log.transports.file.getFile().path, '')
       return { success: true }
     } catch (error: any) {
-      log.error('Failed to clear cache:', error)
+      logger.error('Failed to clear cache:', error)
       return { success: false, error: error.message }
     }
   })
@@ -212,14 +220,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
     const cachePath = getCacheDir()
-    log.info(`Calculating cache size for path: ${cachePath}`)
+    logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
       const sizeInBytes = await calculateDirectorySize(cachePath)
       const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
       return `${sizeInMB}`
     } catch (error: any) {
-      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      logger.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
       return '0'
     }
   })
@@ -256,7 +264,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       }
       return filePaths[0]
     } catch (error: any) {
-      log.error('Failed to select app data path:', error)
+      logger.error('Failed to select app data path:', error)
       return null
     }
   })
@@ -309,7 +317,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       })
       return { success: true }
     } catch (error: any) {
-      log.error('Failed to copy user data:', error)
+      logger.error('Failed to copy user data:', error)
       return { success: false, error: error.message }
     }
   })
@@ -318,13 +326,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
     // Fix for .AppImage
     if (isLinux && process.env.APPIMAGE) {
-      log.info('Relaunching app with options:', process.env.APPIMAGE, options)
+      logger.info('Relaunching app with options:', process.env.APPIMAGE, options)
       // On Linux, we need to use the APPIMAGE environment variable to relaunch
       // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
       options = options || {}
       options.execPath = process.env.APPIMAGE
       options.args = options.args || []
       options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
     }
 
     app.relaunch(options)
@@ -453,6 +467,38 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank)
   ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota)
 
+  // memory
+  ipcMain.handle(IpcChannel.Memory_Add, async (_, messages, config) => {
+    return await memoryService.add(messages, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Search, async (_, query, config) => {
+    return await memoryService.search(query, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_List, async (_, config) => {
+    return await memoryService.list(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Delete, async (_, id) => {
+    return await memoryService.delete(id)
+  })
+  ipcMain.handle(IpcChannel.Memory_Update, async (_, id, memory, metadata) => {
+    return await memoryService.update(id, memory, metadata)
+  })
+  ipcMain.handle(IpcChannel.Memory_Get, async (_, memoryId) => {
+    return await memoryService.get(memoryId)
+  })
+  ipcMain.handle(IpcChannel.Memory_SetConfig, async (_, config) => {
+    memoryService.setConfig(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_DeleteUser, async (_, userId) => {
+    return await memoryService.deleteUser(userId)
+  })
+  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, async (_, userId) => {
+    return await memoryService.deleteAllMemoriesForUser(userId)
+  })
+  ipcMain.handle(IpcChannel.Memory_GetUsersList, async () => {
+    return await memoryService.getUsersList()
+  })
+
   // window
   ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
     mainWindow?.setMinimumSize(width, height)
@@ -503,8 +549,27 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
     mainWindow.webContents.send('mcp-progress', progress)
+  })
+
+  // DXT upload handler
+  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+    try {
+      // Create a temporary file with the uploaded content
+      const tempPath = await fileManager.createTempFile(event, fileName)
+      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
+
+      // Process DXT file using the temporary path
+      return await dxtService.uploadDxt(event, tempPath)
+    } catch (error) {
+      logger.error('DXT upload error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
+      }
+    }
   })
 
   // Register Python execution handler

@@ -1,4 +1,4 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
@@ -18,6 +18,8 @@ interface UseApiKeysProps {
   updateProvider: (provider: Partial<ApiProviderUnion>) => void
   providerKind: ApiProviderKind
 }
+
+const logger = loggerService.withContext('ApiKeyListPopup')
 
 /**
  * API Keys 管理 hook
@@ -116,7 +118,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
   const updateKey = useCallback(
     (index: number, key: string): ApiKeyValidity => {
       if (index < 0 || index >= keys.length) {
-        Logger.error('[ApiKeyList] invalid key index', { index })
+        logger.error('invalid key index', { index })
         return { isValid: false, error: 'Invalid index' }
       }
 
@@ -220,7 +222,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
           latency: undefined
         })
 
-        Logger.error('[ApiKeyList] failed to validate the connectivity of the api key', error)
+        logger.error('failed to validate the connectivity of the api key', error)
       }
     },
     [keys, connectivityStates, updateConnectivityState, provider, providerKind]
@@ -301,7 +303,7 @@ async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model
     if (!selectedModel) return null
     return selectedModel
   } catch (error) {
-    Logger.error('[ApiKeyList] failed to select model', error)
+    logger.error('failed to select model', error)
     return null
   }
 }

@@ -1,7 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import Logger from '@renderer/config/logger'
 import {
   isGenerateImageModel,
   isGenerateImageModels,
@@ -56,6 +56,8 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+
+const logger = loggerService.withContext('Inputbar')
 
 interface Props {
   assistant: Assistant
@@ -205,7 +207,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
 
-    Logger.log('[DEBUG] Starting to send message')
+    logger.info('Starting to send message')
 
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
@@ -214,7 +216,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      Logger.log('baseUserMessage', baseUserMessage)
+      logger.info('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -243,7 +245,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setTimeout(() => resizeTextArea(true), 0)
       setExpend(false)
     } catch (error) {
-      console.error('Failed to send message:', error)
+      logger.warn('Failed to send message:', error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
 
@@ -258,7 +260,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       translatedText && setText(translatedText)
       setTimeout(() => resizeTextArea(), 0)
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.warn('Translation failed:', error)
     } finally {
       setIsTranslating(false)
     }
@@ -371,7 +373,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }, 200)
 
         if (spaceClickCount === 2) {
-          Logger.log('Triple space detected - trigger translation')
+          logger.info('Triple space detected - trigger translation')
           setSpaceClickCount(0)
           setIsTranslating(true)
           translate()
@@ -521,8 +523,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     async (event: ClipboardEvent) => {
       return await PasteService.handlePaste(
         event,
-        isVisionModel(model),
-        isGenerateImageModel(model),
         supportedExts,
         setFiles,
         setText,
@@ -533,7 +533,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         t
       )
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -561,7 +561,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setIsFileDragging(false)
 
       const files = await getFilesFromDropEvent(e).catch((err) => {
-        Logger.error('[Inputbar] handleDrop:', err)
+        logger.error('handleDrop:', err)
         return null
       })
 
@@ -773,7 +773,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
         })
       } else {
-        console.error('在已上传图片时，不能添加非视觉模型')
+        logger.error('Cannot add non-vision model when images are uploaded')
       }
     },
     [couldMentionNotVisionModel]
@@ -962,7 +962,7 @@ const InputBarContainer = styled.div`
   border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   position: relative;
-  border-radius: 20px;
+  border-radius: 17px;
   padding-top: 8px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 

@@ -1,5 +1,4 @@
 import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
-import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
@@ -12,7 +11,13 @@ import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { formatApiHost, formatApiKeys, getFancyProviderName, splitApiKeyString } from '@renderer/utils'
+import {
+  formatApiHost,
+  formatApiKeys,
+  getFancyProviderName,
+  isOpenAIProvider,
+  splitApiKeyString
+} from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
@@ -286,6 +291,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (provider.type === 'openai') {
       return formatApiHost(apiHost) + 'chat/completions'
     }
+
+    if (provider.type === 'azure-openai') {
+      return formatApiHost(apiHost) + 'openai/v1'
+    }
     return formatApiHost(apiHost) + 'responses'
   }
 
@@ -446,6 +455,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               onBlur={onUpdateApiVersion}
             />
           </Space.Compact>
+          <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <SettingHelpText style={{ minWidth: 'fit-content' }}>
+              {t('settings.provider.azure.apiversion.tip')}
+            </SettingHelpText>
+          </SettingHelpTextRow>
         </>
       )}
       {provider.id === 'lmstudio' && <LMStudioSettings />}

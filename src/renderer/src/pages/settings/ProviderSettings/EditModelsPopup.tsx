@@ -1,8 +1,10 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import Scrollbar from '@renderer/components/Scrollbar'
 import {
   getModelLogo,
   groupQwenModels,
@@ -32,6 +34,7 @@ import styled from 'styled-components'
 
 import { TopView } from '../../../components/TopView'
 
+const logger = loggerService.withContext('EditModelsPopup')
 interface ShowParams {
   provider: Provider
 }
@@ -179,7 +182,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             .filter((model) => !isEmpty(model.name))
         )
       } catch (error) {
-        console.error('Failed to fetch models', error)
+        logger.error('Failed to fetch models', error)
       } finally {
         setTimeout(() => setLoading(false), 300)
       }
@@ -218,7 +221,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         mouseEnterDelay={0.5}
         placement="top">
         <Button
-          type={isAllFilteredInProvider ? 'default' : 'primary'}
+          type="default"
           icon={isAllFilteredInProvider ? <MinusOutlined /> : <PlusOutlined />}
           size="large"
           onClick={(e) => {
@@ -302,6 +305,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       footer={null}
       width="800px"
       transitionName="animation-move-down"
+      styles={{
+        body: {
+          overflowY: 'hidden'
+        }
+      }}
       centered>
       <SearchContainer>
         <TopToolsWrapper>
@@ -399,7 +407,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
   return (
     <FileItem
       style={{
-        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)',
+        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
         border: 'none',
         boxShadow: 'none'
       }}
@@ -421,7 +429,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
 const SearchContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 5px;
 
   .ant-radio-group {
     display: flex;
@@ -433,15 +441,16 @@ const TopToolsWrapper = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 0;
 `
 
-const ListContainer = styled.div`
+const ListContainer = styled(Scrollbar)`
   height: calc(100vh - 300px);
-  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-right: 2px;
+  padding-bottom: 30px;
 `
 
 const FlexColumn = styled.div`
