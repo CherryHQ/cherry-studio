@@ -6,8 +6,10 @@ import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
-import { Assistant, Provider, WebSearchSource } from '@renderer/types'
+import { isVisionModel } from '@renderer/config/models'
+import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
+  Chunk,
   ChunkType,
   LLMResponseCompleteChunk,
   LLMWebSearchCompleteChunk,
@@ -15,7 +17,15 @@ import {
   TextStartChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import { GeminiSdkRawChunk, OpenAISdkRawChunk, OpenAISdkRawContentSource } from '@renderer/types/sdk'
+import {
+  GeminiSdkMessageParam,
+  GeminiSdkRawChunk,
+  GeminiSdkToolCall,
+  OpenAISdkRawChunk,
+  OpenAISdkRawContentSource
+} from '@renderer/types/sdk'
+import * as McpToolsModule from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToGeminiMessage } from '@renderer/utils/mcp-tools'
 import { cloneDeep } from 'lodash'
 import OpenAI from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
@@ -610,8 +620,29 @@ const geminiToolUseChunks: GeminiSdkRawChunk[] = [
           ],
           role: 'model'
         },
-        finishReason: FinishReason.STOP,
         index: 0
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk,
+  {
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              functionCall: {
+                name: 'mcp-tool-1',
+                args: {
+                  name: 'alice',
+                  age: 13
+                }
+              } as GeminiSdkToolCall
+            }
+          ],
+          role: 'model'
+        },
+        finishReason: FinishReason.STOP
       }
     ],
     usageMetadata: {}
@@ -895,6 +926,7 @@ const mockOpenaiApiClient = {
               choice.delta &&
               Object.keys(choice.delta).length > 0 &&
               (!('content' in choice.delta) ||
+                (choice.delta.tool_calls && choice.delta.tool_calls.length > 0) ||
                 (typeof choice.delta.content === 'string' && choice.delta.content !== '') ||
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
@@ -1141,6 +1173,14 @@ mockGeminiThinkingApiClient.createCompletions = vi.fn().mockImplementation(() =>
 
 const mockGeminiToolUseApiClient = cloneDeep(mockGeminiApiClient)
 mockGeminiToolUseApiClient.createCompletions = vi.fn().mockImplementation(() => geminiToolUseChunkGenerator())
+mockGeminiToolUseApiClient.convertMcpToolResponseToSdkMessageParam = vi
+  .fn()
+  .mockImplementation(
+    (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model): GeminiSdkMessageParam | undefined => {
+      // mcp使用tooluse
+      return mcpToolCallResponseToGeminiMessage(mcpToolResponse, resp, isVisionModel(model))
+    }
+  )
 
 const mockProvider = {
   id: 'gemini',
@@ -1537,199 +1577,235 @@ describe('ApiService', () => {
     expect(filteredChunks).toEqual(expectedChunks)
   })
 
-  // it('should extract tool use responses correctly', async () => {
-  //   const mockCreate = vi.mocked(ApiClientFactory.create)
-  //   mockCreate.mockReturnValue(mockGeminiToolUseApiClient as unknown as BaseApiClient)
-  //   const AI = new AiProvider(mockProvider)
-  //   const spy = vi.spyOn(McpToolsModule, 'callMCPTool')
-  //   spy.mockResolvedValue({
-  //     content: [{ type: 'text', text: 'test' }],
-  //     isError: false
-  //   })
+  it('should extract tool use responses correctly', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockGeminiToolUseApiClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
 
-  //   const result = await AI.completions({
-  //     callType: 'test',
-  //     messages: [],
-  //     assistant: {
-  //       id: '1',
-  //       name: 'test',
-  //       prompt: 'test',
-  //       model: {
-  //         id: 'gemini-2.5-pro',
-  //         name: 'Gemini 2.5 Pro'
-  //       },
-  //       settings: {
-  //         toolUseMode: 'prompt'
-  //       }
-  //     } as Assistant,
-  //     mcpTools: [
-  //       {
-  //         id: 'mcp-tool-1',
-  //         name: 'mcp-tool-1',
-  //         serverId: 'mcp-server-1',
-  //         serverName: 'mcp-server-1',
-  //         description: 'mcp-tool-1',
-  //         inputSchema: {
-  //           type: 'object',
-  //           title: 'mcp-tool-1',
-  //           properties: {
-  //             name: { type: 'string' },
-  //             age: { type: 'number' }
-  //           },
-  //           description: 'print the name and age',
-  //           required: ['name', 'age']
-  //         }
-  //       }
-  //     ],
-  //     onChunk: mockOnChunk,
-  //     enableReasoning: true,
-  //     streamOutput: true
-  //   })
+    const mcpChunks: GenericChunk[] = []
+    const firstResponseChunks: GenericChunk[] = []
 
-  //   expect(result).toBeDefined()
-  //   expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
-  //   expect(result.stream).toBeDefined()
+    const spy = vi.spyOn(McpToolsModule, 'callMCPTool')
+    spy.mockResolvedValue({
+      content: [{ type: 'text', text: 'test' }],
+      isError: false
+    })
 
-  //   const stream = result.stream! as ReadableStream<GenericChunk>
-  //   const reader = stream.getReader()
+    const onChunk = vi.fn((chunk: Chunk) => {
+      mcpChunks.push(chunk)
+    })
 
-  //   const chunks: GenericChunk[] = []
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro'
+        },
+        settings: {
+          toolUseMode: 'prompt'
+        }
+      } as Assistant,
+      mcpTools: [
+        {
+          id: 'mcp-tool-1',
+          name: 'mcp-tool-1',
+          serverId: 'mcp-server-1',
+          serverName: 'mcp-server-1',
+          description: 'mcp-tool-1',
+          inputSchema: {
+            type: 'object',
+            title: 'mcp-tool-1',
+            properties: {
+              name: { type: 'string' },
+              age: { type: 'number' }
+            },
+            description: 'print the name and age',
+            required: ['name', 'age']
+          }
+        }
+      ],
+      onChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
 
-  //   while (true) {
-  //     const { done, value } = await reader.read()
-  //     if (done) break
-  //     chunks.push(value)
-  //   }
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
 
-  //   reader.releaseLock()
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
 
-  //   const filteredChunks = chunks.map((chunk) => {
-  //     if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
-  //       delete (chunk as any).thinking_millsec
-  //       return chunk
-  //     }
-  //     return chunk
-  //   })
+    while (true) {
+      const { done, value: chunk } = await reader.read()
+      if (done) break
+      firstResponseChunks.push(chunk)
+    }
 
-  //   const expectedChunks: GenericChunk[] = [
-  //     {
-  //       type: ChunkType.THINKING_START
-  //     },
-  //     {
-  //       type: ChunkType.THINKING_DELTA,
-  //       text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
-  //     },
-  //     {
-  //       type: ChunkType.THINKING_COMPLETE,
-  //       text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
-  //     },
-  //     {
-  //       type: ChunkType.TEXT_START
-  //     },
-  //     {
-  //       type: ChunkType.TEXT_DELTA,
-  //       text: '好的，我将为您打印用户的'
-  //     },
-  //     {
-  //       type: ChunkType.TEXT_DELTA,
-  //       text: '好的，我将为您打印用户的信息。\n'
-  //     },
-  //     {
-  //       type: ChunkType.TEXT_COMPLETE,
-  //       text: '好的，我将为您打印用户的信息。\n'
-  //     },
-  //     {
-  //       type: ChunkType.MCP_TOOL_CREATED
-  //     },
-  //     {
-  //       type: ChunkType.MCP_TOOL_PENDING,
-  //       responses: [
-  //         {
-  //           id: 'mcp-tool-1',
-  //           tool: {
-  //             id: 'mcp-tool-1',
-  //             serverId: 'mcp-server-1',
-  //             serverName: 'mcp-server-1',
-  //             name: 'mcp-tool-1',
-  //             inputSchema: {
-  //               type: 'object',
-  //               title: 'mcp-tool-1',
-  //               properties: {
-  //                 name: { type: 'string' },
-  //                 age: { type: 'number' }
-  //               },
-  //               description: 'print the name and age',
-  //               required: ['name', 'age']
-  //             }
-  //           },
-  //           arguments: {
-  //             name: 'xxx',
-  //             age: 20
-  //           },
-  //           status: 'pending'
-  //         }
-  //       ]
-  //     },
-  //     {
-  //       type: ChunkType.MCP_TOOL_IN_PROGRESS,
-  //       responses: [
-  //         {
-  //           id: 'mcp-tool-1',
-  //           tool: {
-  //             id: 'mcp-tool-1',
-  //             serverId: 'mcp-server-1',
-  //             serverName: 'mcp-server-1',
-  //             name: 'mcp-tool-1',
-  //             inputSchema: {
-  //               type: 'object',
-  //               title: 'mcp-tool-1',
-  //               properties: {
-  //                 name: { type: 'string' },
-  //                 age: { type: 'number' }
-  //               },
-  //               description: 'print the name and age',
-  //               required: ['name', 'age']
-  //             }
-  //           },
-  //           arguments: {
-  //             name: 'xxx',
-  //             age: 20
-  //           },
-  //           status: 'invoking'
-  //         }
-  //       ]
-  //     },
-  //     {
-  //       type: ChunkType.MCP_TOOL_COMPLETE,
-  //       responses: [
-  //         {
-  //           id: 'mcp-tool-1',
-  //           tool: {
-  //             id: 'mcp-tool-1',
-  //             serverId: 'mcp-server-1',
-  //             serverName: 'mcp-server-1',
-  //             name: 'mcp-tool-1',
-  //             inputSchema: {
-  //               type: 'object',
-  //               title: 'mcp-tool-1',
-  //               properties: {
-  //                 name: { type: 'string' },
-  //                 age: { type: 'number' }
-  //               },
-  //               description: 'print the name and age',
-  //               required: ['name', 'age']
-  //             }
-  //           },
-  //           arguments: {
-  //             name: 'xxx',
-  //             age: 20
-  //           },
-  //           status: 'done'
-  //         }
-  //       ]
-  //     }
-  //   ]
+    reader.releaseLock()
 
-  //   expect(filteredChunks).toEqual(expectedChunks)
-  // })
+    const filteredFirstResponseChunks = firstResponseChunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedFirstResponseChunks: GenericChunk[] = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '好的，我将为您打印用户的'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '好的，我将为您打印用户的信息。\n'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '好的，我将为您打印用户的信息。\n'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
+          }
+        }
+      }
+    ]
+
+    const expectedMcpResponseChunks: GenericChunk[] = [
+      {
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'pending'
+          }
+        ]
+      },
+      {
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            response: undefined,
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'invoking'
+          }
+        ]
+      },
+      {
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            response: {
+              content: [
+                {
+                  text: 'test',
+                  type: 'text'
+                }
+              ],
+              isError: false
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'done'
+          }
+        ]
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_CREATED
+      }
+    ]
+
+    expect(filteredFirstResponseChunks).toEqual(expectedFirstResponseChunks)
+    expect(mcpChunks).toEqual(expectedMcpResponseChunks)
+  })
 })
