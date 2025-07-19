@@ -25,6 +25,7 @@ import runtime from './runtime'
 import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
+import translate from './translate'
 import websearch from './websearch'
 
 const rootReducer = combineReducers({
@@ -49,7 +50,8 @@ const rootReducer = combineReducers({
   preprocess,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
-  inputTools: inputToolsReducer
+  inputTools: inputToolsReducer,
+  translate
 })
 
 const persistedReducer = persistReducer(
