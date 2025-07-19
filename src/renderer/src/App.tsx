@@ -26,7 +26,7 @@ import TranslatePage from './pages/translate/TranslatePage'
 const logger = loggerService.withContext('App.tsx')
 
 function App(): React.ReactElement {
-  logger.error('App initialized')
+  logger.info('App initialized')
 
   return (
     <Provider store={store}>

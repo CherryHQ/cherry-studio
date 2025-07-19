@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './AihubmixAPIClient'
@@ -10,6 +11,8 @@ import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 
+const logger = loggerService.withContext('ApiClientFactory')
+
 /**
  * Factory for creating ApiClient instances based on provider configuration
  * 根据提供者配置创建ApiClient实例的工厂
@@ -20,7 +23,7 @@ export class ApiClientFactory {
    * 为给定的提供者创建ApiClient实例
    */
   static create(provider: Provider): BaseApiClient {
-    console.log(`[ApiClientFactory] Creating ApiClient for provider:`, {
+    logger.debug(`Creating ApiClient for provider:`, {
       id: provider.id,
       type: provider.type
     })
@@ -29,17 +32,17 @@ export class ApiClientFactory {
 
     // 首先检查特殊的provider id
     if (provider.id === 'aihubmix') {
-      console.log(`[ApiClientFactory] Creating AihubmixAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating AihubmixAPIClient for provider: ${provider.id}`)
       instance = new AihubmixAPIClient(provider) as BaseApiClient
       return instance
     }
     if (provider.id === 'new-api') {
-      console.log(`[ApiClientFactory] Creating NewAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating NewAPIClient for provider: ${provider.id}`)
       instance = new NewAPIClient(provider) as BaseApiClient
       return instance
     }
     if (provider.id === 'ppio') {
-      console.log(`[ApiClientFactory] Creating PPIOAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating PPIOAPIClient for provider: ${provider.id}`)
       instance = new PPIOAPIClient(provider) as BaseApiClient
       return instance
     }
@@ -63,7 +66,7 @@ export class ApiClientFactory {
         instance = new AnthropicAPIClient(provider) as BaseApiClient
         break
       default:
-        console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)
+        logger.debug(`Using default OpenAIApiClient for provider: ${provider.id}`)
         instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
     }

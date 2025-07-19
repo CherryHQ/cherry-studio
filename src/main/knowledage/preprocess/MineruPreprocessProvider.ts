@@ -205,9 +205,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       // 步骤1: 获取上传URL
       const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
-      logger.info(`Got upload URLs for batch: ${batchId}`)
+      logger.debug(`Got upload URLs for batch: ${batchId}`)
 
-      console.log('batchId:', batchId, 'fileurls:', fileUrls)
+      logger.debug(`batchId: ${batchId}, fileurls: ${fileUrls}`)
       // 步骤2: 上传文件到获取的URL
       await this.putFileToUrl(file.path, fileUrls[0])
       logger.info(`File uploaded successfully: ${file.path}`)

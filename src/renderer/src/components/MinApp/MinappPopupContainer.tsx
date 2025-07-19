@@ -10,6 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
@@ -30,6 +31,8 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import WebviewContainer from './WebviewContainer'
+
+const logger = loggerService.withContext('MinappPopupContainer')
 
 interface AppExtraInfo {
   canPinned: boolean
@@ -296,7 +299,7 @@ const MinappPopupContainer: React.FC = () => {
   const handleWebviewNavigate = (appid: string, url: string) => {
     // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
-      console.log('URL changed:', url)
+      logger.debug('URL changed:', url)
       setCurrentUrl(url)
     }
   }
