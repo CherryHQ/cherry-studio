@@ -83,7 +83,7 @@ const LaunchpadPage: FC = () => {
     return (
       <AppIcon key={app.id} onClick={() => openMinappKeepAlive(app)}>
         <IconContainer>
-          <MinAppIcon size={48} app={app} style={{ borderRadius: 12 }} />
+          <MinAppIcon size={56} app={app} style={{ borderRadius: 14 }} />
           {isOpened && (
             <StyledIndicator>
               <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
@@ -188,14 +188,14 @@ const IconContainer = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
 `
 
 const IconWrapper = styled.div<{ bgColor: string }>`
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
   background: ${(props) => props.bgColor};
   display: flex;
   justify-content: center;
@@ -204,8 +204,8 @@ const IconWrapper = styled.div<{ bgColor: string }>`
 
   .icon {
     color: white;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
   }
 `
 
