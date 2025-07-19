@@ -1,6 +1,5 @@
 import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
-import PinnedApps from '@renderer/components/app/PinnedApps'
-import SidebarOpenedMinappTabs from '@renderer/components/app/SidebarOpenedMinappTabs'
+import { SidebarOpenedMinappTabs, SidebarPinnedApps } from '@renderer/components/app/PinnedMinapps'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
@@ -109,7 +108,7 @@ const Sidebar: FC = () => {
   return (
     <SidebarContainer>
       <SidebarOpenedMinappTabs />
-      <PinnedApps />
+      <SidebarPinnedApps />
     </SidebarContainer>
   )
 }
