@@ -1,12 +1,12 @@
 # 如何使用日志 LoggerService
-  
+
 这是关于如何使用日志的开发者文档。
 
 CherryStudio使用统一的日志服务来打印和记录日志，**若无特殊原因，请勿使用`console.xxx`来打印日志**
 
 以下是详细说明
 
-  
+
 ## 在`main`进程中使用
 
 ### 引入
@@ -81,6 +81,7 @@ loggerService.initWindowSource('windowName')
 - 未设置`windowName`会报错，`logger`将不起作用
 - `windowName`只能设置一次，重复设置将不生效
 - `windowName`不会在`devTool`的`console`中打印出来，但是会在`main`进程的终端和文件日志中记录
+- `initWindowSource`返回的是LoggerService的实例，因此可以做链式调用
 
 ### 记录级别
 
@@ -118,6 +119,21 @@ logger.getLogToMainLevel()
 
 ```typescript
 logger.info('message', { logToMain: true })
+```
+
+## 关于`worker`线程
+
+- 现在不支持`main`进程中的`worker`的日志。
+- 支持`renderer`中起的`worker`的日志，但是现在该日志不会发送给`main`进行记录。
+
+### 如何在`renderer`的`worker`中使用日志
+
+由于`worker`线程是独立的，在其中使用LoggerService，等同于在一个新`renderer`窗口中使用。因此也必须先`initWindowSource`。
+
+如果`worker`比较简单，只有一个文件，也可以使用链式语法直接使用：
+
+```typescript
+const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 ```
 
 ## 日志级别的使用规范

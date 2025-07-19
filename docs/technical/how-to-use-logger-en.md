@@ -80,6 +80,7 @@ As a rule, we will set this in the `window`'s `entryPoint.tsx`. This ensures tha
 - An error will be thrown if `windowName` is not set, and the `logger` will not work.
 - `windowName` can only be set once; subsequent attempts to set it will have no effect.
 - `windowName` will not be printed in the `devTool`'s `console`, but it will be recorded in the `main` process terminal and the file log.
+- `initWindowSource` returns the LoggerService instance, allowing for method chaining
 
 ### Log Levels
 
@@ -117,6 +118,21 @@ By adding `{ logToMain: true }` at the end of the log call, you can force a sing
 
 ```typescript
 logger.info('message', { logToMain: true })
+```
+
+## About `worker` Threads
+
+- Currently, logging is not supported for workers in the `main` process.
+- Logging is supported for workers started in the `renderer` process, but currently these logs are not sent to `main` for recording.
+
+### How to Use Logging in `renderer` Workers
+
+Since worker threads are independent, using LoggerService in them is equivalent to using it in a new `renderer` window. Therefore, you must first call `initWindowSource`.
+
+If the worker is relatively simple (just one file), you can also use method chaining directly:
+
+```typescript
+const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 ```
 
 ## Log Level Usage Guidelines

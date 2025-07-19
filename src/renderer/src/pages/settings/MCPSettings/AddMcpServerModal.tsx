@@ -408,6 +408,15 @@ const parseAndExtractServer = (
     return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
   }
 
+  // Ensure tags is string[]
+  if (
+    serverToAdd.tags &&
+    (!Array.isArray(serverToAdd.tags) || !serverToAdd.tags.every((tag) => typeof tag === 'string'))
+  ) {
+    logger.error('Tags must be an array of strings:', serverToAdd.tags)
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+  }
+
   return { serverToAdd, error: null }
 }
 
