@@ -437,6 +437,7 @@
       "more": "More",
       "name": "Name",
       "no_results": "No results",
+      "open": "Open",
       "paste": "Paste",
       "prompt": "Prompt",
       "provider": "Provider",
@@ -460,7 +461,8 @@
       "swap": "Swap",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "i_know": "I know"
     },
     "docs": {
       "title": "Docs"
@@ -812,6 +814,9 @@
       "title": "MinApp"
     },
     "miniwindow": {
+      "alert": {
+        "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      },
       "clipboard": {
         "empty": "Clipboard is empty"
       },
@@ -2116,7 +2121,7 @@
         "api.key.new_key.placeholder": "Enter one or more keys",
         "api.url.preview": "Preview: {{url}}",
         "api.url.reset": "Reset",
-        "api.url.tip": "",
+        "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
         "api_host": "API Host",
         "api_key": "API Key",
         "api_key.tip": "Multiple keys separated by commas or spaces",
@@ -2308,7 +2313,7 @@
           },
           "provider": "OCR Provider",
           "provider_placeholder": "Choose an OCR provider",
-          "title": "OCR"
+          "title": "OCR Settings"
         },
         "preprocess": {
           "provider": "Pre Process Provider",
@@ -2557,7 +2562,8 @@
       "please_select_embedding_model": "Please select an embedding model",
       "select_embedding_model_placeholder": "Select Embedding Model",
       "embedding_dimensions": "Embedding Dimensions",
-      "stored_memories": "Stored Memories"
+      "stored_memories": "Stored Memories",
+      "global_memory_description": "To use memory features, please enable global memory in assistant settings."
     }
   }
 }
