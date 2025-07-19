@@ -1,0 +1,44 @@
+id: x-ai/grok-beta
+canonical_slug: x-ai/grok-beta
+hugging_face_id: ''
+name: 'xAI: Grok Beta'
+type: chat
+created: 1729382400
+description: |-
+  Grok Beta is xAI's experimental language model with state-of-the-art reasoning capabilities, best for complex and multi-step use cases.
+
+  It is the successor of [Grok 2](https://x.ai/blog/grok-2) with enhanced context length.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Grok
+  instruct_type: null
+pricing:
+  prompt: '0.000005'
+  completion: '0.000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: x-ai

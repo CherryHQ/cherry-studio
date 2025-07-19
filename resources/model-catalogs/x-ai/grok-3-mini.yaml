@@ -1,0 +1,42 @@
+id: x-ai/grok-3-mini
+canonical_slug: x-ai/grok-3-mini
+hugging_face_id: ''
+name: 'xAI: Grok 3 Mini'
+type: chat
+created: 1749583245
+description: A lightweight model that thinks before responding. Fast, smart, and great for logic-based tasks that do not require deep domain knowledge. The raw thinking traces are accessible.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Grok
+  instruct_type: null
+pricing:
+  prompt: '0.0000003'
+  completion: '0.0000005'
+  input_cache_read: '0.000000075'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - structured_outputs
+  - stop
+  - seed
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: x-ai

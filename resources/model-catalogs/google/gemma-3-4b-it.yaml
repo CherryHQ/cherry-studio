@@ -1,0 +1,41 @@
+id: google/gemma-3-4b-it
+canonical_slug: google/gemma-3-4b-it
+hugging_face_id: google/gemma-3-4b-it
+name: 'Google: Gemma 3 4B'
+type: chat
+created: 1741905510
+description: Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities, including structured outputs and function calling.
+context_length: 131072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: gemma
+pricing:
+  prompt: '0.00000002'
+  completion: '0.00000004'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - response_format
+  - top_k
+  - seed
+  - min_p
+model_provider: google

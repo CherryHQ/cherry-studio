@@ -1,0 +1,42 @@
+id: eva-unit-01/eva-qwen-2.5-72b
+canonical_slug: eva-unit-01/eva-qwen-2.5-72b
+hugging_face_id: EVA-UNIT-01/EVA-Qwen2.5-72B-v0.1
+name: EVA Qwen2.5 72B
+type: chat
+created: 1732210606
+description: |-
+  EVA Qwen2.5 72B is a roleplay and storywriting specialist model. It's a full-parameter finetune of Qwen2.5-72B on mixture of synthetic and natural data.
+
+  It uses Celeste 70B 0.1 data mixture, greatly expanding it to improve versatility, creativity and "flavor" of the resulting model.
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: chatml
+pricing:
+  prompt: '0.000004'
+  completion: '0.000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: eva-unit-01

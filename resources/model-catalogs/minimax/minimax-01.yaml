@@ -1,0 +1,38 @@
+id: minimax/minimax-01
+canonical_slug: minimax/minimax-01
+hugging_face_id: MiniMaxAI/MiniMax-Text-01
+name: 'MiniMax: MiniMax-01'
+type: chat
+created: 1736915462
+description: |-
+  MiniMax-01 is a combines MiniMax-Text-01 for text generation and MiniMax-VL-01 for image understanding. It has 456 billion parameters, with 45.9 billion parameters activated per inference, and can handle a context of up to 4 million tokens.
+
+  The text model adopts a hybrid architecture that combines Lightning Attention, Softmax Attention, and Mixture-of-Experts (MoE). The image model adopts the “ViT-MLP-LLM” framework and is trained on top of the text model.
+
+  To read more about the release, see: https://www.minimaxi.com/en/news/minimax-01-series-2
+context_length: 1000192
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000002'
+  completion: '0.0000011'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+model_provider: minimax

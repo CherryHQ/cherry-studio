@@ -1,0 +1,42 @@
+id: google/gemini-2.0-flash-lite-001
+canonical_slug: google/gemini-2.0-flash-lite-001
+hugging_face_id: ''
+name: 'Google: Gemini 2.0 Flash Lite'
+type: chat
+created: 1740506212
+description: Gemini 2.0 Flash Lite offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5), all at extremely economical token prices.
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+    - file
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.000000075'
+  completion: '0.0000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

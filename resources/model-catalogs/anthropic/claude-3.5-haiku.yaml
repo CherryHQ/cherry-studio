@@ -1,0 +1,42 @@
+id: anthropic/claude-3.5-haiku
+canonical_slug: anthropic/claude-3-5-haiku
+hugging_face_id: ''
+name: 'Anthropic: Claude 3.5 Haiku'
+type: chat
+created: 1730678400
+description: |-
+  Claude 3.5 Haiku features offers enhanced capabilities in speed, coding accuracy, and tool use. Engineered to excel in real-time applications, it delivers quick response times that are essential for dynamic tasks such as chat interactions and immediate coding suggestions.
+
+  This makes it highly suitable for environments that demand both speed and precision, such as software development, customer service bots, and data management systems.
+
+  This model is currently pointing to [Claude 3.5 Haiku (2024-10-22)](/anthropic/claude-3-5-haiku-20241022).
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.0000008'
+  completion: '0.000004'
+  input_cache_read: '0.00000008'
+  input_cache_write: '0.000001'
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: anthropic

@@ -1,0 +1,29 @@
+id: qwen/text-embedding-v4
+canonical_slug: qwen/text-embedding-v4
+type: embedding
+hugging_face_id: null
+name: 'Qwen: Text Embedding v4'
+description: |-
+  The Qwen3 Embedding model series is the latest proprietary model of the Qwen family, specifically designed for text embedding and ranking tasks. Building upon the dense foundational models of the Qwen3 series, it provides a comprehensive range of text embeddings and reranking models in various sizes (0.6B, 4B, and 8B). This series inherits the exceptional multilingual capabilities, long-text understanding, and reasoning skills of its foundational model. The Qwen3 Embedding series represents significant advancements in multiple text embedding and ranking tasks, including text retrieval, code retrieval, text classification, text clustering, and bitext mining.
+context_length: 8192
+dimensions:
+  - 64
+  - 128
+  - 256
+  - 512
+  - 768
+  - 1024
+  - 1536
+  - 2048
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+pricing:
+  prompt: '0.05'
+  unit: 1000000
+  currency: CNY
+model_provider: qwen

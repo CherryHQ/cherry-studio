@@ -1,0 +1,48 @@
+id: google/gemini-flash-1.5
+canonical_slug: google/gemini-flash-1.5
+hugging_face_id: ''
+name: 'Google: Gemini 1.5 Flash '
+type: chat
+created: 1715644800
+description: |-
+  Gemini 1.5 Flash is a foundation model that performs well at a variety of multimodal tasks such as visual understanding, classification, summarization, and creating content from image, audio and video. It's adept at processing visual and text inputs such as photographs, documents, infographics, and screenshots.
+
+  Gemini 1.5 Flash is designed for high-volume, high-frequency tasks where cost and latency matter. On most common tasks, Flash achieves comparable quality to other Gemini Pro models at a significantly reduced cost. Flash is well-suited for applications like chat assistants and on-demand content generation where speed and scale matter.
+
+  Usage of Gemini is subject to Google's [Gemini Terms of Use](https://ai.google.dev/terms).
+
+  #multimodal
+context_length: 1000000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.000000075'
+  completion: '0.0000003'
+  input_cache_read: '0.00000001875'
+  input_cache_write: '0.0000001583'
+  request: '0'
+  image: '0.00004'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - tools
+  - tool_choice
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: google

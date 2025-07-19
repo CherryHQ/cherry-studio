@@ -1,0 +1,24 @@
+id: bytedance/doubao-embedding-vision-241215
+canonical_slug: bytedance/doubao-embedding-vision-241215
+type: embedding
+hugging_face_id: null
+name: 'ByteDance: Doubao Embedding Vision'
+description: |-
+  Doubao-embedding-vision，全新升级图文多模态向量化模型，主要面向图文多模向量检索的使用场景，支持图片输入及中、英双语文本输入，最长 8K 上下文长度。
+context_length: 8000
+dimensions:
+  - 3072
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Doubao
+pricing:
+  prompt: '0.7'
+  prompt_image: '1.8'
+  unit: 1000000
+  currency: CNY
+model_provider: bytedance
