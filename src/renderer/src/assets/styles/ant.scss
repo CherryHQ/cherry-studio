@@ -25,7 +25,18 @@
 }
 
 .minapp-drawer {
-  max-width: calc(100vw - var(--sidebar-width));
+  [navbar-position='left'] & {
+    max-width: calc(100vw - var(--sidebar-width));
+    .ant-drawer-header {
+      width: calc(100vw - var(--sidebar-width));
+    }
+  }
+  [navbar-position='top'] & {
+    max-width: 100vw;
+    .ant-drawer-header {
+      width: 100vw;
+    }
+  }
   .ant-drawer-content-wrapper {
     box-shadow: none;
   }
@@ -33,7 +44,6 @@
     position: absolute;
     -webkit-app-region: drag;
     min-height: calc(var(--navbar-height) + 0.5px);
-    width: calc(100vw - var(--sidebar-width));
     margin-top: -0.5px;
     border-bottom: none;
   }

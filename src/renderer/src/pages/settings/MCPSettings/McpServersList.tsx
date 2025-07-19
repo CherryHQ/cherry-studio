@@ -16,6 +16,7 @@ import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
 import BuiltinMCPServersSection from './BuiltinMCPServersSection'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
+import InstallNpxUv from './InstallNpxUv'
 import McpResourcesSection from './McpResourcesSection'
 import SyncServersPopup from './SyncServersPopup'
 
@@ -118,6 +119,7 @@ const McpServersList: FC = () => {
           <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
+          <InstallNpxUv mini />
           <Dropdown
             menu={{
               items: [

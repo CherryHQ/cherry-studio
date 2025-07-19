@@ -18,7 +18,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
@@ -163,6 +163,8 @@ const MinappPopupContainer: React.FC = () => {
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
   const { minappsOpenLinkExternal } = useSettings()
+
+  const { isLeftNavbar } = useNavbarPosition()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -495,7 +497,7 @@ const MinappPopupContainer: React.FC = () => {
       maskClosable={false}
       closeIcon={null}
       style={{
-        marginLeft: 'var(--sidebar-width)',
+        marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
@@ -519,7 +521,6 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;
@@ -527,6 +528,13 @@ const TitleContainer = styled.div`
   right: 0;
   bottom: 0;
   background-color: transparent;
+  [navbar-position='left'] & {
+    padding-left: ${isMac ? '20px' : '10px'};
+  }
+  [navbar-position='top'] & {
+    padding-left: ${isMac ? '80px' : '10px'};
+    border-bottom: 0.5px solid var(--color-border);
+  }
 `
 
 const TitleText = styled.div`

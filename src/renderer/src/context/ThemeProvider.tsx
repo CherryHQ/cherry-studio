@@ -1,5 +1,5 @@
 import { isMac, isWin } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -28,6 +28,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
   const { initUserTheme } = useUserTheme()
+  const { navbarPosition } = useNavbarPosition()
 
   const toggleTheme = () => {
     const nextTheme = {
@@ -42,6 +43,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
     document.body.setAttribute('theme-mode', actualTheme)
+    document.body.setAttribute('navbar-position', navbarPosition)
 
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
@@ -56,7 +58,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
-  }, [actualTheme, initUserTheme, setSettedTheme, settedTheme])
+  }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
 
   useEffect(() => {
     window.api.setTheme(settedTheme)

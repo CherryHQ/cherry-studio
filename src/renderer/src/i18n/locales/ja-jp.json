@@ -1,5 +1,18 @@
 {
   "translation": {
+    "title": {
+      "home": "ホーム",
+      "agents": "エージェント",
+      "paintings": "ペインティング",
+      "translate": "翻訳",
+      "files": "ファイル",
+      "knowledge": "ナレッジベース",
+      "apps": "アプリ",
+      "mcp-servers": "MCP サーバー",
+      "settings": "設定",
+      "launchpad": "ランチパッド",
+      "memories": "メモリ"
+    },
     "agents": {
       "add.button": "アシスタントに追加",
       "add.knowledge_base": "ナレッジベース",
@@ -1712,6 +1725,10 @@
       "display.title": "表示設定",
       "display.topic.title": "トピック設定",
       "display.zoom.title": "ズーム設定",
+      "display.navbar.title": "ナビゲーションバー設定",
+      "display.navbar.position": "ナビゲーションバー位置",
+      "display.navbar.position.left": "左",
+      "display.navbar.position.top": "上",
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
       "general.auto_check_update.title": "自動更新",

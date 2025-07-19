@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
@@ -15,6 +16,7 @@ import React, { FC, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
+import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -33,6 +35,7 @@ const Chat: FC<Props> = (props) => {
   const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
+  const { isTopNavbar, isLeftNavbar } = useNavbarPosition()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -42,8 +45,8 @@ const Chat: FC<Props> = (props) => {
     const showRightTopics = showTopics && topicPosition === 'right'
     const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
     const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
-  }, [showAssistants, showTopics, topicPosition])
+    return `calc(100vw - ${isLeftNavbar ? 'var(--sidebar-width)' : '0'} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
+  }, [isLeftNavbar, showAssistants, showTopics, topicPosition])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -92,61 +95,93 @@ const Chat: FC<Props> = (props) => {
   const firstUpdateOrNoFirstUpdateHandler = debounce(() => {
     contentSearchRef.current?.silentSearch()
   }, 10)
+
   const messagesComponentUpdateHandler = () => {
     if (firstUpdateCompleted) {
       firstUpdateOrNoFirstUpdateHandler()
     }
   }
+
   const messagesComponentFirstUpdateHandler = () => {
     setTimeout(() => (firstUpdateCompleted = true), 300)
     firstUpdateOrNoFirstUpdateHandler()
   }
 
+  const mainHeight = isTopNavbar
+    ? 'calc(100vh - var(--navbar-height) - var(--navbar-height))'
+    : 'calc(100vh - var(--navbar-height))'
+
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
-        <Messages
-          key={props.activeTopic.id}
-          assistant={assistant}
-          topic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
-          onComponentUpdate={messagesComponentUpdateHandler}
-          onFirstUpdate={messagesComponentFirstUpdateHandler}
-        />
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={mainRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={filterIncludeUser}
-          onIncludeUserChange={userOutlinedItemClickHandler}
-        />
-        <QuickPanelProvider>
-          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-          {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
-        </QuickPanelProvider>
-      </Main>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
+      {isTopNavbar && (
+        <ChatNavbar
+          activeAssistant={props.assistant}
           activeTopic={props.activeTopic}
-          setActiveAssistant={props.setActiveAssistant}
           setActiveTopic={props.setActiveTopic}
-          position="right"
+          setActiveAssistant={props.setActiveAssistant}
+          position="left"
         />
       )}
+
+      <HStack>
+        <Main
+          ref={mainRef}
+          id="chat-main"
+          vertical
+          flex={1}
+          justify="space-between"
+          style={{ maxWidth, height: mainHeight }}>
+          <Messages
+            key={props.activeTopic.id}
+            assistant={assistant}
+            topic={props.activeTopic}
+            setActiveTopic={props.setActiveTopic}
+            onComponentUpdate={messagesComponentUpdateHandler}
+            onFirstUpdate={messagesComponentFirstUpdateHandler}
+          />
+          <ContentSearch
+            ref={contentSearchRef}
+            searchTarget={mainRef as React.RefObject<HTMLElement>}
+            filter={contentSearchFilter}
+            includeUser={filterIncludeUser}
+            onIncludeUserChange={userOutlinedItemClickHandler}
+          />
+          <QuickPanelProvider>
+            <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+            {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
+          </QuickPanelProvider>
+        </Main>
+        {topicPosition === 'right' && showTopics && (
+          <Tabs
+            activeAssistant={assistant}
+            activeTopic={props.activeTopic}
+            setActiveAssistant={props.setActiveAssistant}
+            setActiveTopic={props.setActiveTopic}
+            position="right"
+          />
+        )}
+      </HStack>
     </Container>
   )
 }
 
 const Container = styled.div`
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   height: 100%;
   flex: 1;
+  [navbar-position='top'] & {
+    background-color: var(--color-background);
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+    overflow: hidden;
+  }
 `
 
 const Main = styled(Flex)`
-  height: calc(100vh - var(--navbar-height));
+  [navbar-position='left'] & {
+    height: calc(100vh - var(--navbar-height));
+  }
   transform: translateZ(0);
   position: relative;
 `

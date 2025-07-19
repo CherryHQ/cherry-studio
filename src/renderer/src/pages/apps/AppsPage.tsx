@@ -1,22 +1,24 @@
 import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
+import PinnedApps from '@renderer/components/app/PinnedApps'
+import SidebarOpenedMinappTabs from '@renderer/components/app/SidebarOpenedMinappTabs'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { Button, Input } from 'antd'
-import { Search, SettingsIcon, X } from 'lucide-react'
-import React, { FC, useEffect, useState } from 'react'
+import { Search, SettingsIcon } from 'lucide-react'
+import React, { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import styled from 'styled-components'
 
 import App from './App'
-import MiniAppSettings from './MiniappSettings/MiniAppSettings'
+import MinappSettingsPopup from './MiniappSettings/MinappSettingsPopup'
 import NewAppButton from './NewAppButton'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { minapps } = useMinapps()
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const location = useLocation()
+  const { isTopNavbar } = useNavbarPosition()
 
   const filteredApps = search
     ? minapps.filter(
@@ -34,10 +36,6 @@ const AppsPage: FC = () => {
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
   }
-
-  useEffect(() => {
-    setIsSettingsOpen(false)
-  }, [location.key])
 
   return (
     <Container onContextMenu={handleContextMenu}>
@@ -60,28 +58,59 @@ const AppsPage: FC = () => {
             suffix={<Search size={18} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            disabled={isSettingsOpen}
           />
           <Button
             type="text"
             className="nodrag"
-            icon={isSettingsOpen ? <X size={18} /> : <SettingsIcon size={18} color="var(--color-text-2)" />}
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            icon={<SettingsIcon size={18} color="var(--color-text-2)" />}
+            onClick={MinappSettingsPopup.show}
           />
         </NavbarMain>
       </Navbar>
       <ContentContainer id="content-container">
-        {isSettingsOpen && <MiniAppSettings />}
-        {!isSettingsOpen && (
-          <AppsContainer style={{ height: containerHeight }}>
-            {filteredApps.map((app) => (
-              <App key={app.id} app={app} />
-            ))}
-            <NewAppButton />
-          </AppsContainer>
-        )}
+        <MainContainer>
+          {isTopNavbar && <Sidebar />}
+          <RightContainer>
+            {isTopNavbar && (
+              <HeaderContainer>
+                <Input
+                  placeholder={t('common.search')}
+                  className="nodrag"
+                  style={{ width: '30%', borderRadius: 15 }}
+                  variant="filled"
+                  suffix={<Search size={18} />}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <Button
+                  type="text"
+                  className="nodrag"
+                  icon={<SettingsIcon size={18} color="var(--color-text-2)" />}
+                  onClick={() => MinappSettingsPopup.show()}
+                />
+              </HeaderContainer>
+            )}
+            <AppsContainerWrapper>
+              <AppsContainer style={{ height: containerHeight }}>
+                {filteredApps.map((app) => (
+                  <App key={app.id} app={app} />
+                ))}
+                <NewAppButton />
+              </AppsContainer>
+            </AppsContainerWrapper>
+          </RightContainer>
+        </MainContainer>
       </ContentContainer>
     </Container>
+  )
+}
+
+const Sidebar: FC = () => {
+  return (
+    <SidebarContainer>
+      <SidebarOpenedMinappTabs />
+      <PinnedApps />
+    </SidebarContainer>
   )
 }
 
@@ -98,8 +127,41 @@ const ContentContainer = styled.div`
   flex-direction: row;
   justify-content: center;
   height: 100%;
-  overflow-y: auto;
-  padding: 50px;
+`
+
+const HeaderContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  height: 60px;
+  width: 100%;
+  gap: 10px;
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  height: calc(100vh - var(--navbar-height));
+`
+
+const RightContainer = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  align-items: center;
+  height: calc(100vh - var(--navbar-height));
+`
+
+const AppsContainerWrapper = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  justify-content: center;
+  padding: 20px 0;
+  width: 100%;
 `
 
 const AppsContainer = styled.div`
@@ -110,6 +172,17 @@ const AppsContainer = styled.div`
   grid-template-columns: repeat(auto-fill, 90px);
   gap: 25px;
   justify-content: center;
+`
+
+const SidebarContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--sidebar-width);
+  height: calc(100vh - var(--navbar-height));
+  gap: 10px;
+  overflow: hidden;
 `
 
 export default AppsPage

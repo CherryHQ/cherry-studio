@@ -24,7 +24,7 @@ import store from '@renderer/store'
 import { RootState } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
-import { removeSpecialCharactersForFileName } from '@renderer/utils'
+import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -48,13 +48,14 @@ interface Props {
   assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  position: 'left' | 'right'
 }
 
-const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
+const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
@@ -443,6 +444,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     return assistant.topics
   }, [assistant.topics, pinTopicsToTop])
 
+  const singlealone = topicPosition === 'right' && position === 'right'
+
   return (
     <DraggableList
       className="topics-tab"
@@ -466,7 +469,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
-              className={isActive ? 'active' : ''}
+              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
               onClick={() => onSwitchTopic(topic)}
               style={{ borderRadius }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
@@ -548,11 +551,22 @@ const TopicListItem = styled.div`
   }
   &.active {
     background-color: var(--color-list-item);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     .menu {
       opacity: 1;
       &:hover {
         color: var(--color-text-2);
       }
+    }
+  }
+  &.singlealone {
+    border-radius: 0 !important;
+    &:hover {
+      background-color: var(--color-background-soft);
+    }
+    &.active {
+      border-left: 2px solid var(--color-primary);
+      box-shadow: none;
     }
   }
 `

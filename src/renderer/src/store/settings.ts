@@ -198,6 +198,8 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
+  // UI
+  navbarPosition: 'left' | 'top'
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -364,7 +366,8 @@ export const initialState: SettingsState = {
     syncInterval: 0,
     maxBackups: 0,
     skipBackupFile: false
-  }
+  },
+  navbarPosition: 'left'
 }
 
 const settingsSlice = createSlice({
@@ -756,6 +759,9 @@ const settingsSlice = createSlice({
     },
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
     }
   }
 })
@@ -874,7 +880,8 @@ export const {
   setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider,
   setS3,
-  setS3Partial
+  setS3Partial,
+  setNavbarPosition
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

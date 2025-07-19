@@ -1,5 +1,18 @@
 {
   "translation": {
+    "title": {
+      "home": "首页",
+      "agents": "智能体",
+      "paintings": "绘画",
+      "translate": "翻译",
+      "files": "文件",
+      "knowledge": "知识库",
+      "apps": "小程序",
+      "mcp-servers": "MCP 服务器",
+      "settings": "设置",
+      "launchpad": "启动台",
+      "memories": "记忆"
+    },
     "agents": {
       "add.button": "添加到助手",
       "add.knowledge_base": "知识库",
@@ -1712,6 +1725,10 @@
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
       "display.zoom.title": "缩放设置",
+      "display.navbar.title": "导航栏设置",
+      "display.navbar.position": "导航栏位置",
+      "display.navbar.position.left": "左侧",
+      "display.navbar.position.top": "顶部",
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.auto_check_update.title": "自动更新",

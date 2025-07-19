@@ -44,8 +44,8 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
-  --color-list-item: #252525;
-  --color-list-item-hover: #1e1e1e;
+  --color-list-item: rgba(255, 255, 255, 0.1);
+  --color-list-item-hover: rgba(255, 255, 255, 0.05);
 
   --modal-background: #111111;
 
@@ -56,7 +56,7 @@
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
 
-  --navbar-height: 40px;
+  --navbar-height: 45px;
   --sidebar-width: 50px;
   --status-bar-height: 40px;
   --input-bar-height: 100px;
@@ -71,7 +71,7 @@
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-black);
 
-  --list-item-border-radius: 20px;
+  --list-item-border-radius: 10px;
 
   --color-status-success: #52c41a;
   --color-status-error: #ff4d4f;
@@ -98,7 +98,7 @@
   --color-background: var(--color-white);
   --color-background-soft: var(--color-white-soft);
   --color-background-mute: var(--color-white-mute);
-  --color-background-opacity: rgba(235, 235, 235, 0.7);
+  --color-background-opacity: rgba(243, 243, 243, 1);
   --inner-glow-opacity: 0.1;
 
   --color-primary: #00b96b;
@@ -124,8 +124,8 @@
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
 
-  --color-list-item: #eee;
-  --color-list-item-hover: #f5f5f5;
+  --color-list-item: #fff;
+  --color-list-item-hover: #fafafa;
 
   --modal-background: var(--color-white);
 
@@ -140,4 +140,19 @@
   --chat-background-user: rgba(0, 0, 0, 0.045);
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-text);
+}
+
+[navbar-position='left'] {
+  --navbar-height: 40px;
+  --list-item-border-radius: 20px;
+}
+
+[navbar-position='left'][theme-mode='light'] {
+  --color-list-item: #eee;
+  --color-list-item-hover: #f5f5f5;
+}
+
+[navbar-position='left'][theme-mode='dark'] {
+  --color-list-item: #252525;
+  --color-list-item-hover: #1e1e1e;
 }

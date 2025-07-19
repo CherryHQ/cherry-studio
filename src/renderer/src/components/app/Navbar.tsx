@@ -1,6 +1,7 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
@@ -9,6 +10,11 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
+  const { isTopNavbar } = useNavbarPosition()
+
+  if (isTopNavbar) {
+    return null
+  }
 
   return (
     <NavbarContainer {...props} style={{ backgroundColor }}>
@@ -41,6 +47,10 @@ export const NavbarMain: FC<Props> = ({ children, ...props }) => {
       {children}
     </NavbarMainContainer>
   )
+}
+
+export const NavbarHeader: FC<Props> = ({ children, ...props }) => {
+  return <NavbarHeaderContent {...props}>{children}</NavbarHeaderContent>
 }
 
 const NavbarContainer = styled.div`
@@ -92,4 +102,15 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   font-weight: bold;
   color: var(--color-text-1);
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
+`
+
+const NavbarHeaderContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  min-height: var(--navbar-height);
+  max-height: var(--navbar-height);
 `

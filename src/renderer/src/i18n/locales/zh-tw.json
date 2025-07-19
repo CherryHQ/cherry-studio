@@ -1,5 +1,18 @@
 {
   "translation": {
+    "title": {
+      "home": "主頁",
+      "agents": "智能體",
+      "paintings": "繪畫",
+      "translate": "翻譯",
+      "files": "文件",
+      "knowledge": "知識庫",
+      "apps": "小程序",
+      "mcp-servers": "MCP 伺服器",
+      "settings": "設定",
+      "launchpad": "啟動台",
+      "memories": "記憶"
+    },
     "agents": {
       "add.button": "新增到助手",
       "add.knowledge_base": "知識庫",
@@ -1712,6 +1725,10 @@
       "display.title": "顯示設定",
       "display.topic.title": "話題設定",
       "display.zoom.title": "縮放設定",
+      "display.navbar.title": "導航欄設定",
+      "display.navbar.position": "導航欄位置",
+      "display.navbar.position.left": "左側",
+      "display.navbar.position.top": "頂部",
       "font_size.title": "訊息字型大小",
       "general": "一般設定",
       "general.auto_check_update.title": "自動更新",

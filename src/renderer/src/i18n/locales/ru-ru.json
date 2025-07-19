@@ -1,5 +1,18 @@
 {
   "translation": {
+    "title": {
+      "home": "Главная",
+      "agents": "Агенты",
+      "paintings": "Рисунки",
+      "translate": "Перевод",
+      "files": "Файлы",
+      "knowledge": "База знаний",
+      "apps": "Приложения",
+      "mcp-servers": "MCP серверы",
+      "settings": "Настройки",
+      "launchpad": "Запуск",
+      "memories": "Память"
+    },
     "agents": {
       "add.button": "Добавить в ассистента",
       "add.knowledge_base": "База знаний",
@@ -1712,6 +1725,10 @@
       "display.title": "Настройки отображения",
       "display.topic.title": "Настройки топиков",
       "display.zoom.title": "Настройки масштаба",
+      "display.navbar.title": "Настройки навигации",
+      "display.navbar.position": "Положение навигации",
+      "display.navbar.position.left": "Слева",
+      "display.navbar.position.top": "Сверху",
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
       "general.auto_check_update.title": "Автоматическое обновление",

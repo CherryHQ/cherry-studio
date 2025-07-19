@@ -1,5 +1,18 @@
 {
   "translation": {
+    "title": {
+      "home": "Home",
+      "agents": "Agents",
+      "paintings": "Paintings",
+      "translate": "Translate",
+      "files": "Files",
+      "knowledge": "Knowledge Base",
+      "apps": "Apps",
+      "mcp-servers": "MCP Servers",
+      "settings": "Settings",
+      "launchpad": "Launchpad",
+      "memories": "Memories"
+    },
     "agents": {
       "add.button": "Add to Assistant",
       "add.knowledge_base": "Knowledge Base",
@@ -1712,6 +1725,10 @@
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
       "display.zoom.title": "Zoom Settings",
+      "display.navbar.title": "Navbar Settings",
+      "display.navbar.position": "Navbar Position",
+      "display.navbar.position.left": "Left",
+      "display.navbar.position.top": "Top",
       "font_size.title": "Message font size",
       "general": "General Settings",
       "general.auto_check_update.title": "Auto Update",
