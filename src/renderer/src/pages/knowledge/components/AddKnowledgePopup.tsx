@@ -2,6 +2,7 @@ import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { HStack } from '@renderer/components/Layout'
+import { modelSelectOptions } from '@renderer/components/SelectOptions'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -13,7 +14,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
-import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
+import { modelSelectFilter } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
 import { find } from 'lodash'
@@ -66,11 +67,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const embeddingSelectOptions = useMemo(() => {
-    return getModelSelectOptions(providers, isEmbeddingModel)
+    return modelSelectOptions(providers, isEmbeddingModel)
   }, [providers])
 
   const rerankSelectOptions = useMemo(() => {
-    return getModelSelectOptions(providers, isRerankModel)
+    return modelSelectOptions(providers, isRerankModel)
   }, [providers])
 
   const preprocessOrOcrSelectOptions = useMemo(() => {

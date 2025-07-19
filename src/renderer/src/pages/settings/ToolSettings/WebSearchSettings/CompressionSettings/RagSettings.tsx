@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
+import { modelSelectOptions } from '@renderer/components/SelectOptions'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
@@ -8,7 +9,7 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
+import { modelSelectFilter } from '@renderer/utils'
 import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
 import { find } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
@@ -40,11 +41,11 @@ const RagSettings = () => {
   }, [providers])
 
   const embeddingSelectOptions = useMemo(() => {
-    return getModelSelectOptions(providers, isEmbeddingModel)
+    return modelSelectOptions(providers, isEmbeddingModel)
   }, [providers])
 
   const rerankSelectOptions = useMemo(() => {
-    return getModelSelectOptions(
+    return modelSelectOptions(
       providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id)),
       isRerankModel
     )

@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
+import { modelSelectOptions } from '@renderer/components/SelectOptions'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
-import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
+import { modelSelectFilter } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Form, InputNumber, Modal, Select, Switch } from 'antd'
 import { t } from 'i18next'
@@ -126,11 +127,11 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
   }
 
   const llmSelectOptions = useMemo(() => {
-    return getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m))
+    return modelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m))
   }, [providers])
 
   const embeddingSelectOptions = useMemo(() => {
-    return getModelSelectOptions(providers, (m) => isEmbeddingModel(m) && !isRerankModel(m))
+    return modelSelectOptions(providers, (m) => isEmbeddingModel(m) && !isRerankModel(m))
   }, [providers])
 
   return (

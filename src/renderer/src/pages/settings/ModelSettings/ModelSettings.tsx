@@ -2,6 +2,7 @@ import { RedoOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { modelSelectOptions } from '@renderer/components/SelectOptions'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -14,7 +15,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
-import { getModelSelectOptions, modelSelectFilter } from '@renderer/utils'
+import { modelSelectFilter } from '@renderer/utils'
 import { Button, Select, Tooltip } from 'antd'
 import { find } from 'lodash'
 import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
@@ -41,7 +42,7 @@ const ModelSettings: FC = () => {
   const { quickAssistantId } = useAppSelector((state) => state.llm)
 
   const selectOptions = useMemo(
-    () => getModelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
+    () => modelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
     [providers]
   )
 
