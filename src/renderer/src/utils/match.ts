@@ -24,7 +24,7 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
   if (nonEmptyKeywords.length === 0) return true
 
   // 如果没有搜索目标，则视为不匹配
-  if (!target) return false
+  if (!target || typeof target !== 'string') return false
   const targetLower = target.toLowerCase()
 
   return nonEmptyKeywords.every((keyword) => targetLower.includes(keyword.toLowerCase()))
@@ -81,14 +81,24 @@ export function filterModelsByKeywords(keywords: string, models: Model[], provid
 
 /**
  * 用于 antd Select 组件的 filterOption，统一搜索行为：
- * - 优先使用 label 进行匹配
- * - 其次使用 value 进行匹配
+ * - 优先使用 label 匹配
+ * - 其次使用 title 匹配
+ * - 最后使用 value 匹配
+ *
  * @param input 用户输入的搜索字符串
  * @param option Select 选项对象，包含 label 或 value
  * @returns 是否匹配
  */
 export function modelSelectFilter(input: string, option: any) {
-  return matchKeywordsInString(input, option?.label ?? option?.value ?? '')
+  const target =
+    typeof option?.title === 'string'
+      ? option.title
+      : typeof option?.label === 'string'
+        ? option.label
+        : typeof option?.value === 'string'
+          ? option.value
+          : ''
+  return matchKeywordsInString(input, target)
 }
 
 /**
@@ -109,6 +119,7 @@ export function getModelSelectOptions(providers: Provider[], predicate?: (model:
           m.name,
           React.createElement('span', { style: { opacity: 0.45 } }, ` | ${fancyName}`)
         ),
+        title: `${m.name} | ${fancyName}`,
         value: getModelUniqId(m)
       }))
 
