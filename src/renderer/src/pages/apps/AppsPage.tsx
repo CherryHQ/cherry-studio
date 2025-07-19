@@ -162,15 +162,4 @@ const AppsContainer = styled.div`
   justify-content: center;
 `
 
-const SidebarContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: var(--sidebar-width);
-  height: calc(100vh - var(--navbar-height));
-  gap: 10px;
-  overflow: hidden;
-`
-
 export default AppsPage
