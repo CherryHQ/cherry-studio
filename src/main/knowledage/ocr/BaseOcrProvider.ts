@@ -5,6 +5,7 @@ import { windowService } from '@main/services/WindowService'
 import { getFileExt } from '@main/utils/file'
 import { FileMetadata, OcrProvider } from '@types'
 import { app } from 'electron'
+import pdfjs from 'pdfjs-dist'
 import { TypedArray } from 'pdfjs-dist/types/src/display/api'
 
 export default abstract class BaseOcrProvider {
@@ -76,8 +77,7 @@ export default abstract class BaseOcrProvider {
     source: string | URL | TypedArray,
     passwordCallback?: (fn: (password: string) => void, reason: string) => string
   ) {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    const documentLoadingTask = getDocument(source)
+    const documentLoadingTask = pdfjs.getDocument(source)
     if (passwordCallback) {
       documentLoadingTask.onPassword = passwordCallback
     }
