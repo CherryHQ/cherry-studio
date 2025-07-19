@@ -135,12 +135,36 @@ If the worker is relatively simple (just one file), you can also use method chai
 const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 ```
 
+## Filtering Logs with Environment Variables
+
+In a development environment, you can define environment variables to filter displayed logs by level and module. This helps developers focus on their specific logs and improves development efficiency.
+
+Environment variables can be set in the terminal or defined in the `.env` file in the project's root directory. The available variables are as follows:
+
+| Variable Name    | Description   |
+| ------- | ------- |
+| CSLOGGER_MAIN_LEVEL            | Log level for the `main` process. Logs below this level will not be displayed.                                                                                              |
+| CSLOGGER_MAIN_SHOW_MODULES     | Filters log modules for the `main` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed.     |
+| CSLOGGER_RENDERER_LEVEL        | Log level for the `renderer` process. Logs below this level will not be displayed.                                                                                          |
+| CSLOGGER_RENDERER_SHOW_MODULES | Filters log modules for the `renderer` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed. |
+
+Example:
+
+```bash
+CSLOGGER_MAIN_LEVEL=verbose
+CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
+```
+
+Note:
+- Environment variables are only effective in the development environment.
+- These variables only affect the logs displayed in the terminal or DevTools. They do not affect file logging or the `logToMain` recording logic.
+
 ## Log Level Usage Guidelines
 
 There are many log levels. The following are the guidelines that should be followed in CherryStudio for when to use each level:
 (Arranged from highest to lowest log level)
 
-| Log Level     | Core Definition & Use Case                                                                                                                                                                          | Example                                                                                                                                                                                                            |
+| Log Level     | Core Definition & Use case | Example  |
 | :------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`error`**   | **Critical error causing the program to crash or core functionality to become unusable.** <br> This is the highest-priority log, usually requiring immediate reporting or user notification.        | - Main or renderer process crash. <br> - Failure to read/write critical user data files (e.g., database, configuration files), preventing the application from running. <br> - All unhandled exceptions.           |
 | **`warn`**    | **Potential issue or unexpected situation that does not affect the program's core functionality.** <br> The program can recover or use a fallback.                                                  | - Configuration file `settings.json` is missing; started with default settings. <br> - Auto-update check failed, but does not affect the use of the current version. <br> - A non-essential plugin failed to load. |

@@ -1,22 +1,14 @@
-import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'
 // check if we are in the dev env
+// DO NOT use `constants.ts` here, because the files contains other dependencies that will fail in worker process
 const IS_DEV = IS_WORKER ? false : window.electron?.process?.env?.NODE_ENV === 'development'
 
-// the level number is different from real definition, it only for convenience
-const LEVEL_MAP: Record<LogLevel, number> = {
-  error: 5,
-  warn: 4,
-  info: 3,
-  verbose: 2,
-  debug: 1,
-  silly: 0
-}
-
-const DEFAULT_LEVEL = IS_DEV ? 'silly' : 'info'
-const MAIN_LOG_LEVEL = 'warn'
+const DEFAULT_LEVEL = IS_DEV ? LEVEL.SILLY : LEVEL.INFO
+const MAIN_LOG_LEVEL = LEVEL.WARN
 
 /**
  * IMPORTANT: How to use LoggerService
@@ -27,6 +19,11 @@ const MAIN_LOG_LEVEL = 'warn'
 class LoggerService {
   private static instance: LoggerService
 
+  // env variables, only used in dev mode
+  // only affect console output, not affect logToMain
+  private envLevel: LogLevel = LEVEL.NONE
+  private envShowModules: string[] = []
+
   private level: LogLevel = DEFAULT_LEVEL
   private logToMainLevel: LogLevel = MAIN_LOG_LEVEL
 
@@ -35,7 +32,33 @@ class LoggerService {
   private context: Record<string, any> = {}
 
   private constructor() {
-    //
+    if (IS_DEV) {
+      if (
+        window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL &&
+        Object.values(LEVEL).includes(window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel)
+      ) {
+        this.envLevel = window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel
+        // eslint-disable-next-line no-restricted-syntax
+        console.log(
+          `%c[LoggerService] env CSLOGGER_RENDERER_LEVEL loaded: ${this.envLevel}`,
+          'color: blue; font-weight: bold'
+        )
+      }
+
+      if (window.electron?.process?.env?.CSLOGGER_RENDERER_SHOW_MODULES) {
+        const showModules = window.electron?.process?.env?.CSLOGGER_RENDERER_SHOW_MODULES.split(',')
+          .map((module) => module.trim())
+          .filter((module) => module !== '')
+        if (showModules.length > 0) {
+          this.envShowModules = showModules
+          // eslint-disable-next-line no-restricted-syntax
+          console.log(
+            `%c[LoggerService] env CSLOGGER_RENDERER_SHOW_MODULES loaded: ${this.envShowModules.join(' ')}`,
+            'color: blue; font-weight: bold'
+          )
+        }
+      }
+    }
   }
 
   /**
@@ -96,36 +119,47 @@ class LoggerService {
       return
     }
 
+    const currentLevel = LEVEL_MAP[level]
+
+    // if in dev mode, check if the env variables are set and use the env level and show modules to skip logs
+    if (IS_DEV) {
+      if (this.envLevel !== LEVEL.NONE && currentLevel < LEVEL_MAP[this.envLevel]) {
+        return
+      }
+      if (this.module && this.envShowModules.length > 0 && !this.envShowModules.includes(this.module)) {
+        return
+      }
+    }
+
     // skip log if level is lower than default level
-    const levelNumber = LEVEL_MAP[level]
-    if (levelNumber < LEVEL_MAP[this.level]) {
+    if (currentLevel < LEVEL_MAP[this.level]) {
       return
     }
 
     const logMessage = this.module ? `[${this.module}] ${message}` : message
 
     switch (level) {
-      case 'error':
+      case LEVEL.ERROR:
         // eslint-disable-next-line no-restricted-syntax
         console.error(logMessage, ...data)
         break
-      case 'warn':
+      case LEVEL.WARN:
         // eslint-disable-next-line no-restricted-syntax
         console.warn(logMessage, ...data)
         break
-      case 'info':
+      case LEVEL.INFO:
         // eslint-disable-next-line no-restricted-syntax
         console.info(logMessage, ...data)
         break
-      case 'verbose':
+      case LEVEL.VERBOSE:
         // eslint-disable-next-line no-restricted-syntax
         console.log(logMessage, ...data)
         break
-      case 'debug':
+      case LEVEL.DEBUG:
         // eslint-disable-next-line no-restricted-syntax
         console.debug(logMessage, ...data)
         break
-      case 'silly':
+      case LEVEL.SILLY:
         // eslint-disable-next-line no-restricted-syntax
         console.log(logMessage, ...data)
         break
@@ -134,7 +168,7 @@ class LoggerService {
     // if the last data is an object with logToMain: true, force log to main
     const forceLogToMain = data.length > 0 && data[data.length - 1]?.logToMain === true
 
-    if (levelNumber >= LEVEL_MAP[this.logToMainLevel] || forceLogToMain) {
+    if (currentLevel >= LEVEL_MAP[this.logToMainLevel] || forceLogToMain) {
       const source: LogSourceWithContext = {
         process: 'renderer',
         window: this.window,
@@ -163,42 +197,42 @@ class LoggerService {
    * Log error message
    */
   public error(message: string, ...data: any[]): void {
-    this.processLog('error', message, data)
+    this.processLog(LEVEL.ERROR, message, data)
   }
 
   /**
    * Log warning message
    */
   public warn(message: string, ...data: any[]): void {
-    this.processLog('warn', message, data)
+    this.processLog(LEVEL.WARN, message, data)
   }
 
   /**
    * Log info message
    */
   public info(message: string, ...data: any[]): void {
-    this.processLog('info', message, data)
+    this.processLog(LEVEL.INFO, message, data)
   }
 
   /**
    * Log verbose message
    */
   public verbose(message: string, ...data: any[]): void {
-    this.processLog('verbose', message, data)
+    this.processLog(LEVEL.VERBOSE, message, data)
   }
 
   /**
    * Log debug message
    */
   public debug(message: string, ...data: any[]): void {
-    this.processLog('debug', message, data)
+    this.processLog(LEVEL.DEBUG, message, data)
   }
 
   /**
    * Log silly level message
    */
   public silly(message: string, ...data: any[]): void {
-    this.processLog('silly', message, data)
+    this.processLog(LEVEL.SILLY, message, data)
   }
 
   /**
