@@ -692,6 +692,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 持续更新usage信息
+        logger.silly('chunk', chunk)
         if (chunk.usage) {
           lastUsageInfo = {
             prompt_tokens: chunk.usage.prompt_tokens || 0,
@@ -714,6 +715,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               choice.delta &&
               Object.keys(choice.delta).length > 0 &&
               (!('content' in choice.delta) ||
+                choice.delta.content === null ||
                 (typeof choice.delta.content === 'string' && choice.delta.content !== '') ||
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
