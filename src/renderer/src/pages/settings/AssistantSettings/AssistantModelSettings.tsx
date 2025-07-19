@@ -180,6 +180,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         model: selectedModel,
         defaultModel: selectedModel
       })
+      if (selectedModel.name.includes("kimi-k2")) {
+        setTemperature(0.6)
+        onTemperatureChange(0.6)
+      }
+      else if (selectedModel.name.includes("moonshot")) {
+        setTemperature(0.3)
+        onTemperatureChange(0.3)
+      }
     }
   }, [assistant, defaultModel, updateAssistant])
 
