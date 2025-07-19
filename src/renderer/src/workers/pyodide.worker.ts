@@ -35,19 +35,19 @@ def __cherry_studio_matplotlib_setup():
     def _new_show(*args, **kwargs):
         global pyodide_matplotlib_image
         fig = plt.gcf()
-        
+
         if not fig.canvas.get_renderer()._renderer:
             return
 
         buf = io.BytesIO()
         fig.savefig(buf, format='png')
         buf.seek(0)
-        
+
         img_str = base64.b64encode(buf.read()).decode('utf-8')
 
         # 通过全局变量传递数据
         pyodide_matplotlib_image = f"data:image/png;base64,{img_str}"
-        
+
         plt.clf()
         plt.close(fig)
 
