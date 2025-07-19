@@ -407,7 +407,7 @@ export interface KnowledgeBase {
   name: string
   model: Model
   dimensions?: number
-  autoDims: boolean
+  isAutoDimensions?: boolean
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -437,6 +437,7 @@ export type ApiClient = {
 export type KnowledgeBaseParams = {
   id: string
   dimensions?: number
+  isAutoDimensions?: boolean
   chunkSize?: number
   chunkOverlap?: number
   embedApiClient: ApiClient

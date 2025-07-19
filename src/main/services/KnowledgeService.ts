@@ -124,12 +124,14 @@ class KnowledgeService {
     id,
     embedApiClient,
     dimensions,
+    isAutoDimensions,
     documentCount
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
       embedApiClient,
-      dimensions
+      dimensions,
+      isAutoDimensions
     })
     try {
       ragApplication = await new RAGApplicationBuilder()

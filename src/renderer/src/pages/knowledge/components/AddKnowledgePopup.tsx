@@ -166,7 +166,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           model: selectedEmbeddingModel,
           rerankModel: selectedRerankModel,
           dimensions: finalDimensions,
-          autoDims,
+          isAutoDimensions: autoDims,
           documentCount: newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
           items: [],
           created_at: Date.now(),

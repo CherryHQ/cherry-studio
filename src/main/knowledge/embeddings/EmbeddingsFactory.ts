@@ -9,11 +9,23 @@ import { EMBEDDING_MODEL_DEFAULT_DIMS, getLowerBaseModelName, VOYAGE_SUPPORTED_D
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
-  static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): BaseEmbeddings {
+  static create({
+    embedApiClient,
+    dimensions,
+    isAutoDimensions
+  }: {
+    embedApiClient: ApiClient
+    dimensions?: number
+    isAutoDimensions?: boolean
+  }): BaseEmbeddings {
     const batchSize = 10
     const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
     if (provider === 'voyageai') {
-      const newDimensions = VOYAGE_SUPPORTED_DIM_MODELS.includes(model) ? dimensions : undefined
+      const newDimensions = isAutoDimensions
+        ? undefined
+        : VOYAGE_SUPPORTED_DIM_MODELS.includes(model)
+          ? dimensions
+          : undefined
       return new VoyageEmbeddings({
         modelName: model,
         apiKey,
@@ -28,7 +40,7 @@ export default class EmbeddingsFactory {
           baseUrl: baseURL.replace('v1/', ''),
           requestOptions: {
             // @ts-ignore expected
-            'encoding-format': 'float'
+            encoding_format: 'float'
           }
         })
       }
@@ -37,7 +49,7 @@ export default class EmbeddingsFactory {
         baseUrl: baseURL,
         requestOptions: {
           // @ts-ignore expected
-          'encoding-format': 'float'
+          encoding_format: 'float'
         }
       })
     }
@@ -55,9 +67,13 @@ export default class EmbeddingsFactory {
     let newDimensions: number | undefined = dimensions
 
     // 兼容旧版本无autoDims字段的知识库
-    const baseModelName = getLowerBaseModelName(model)
-    if (dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[baseModelName]) {
+    if (isAutoDimensions) {
       newDimensions = undefined
+    } else {
+      const baseModelName = getLowerBaseModelName(model)
+      if (dimensions === EMBEDDING_MODEL_DEFAULT_DIMS[baseModelName]) {
+        newDimensions = undefined
+      }
     }
 
     return new OpenAiEmbeddings({

@@ -242,6 +242,7 @@ class WebSearchService {
       model: config.embeddingModel,
       rerankModel: config.rerankModel,
       dimensions: config.embeddingDimensions,
+      isAutoDimensions: false,
       documentCount,
       items: [],
       created_at: Date.now(),
