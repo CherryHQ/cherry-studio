@@ -13,6 +13,10 @@
       "launchpad": "Запуск",
       "memories": "Память"
     },
+    "launchpad": {
+      "apps": "Приложения",
+      "minapps": "Приложения"
+    },
     "agents": {
       "add.button": "Добавить в ассистента",
       "add.knowledge_base": "База знаний",

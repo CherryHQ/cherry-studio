@@ -13,6 +13,10 @@
       "launchpad": "Launchpad",
       "memories": "Memories"
     },
+    "launchpad": {
+      "apps": "Apps",
+      "minapps": "Minapps"
+    },
     "agents": {
       "add.button": "Add to Assistant",
       "add.knowledge_base": "Knowledge Base",

@@ -13,6 +13,10 @@
       "launchpad": "ランチパッド",
       "memories": "メモリ"
     },
+    "launchpad": {
+      "apps": "アプリ",
+      "minapps": "アプリ"
+    },
     "agents": {
       "add.button": "アシスタントに追加",
       "add.knowledge_base": "ナレッジベース",

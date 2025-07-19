@@ -13,6 +13,10 @@
       "launchpad": "啟動台",
       "memories": "記憶"
     },
+    "launchpad": {
+      "apps": "應用",
+      "minapps": "小程序"
+    },
     "agents": {
       "add.button": "新增到助手",
       "add.knowledge_base": "知識庫",

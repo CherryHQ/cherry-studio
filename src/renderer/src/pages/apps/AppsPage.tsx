@@ -1,5 +1,4 @@
 import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
-import { SidebarOpenedMinappTabs, SidebarPinnedApps } from '@renderer/components/app/PinnedMinapps'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
@@ -68,7 +67,6 @@ const AppsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <MainContainer>
-          {isTopNavbar && <Sidebar />}
           <RightContainer>
             {isTopNavbar && (
               <HeaderContainer>
@@ -101,15 +99,6 @@ const AppsPage: FC = () => {
         </MainContainer>
       </ContentContainer>
     </Container>
-  )
-}
-
-const Sidebar: FC = () => {
-  return (
-    <SidebarContainer>
-      <SidebarOpenedMinappTabs />
-      <SidebarPinnedApps />
-    </SidebarContainer>
   )
 }
 
