@@ -13,6 +13,30 @@ import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from './ShikiStream
 
 const logger = loggerService.withContext('ShikiStreamService')
 
+const SERVICE_CONFIG = {
+  // LRU 缓存配置
+  TOKENIZER_CACHE: {
+    MAX_SIZE: 100, // 最大缓存数量
+    TTL: 1000 * 60 * 30 // 30 分钟过期时间（毫秒）
+  },
+
+  // 降级策略配置
+  DEGRADATION_CACHE: {
+    MAX_SIZE: 500, // 最大记录数量
+    TTL: 1000 * 60 * 60 * 12 // 12 小时自动过期（毫秒）
+  },
+
+  // Worker 初始化配置
+  WORKER: {
+    MAX_INIT_RETRY: 2, // 最大初始化重试次数
+    REQUEST_TIMEOUT: {
+      INIT: 5000, // 初始化操作超时时间（毫秒）
+      HIGHLIGHT: 30000, // 高亮操作超时时间（毫秒）
+      DEFAULT: 10000 // 默认超时时间（毫秒）
+    }
+  }
+}
+
 export type ShikiPreProperties = {
   class: string
   style: string
@@ -42,8 +66,8 @@ class ShikiStreamService {
 
   // 保存以 callerId-language-theme 为键的 tokenizer map
   private tokenizerCache = new LRUCache<string, ShikiStreamTokenizer>({
-    max: 100, // 最大缓存数量
-    ttl: 1000 * 60 * 30, // 30分钟过期时间
+    max: SERVICE_CONFIG.TOKENIZER_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.TOKENIZER_CACHE.TTL,
     updateAgeOnGet: true,
     dispose: (value) => {
       if (value) value.clear()
@@ -52,8 +76,8 @@ class ShikiStreamService {
 
   // 缓存每个 callerId 对应的已处理内容
   private codeCache = new LRUCache<string, string>({
-    max: 100, // 最大缓存数量
-    ttl: 1000 * 60 * 30, // 30分钟过期时间
+    max: SERVICE_CONFIG.TOKENIZER_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.TOKENIZER_CACHE.TTL,
     updateAgeOnGet: true
   })
 
@@ -61,7 +85,6 @@ class ShikiStreamService {
   private worker: Worker | null = null
   private workerInitPromise: Promise<void> | null = null
   private workerInitRetryCount: number = 0
-  private static readonly MAX_WORKER_INIT_RETRY = 2
   private pendingRequests = new Map<
     number,
     {
@@ -73,8 +96,8 @@ class ShikiStreamService {
 
   // 降级策略相关变量，用于记录调用 worker 失败过的 callerId
   private workerDegradationCache = new LRUCache<string, boolean>({
-    max: 1000, // 最大记录数量
-    ttl: 1000 * 60 * 60 * 12 // 12小时自动过期
+    max: SERVICE_CONFIG.DEGRADATION_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.DEGRADATION_CACHE.TTL
   })
 
   constructor() {
@@ -103,7 +126,7 @@ class ShikiStreamService {
     if (this.workerInitPromise) return this.workerInitPromise
     if (this.worker) return
 
-    if (this.workerInitRetryCount >= ShikiStreamService.MAX_WORKER_INIT_RETRY) {
+    if (this.workerInitRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
       logger.debug('ShikiStream worker initialization failed too many times, stop trying')
       return
     }
@@ -191,13 +214,13 @@ class ShikiStreamService {
       const getTimeoutForMessageType = (type: string): number => {
         switch (type) {
           case 'init':
-            return 5000 // 初始化操作 (5秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT
           case 'highlight':
-            return 30000 // 高亮操作 (30秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.HIGHLIGHT
           case 'cleanup':
           case 'dispose':
           default:
-            return 10000 // 其他操作 (10秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.DEFAULT
         }
       }
 

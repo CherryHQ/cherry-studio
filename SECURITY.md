@@ -18,11 +18,11 @@ We will acknowledge your report within **72 hours** and provide a status update 
 
 We aim to support the latest released version and one previous minor release.
 
-| Version         | Supported          |
-|-----------------|--------------------|
-| Latest (`main`) | ✅ Supported       |
-| Previous minor  | ✅ Supported       |
-| Older versions  | ❌ Not supported   |
+| Version         | Supported        |
+| --------------- | ---------------- |
+| Latest (`main`) | ✅ Supported     |
+| Previous minor  | ✅ Supported     |
+| Older versions  | ❌ Not supported |
 
 If you are using an unsupported version, we strongly recommend updating to the latest release to receive security fixes.
 
