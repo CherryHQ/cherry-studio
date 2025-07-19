@@ -1,3 +1,4 @@
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
@@ -114,10 +115,18 @@ export function getModelSelectOptions(providers: Provider[], predicate?: (model:
       .filter((model) => predicate?.(model) ?? true)
       .map((m) => ({
         label: React.createElement(
-          React.Fragment,
-          {},
-          m.name,
-          React.createElement('span', { style: { opacity: 0.45 } }, ` | ${fancyName}`)
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          React.createElement(ModelAvatar, {
+            model: m,
+            size: 18
+          }),
+          React.createElement(
+            'span',
+            {},
+            m.name,
+            React.createElement('span', { style: { opacity: 0.45 } }, ` | ${fancyName}`)
+          )
         ),
         title: `${m.name} | ${fancyName}`,
         value: getModelUniqId(m)
