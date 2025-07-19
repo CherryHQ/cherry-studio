@@ -90,7 +90,7 @@ class PyodideService {
               this.initRetryCount = 0
               this.initPromise = null
               resolve()
-            } else if (event.data?.type === 'error') {
+            } else if (event.data?.type === 'init-error') {
               clearTimeout(timeout)
               this.worker?.removeEventListener('message', initHandler)
               this.worker?.terminate()
@@ -118,8 +118,16 @@ class PyodideService {
    * 处理来自 Worker 的消息
    */
   private handleMessage(event: MessageEvent): void {
+    const { type, error, context } = event.data
+
+    // 记录 Worker 错误消息
+    if (type === 'system-error') {
+      logger.error(`${context || 'System error'}: ${error}`)
+      return
+    }
+
     // 忽略初始化消息，已由专门的处理器处理
-    if (event.data?.type === 'initialized' || event.data?.type === 'error') {
+    if (type === 'initialized' || type === 'init-error') {
       return
     }
 

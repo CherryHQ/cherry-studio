@@ -1,9 +1,5 @@
 /// <reference lib="webworker" />
 
-import { loggerService } from '@logger'
-
-const logger = loggerService.withContext('PyodideWorker')
-
 // 定义输出结构类型
 interface PyodideOutput {
   result: any
@@ -92,12 +88,12 @@ const pyodidePromise = (async () => {
     })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Failed to load Pyodide:', errorMessage)
 
     // 通知主线程初始化错误
     self.postMessage({
-      type: 'error',
-      error: errorMessage
+      type: 'init-error',
+      error: errorMessage,
+      context: 'Failed to load Pyodide'
     })
 
     throw error
@@ -122,7 +118,6 @@ function processResult(result: any): any {
     return result
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Result processing error:', errorMessage)
     return { __error__: 'Result processing failed', details: errorMessage }
   }
 }
@@ -134,8 +129,11 @@ pyodidePromise
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Failed to load Pyodide:', errorMessage)
-    self.postMessage({ type: 'error', error: errorMessage })
+    self.postMessage({
+      type: 'init-error',
+      error: errorMessage,
+      context: 'Failed to load Pyodide'
+    })
   })
 
 // 处理消息
@@ -189,13 +187,19 @@ self.onmessage = async (event) => {
   } catch (error: unknown) {
     // 处理所有其他错误
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Python processing error:', errorMessage)
 
     if (output.error) {
       output.error += `\nSystem error:\n${errorMessage}`
     } else {
       output.error = `System error:\n${errorMessage}`
     }
+
+    // 发送错误信息
+    self.postMessage({
+      type: 'system-error',
+      error: errorMessage,
+      context: `System error for request ${id}`
+    })
   } finally {
     // 统一发送处理后的输出对象
     self.postMessage({ id, output })
