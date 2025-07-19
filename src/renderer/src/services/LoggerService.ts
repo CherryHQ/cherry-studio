@@ -1,10 +1,9 @@
-import { isDev } from '@renderer/utils/env'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
 
-const IS_DEV = await getIsDev()
-async function getIsDev() {
-  return await isDev()
-}
+// check if the current process is a worker
+const IS_WORKER = typeof window === 'undefined'
+// check if we are in the dev env
+const IS_DEV = IS_WORKER ? false : window.electron?.process?.env?.NODE_ENV === 'development'
 
 // the level number is different from real definition, it only for convenience
 const LEVEL_MAP: Record<LogLevel, number> = {
@@ -151,7 +150,12 @@ class LoggerService {
         data = data.slice(0, -1)
       }
 
-      window.api.logToMain(source, level, message, data)
+      // In renderer process, use window.api.logToMain to send log to main process
+      if (!IS_WORKER) {
+        window.api.logToMain(source, level, message, data)
+      } else {
+        //TODO support worker to send log to main process
+      }
     }
   }
 

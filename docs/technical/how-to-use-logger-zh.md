@@ -121,7 +121,12 @@ logger.getLogToMainLevel()
 logger.info('message', { logToMain: true })
 ```
 
-### 关于`worker`线程
+## 关于`worker`线程
+
+- 现在不支持`main`进程中的`worker`的日志。
+- 支持`renderer`中起的`worker`的日志，但是现在该日志不会发送给`main`进行记录。
+
+### 如何在`renderer`的`worker`中使用日志
 
 由于`worker`线程是独立的，在其中使用LoggerService，等同于在一个新`renderer`窗口中使用。因此也必须先`initWindowSource`。
 

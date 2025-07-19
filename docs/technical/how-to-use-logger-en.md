@@ -120,11 +120,16 @@ By adding `{ logToMain: true }` at the end of the log call, you can force a sing
 logger.info('message', { logToMain: true })
 ```
 
-### About `worker` threads
+## About `worker` Threads
 
-Since `worker` threads are independent, using LoggerService in them is equivalent to using it in a new `renderer` window. Therefore, you must also call `initWindowSource` first.
+- Currently, logging is not supported for workers in the `main` process.
+- Logging is supported for workers started in the `renderer` process, but currently these logs are not sent to `main` for recording.
 
-If the `worker` is relatively simple with just one file, you can also use chaining syntax directly:
+### How to Use Logging in `renderer` Workers
+
+Since worker threads are independent, using LoggerService in them is equivalent to using it in a new `renderer` window. Therefore, you must first call `initWindowSource`.
+
+If the worker is relatively simple (just one file), you can also use method chaining directly:
 
 ```typescript
 const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
