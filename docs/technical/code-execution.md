@@ -1,6 +1,6 @@
 # 代码执行功能
 
-本文档说明了代码中 Python 代码执行功能。该实现利用 [Pyodide][pyodide-link] 在浏览器环境中直接运行 Python 代码，并将其置于 Web Worker 中，以避免阻塞主 UI 线程。
+本文档说明了代码块的 Python 代码执行功能。该实现利用 [Pyodide][pyodide-link] 在浏览器环境中直接运行 Python 代码，并将其置于 Web Worker 中，以避免阻塞主 UI 线程。
 
 整个实现分为三个主要部分：UI 层、服务层和 Worker 层。
 
