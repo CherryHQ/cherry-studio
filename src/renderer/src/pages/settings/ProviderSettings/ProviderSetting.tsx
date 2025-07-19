@@ -7,7 +7,6 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
 import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
@@ -71,13 +70,19 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
-  const platformWebsite = provider.id === 'moonshot'
-    ? (['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://platform.moonshot.cn/' : 'https://platform.moonshot.ai/')
-    : providerConfig?.websites?.platform
+  const platformWebsite =
+    provider.id === 'moonshot'
+      ? ['zh-CN', 'zh-TW'].includes(i18n.language)
+        ? 'https://platform.moonshot.cn/'
+        : 'https://platform.moonshot.ai/'
+      : providerConfig?.websites?.platform
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const configedApiHost = provider.id === 'moonshot'
-    ? (['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://api.moonshot.cn' : 'https://api.moonshot.ai')
-    : providerConfig?.api?.url
+  const configedApiHost =
+    provider.id === 'moonshot'
+      ? ['zh-CN', 'zh-TW'].includes(i18n.language)
+        ? 'https://api.moonshot.cn'
+        : 'https://api.moonshot.ai'
+      : providerConfig?.api?.url
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
@@ -326,7 +331,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   // 当语言变化时，更新月之暗面的API地址
   useEffect(() => {
     if (provider.id === 'moonshot') {
-      const newApiHost = ['zh-CN', 'zh-TW'].includes(i18n.language) ? 'https://api.moonshot.cn' : 'https://api.moonshot.ai'
+      const newApiHost = ['zh-CN', 'zh-TW'].includes(i18n.language)
+        ? 'https://api.moonshot.cn'
+        : 'https://api.moonshot.ai'
       if (provider.apiHost !== newApiHost) {
         setApiHost(newApiHost)
         updateProvider({ apiHost: newApiHost })

@@ -1276,7 +1276,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'moonshot',
       group: 'moonshot-v1',
       owned_by: 'moonshot',
-      type: ['text','function_calling']
+      type: ['text', 'function_calling']
     },
     {
       id: 'kimi-k2-0711-preview',
@@ -1284,12 +1284,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'moonshot',
       group: 'kimi-k2',
       owned_by: 'moonshot',
-      type: ['text','function_calling'],
+      type: ['text', 'function_calling'],
       pricing: {
-      input_per_million_tokens: 0.6,
-      output_per_million_tokens: 2.5,
-      currencySymbol: 'USD'
-    }
+        input_per_million_tokens: 0.6,
+        output_per_million_tokens: 2.5,
+        currencySymbol: 'USD'
+      }
     }
   ],
   baichuan: [
