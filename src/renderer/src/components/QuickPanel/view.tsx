@@ -128,7 +128,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSymbolRef.current = ctx.symbol
 
     return newList
-  }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
+  }, [ctx.isVisible, ctx.list, ctx.symbol, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
