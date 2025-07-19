@@ -138,7 +138,7 @@ export const useMinappPopup = () => {
     dispatch(setOpenedOneOffMinapp(null))
     dispatch(setCurrentMinappId(''))
     dispatch(setMinappShow(false))
-  }, [dispatch])
+  }, [dispatch, createLRUCache])
 
   /** Hide the minapp popup (only one-off minapp unloaded) */
   const hideMinappPopup = useCallback(() => {
