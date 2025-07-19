@@ -181,8 +181,8 @@
       "input.generate_image": "Generate image",
       "input.generate_image_not_supported": "The model does not support generating images.",
       "input.knowledge_base": "Knowledge Base",
-      "input.new_topic": "New Topic {{Command}}",
       "input.new.context": "Clear Context {{Command}}",
+      "input.new_topic": "New Topic {{Command}}",
       "input.pause": "Pause",
       "input.placeholder": "Type your message here, press {{key}} to send...",
       "input.send": "Send",
@@ -264,6 +264,7 @@
         "select.content.title": "Select content types to save",
         "title": "Save to Knowledge Base"
       },
+      "settings.code.title": "Code Block Settings",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_editor": {
         "autocompletion": "Autocompletion",
@@ -279,7 +280,6 @@
         "title": "Code Execution"
       },
       "settings.code_wrappable": "Code block wrappable",
-      "settings.code.title": "Code Block Settings",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -891,9 +891,9 @@
         "goBack": "Go Back",
         "goForward": "Go Forward",
         "minimize": "Minimize MinApp",
+        "openExternal": "Open in Browser",
         "open_link_external_off": "Current: Open links in default window",
         "open_link_external_on": "Current: Open links in browser",
-        "openExternal": "Open in Browser",
         "refresh": "Refresh",
         "rightclick_copyurl": "Right-click to copy URL"
       },
@@ -1060,6 +1060,7 @@
       "go_to_settings": "Go to Settings",
       "guidance_scale": "Guidance Scale",
       "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+      "image.size": "Image Size",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
       "image_handle_required": "Please upload an image first.",
@@ -1068,7 +1069,6 @@
       "image_size_options": {
         "auto": "Auto"
       },
-      "image.size": "Image Size",
       "inference_steps": "Inference Steps",
       "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
       "input_image": "Input Image",
@@ -1429,9 +1429,9 @@
     },
     "settings": {
       "about": "About & Feedback",
-      "about.checkingUpdate": "Checking for updates...",
       "about.checkUpdate": "Check Update",
       "about.checkUpdate.available": "Update",
+      "about.checkingUpdate": "Checking for updates...",
       "about.contact.button": "Email",
       "about.contact.title": "Contact",
       "about.debug.open": "Open",
@@ -1730,8 +1730,8 @@
           "root_path_placeholder": "e.g.: /CherryStudio",
           "title": "Siyuan Note Configuration",
           "token": "Siyuan Note Token",
-          "token_placeholder": "Please enter Siyuan Note Token",
-          "token.help": "Get Siyuan Note Token"
+          "token.help": "Get Siyuan Note Token",
+          "token_placeholder": "Please enter Siyuan Note Token"
         },
         "title": "Data Settings",
         "webdav": {
@@ -2219,10 +2219,6 @@
         "add.name.placeholder": "Example: OpenAI",
         "add.title": "Add Provider",
         "add.type": "Provider Type",
-        "api_host": "API Host",
-        "api_key": "API Key",
-        "api_key.tip": "Multiple keys separated by commas or spaces",
-        "api_version": "API Version",
         "api.key.check.latency": "Latency",
         "api.key.error.duplicate": "API key already exists",
         "api.key.error.empty": "API key cannot be empty",
@@ -2232,6 +2228,10 @@
         "api.url.preview": "Preview: {{url}}",
         "api.url.reset": "Reset",
         "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
+        "api_host": "API Host",
+        "api_key": "API Key",
+        "api_key.tip": "Multiple keys separated by commas or spaces",
+        "api_version": "API Version",
         "azure.apiversion.tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version",
         "basic_auth": "HTTP authentication",
         "basic_auth.password": "Password",
@@ -2561,7 +2561,7 @@
     },
     "words": {
       "knowledgeGraph": "Knowledge Graph",
-      "quit": "Quit",
+      "quit": "[to be translated]:退出",
       "show_window": "Show Window",
       "visualization": "Visualization"
     }

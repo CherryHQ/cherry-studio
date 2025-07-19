@@ -181,8 +181,8 @@
       "input.generate_image": "画像を生成する",
       "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "input.knowledge_base": "ナレッジベース",
-      "input.new_topic": "新しいトピック {{Command}}",
       "input.new.context": "コンテキストをクリア {{Command}}",
+      "input.new_topic": "新しいトピック {{Command}}",
       "input.pause": "一時停止",
       "input.placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "input.send": "送信",
@@ -264,6 +264,7 @@
         "select.content.title": "保存するコンテンツタイプを選択",
         "title": "ナレッジベースに保存"
       },
+      "settings.code.title": "コード設定",
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_editor": {
         "autocompletion": "自動補完",
@@ -279,7 +280,6 @@
         "title": "コード実行"
       },
       "settings.code_wrappable": "コードブロック折り返し",
-      "settings.code.title": "コード設定",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -891,9 +891,9 @@
         "goBack": "戻る",
         "goForward": "進む",
         "minimize": "ミニアプリを最小化",
+        "openExternal": "ブラウザで開く",
         "open_link_external_off": "現在：デフォルトのウィンドウで開く",
         "open_link_external_on": "現在：ブラウザで開く",
-        "openExternal": "ブラウザで開く",
         "refresh": "更新",
         "rightclick_copyurl": "右クリックでURLをコピー"
       },
@@ -1060,6 +1060,7 @@
       "go_to_settings": "設定に移動",
       "guidance_scale": "ガイダンススケール",
       "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",
+      "image.size": "画像サイズ",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
       "image_handle_required": "最初に画像をアップロードしてください。",
@@ -1068,7 +1069,6 @@
       "image_size_options": {
         "auto": "自動"
       },
-      "image.size": "画像サイズ",
       "inference_steps": "推論ステップ数",
       "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
       "input_image": "入力画像",
@@ -1429,9 +1429,9 @@
     },
     "settings": {
       "about": "について",
-      "about.checkingUpdate": "更新を確認中...",
       "about.checkUpdate": "更新を確認",
       "about.checkUpdate.available": "今すぐ更新",
+      "about.checkingUpdate": "更新を確認中...",
       "about.contact.button": "メール",
       "about.contact.title": "連絡先",
       "about.debug.open": "開く",
@@ -1730,8 +1730,8 @@
           "root_path_placeholder": "例：/CherryStudio",
           "title": "思源ノート設定",
           "token": "APIトークン",
-          "token_placeholder": "思源ノートトークンを入力してください",
-          "token.help": "思源ノート->設定->について で取得"
+          "token.help": "思源ノート->設定->について で取得",
+          "token_placeholder": "思源ノートトークンを入力してください"
         },
         "title": "データ設定",
         "webdav": {
@@ -2219,10 +2219,6 @@
         "add.name.placeholder": "例：OpenAI",
         "add.title": "プロバイダーを追加",
         "add.type": "プロバイダータイプ",
-        "api_host": "APIホスト",
-        "api_key": "APIキー",
-        "api_key.tip": "複数のキーはカンマまたはスペースで区切ります",
-        "api_version": "APIバージョン",
         "api.key.check.latency": "遅延",
         "api.key.error.duplicate": "APIキーはすでに存在します",
         "api.key.error.empty": "APIキーは空にできません",
@@ -2232,6 +2228,10 @@
         "api.url.preview": "プレビュー: {{url}}",
         "api.url.reset": "リセット",
         "api.url.tip": "/で終わる場合、v1を無視します。#で終わる場合、入力されたアドレスを強制的に使用します",
+        "api_host": "APIホスト",
+        "api_key": "APIキー",
+        "api_key.tip": "複数のキーはカンマまたはスペースで区切ります",
+        "api_version": "APIバージョン",
         "azure.apiversion.tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください",
         "basic_auth": "HTTP 認証",
         "basic_auth.password": "パスワード",
@@ -2561,7 +2561,7 @@
     },
     "words": {
       "knowledgeGraph": "ナレッジグラフ",
-      "quit": "終了",
+      "quit": "[to be translated]:退出",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
     }

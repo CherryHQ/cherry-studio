@@ -181,8 +181,8 @@
       "input.generate_image": "Сгенерировать изображение",
       "input.generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "input.knowledge_base": "База знаний",
-      "input.new_topic": "Новый топик {{Command}}",
       "input.new.context": "Очистить контекст {{Command}}",
+      "input.new_topic": "Новый топик {{Command}}",
       "input.pause": "Остановить",
       "input.placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "input.send": "Отправить",
@@ -264,6 +264,7 @@
         "select.content.title": "Выберите типы контента для сохранения",
         "title": "Сохранить в базу знаний"
       },
+      "settings.code.title": "Настройки кода",
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_editor": {
         "autocompletion": "Автодополнение",
@@ -279,7 +280,6 @@
         "title": "Выполнение кода"
       },
       "settings.code_wrappable": "Блок кода можно переносить",
-      "settings.code.title": "Настройки кода",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -891,9 +891,9 @@
         "goBack": "Назад",
         "goForward": "Вперед",
         "minimize": "Свернуть встроенное приложение",
+        "openExternal": "Открыть в браузере",
         "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
         "open_link_external_on": "Текущий: Открыть ссылки в браузере",
-        "openExternal": "Открыть в браузере",
         "refresh": "Обновить",
         "rightclick_copyurl": "ПКМ → Копировать URL"
       },
@@ -1060,6 +1060,7 @@
       "go_to_settings": "Перейти в настройки",
       "guidance_scale": "Масштаб руководства",
       "guidance_scale_tip": "Без классификатора руководства. Насколько близко вы хотите, чтобы модель придерживалась вашего промпта при поиске связанного изображения для показа вам",
+      "image.size": "Размер изображения",
       "image_file_required": "Пожалуйста, сначала загрузите изображение",
       "image_file_retry": "Пожалуйста, сначала загрузите изображение",
       "image_handle_required": "Пожалуйста, сначала загрузите изображение.",
@@ -1068,7 +1069,6 @@
       "image_size_options": {
         "auto": "Авто"
       },
-      "image.size": "Размер изображения",
       "inference_steps": "Шаги вывода",
       "inference_steps_tip": "Количество шагов вывода для выполнения. Больше шагов производят более высокое качество, но занимают больше времени",
       "input_image": "Входное изображение",
@@ -1429,9 +1429,9 @@
     },
     "settings": {
       "about": "О программе и обратная связь",
-      "about.checkingUpdate": "Проверка обновлений...",
       "about.checkUpdate": "Проверить обновления",
       "about.checkUpdate.available": "Обновить",
+      "about.checkingUpdate": "Проверка обновлений...",
       "about.contact.button": "Электронная почта",
       "about.contact.title": "Контакты",
       "about.debug.open": "Открыть",
@@ -1730,8 +1730,8 @@
           "root_path_placeholder": "Например: /CherryStudio",
           "title": "Конфигурация SiYuan Note",
           "token": "API токен",
-          "token_placeholder": "Введите токен SiYuan Note",
-          "token.help": "Получите в SiYuan Note -> Настройки -> О программе"
+          "token.help": "Получите в SiYuan Note -> Настройки -> О программе",
+          "token_placeholder": "Введите токен SiYuan Note"
         },
         "title": "Настройки данных",
         "webdav": {
@@ -2219,10 +2219,6 @@
         "add.name.placeholder": "Пример: OpenAI",
         "add.title": "Добавить провайдер",
         "add.type": "Тип провайдера",
-        "api_host": "Хост API",
-        "api_key": "Ключ API",
-        "api_key.tip": "Несколько ключей, разделенных запятыми или пробелами",
-        "api_version": "Версия API",
         "api.key.check.latency": "Задержка",
         "api.key.error.duplicate": "API ключ уже существует",
         "api.key.error.empty": "API ключ не может быть пустым",
@@ -2232,6 +2228,10 @@
         "api.url.preview": "Предпросмотр: {{url}}",
         "api.url.reset": "Сброс",
         "api.url.tip": "Заканчивая на / игнорирует v1, заканчивая на # принудительно использует введенный адрес",
+        "api_host": "Хост API",
+        "api_key": "Ключ API",
+        "api_key.tip": "Несколько ключей, разделенных запятыми или пробелами",
+        "api_version": "Версия API",
         "azure.apiversion.tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview",
         "basic_auth": "HTTP аутентификация",
         "basic_auth.password": "Пароль",
@@ -2561,7 +2561,7 @@
     },
     "words": {
       "knowledgeGraph": "Граф знаний",
-      "quit": "Выйти",
+      "quit": "[to be translated]:退出",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
     }

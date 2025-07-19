@@ -181,8 +181,8 @@
       "input.generate_image": "生成圖片",
       "input.generate_image_not_supported": "模型不支援生成圖片",
       "input.knowledge_base": "知識庫",
-      "input.new_topic": "新話題 {{Command}}",
       "input.new.context": "清除上下文 {{Command}}",
+      "input.new_topic": "新話題 {{Command}}",
       "input.pause": "暫停",
       "input.placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "input.send": "傳送",
@@ -264,6 +264,7 @@
         "select.content.title": "選擇要儲存的內容類型",
         "title": "儲存到知識庫"
       },
+      "settings.code.title": "程式碼區塊",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_editor": {
         "autocompletion": "自動補全",
@@ -279,7 +280,6 @@
         "title": "程式碼執行"
       },
       "settings.code_wrappable": "程式碼區塊可自動換行",
-      "settings.code.title": "程式碼區塊",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息",
       "settings.max": "最大",
@@ -891,9 +891,9 @@
         "goBack": "上一頁",
         "goForward": "下一頁",
         "minimize": "最小化小工具",
+        "openExternal": "在瀏覽器中開啟",
         "open_link_external_off": "当前：使用預設視窗開啟連結",
         "open_link_external_on": "当前：在瀏覽器中開啟連結",
-        "openExternal": "在瀏覽器中開啟",
         "refresh": "重新整理",
         "rightclick_copyurl": "右鍵複製 URL"
       },
@@ -1060,6 +1060,7 @@
       "go_to_settings": "去設置",
       "guidance_scale": "引導比例",
       "guidance_scale_tip": "無分類器指導。控制模型在尋找相關影像時對提示詞的遵循程度",
+      "image.size": "影像尺寸",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
       "image_handle_required": "請先上傳圖片。",
@@ -1068,7 +1069,6 @@
       "image_size_options": {
         "auto": "自動"
       },
-      "image.size": "影像尺寸",
       "inference_steps": "推理步數",
       "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
       "input_image": "輸入圖片",
@@ -1429,9 +1429,9 @@
     },
     "settings": {
       "about": "關於與回饋",
-      "about.checkingUpdate": "正在檢查更新...",
       "about.checkUpdate": "檢查更新",
       "about.checkUpdate.available": "立即更新",
+      "about.checkingUpdate": "正在檢查更新...",
       "about.contact.button": "電子郵件",
       "about.contact.title": "聯絡方式",
       "about.debug.open": "開啟",
@@ -1730,8 +1730,8 @@
           "root_path_placeholder": "例如：/CherryStudio",
           "title": "思源筆記配置",
           "token": "API 令牌",
-          "token_placeholder": "請輸入思源筆記令牌",
-          "token.help": "在思源筆記 -> 設置 -> 關於中獲取"
+          "token.help": "在思源筆記 -> 設置 -> 關於中獲取",
+          "token_placeholder": "請輸入思源筆記令牌"
         },
         "title": "資料設定",
         "webdav": {
@@ -2219,10 +2219,6 @@
         "add.name.placeholder": "例如：OpenAI",
         "add.title": "新增提供者",
         "add.type": "供應商類型",
-        "api_host": "API 主機地址",
-        "api_key": "API 金鑰",
-        "api_key.tip": "多個金鑰使用逗號或空格分隔",
-        "api_version": "API 版本",
         "api.key.check.latency": "耗時",
         "api.key.error.duplicate": "API 密鑰已存在",
         "api.key.error.empty": "API 密鑰不能為空",
@@ -2232,6 +2228,10 @@
         "api.url.preview": "預覽：{{url}}",
         "api.url.reset": "重設",
         "api.url.tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址",
+        "api_host": "API 主機地址",
+        "api_key": "API 金鑰",
+        "api_key.tip": "多個金鑰使用逗號或空格分隔",
+        "api_version": "API 版本",
         "azure.apiversion.tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本",
         "basic_auth": "HTTP 認證",
         "basic_auth.password": "密碼",
@@ -2561,7 +2561,7 @@
     },
     "words": {
       "knowledgeGraph": "知識圖譜",
-      "quit": "結束",
+      "quit": "[to be translated]:退出",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
     }
