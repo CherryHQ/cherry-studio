@@ -1,10 +1,15 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { sortedObjectByKeys } from './sort'
+
 const translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const baseLocale = 'zh-cn'
 const baseFileName = `${baseLocale}.json`
 const baseFilePath = path.join(translationsDir, baseFileName)
+
+type I18NValue = string | { [key: string]: I18NValue }
+type I18N = { [key: string]: I18NValue }
 
 /**
  * 递归同步 target 对象，使其与 template 对象保持一致
@@ -16,7 +21,7 @@ const baseFilePath = path.join(translationsDir, baseFileName)
  * @param template 主模板对象（中文）
  * @returns 返回是否对 target 进行了更新
  */
-function syncRecursively(target: Record<string, any>, template: Record<string, any>): boolean {
+function syncRecursively(target: I18N, template: I18N): boolean {
   let isUpdated = false
 
   // 添加 template 中存在但 target 中缺少的 key
@@ -52,28 +57,8 @@ function syncRecursively(target: Record<string, any>, template: Record<string, a
   return isUpdated
 }
 
-/**
- * 对对象的键按照字典序进行排序（支持嵌套对象）
- * @param obj 需要排序的对象
- */
-function sortObjectByKeys(obj: Record<string, any>): void {
-  const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b))
-
-  const sortedObj: Record<string, any> = {}
-  for (const key of sortedKeys) {
-    const value = obj[key]
-    // 如果值是对象，递归排序
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      sortObjectByKeys(value)
-    }
-    sortedObj[key] = value
-  }
-
-  // 清空原对象并用排序后的键值填充
-  for (const key_ in obj) {
-    delete obj[key_]
-  }
-  Object.assign(obj, sortedObj)
+function isSortedI18N(obj: I18N): boolean {
+  return JSON.stringify(obj) === JSON.stringify(sortedObjectByKeys(obj))
 }
 
 /**
@@ -81,11 +66,11 @@ function sortObjectByKeys(obj: Record<string, any>): void {
  * @param obj 要检查的对象
  * @returns 返回重复键的数组（若无重复则返回空数组）
  */
-function checkDuplicateKeys(obj: Record<string, any>): string[] {
+function checkDuplicateKeys(obj: I18N): string[] {
   const keys = new Set<string>()
   const duplicateKeys: string[] = []
 
-  const checkObject = (obj: Record<string, any>, path: string = '') => {
+  const checkObject = (obj: I18N, path: string = '') => {
     for (const key in obj) {
       const fullPath = path ? `${path}.${key}` : key
 
@@ -116,7 +101,7 @@ function syncTranslations() {
   }
 
   const baseContent = fs.readFileSync(baseFilePath, 'utf-8')
-  let baseJson: Record<string, any> = {}
+  let baseJson: I18N = {}
   try {
     baseJson = JSON.parse(baseContent)
   } catch (error) {
@@ -130,17 +115,20 @@ function syncTranslations() {
     throw new Error(`主模板文件 ${baseFileName} 存在以下重复键：\n${duplicateKeys.join('\n')}`)
   }
 
-  // 先对模板排序
-  sortObjectByKeys(baseJson)
-  fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
-  console.log(`主模板文件 ${baseFileName} 已按键排序`)
+  // 检查主模板有序性
+  if (!isSortedI18N(baseJson)) {
+    throw new Error(`主模板文件 ${baseFileName} 并非有序`)
+  }
+
+  // fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
+  // console.log(`主模板文件 ${baseFileName} 已按键排序`)
 
   const files = fs.readdirSync(translationsDir).filter((file) => file.endsWith('.json') && file !== baseFileName)
 
   // 同步键
   for (const file of files) {
     const filePath = path.join(translationsDir, file)
-    let targetJson: Record<string, any> = {}
+    let targetJson: I18N = {}
     try {
       const fileContent = fs.readFileSync(filePath, 'utf-8')
       targetJson = JSON.parse(fileContent)
@@ -153,7 +141,6 @@ function syncTranslations() {
 
     if (isUpdated) {
       try {
-        sortObjectByKeys(targetJson)
         fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
         console.log(`文件 ${file} 已更新同步主模板的内容`)
       } catch (error) {
@@ -161,6 +148,11 @@ function syncTranslations() {
       }
     } else {
       console.log(`文件 ${file} 无需更新`)
+    }
+
+    // 检查是否有序
+    if (!isSortedI18N(targetJson)) {
+      throw new Error(`文件 ${baseFileName} 并非有序`)
     }
   }
 }

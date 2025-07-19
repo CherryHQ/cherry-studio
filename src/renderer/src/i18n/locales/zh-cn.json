@@ -141,6 +141,7 @@
       "case_sensitive": "区分大小写",
       "collapse": "收起",
       "includes_user_questions": "包含用户提问",
+      "test": "test",
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",

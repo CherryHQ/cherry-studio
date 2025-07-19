@@ -2,6 +2,7 @@
 Object.defineProperty(exports, '__esModule', { value: true })
 var fs = require('fs')
 var path = require('path')
+var sort_1 = require('./sort')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
@@ -48,29 +49,8 @@ function syncRecursively(target, template) {
   }
   return isUpdated
 }
-/**
- * 对对象的键按照字典序进行排序（支持嵌套对象）
- * @param obj 需要排序的对象
- */
-function sortObjectByKeys(obj) {
-  var sortedKeys = Object.keys(obj).sort(function (a, b) {
-    return a.localeCompare(b)
-  })
-  var sortedObj = {}
-  for (var _i = 0, sortedKeys_1 = sortedKeys; _i < sortedKeys_1.length; _i++) {
-    var key = sortedKeys_1[_i]
-    var value = obj[key]
-    // 如果值是对象，递归排序
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      sortObjectByKeys(value)
-    }
-    sortedObj[key] = value
-  }
-  // 清空原对象并用排序后的键值填充
-  for (var key_ in obj) {
-    delete obj[key_]
-  }
-  Object.assign(obj, sortedObj)
+function isSortedI18N(obj) {
+  return JSON.stringify(obj) === JSON.stringify((0, sort_1.sortedObjectByKeys)(obj))
 }
 /**
  * 检查 JSON 对象中是否存在重复键，并收集所有重复键
@@ -130,10 +110,12 @@ function syncTranslations() {
         .concat(duplicateKeys.join('\n'))
     )
   }
-  // 先对模板排序
-  sortObjectByKeys(baseJson)
-  fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
-  console.log('\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(baseFileName, ' \u5DF2\u6309\u952E\u6392\u5E8F'))
+  // 检查主模板有序性
+  if (!isSortedI18N(baseJson)) {
+    throw new Error('\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(baseFileName, ' \u5E76\u975E\u6709\u5E8F'))
+  }
+  // fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
+  // console.log(`主模板文件 ${baseFileName} 已按键排序`)
   var files = fs.readdirSync(translationsDir).filter(function (file) {
     return file.endsWith('.json') && file !== baseFileName
   })
@@ -152,7 +134,6 @@ function syncTranslations() {
     var isUpdated = syncRecursively(targetJson, baseJson)
     if (isUpdated) {
       try {
-        sortObjectByKeys(targetJson)
         fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
         console.log('\u6587\u4EF6 '.concat(file, ' \u5DF2\u66F4\u65B0\u540C\u6B65\u4E3B\u6A21\u677F\u7684\u5185\u5BB9'))
       } catch (error) {
@@ -160,6 +141,10 @@ function syncTranslations() {
       }
     } else {
       console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0'))
+    }
+    // 检查是否有序
+    if (!isSortedI18N(targetJson)) {
+      throw new Error('\u6587\u4EF6 '.concat(baseFileName, ' \u5E76\u975E\u6709\u5E8F'))
     }
   }
 }

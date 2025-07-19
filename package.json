@@ -53,9 +53,11 @@
     "test:watch": "vitest",
     "test:e2e": "yarn playwright test",
     "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:sort": "vitest scripts",
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "sort:i18n": "node scripts/sort-i18n.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.840.0",
