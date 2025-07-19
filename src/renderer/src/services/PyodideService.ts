@@ -3,6 +3,16 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('PyodideService')
 
+const SERVICE_CONFIG = {
+  WORKER: {
+    MAX_INIT_RETRY: 5, // 最大初始化重试次数
+    REQUEST_TIMEOUT: {
+      INIT: 30000, // 30 秒初始化超时
+      RUN: 60000 // 60 秒默认运行超时
+    }
+  }
+}
+
 // 定义结果类型接口
 export interface PyodideOutput {
   result: any
@@ -25,7 +35,6 @@ class PyodideService {
   private worker: Worker | null = null
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
-  private static readonly MAX_INIT_RETRY = 2
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
 
   private constructor() {
@@ -52,7 +61,7 @@ class PyodideService {
     if (this.worker) {
       return Promise.resolve()
     }
-    if (this.initRetryCount >= PyodideService.MAX_INIT_RETRY) {
+    if (this.initRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
       return Promise.reject(new Error('Pyodide worker initialization failed too many times'))
     }
 
@@ -71,7 +80,7 @@ class PyodideService {
             this.initPromise = null
             this.initRetryCount++
             reject(new Error('Pyodide initialization timeout'))
-          }, 10000) // 10秒初始化超时
+          }, SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT)
 
           // 设置初始化处理器
           const initHandler = (event: MessageEvent) => {
@@ -134,7 +143,7 @@ class PyodideService {
   public async runScript(
     script: string,
     context: Record<string, any> = {},
-    timeout: number = 60000
+    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
   ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
     try {
