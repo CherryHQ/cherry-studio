@@ -25,7 +25,7 @@ export const McpSettingsNavbar = () => {
           style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
           {t('settings.mcp.searchNpx')}
         </Button>
-        <InstallNpxUv mini />
+        <InstallNpxUv />
       </HStack>
     </NavbarRight>
   )
