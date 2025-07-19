@@ -1,8 +1,8 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { IntegrationType, useThirdPartyIntegration } from '@renderer/hooks/useThirdPartyIntegration'
+import { RootState } from '@renderer/store'
 import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
@@ -15,62 +15,70 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
 
   const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
   const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
+  const yuqueRepoId = useSelector((state: RootState) => state.settings.yuqueRepoId)
 
-  const handleYuqueTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueToken(e.target.value))
-  }
+  const yuqueConfig = {
+    type: 'yuque' as IntegrationType,
+    helpUrl: 'https://www.yuque.com/settings/tokens',
+    fieldSetters: {
+      yuqueToken: setYuqueToken,
+      yuqueUrl: setYuqueUrl,
+      yuqueRepoId: setYuqueRepoId
+    },
+    connectionCheckConfig: {
+      requiredFields: ['yuqueToken', 'yuqueUrl'],
+      checkFunction: async (values, t) => {
+        try {
+          const response = await fetch('https://www.yuque.com/api/v2/hello', {
+            headers: {
+              'X-Auth-Token': values.yuqueToken
+            }
+          })
 
-  const handleYuqueRepoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueUrl(e.target.value))
-  }
+          if (!response.ok) {
+            window.message.error(t('settings.data.yuque.check.fail'))
+            return
+          }
 
-  const handleYuqueConnectionCheck = async () => {
-    if (!yuqueToken) {
-      window.message.error(t('settings.data.yuque.check.empty_token'))
-      return
-    }
-    if (!yuqueUrl) {
-      window.message.error(t('settings.data.yuque.check.empty_url'))
-      return
-    }
+          const yuqueSlug = values.yuqueUrl.replace('https://www.yuque.com/', '')
+          const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
+            headers: {
+              'X-Auth-Token': values.yuqueToken
+            }
+          })
 
-    const response = await fetch('https://www.yuque.com/api/v2/hello', {
-      headers: {
-        'X-Auth-Token': yuqueToken
+          if (!repoIDResponse.ok) {
+            window.message.error(t('settings.data.yuque.check.fail'))
+            return
+          }
+
+          const data = await repoIDResponse.json()
+          if (data.data && data.data.id) {
+            setYuqueRepoId(data.data.id)
+            window.message.success(t('settings.data.yuque.check.success'))
+          } else {
+            window.message.error(t('settings.data.yuque.check.fail'))
+          }
+        } catch (e) {
+          window.message.error(t('settings.data.yuque.check.fail'))
+        }
       }
-    })
-
-    if (!response.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
-      return
     }
-    const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
-    const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
-      headers: {
-        'X-Auth-Token': yuqueToken
-      }
-    })
-    if (!repoIDResponse.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
-      return
-    }
-    const data = await repoIDResponse.json()
-    dispatch(setYuqueRepoId(data.data.id))
-    window.message.success(t('settings.data.yuque.check.success'))
   }
 
-  const handleYuqueHelpClick = () => {
-    openMinapp({
-      id: 'yuque-help',
-      name: 'Yuque Help',
-      url: 'https://www.yuque.com/settings/tokens'
-    })
+  const fieldValues = {
+    yuqueToken,
+    yuqueUrl,
+    yuqueRepoId
   }
+
+  const { handleInputChange, handleInputBlur, handleConnectionCheck, handleHelpClick } = useThirdPartyIntegration(
+    yuqueConfig,
+    fieldValues
+  )
 
   return (
     <SettingGroup theme={theme}>
@@ -82,7 +90,8 @@ const YuqueSettings: FC = () => {
           <Input
             type="text"
             value={yuqueUrl || ''}
-            onChange={handleYuqueRepoUrlChange}
+            onChange={handleInputChange('yuqueUrl')}
+            onBlur={handleInputBlur('yuqueUrl')}
             style={{ width: 315 }}
             placeholder={t('settings.data.yuque.repo_url_placeholder')}
           />
@@ -95,7 +104,7 @@ const YuqueSettings: FC = () => {
           <Tooltip title={t('settings.data.yuque.help')} placement="left">
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleYuqueHelpClick}
+              onClick={handleHelpClick}
             />
           </Tooltip>
         </SettingRowTitle>
@@ -103,12 +112,12 @@ const YuqueSettings: FC = () => {
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={yuqueToken || ''}
-              onChange={handleYuqueTokenChange}
-              onBlur={handleYuqueTokenChange}
+              onChange={handleInputChange('yuqueToken')}
+              onBlur={handleInputBlur('yuqueToken')}
               placeholder={t('settings.data.yuque.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
+            <Button onClick={handleConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
           </Space.Compact>
         </HStack>
       </SettingRow>
