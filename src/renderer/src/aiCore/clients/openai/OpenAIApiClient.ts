@@ -715,7 +715,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               choice.delta &&
               Object.keys(choice.delta).length > 0 &&
               (!('content' in choice.delta) ||
-                choice.delta.content === null ||
+                (choice.delta.content === null && choice.delta.tool_calls && choice.delta.tool_calls.length > 0) ||
                 (typeof choice.delta.content === 'string' && choice.delta.content !== '') ||
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
