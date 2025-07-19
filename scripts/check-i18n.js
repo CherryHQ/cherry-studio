@@ -1,5 +1,6 @@
 'use strict'
 Object.defineProperty(exports, '__esModule', { value: true })
+exports.main = main
 var fs = require('fs')
 var path = require('path')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
@@ -136,4 +137,7 @@ function syncTranslations() {
     }
   }
 }
-syncTranslations()
+function main() {
+  syncTranslations()
+}
+main()

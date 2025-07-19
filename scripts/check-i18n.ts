@@ -141,4 +141,8 @@ function syncTranslations() {
   }
 }
 
-syncTranslations()
+export function main() {
+  syncTranslations()
+}
+
+main()

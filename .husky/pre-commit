@@ -1,2 +1,2 @@
 yarn lint-staged
-node scripts/check-i18n.js
+node .husky/pre-commit.js
