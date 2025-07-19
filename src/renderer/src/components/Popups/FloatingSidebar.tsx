@@ -28,11 +28,11 @@ const FloatingSidebar: FC<Props> = ({
     setOpen(false)
   })
 
-  const [maxHeight, setMaxHeight] = useState(Math.floor(window.innerHeight * 0.75))
+  const [height, setHeight] = useState(Math.floor(window.innerHeight * 0.75))
 
   useEffect(() => {
     const handleResize = () => {
-      setMaxHeight(Math.floor(window.innerHeight * 0.75))
+      setHeight(Math.floor(window.innerHeight * 0.75))
     }
 
     window.addEventListener('resize', handleResize)
@@ -43,7 +43,7 @@ const FloatingSidebar: FC<Props> = ({
   }, [])
 
   const content = (
-    <PopoverContent maxHeight={maxHeight}>
+    <PopoverContent height={height}>
       <HomeTabs
         activeAssistant={activeAssistant}
         activeTopic={activeTopic}
@@ -65,7 +65,7 @@ const FloatingSidebar: FC<Props> = ({
       open={open}
       onOpenChange={setOpen}
       content={content}
-      trigger={['hover', 'click', 'contextMenu']}
+      trigger={['hover', 'contextMenu']}
       placement="bottomRight"
       showArrow
       mouseEnterDelay={0.8} // 800ms delay before showing
@@ -80,8 +80,9 @@ const FloatingSidebar: FC<Props> = ({
   )
 }
 
-const PopoverContent = styled.div<{ maxHeight: number }>`
-  max-height: ${(props) => props.maxHeight}px;
+const PopoverContent = styled.div<{ height: number }>`
+  display: flex;
+  height: ${(props) => props.height}px;
   &.ant-popover-inner-content {
     overflow-y: hidden;
   }

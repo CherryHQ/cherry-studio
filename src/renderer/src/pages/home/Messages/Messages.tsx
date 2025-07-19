@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { LOAD_MORE_COUNT } from '@renderer/config/constant'
+import { LOAD_MORE_COUNT, SKELETON_DELAY_TIME, SKELETON_MIN_TIME } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -30,8 +30,9 @@ import {
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { Skeleton, SkeletonProps } from 'antd'
 import { last } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
@@ -64,6 +65,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  // skeleton显示生命周期：开始加载数据 -> 加载完成 -> 检查加载时间是否小于等于SKELETON_DELAY_TIME；是则直接显示内容；否则
+  const [isPending, startTransition] = useTransition()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isShowSkeleton, setIsShowSkeleton] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [startTime] = useState(Date.now())
+  const [skeletonTimer, setSkeletonTimer] = useState<NodeJS.Timeout>()
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
@@ -85,10 +93,56 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [])
 
   useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
-  }, [messages, displayCount])
+    const timer = setTimeout(() => {
+      // 超过DELAY_TIME后再尝试显示skeleton
+      logger.debug('skeletonTimer triggered')
+      setIsShowSkeleton(true)
+    }, SKELETON_DELAY_TIME)
+    setSkeletonTimer(timer)
+
+    // 防止意外的未关闭skeleton显示
+    setTimeout(() => {
+      setIsShowSkeleton(false)
+    }, SKELETON_DELAY_TIME + SKELETON_MIN_TIME)
+  }, [])
+
+  useEffect(() => {
+    startTransition(() => {
+      const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
+      setDisplayMessages(newDisplayMessages)
+      setHasMore(messages.length > displayCount)
+    })
+  }, [displayCount, messages])
+
+  useEffect(() => {
+    // 首次加载时isPending为false并触发该useEffect
+    // 需要在第二次isPending变为false时设置setIsLoading(false)
+    // 将setIsLoading(false)放在isPending变为false之后执行很重要，否则会在数据未加载完成前提前终止skeleton显示
+    if (isLoading) {
+      setPendingCount(pendingCount + 1)
+      if (pendingCount >= 2 && !isPending) {
+        // 准备结束loading，处理skeleton显示逻辑
+        setIsLoading(false)
+        logger.debug('准备结束loading，处理skeleton显示逻辑')
+        const currentTime = Date.now()
+        const elapsed = currentTime - startTime
+        logger.debug('currentTime', currentTime)
+        logger.debug('elapsed', elapsed)
+        if (elapsed <= SKELETON_DELAY_TIME) {
+          clearTimeout(skeletonTimer)
+        } else {
+          const remainTime = SKELETON_MIN_TIME + SKELETON_DELAY_TIME - elapsed
+          if (remainTime <= 0) {
+            return
+          }
+          setTimeout(() => {
+            setIsShowSkeleton(false)
+          }, remainTime)
+        }
+      }
+    }
+    // eslint-disable-next-line
+  }, [isPending])
 
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
@@ -279,6 +333,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
 
+  if (isShowSkeleton) {
+    return (
+      <MessagesSkeletonContainer>
+        <MessageSkeleton />
+        <MessageSkeleton />
+      </MessagesSkeletonContainer>
+    )
+  }
+
   return (
     <MessagesContainer
       id="messages"
@@ -393,5 +456,70 @@ const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   z-index: 1;
   position: relative;
 `
+
+const MessagesSkeletonContainer = styled.div`
+  width: 100%;
+  height: 100%;
+  padding: 10px 16px 20px;
+  overflow: hidden;
+`
+
+// from MessageHeader.tsx
+const MessageHeaderSkeleton = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  margin-bottom: 10px;
+`
+
+const MessageHeaderInfoSkeleton = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+`
+
+const MessageContentSkeleton = styled.div`
+  max-width: 100%;
+  padding-left: 45px;
+  margin-top: 5px;
+  overflow-y: auto;
+`
+
+const MessageSkeletonContainer = styled.div`
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-bottom: 2rem;
+`
+
+const MessageSkeleton = () => {
+  return (
+    <MessageSkeletonContainer>
+      <MessageHeaderSkeleton>
+        <Skeleton.Avatar style={{ width: 35 }} />
+        <MessageHeaderInfoSkeleton>
+          <Skeleton.Node active style={{ width: '18ch', height: 16 }}></Skeleton.Node>
+          <Skeleton.Node active style={{ width: '6ch', height: 16 }}></Skeleton.Node>
+        </MessageHeaderInfoSkeleton>
+      </MessageHeaderSkeleton>
+      <MessageContentSkeleton>
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '60%' }} />
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '80%' }} />
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '40%' }} />
+      </MessageContentSkeleton>
+    </MessageSkeletonContainer>
+  )
+}
+
+const ParagraphSkeleton = ({ paragraph }: Pick<SkeletonProps, 'paragraph'>) => {
+  return (
+    <div style={{ marginBottom: '1.3em' }}>
+      <Skeleton active title={false} paragraph={paragraph}></Skeleton>
+    </div>
+  )
+}
 
 export default Messages
