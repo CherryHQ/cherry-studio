@@ -218,6 +218,22 @@ const DisplaySettings: FC = () => {
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.navbar.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.navbar.position')}</SettingRowTitle>
+          <Segmented
+            value={navbarPosition}
+            shape="round"
+            onChange={setNavbarPosition}
+            options={[
+              { label: t('settings.display.navbar.position.left'), value: 'left' },
+              { label: t('settings.display.navbar.position.top'), value: 'top' }
+            ]}
+          />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.zoom.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -284,22 +300,6 @@ const DisplaySettings: FC = () => {
             shape="round"
             onChange={(value) => dispatch(setAssistantIconType(value as AssistantIconType))}
             options={assistantIconTypeOptions}
-          />
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.navbar.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.navbar.position')}</SettingRowTitle>
-          <Segmented
-            value={navbarPosition}
-            shape="round"
-            onChange={setNavbarPosition}
-            options={[
-              { label: t('settings.display.navbar.position.left'), value: 'left' },
-              { label: t('settings.display.navbar.position.top'), value: 'top' }
-            ]}
           />
         </SettingRow>
       </SettingGroup>

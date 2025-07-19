@@ -110,7 +110,7 @@ const NavbarHeaderContent = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 12px;
   min-height: var(--navbar-height);
   max-height: var(--navbar-height);
 `

@@ -122,7 +122,6 @@ const Chat: FC<Props> = (props) => {
           position="left"
         />
       )}
-
       <HStack>
         <Main
           ref={mainRef}
@@ -168,9 +167,10 @@ const Chat: FC<Props> = (props) => {
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - var(--navbar-height));
   flex: 1;
   [navbar-position='top'] & {
+    height: calc(100vh - var(--navbar-height) -6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
