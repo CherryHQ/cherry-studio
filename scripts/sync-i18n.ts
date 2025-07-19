@@ -1,6 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { sortedObjectByKeys } from './sort'
+
 const translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const baseLocale = 'zh-cn'
 const baseFileName = `${baseLocale}.json`
@@ -19,27 +21,20 @@ type I18N = { [key: string]: I18NValue }
  * @param template 主模板对象（中文）
  * @returns 返回是否对 target 进行了更新
  */
-function syncRecursively(target: I18N, template: I18N): boolean {
-  let isUpdated = false
-
+function syncRecursively(target: I18N, template: I18N): void {
   // 添加 template 中存在但 target 中缺少的 key
   for (const key in template) {
     if (!(key in target)) {
       target[key] =
         typeof template[key] === 'object' && template[key] !== null ? {} : `[to be translated]:${template[key]}`
       console.log(`添加新属性：${key}`)
-      isUpdated = true
     }
     if (typeof template[key] === 'object' && template[key] !== null) {
       if (typeof target[key] !== 'object' || target[key] === null) {
         target[key] = {}
-        isUpdated = true
       }
       // 递归同步子对象
-      const childUpdated = syncRecursively(target[key], template[key])
-      if (childUpdated) {
-        isUpdated = true
-      }
+      syncRecursively(target[key], template[key])
     }
   }
 
@@ -48,11 +43,8 @@ function syncRecursively(target: I18N, template: I18N): boolean {
     if (!(targetKey in template)) {
       console.log(`移除多余属性：${targetKey}`)
       delete target[targetKey]
-      isUpdated = true
     }
   }
-
-  return isUpdated
 }
 
 /**
@@ -109,6 +101,18 @@ function syncTranslations() {
     throw new Error(`主模板文件 ${baseFileName} 存在以下重复键：\n${duplicateKeys.join('\n')}`)
   }
 
+  // 为主模板排序
+  const sortedJson = sortedObjectByKeys(baseJson)
+  if (JSON.stringify(baseJson) !== JSON.stringify(sortedJson)) {
+    try {
+      fs.writeFileSync(baseFilePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
+      console.log(`主模板已排序`)
+    } catch (error) {
+      console.error(`写入 ${baseFilePath} 出错。`, error)
+      return
+    }
+  }
+
   const files = fs.readdirSync(translationsDir).filter((file) => file.endsWith('.json') && file !== baseFileName)
 
   // 同步键
@@ -123,17 +127,15 @@ function syncTranslations() {
       continue
     }
 
-    const isUpdated = syncRecursively(targetJson, baseJson)
+    syncRecursively(targetJson, baseJson)
 
-    if (isUpdated) {
-      try {
-        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
-        console.log(`文件 ${file} 已更新同步主模板的内容`)
-      } catch (error) {
-        console.error(`写入 ${file} 出错。${error}`)
-      }
-    } else {
-      console.log(`文件 ${file} 无需更新`)
+    const sortedJson = sortedObjectByKeys(targetJson)
+
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
+      console.log(`文件 ${file} 已排序并同步更新为主模板的内容`)
+    } catch (error) {
+      console.error(`写入 ${file} 出错。${error}`)
     }
   }
 }
