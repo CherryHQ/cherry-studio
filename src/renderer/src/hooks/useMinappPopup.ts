@@ -56,7 +56,8 @@ export const useMinappPopup = () => {
   if (minAppsCache.max !== maxKeepAliveMinapps) {
     // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
     if (minAppsCache.size <= maxKeepAliveMinapps) {
-      const oldEntries = Array.from(minAppsCache.entries())
+      // LRU cache 机制，后 set 的会被放到前面，所以需要反转一下
+      const oldEntries = Array.from(minAppsCache.entries()).reverse()
       minAppsCache = createLRUCache()
       oldEntries.forEach(([key, value]) => {
         minAppsCache.set(key, value)
