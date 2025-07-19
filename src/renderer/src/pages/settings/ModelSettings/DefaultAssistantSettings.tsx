@@ -18,10 +18,12 @@ import { SettingContainer, SettingSubtitle } from '..'
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
   const [temperature, setTemperature] = useState(defaultAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
+  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? true)
   const [contextCount, setContextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
+  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? true)
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -36,11 +38,13 @@ const AssistantSettings: FC = () => {
       settings: {
         ...defaultAssistant.settings,
         temperature: settings.temperature ?? temperature,
+        enableTemperature: settings.enableTemperature ?? enableTemperature,
         contextCount: settings.contextCount ?? contextCount,
         enableMaxTokens: settings.enableMaxTokens ?? enableMaxTokens,
         maxTokens: settings.maxTokens ?? maxTokens,
         streamOutput: settings.streamOutput ?? true,
-        topP: settings.topP ?? topP
+        topP: settings.topP ?? topP,
+        enableTopP: settings.enableTopP ?? enableTopP
       }
     })
   }
@@ -61,20 +65,24 @@ const AssistantSettings: FC = () => {
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
+    setEnableTemperature(true)
     setContextCount(DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setTopP(1)
+    setEnableTopP(true)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
         ...defaultAssistant.settings,
         temperature: DEFAULT_TEMPERATURE,
+        enableTemperature: true,
         contextCount: DEFAULT_CONTEXTCOUNT,
         enableMaxTokens: false,
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
-        topP: 1
+        topP: 1,
+        enableTopP: true
       }
     })
   }
@@ -150,56 +158,80 @@ const AssistantSettings: FC = () => {
         </Button>
       </SettingSubtitle>
       <Row align="middle">
-        <Label>{t('chat.settings.temperature')}</Label>
-        <Tooltip title={t('chat.settings.temperature.tip')}>
-          <QuestionIcon />
-        </Tooltip>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.temperature')}</Label>
+          <Tooltip title={t('chat.settings.temperature.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          style={{ marginLeft: 10 }}
+          checked={enableTemperature}
+          onChange={(enabled) => {
+            setEnableTemperature(enabled)
+            onUpdateAssistantSettings({ enableTemperature: enabled })
+          }}
+        />
       </Row>
-      <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={19}>
-          <Slider
-            min={0}
-            max={2}
-            onChange={setTemperature}
-            onChangeComplete={onTemperatureChange}
-            value={typeof temperature === 'number' ? temperature : 0}
-            marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
-          />
-        </Col>
-        <Col span={5}>
-          <InputNumber
-            min={0}
-            max={2}
-            step={0.01}
-            value={temperature}
-            onChange={onTemperatureChange}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
+      {enableTemperature && (
+        <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
+          <Col span={19}>
+            <Slider
+              min={0}
+              max={2}
+              onChange={setTemperature}
+              onChangeComplete={onTemperatureChange}
+              value={typeof temperature === 'number' ? temperature : 0}
+              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={5}>
+            <InputNumber
+              min={0}
+              max={2}
+              step={0.01}
+              value={temperature}
+              onChange={onTemperatureChange}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
       <Row align="middle">
-        <Label>{t('chat.settings.top_p')}</Label>
-        <Tooltip title={t('chat.settings.top_p.tip')}>
-          <QuestionIcon />
-        </Tooltip>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.top_p')}</Label>
+          <Tooltip title={t('chat.settings.top_p.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          style={{ marginLeft: 10 }}
+          checked={enableTopP}
+          onChange={(enabled) => {
+            setEnableTopP(enabled)
+            onUpdateAssistantSettings({ enableTopP: enabled })
+          }}
+        />
       </Row>
-      <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={19}>
-          <Slider
-            min={0}
-            max={1}
-            onChange={setTopP}
-            onChangeComplete={onTopPChange}
-            value={typeof topP === 'number' ? topP : 1}
-            marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
-            step={0.01}
-          />
-        </Col>
-        <Col span={5}>
-          <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
-        </Col>
-      </Row>
+      {enableTopP && (
+        <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
+          <Col span={19}>
+            <Slider
+              min={0}
+              max={1}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={5}>
+            <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
+          </Col>
+        </Row>
+      )}
       <Row align="middle">
         <Label>{t('chat.settings.context_count')}</Label>
         <Tooltip title={t('chat.settings.context_count.tip')}>
