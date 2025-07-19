@@ -25,6 +25,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import { apiServerService } from './services/ApiServerService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -135,6 +136,13 @@ if (!app.requestSingleInstanceLock()) {
 
     //start selection assistant service
     initSelectionService()
+
+    // Start API server if enabled
+    try {
+      await apiServerService.start()
+    } catch (error) {
+      logger.error('Failed to start API server:', error)
+    }
   })
 
   registerProtocolClient(app)
@@ -180,6 +188,7 @@ if (!app.requestSingleInstanceLock()) {
     // event.preventDefault()
     try {
       await mcpService.cleanup()
+      await apiServerService.stop()
     } catch (error) {
       logger.error('Error cleaning up MCP service:', error)
     }

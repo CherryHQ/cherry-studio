@@ -6950,6 +6950,7 @@ __metadata:
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     google-auth-library: "npm:^9.15.1"
+    hono: "npm:^4.8.4"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
@@ -12045,6 +12046,13 @@ __metadata:
   dependencies:
     react-is: "npm:^16.7.0"
   checksum: 10c0/fe0889169e845d738b59b64badf5e55fa3cf20454f9203d1eb088df322d49d4318df774828e789898dcb280e8a5521bb59b3203385662ca5e9218a6ca5820e74
+  languageName: node
+  linkType: hard
+
+"hono@npm:^4.8.4":
+  version: 4.8.4
+  resolution: "hono@npm:4.8.4"
+  checksum: 10c0/3712bbb4f7d24b5f4f30d75730ae30111cafdb92132728c92e83c257008cfd64e234a6c0657807cb4dd7bc001e3e1daf2e4dd5eb0a73a32ef3a70eff0415d3b7
   languageName: node
   linkType: hard
 

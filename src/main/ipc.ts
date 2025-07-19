@@ -12,6 +12,7 @@ import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -642,4 +643,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
+
+  // API Server
+  apiServerService.registerIpcHandlers()
 }

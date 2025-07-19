@@ -63,6 +63,7 @@
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
+    "hono": "^4.8.4",
     "iconv-lite": "^0.6.3",
     "jaison": "^2.0.2",
     "jschardet": "^3.1.4",
