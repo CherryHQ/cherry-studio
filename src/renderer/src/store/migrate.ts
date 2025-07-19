@@ -1835,6 +1835,14 @@ const migrateConfig = {
       logger.error('migrate 121 error', error)
       return state
     }
+  },
+  '123': (state: RootState) => {
+    try {
+      addShortcuts(state, ['pin_window'], 'mini_window')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
