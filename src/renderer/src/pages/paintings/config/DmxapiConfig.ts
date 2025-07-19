@@ -98,8 +98,6 @@ export const IMAGE_MERGE_MODELS = [
   }
 ]
 
-export const ALL_MODELS = [...TEXT_TO_IMAGES_MODELS, ...IMAGE_EDIT_MODELS, ...IMAGE_MERGE_MODELS]
-
 export const IMAGE_SIZES = [
   {
     label: '1:1',
@@ -145,7 +143,7 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
   n: 1,
   seed: '',
   style_type: '',
-  model: TEXT_TO_IMAGES_MODELS[0].id,
+  model: '', // 将在运行时动态设置
   autoCreate: false,
   generationMode: generationModeType.GENERATION
 }
@@ -156,24 +154,15 @@ export const MODEOPTIONS = [
   { label: '合并图', value: generationModeType.MERGE }
 ]
 
-// 按品牌分组的模型配置
-export const MODEL_GROUPS = {
-  TEXT_TO_IMAGES: {
-    Doubao: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'doubao'),
-    OpenAI: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'OpenAI'),
-    'Black Forest Labs': IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
-    Google: TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === 'Google')
-  },
-  IMAGE_EDIT: {
-    Doubao: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'doubao'),
-    OpenAI: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'OpenAI'),
-    'Black Forest Labs': IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
-    Google: IMAGE_EDIT_MODELS.filter((model) => model.provider === 'Google')
-  },
-  IMAGE_MERGE: {
-    Doubao: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'doubao'),
-    OpenAI: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'OpenAI'),
-    'Black Forest Labs': IMAGE_MERGE_MODELS.filter((model) => model.provider === 'Black Forest Labs'),
-    Google: IMAGE_MERGE_MODELS.filter((model) => model.provider === 'Google')
+export const GetModelGroup = async () => {
+  try {
+    const response = await fetch(`https://dmxapi.cn/cherry_painting_models.json`, {})
+    if (!response.ok) {
+      return await response.json()
+    }
+  } catch {
+    /* empty */
   }
+
+  return []
 }
