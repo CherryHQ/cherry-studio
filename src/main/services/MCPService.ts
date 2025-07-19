@@ -381,12 +381,6 @@ class McpService {
           // Clear existing cache to ensure fresh data
           this.clearServerCache(serverKey)
 
-          // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
-
-          // Clear existing cache to ensure fresh data
-          this.clearServerCache(serverKey)
-
           logger.debug(`Activated server: ${server.name}`)
           return client
         } catch (error: any) {
