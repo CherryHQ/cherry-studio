@@ -33,7 +33,7 @@ export const useMinappPopup = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
 
-  const createLRUCache = () => {
+  const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({
       max: maxKeepAliveMinapps,
       disposeAfter: () => {
@@ -45,7 +45,7 @@ export const useMinappPopup = () => {
       updateAgeOnGet: true,
       updateAgeOnHas: true
     })
-  }
+  }, [dispatch, maxKeepAliveMinapps])
 
   // 缓存不存在
   if (!minAppsCache) {
