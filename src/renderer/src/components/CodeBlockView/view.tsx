@@ -1,7 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { CodeTool, CodeToolbar, FakeCodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
@@ -49,6 +49,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [viewMode, setViewMode] = useState<ViewMode>('special')
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState('')
+  const [showQuickTools, setShowQuickTools] = useState(false)
 
   const [tools, setTools] = useState<CodeTool[]>([])
   const { registerTool, removeTool } = useCodeTool(setTools)
@@ -215,8 +216,13 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const renderHeader = useMemo(() => {
     const langTag = '<' + language.toUpperCase() + '>'
-    return <CodeHeader $isInSpecialView={isInSpecialView}>{isInSpecialView ? '' : langTag}</CodeHeader>
-  }, [isInSpecialView, language])
+    return (
+      <CodeHeader>
+        <CodeTitle $isInSpecialView={isInSpecialView}>{isInSpecialView ? '' : langTag}</CodeTitle>
+        <FakeCodeToolbar tools={tools} showQuickTools={showQuickTools}></FakeCodeToolbar>
+      </CodeHeader>
+    )
+  }, [isInSpecialView, language, showQuickTools, tools])
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
   const renderContent = useMemo(() => {
@@ -239,7 +245,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
       {renderHeader}
-      <CodeToolbar tools={tools} />
+      <CodeToolbar tools={tools} showQuickTools={showQuickTools} setShowQuickTools={setShowQuickTools} />
       {renderContent}
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
     </CodeBlockWrapper>
@@ -249,11 +255,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
   width: 100%;
-  /* FIXME: 最小宽度用于解决两个问题。
-   * 一是 CodePreview 在气泡样式下的用户消息中无法撑开气泡，
-   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
-   */
-  min-width: 45ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
@@ -273,14 +274,21 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   }
 `
 
-const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
+const CodeHeader = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+  padding: 0 10px;
+`
+
+const CodeTitle = styled.div<{ $isInSpecialView: boolean }>`
   display: flex;
   align-items: center;
   color: var(--color-text);
   font-size: 14px;
   line-height: 1;
   font-weight: bold;
-  padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};

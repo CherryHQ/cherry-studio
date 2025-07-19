@@ -1,7 +1,7 @@
 import { HStack } from '@renderer/components/Layout'
 import { Tooltip } from 'antd'
 import { EllipsisVertical } from 'lucide-react'
-import React, { memo, useMemo, useState } from 'react'
+import React, { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,8 +19,11 @@ const CodeToolButton: React.FC<CodeToolButtonProps> = memo(({ tool }) => {
   )
 })
 
-export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => {
-  const [showQuickTools, setShowQuickTools] = useState(false)
+export const CodeToolbar: React.FC<{
+  tools: CodeTool[]
+  showQuickTools: boolean
+  setShowQuickTools: (value: boolean) => void
+}> = memo(({ tools, showQuickTools, setShowQuickTools }) => {
   const { t } = useTranslation()
 
   // 根据条件显示工具
@@ -45,7 +48,7 @@ export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => 
 
   return (
     <StickyWrapper>
-      <ToolbarWrapper className="code-toolbar">
+      <ToolbarWrapper className="code-toolbar" style={{ position: 'absolute', right: '0.5rem', bottom: '0.3rem' }}>
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (
@@ -65,6 +68,37 @@ export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => 
   )
 })
 
+export const FakeCodeToolbar: React.FC<{
+  tools: CodeTool[]
+  showQuickTools: boolean
+}> = memo(({ tools, showQuickTools }) => {
+  // 根据条件显示工具
+  const visibleTools = tools.filter((tool) => !tool.visible || tool.visible())
+
+  // 按类型分组
+  const coreTools = visibleTools.filter((tool) => tool.type === 'core')
+  const quickTools = visibleTools.filter((tool) => tool.type === 'quick')
+
+  // 计算需要显示的工具数目
+  const numToolButtons = useMemo(() => {
+    const numQuickToolButtons =
+      quickTools.length === 1 || (quickTools.length > 1 && showQuickTools) ? quickTools.length : 0
+    return numQuickToolButtons + coreTools.length
+  }, [coreTools.length, quickTools.length, showQuickTools])
+
+  if (visibleTools.length === 0) {
+    return null
+  }
+
+  return (
+    <ToolbarWrapper className="code-toolbar" style={{}}>
+      {Array.from({ length: numToolButtons }, (_, i) => (
+        <FakeTool key={i} />
+      ))}
+    </ToolbarWrapper>
+  )
+})
+
 const StickyWrapper = styled.div`
   position: sticky;
   top: 28px;
@@ -72,12 +106,13 @@ const StickyWrapper = styled.div`
 `
 
 const ToolbarWrapper = styled(HStack)`
-  position: absolute;
   align-items: center;
-  bottom: 0.3rem;
-  right: 0.5rem;
   height: 24px;
   gap: 4px;
+`
+const FakeTool = styled.div`
+  width: 24px;
+  height: 24px;
 `
 
 const ToolWrapper = styled.div`

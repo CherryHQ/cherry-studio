@@ -5,7 +5,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { debounce } from 'lodash'
+import { debounce, max } from 'lodash'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,6 +129,10 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     callerId
   })
 
+  const width = useMemo(() => {
+    return `calc(${max(rawLines.map((line) => line.length)) ?? 0}ch + ${codeShowLineNumbers ? 4 : 0}ch)`
+  }, [rawLines, codeShowLineNumbers])
+
   // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
   const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
 
@@ -159,7 +163,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
           className="shiki-list"
           style={{
             height: `${virtualizer.getTotalSize()}px`,
-            width: '100%',
+            width,
             position: 'relative'
           }}>
           <div
