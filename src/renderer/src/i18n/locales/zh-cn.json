@@ -141,10 +141,10 @@
       "case_sensitive": "区分大小写",
       "collapse": "收起",
       "includes_user_questions": "包含用户提问",
-      "test": "test",
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",
+      "test": "test",
       "update_available": "有可用更新",
       "whole_word": "全字匹配"
     },
@@ -182,8 +182,8 @@
       "input.generate_image": "生成图片",
       "input.generate_image_not_supported": "模型不支持生成图片",
       "input.knowledge_base": "知识库",
-      "input.new_topic": "新话题 {{Command}}",
       "input.new.context": "清除上下文 {{Command}}",
+      "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息，按 {{key}} 发送...",
       "input.send": "发送",
@@ -265,6 +265,7 @@
         "select.content.title": "选择要保存的内容类型",
         "title": "保存到知识库"
       },
+      "settings.code.title": "代码块设置",
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_editor": {
         "autocompletion": "自动补全",
@@ -280,7 +281,6 @@
         "title": "代码执行"
       },
       "settings.code_wrappable": "代码块可换行",
-      "settings.code.title": "代码块设置",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 Token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
@@ -892,9 +892,9 @@
         "goBack": "后退",
         "goForward": "前进",
         "minimize": "最小化小程序",
+        "openExternal": "在浏览器中打开",
         "open_link_external_off": "当前：使用默认窗口打开链接",
         "open_link_external_on": "当前：在浏览器中打开链接",
-        "openExternal": "在浏览器中打开",
         "refresh": "刷新",
         "rightclick_copyurl": "右键复制 URL"
       },
@@ -1061,6 +1061,7 @@
       "go_to_settings": "去设置",
       "guidance_scale": "引导比例",
       "guidance_scale_tip": "无分类器指导。控制模型在寻找相关图像时对提示词的遵循程度",
+      "image.size": "图片尺寸",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_handle_required": "请先上传图片",
@@ -1069,7 +1070,6 @@
       "image_size_options": {
         "auto": "自动"
       },
-      "image.size": "图片尺寸",
       "inference_steps": "推理步数",
       "inference_steps_tip": "要执行的推理步数。步数越多，质量越高但耗时越长",
       "input_image": "输入图片",
@@ -1430,9 +1430,9 @@
     },
     "settings": {
       "about": "关于我们",
-      "about.checkingUpdate": "正在检查更新...",
       "about.checkUpdate": "检查更新",
       "about.checkUpdate.available": "立即更新",
+      "about.checkingUpdate": "正在检查更新...",
       "about.contact.button": "邮件",
       "about.contact.title": "邮件联系",
       "about.debug.open": "打开",
@@ -1731,8 +1731,8 @@
           "root_path_placeholder": "例如：/CherryStudio",
           "title": "思源笔记配置",
           "token": "API 令牌",
-          "token_placeholder": "请输入思源笔记令牌",
-          "token.help": "在思源笔记 -> 设置 -> 关于中获取"
+          "token.help": "在思源笔记 -> 设置 -> 关于中获取",
+          "token_placeholder": "请输入思源笔记令牌"
         },
         "title": "数据设置",
         "webdav": {
@@ -2220,10 +2220,6 @@
         "add.name.placeholder": "例如 OpenAI",
         "add.title": "添加提供商",
         "add.type": "提供商类型",
-        "api_host": "API 地址",
-        "api_key": "API 密钥",
-        "api_key.tip": "多个密钥使用逗号或空格分隔",
-        "api_version": "API 版本",
         "api.key.check.latency": "耗时",
         "api.key.error.duplicate": "API 密钥已存在",
         "api.key.error.empty": "API 密钥不能为空",
@@ -2233,6 +2229,10 @@
         "api.url.preview": "预览: {{url}}",
         "api.url.reset": "重置",
         "api.url.tip": "/ 结尾忽略 v1 版本，# 结尾强制使用输入地址",
+        "api_host": "API 地址",
+        "api_key": "API 密钥",
+        "api_key.tip": "多个密钥使用逗号或空格分隔",
+        "api_version": "API 版本",
         "azure.apiversion.tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 preview 版本",
         "basic_auth": "HTTP 认证",
         "basic_auth.password": "密码",

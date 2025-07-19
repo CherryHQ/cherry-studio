@@ -1,2 +1,2 @@
 yarn lint-staged
-yarn sort:i18n
+yarn check:i18n

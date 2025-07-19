@@ -2,7 +2,6 @@
 Object.defineProperty(exports, '__esModule', { value: true })
 var fs = require('fs')
 var path = require('path')
-var sort_1 = require('./sort')
 var translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 var baseLocale = 'zh-cn'
 var baseFileName = ''.concat(baseLocale, '.json')
@@ -48,9 +47,6 @@ function syncRecursively(target, template) {
     }
   }
   return isUpdated
-}
-function isSortedI18N(obj) {
-  return JSON.stringify(obj) === JSON.stringify((0, sort_1.sortedObjectByKeys)(obj))
 }
 /**
  * 检查 JSON 对象中是否存在重复键，并收集所有重复键
@@ -110,10 +106,6 @@ function syncTranslations() {
         .concat(duplicateKeys.join('\n'))
     )
   }
-  // 检查主模板有序性
-  if (!isSortedI18N(baseJson)) {
-    throw new Error('\u4E3B\u6A21\u677F\u6587\u4EF6 '.concat(baseFileName, ' \u5E76\u975E\u6709\u5E8F'))
-  }
   // fs.writeFileSync(baseFilePath, JSON.stringify(baseJson, null, 2) + '\n', 'utf-8')
   // console.log(`主模板文件 ${baseFileName} 已按键排序`)
   var files = fs.readdirSync(translationsDir).filter(function (file) {
@@ -141,10 +133,6 @@ function syncTranslations() {
       }
     } else {
       console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0'))
-    }
-    // 检查是否有序
-    if (!isSortedI18N(targetJson)) {
-      throw new Error('\u6587\u4EF6 '.concat(baseFileName, ' \u5E76\u975E\u6709\u5E8F'))
     }
   }
 }

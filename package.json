@@ -200,6 +200,7 @@
     "p-queue": "^8.1.0",
     "playwright": "^1.52.0",
     "prettier": "^3.5.3",
+    "prettier-plugin-sort-json": "^4.1.1",
     "proxy-agent": "^6.5.0",
     "rc-virtual-list": "^3.18.6",
     "react": "^19.0.0",

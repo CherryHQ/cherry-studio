@@ -6977,6 +6977,7 @@ __metadata:
     pdfjs-dist: "npm:4.10.38"
     playwright: "npm:^1.52.0"
     prettier: "npm:^3.5.3"
+    prettier-plugin-sort-json: "npm:^4.1.1"
     proxy-agent: "npm:^6.5.0"
     rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
@@ -16302,6 +16303,15 @@ __metadata:
   dependencies:
     fast-diff: "npm:^1.1.2"
   checksum: 10c0/81e0027d731b7b3697ccd2129470ed9913ecb111e4ec175a12f0fcfab0096516373bf0af2fef132af50cafb0a905b74ff57996d615f59512bb9ac7378fcc64ab
+  languageName: node
+  linkType: hard
+
+"prettier-plugin-sort-json@npm:^4.1.1":
+  version: 4.1.1
+  resolution: "prettier-plugin-sort-json@npm:4.1.1"
+  peerDependencies:
+    prettier: ^3.0.0
+  checksum: 10c0/b3b86ea679e95d0329c367aa860af4033d8a3b83a0656d7393f2005b2df78e20d19fbe2c40fe7b531262210e40060318a4287459c2a4f61c6a6bd1c2757e2b7d
   languageName: node
   linkType: hard
 
