@@ -118,11 +118,11 @@ class PyodideService {
    * 处理来自 Worker 的消息
    */
   private handleMessage(event: MessageEvent): void {
-    const { type, error, context } = event.data
+    const { type, error } = event.data
 
     // 记录 Worker 错误消息
     if (type === 'system-error') {
-      logger.error(`${context || 'System error'}: ${error}`)
+      logger.error(error)
       return
     }
 

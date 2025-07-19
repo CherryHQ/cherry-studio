@@ -1,5 +1,12 @@
 /// <reference lib="webworker" />
 
+interface WorkerResponse {
+  type: 'initialized' | 'init-error' | 'system-error'
+  id?: string
+  output?: PyodideOutput
+  error?: string
+}
+
 // 定义输出结构类型
 interface PyodideOutput {
   result: any
@@ -7,6 +14,9 @@ interface PyodideOutput {
   error: string | null
   image?: string
 }
+
+const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/'
+const PYODIDE_MODULE_URL = PYODIDE_INDEX_URL + 'pyodide.mjs'
 
 // 垫片代码，用于在 Worker 中捕获 Matplotlib 绘图
 const MATPLOTLIB_SHIM_CODE = `
@@ -65,12 +75,11 @@ const pyodidePromise = (async () => {
 
   try {
     // 动态加载 Pyodide 脚本
-    // @ts-ignore - 忽略动态导入错误
-    const pyodideModule = await import('https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.mjs')
+    const pyodideModule = await import(/* @vite-ignore */ PYODIDE_MODULE_URL)
 
     // 加载 Pyodide 并捕获标准输出/错误
     return await pyodideModule.loadPyodide({
-      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/',
+      indexURL: PYODIDE_INDEX_URL,
       stdout: (text: string) => {
         if (output.text) {
           output.text += `${text}\n`
@@ -92,9 +101,8 @@ const pyodidePromise = (async () => {
     // 通知主线程初始化错误
     self.postMessage({
       type: 'init-error',
-      error: errorMessage,
-      context: 'Failed to load Pyodide'
-    })
+      error: errorMessage
+    } as WorkerResponse)
 
     throw error
   }
@@ -125,15 +133,14 @@ function processResult(result: any): any {
 // 通知主线程已加载
 pyodidePromise
   .then(() => {
-    self.postMessage({ type: 'initialized' })
+    self.postMessage({ type: 'initialized' } as WorkerResponse)
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
     self.postMessage({
       type: 'init-error',
-      error: errorMessage,
-      context: 'Failed to load Pyodide'
-    })
+      error: errorMessage
+    } as WorkerResponse)
   })
 
 // 处理消息
@@ -197,11 +204,11 @@ self.onmessage = async (event) => {
     // 发送错误信息
     self.postMessage({
       type: 'system-error',
-      error: errorMessage,
-      context: `System error for request ${id}`
-    })
+      id,
+      error: errorMessage
+    } as WorkerResponse)
   } finally {
     // 统一发送处理后的输出对象
-    self.postMessage({ id, output })
+    self.postMessage({ id, output } as WorkerResponse)
   }
 }
