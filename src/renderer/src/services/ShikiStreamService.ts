@@ -513,6 +513,9 @@ class ShikiStreamService {
     this.workerDegradationCache.clear()
     this.tokenizerCache.clear()
     this.codeCache.clear()
+
+    // Don't dispose the highlighter directly since it's managed by AsyncInitializer
+    // Just clear the reference
     this.highlighter = null
     this.workerInitPromise = null
     this.workerInitRetryCount = 0

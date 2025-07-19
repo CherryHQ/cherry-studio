@@ -370,7 +370,7 @@ export async function fetchChatCompletion({
   // TODO
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
-  console.log('fetchChatCompletion', messages, assistant)
+  logger.debug('fetchChatCompletion', messages, assistant)
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
@@ -518,12 +518,12 @@ async function processConversationMemory(messages: Message[], assistant: Assista
     memoryProcessor
       .processConversation(conversationMessages, processorConfig)
       .then((result) => {
-        console.log('Memory processing completed:', result)
+        logger.debug('Memory processing completed:', result)
         if (result.facts.length > 0) {
-          console.log('Extracted facts from conversation:', result.facts)
-          console.log('Memory operations performed:', result.operations)
+          logger.debug('Extracted facts from conversation:', result.facts)
+          logger.debug('Memory operations performed:', result.operations)
         } else {
-          console.log('No facts extracted from conversation')
+          logger.debug('No facts extracted from conversation')
         }
       })
       .catch((error) => {

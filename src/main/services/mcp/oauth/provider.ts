@@ -5,6 +5,7 @@ import { getConfigDir } from '@main/utils/file'
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import { OAuthClientInformation, OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth'
 import open from 'open'
+import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { JsonFileStorage } from './storage'
 import { OAuthProviderOptions } from './types'
@@ -62,7 +63,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     try {
       // Open the browser to the authorization URL
-      await open(authorizationUrl.toString())
+      await open(sanitizeUrl(authorizationUrl.toString()))
       logger.debug('Browser opened automatically.')
     } catch (error) {
       logger.error('Could not open browser automatically.')
