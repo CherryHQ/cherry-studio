@@ -2,6 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { Provider } from '@renderer/types'
+import { modelSelectFilter } from '@renderer/utils'
 import { Modal, Select } from 'antd'
 import { first, orderBy } from 'lodash'
 import { useState } from 'react'
@@ -59,6 +60,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
         onChange={(value) => {
           setModel(provider.models.find((m) => m.id === value)!)
         }}
+        filterOption={modelSelectFilter}
       />
     </Modal>
   )
