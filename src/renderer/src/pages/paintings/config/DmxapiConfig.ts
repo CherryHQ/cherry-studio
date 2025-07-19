@@ -39,65 +39,6 @@ export const STYLE_TYPE_OPTIONS = [
   { label: '巴洛克', value: '巴洛克' }
 ]
 
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'seedream-3.0',
-    provider: 'doubao',
-    name: ' 即梦 seedream-3.0'
-  },
-  {
-    id: 'flux-kontext-pro',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-pro'
-  },
-  {
-    id: 'flux-kontext-max',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-max'
-  },
-  {
-    id: 'imagen4',
-    provider: 'Google',
-    name: 'imagen4'
-  }
-]
-
-export const IMAGE_EDIT_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'OpenAI',
-    name: 'gpt-image-1'
-  },
-  {
-    id: 'flux-kontext-pro',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-pro'
-  },
-  {
-    id: 'flux-kontext-max',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-max'
-  }
-]
-
-export const IMAGE_MERGE_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'OpenAI',
-    name: 'gpt-image-1'
-  },
-  {
-    id: 'flux-kontext-pro',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-pro'
-  },
-  {
-    id: 'flux-kontext-max',
-    provider: 'Black Forest Labs',
-    name: 'flux-kontext-max'
-  }
-]
-
 export const IMAGE_SIZES = [
   {
     label: '1:1',
@@ -157,7 +98,8 @@ export const MODEOPTIONS = [
 export const GetModelGroup = async () => {
   try {
     const response = await fetch(`https://dmxapi.cn/cherry_painting_models.json`, {})
-    if (!response.ok) {
+
+    if (response.ok) {
       return await response.json()
     }
   } catch {
