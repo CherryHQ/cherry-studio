@@ -100,6 +100,7 @@ function createToolHandlingTransform(
     async transform(chunk: GenericChunk, controller) {
       try {
         // 处理MCP工具进展chunk
+        logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
           const createdChunk = chunk as MCPToolCreatedChunk
 

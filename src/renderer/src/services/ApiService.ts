@@ -398,6 +398,7 @@ export async function fetchChatCompletion({
     filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
   )
 
+  // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
