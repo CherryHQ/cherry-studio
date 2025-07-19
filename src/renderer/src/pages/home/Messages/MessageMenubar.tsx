@@ -1,4 +1,5 @@
 import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { defaultConfig } from '@mcp-trace/trace-core'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -14,6 +15,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Language, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
@@ -45,7 +47,7 @@ import {
   ThumbsUp,
   Trash
 } from 'lucide-react'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -176,6 +178,24 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
+
+  const [isDevelopModel, setIsDevelopModel] = useState(true)
+
+  useEffect(() => {
+    setIsDevelopModel(defaultConfig.isDevModel || false)
+  }, [])
+
+  const handleTraceUserMessage = useCallback(async () => {
+    console.log('current traceId', message.traceId, 'start send')
+    if (message.traceId) {
+      window.api.trace.openWindow(
+        message.topicId,
+        message.traceId,
+        true,
+        message.role === 'user' ? undefined : message.model?.name
+      )
+    }
+  }, [message])
 
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
@@ -560,7 +580,7 @@ const MessageMenubar: FC<Props> = (props) => {
           okButtonProps={{ danger: true }}
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id)}>
+          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
@@ -574,6 +594,13 @@ const MessageMenubar: FC<Props> = (props) => {
             </Tooltip>
           </ActionButton>
         </Popconfirm>
+        {isDevelopModel && message.traceId && (
+          <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+              <TraceIcon size={16} className={'lucide lucide-trash'} />
+            </ActionButton>
+          </Tooltip>
+        )}
         {!isUserMessage && (
           <Dropdown
             menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

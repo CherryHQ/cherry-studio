@@ -4,6 +4,7 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
@@ -258,7 +259,8 @@ const dispatchMultiModelResponses = async (
     const assistantMessage = createAssistantMessage(assistant.id, topicId, {
       askId: triggeringMessage.id,
       model: mentionedModel,
-      modelId: mentionedModel.id
+      modelId: mentionedModel.id,
+      traceId: triggeringMessage.traceId
     })
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
@@ -886,13 +888,24 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     // const startTime = Date.now()
-    await fetchChatCompletion({
+    const result = await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
       onChunkReceived: streamProcessorCallbacks
     })
+    endSpan({
+      topicId,
+      outputs: result ? result.getText() : '',
+      modelName: assistant.model?.name,
+      modelEnded: true
+    })
   } catch (error: any) {
     logger.error('Error fetching chat completion:', error)
+    endSpan({
+      topicId,
+      error: error,
+      modelName: assistant.model?.name
+    })
     if (assistantMessage) {
       callbacks.onError?.(error)
       throw error
@@ -930,7 +943,8 @@ export const sendMessage =
       } else {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
-          model: assistant.model
+          model: assistant.model,
+          traceId: userMessage.traceId
         })
         await saveMessageAndBlocksToDB(assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
@@ -1129,6 +1143,7 @@ export const resendMessageThunk =
           askId: userMessageToResend.id,
           model: assistant.model
         })
+        assistantMessage.traceId = userMessageToResend.traceId
         resetDataList.push(assistantMessage)
 
         resetDataList.forEach((message) => {
@@ -1427,7 +1442,8 @@ export const appendAssistantResponseThunk =
     topicId: Topic['id'],
     existingAssistantMessageId: string, // ID of the assistant message the user interacted with
     newModel: Model, // The new model selected by the user
-    assistant: Assistant // Base assistant configuration
+    assistant: Assistant, // Base assistant configuration
+    traceId?: string
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
@@ -1474,7 +1490,8 @@ export const appendAssistantResponseThunk =
       const newAssistantStub = createAssistantMessage(assistant.id, topicId, {
         askId: askId, // Crucial: Use the original askId
         model: newModel,
-        modelId: newModel.id
+        modelId: newModel.id,
+        traceId: traceId
       })
 
       // 3. Update Redux Store

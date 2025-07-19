@@ -341,6 +341,7 @@
       "provider": "Fournisseur",
       "reasoning_content": "Réflexion approfondie",
       "regenerate": "Regénérer",
+      "trace": "Tracer",
       "rename": "Renommer",
       "reset": "Réinitialiser",
       "save": "Enregistrer",

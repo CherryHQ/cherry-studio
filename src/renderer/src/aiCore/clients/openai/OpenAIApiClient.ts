@@ -543,7 +543,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
               ...commonParams,
-              stream: true
+              stream: true,
+              stream_options: { include_usage: true }
             }
           : {
               ...commonParams,

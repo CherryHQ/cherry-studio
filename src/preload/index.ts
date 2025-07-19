@@ -1,5 +1,7 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -26,6 +28,14 @@ import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
+  if (spanContext) {
+    const data = { type: 'trace', context: spanContext }
+    console.log(`tracedInvoke data`, data)
+    return ipcRenderer.invoke(channel, ...args, data)
+  }
+  return ipcRenderer.invoke(channel, ...args)
+}
 
 // Custom APIs for renderer
 const api = {
@@ -125,7 +135,7 @@ const api = {
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
     read: (fileId: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
-    clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
+    clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     /**
      * 创建一个空的临时文件
@@ -145,7 +155,7 @@ const api = {
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
+    selectFolder: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, spanContext),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
@@ -169,7 +179,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
   },
   knowledgeBase: {
-    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Create, base),
+    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
     delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
     add: ({
@@ -185,10 +196,12 @@ const api = {
     }) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload, userId }),
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Search, { search, base }),
-    rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Rerank, { search, base, results }),
+    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
+    rerank: (
+      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
       ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId)
   },
@@ -253,9 +266,11 @@ const api = {
     removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args, callId }),
+    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
+    callTool: (
+      { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.Mcp_CallTool, context, { server, name, args, callId }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
@@ -348,7 +363,28 @@ const api = {
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
-    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable)
+    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  trace: {
+    saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
+    getData: (topicId: string, traceId: string, modelName?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName),
+    saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
+    getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
+    bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
+    tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
+    cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
+    cleanTopic: (topicId: string, traceId?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
+    openWindow: (topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen, modelName),
+    setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title),
+    addEndMessage: (spanId: string, modelName: string, context: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),
+    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
+    addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

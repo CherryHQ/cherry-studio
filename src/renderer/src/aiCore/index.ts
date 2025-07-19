@@ -2,8 +2,10 @@ import { loggerService } from '@logger'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
+import { withSpanResult } from '@renderer/services/SpanManagerService'
+import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
-import { RequestOptions, SdkModel } from '@renderer/types/sdk'
+import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { OpenAIAPIClient } from './clients'
@@ -24,7 +26,7 @@ import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from './middleware/f
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from './middleware/feat/ThinkingTagExtractionMiddleware'
 import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from './middleware/feat/ToolUseExtractionMiddleware'
 import { MiddlewareRegistry } from './middleware/register'
-import { CompletionsParams, CompletionsResult } from './middleware/schemas'
+import type { CompletionsParams, CompletionsResult } from './middleware/schemas'
 
 const logger = loggerService.withContext('AiProvider')
 
@@ -114,7 +116,23 @@ export default class AiProvider {
     const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)
 
     // 4. Execute the wrapped method with the original params
-    return wrappedCompletionMethod(params, options)
+    const result = wrappedCompletionMethod(params, options)
+    return result
+  }
+
+  public async completionsForTrace(params: CompletionsParams, options?: RequestOptions): Promise<CompletionsResult> {
+    const traceName = params.assistant.model?.name
+      ? `${params.assistant.model?.name}.${params.callType}`
+      : `LLM.${params.callType}`
+
+    const traceParams: StartSpanParams = {
+      name: traceName,
+      tag: 'LLM',
+      topicId: params.topicId || '',
+      modelName: params.assistant.model?.name
+    }
+
+    return await withSpanResult(this.completions.bind(this), traceParams, params, options)
   }
 
   public async models(): Promise<SdkModel[]> {

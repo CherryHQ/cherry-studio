@@ -2564,6 +2564,23 @@
       "embedding_dimensions": "Размерность вложения",
       "stored_memories": "Запасённые воспоминания",
       "global_memory_description": "Для использования функций памяти необходимо включить глобальную память в настройках ассистента."
+    },
+    "trace": {
+      "label": "Цепочка вызовов",
+      "traceWindow": "Окно цепочки вызовов",
+      "backList": "Вернуться к списку",
+      "spanDetail": "Span Подробнее",
+      "name": "Имя узла",
+      "tag": "ярлык",
+      "startTime": "время начала",
+      "endTime": "время окончания",
+      "tokenUsage": "Использование токена",
+      "spendTime": "тратитьВремя",
+      "parentId": "Родительский идентификатор",
+      "inputs": "входы",
+      "outputs": "выходы",
+      "noTraceList": "Информация о следах не найдена",
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }

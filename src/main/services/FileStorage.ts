@@ -45,6 +45,7 @@ class FileStorage {
     }
   }
 
+  // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
   private getFileHash = async (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('md5')
@@ -219,6 +220,7 @@ class FileStorage {
     return fileInfo
   }
 
+  // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
@@ -586,6 +588,7 @@ class FileStorage {
     return mimeToExtension[mimeType] || '.bin'
   }
 
+  // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)
