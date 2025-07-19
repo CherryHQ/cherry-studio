@@ -44,6 +44,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "check:i18n": "node scripts/check-i18n.js",
+    "sync:i18n": "node scripts/sync-i18n.js",
     "test": "vitest run --silent",
     "test:main": "vitest run --project main",
     "test:renderer": "vitest run --project renderer",

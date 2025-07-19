@@ -10,38 +10,49 @@ type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
 
 /**
- * 递归检查并同步目标对象与模板对象的键值结构
- * 1. 如果目标对象缺少模板对象中的键，抛出错误
- * 2. 如果目标对象存在模板对象中不存在的键，抛出错误
- * 3. 对于嵌套对象，递归执行同步操作
+ * 递归同步 target 对象，使其与 template 对象保持一致
+ * 1. 如果 template 中存在 target 中缺少的 key，则添加（'[to be translated]'）
+ * 2. 如果 target 中存在 template 中不存在的 key，则删除
+ * 3. 对于子对象，递归同步
  *
- * 该函数用于确保所有翻译文件与基准模板（通常是中文翻译文件）保持完全一致的键值结构。
- * 任何结构上的差异都会导致错误被抛出，以便及时发现和修复翻译文件中的问题。
- *
- * @param target 需要检查的目标翻译对象
- * @param template 作为基准的模板对象（通常是中文翻译文件）
- * @throws {Error} 当发现键值结构不匹配时抛出错误
+ * @param target 目标对象（需要更新的语言对象）
+ * @param template 主模板对象（中文）
+ * @returns 返回是否对 target 进行了更新
  */
-function checkRecursively(target: I18N, template: I18N): void {
+function syncRecursively(target: I18N, template: I18N): boolean {
+  let isUpdated = false
+
+  // 添加 template 中存在但 target 中缺少的 key
   for (const key in template) {
     if (!(key in target)) {
-      throw new Error(`缺少属性 ${key}`)
+      target[key] =
+        typeof template[key] === 'object' && template[key] !== null ? {} : `[to be translated]:${template[key]}`
+      console.log(`添加新属性：${key}`)
+      isUpdated = true
     }
     if (typeof template[key] === 'object' && template[key] !== null) {
       if (typeof target[key] !== 'object' || target[key] === null) {
-        throw new Error(`属性 ${key} 不是对象`)
+        target[key] = {}
+        isUpdated = true
       }
-      // 递归检查子对象
-      checkRecursively(target[key], template[key])
+      // 递归同步子对象
+      const childUpdated = syncRecursively(target[key], template[key])
+      if (childUpdated) {
+        isUpdated = true
+      }
     }
   }
 
   // 删除 target 中存在但 template 中没有的 key
   for (const targetKey in target) {
     if (!(targetKey in template)) {
-      throw new Error(`多余属性 ${targetKey}`)
+      console.log(`移除多余属性：${targetKey}`)
+      delete target[targetKey]
+      isUpdated = true
     }
   }
+
+  return isUpdated
 }
 
 /**
@@ -77,9 +88,10 @@ function checkDuplicateKeys(obj: I18N): string[] {
   return duplicateKeys
 }
 
-function checkTranslations() {
+function syncTranslations() {
   if (!fs.existsSync(baseFilePath)) {
-    throw new Error(`主模板文件 ${baseFileName} 不存在，请检查路径或文件名`)
+    console.error(`主模板文件 ${baseFileName} 不存在，请检查路径或文件名`)
+    return
   }
 
   const baseContent = fs.readFileSync(baseFilePath, 'utf-8')
@@ -87,7 +99,8 @@ function checkTranslations() {
   try {
     baseJson = JSON.parse(baseContent)
   } catch (error) {
-    throw new Error(`解析 ${baseFileName} 出错。${error}`)
+    console.error(`解析 ${baseFileName} 出错。${error}`)
+    return
   }
 
   // 检查主模板是否存在重复键
@@ -106,24 +119,23 @@ function checkTranslations() {
       const fileContent = fs.readFileSync(filePath, 'utf-8')
       targetJson = JSON.parse(fileContent)
     } catch (error) {
-      throw new Error(`解析 ${file} 出错。`)
+      console.error(`解析 ${file} 出错，跳过此文件。`, error)
+      continue
     }
 
-    try {
-      checkRecursively(targetJson, baseJson)
-    } catch (e) {
-      throw new Error(`在检查 ${filePath} 时出错：${e}`)
+    const isUpdated = syncRecursively(targetJson, baseJson)
+
+    if (isUpdated) {
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
+        console.log(`文件 ${file} 已更新同步主模板的内容`)
+      } catch (error) {
+        console.error(`写入 ${file} 出错。${error}`)
+      }
+    } else {
+      console.log(`文件 ${file} 无需更新`)
     }
   }
 }
 
-export function main() {
-  try {
-    checkTranslations()
-  } catch (e) {
-    console.error(e)
-    throw new Error(`检查未通过。尝试运行 yarn sync:i18n 以解决问题。`)
-  }
-}
-
-main()
+syncTranslations()
