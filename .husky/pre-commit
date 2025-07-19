@@ -1,2 +1,2 @@
 yarn lint-staged
-yarn check:i18n
+node scripts/sort-i18n.js
