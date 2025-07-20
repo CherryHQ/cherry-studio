@@ -26,7 +26,8 @@ export enum ConfigKeys {
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
-  Proxy = 'proxy'
+  Proxy = 'proxy',
+  EnableDeveloperMode = 'enableDeveloperMode'
 }
 
 export class ConfigManager {
@@ -230,6 +231,14 @@ export class ConfigManager {
 
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)
+  }
+
+  getEnableDeveloperMode(): boolean {
+    return this.get<boolean>(ConfigKeys.EnableDeveloperMode, false)
+  }
+
+  setEnableDeveloperMode(value: boolean) {
+    this.set(ConfigKeys.EnableDeveloperMode, value)
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

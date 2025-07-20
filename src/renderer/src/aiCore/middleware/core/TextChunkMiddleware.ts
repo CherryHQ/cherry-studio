@@ -43,6 +43,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
         const enhancedTextStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
+              logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 accumulatedTextContent += chunk.text
 
