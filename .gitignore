@@ -35,6 +35,7 @@ Thumbs.db
 node_modules
 dist
 out
+mcp_server
 stats.html
 
 # ENV
