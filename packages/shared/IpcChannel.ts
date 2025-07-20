@@ -257,5 +257,20 @@ export enum IpcChannel {
   Memory_SetConfig = 'memory:set-config',
   Memory_DeleteUser = 'memory:delete-user',
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
-  Memory_GetUsersList = 'memory:get-users-list'
+  Memory_GetUsersList = 'memory:get-users-list',
+
+  // TRACE
+  TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
+  TRACE_SAVE_ENTITY = 'trace:saveEntity',
+  TRACE_GET_ENTITY = 'trace:getEntity',
+  TRACE_BIND_TOPIC = 'trace:bindTopic',
+  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
+  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
+  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_OPEN_WINDOW = 'trace:openWindow',
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
 }

@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { appendTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -53,8 +54,9 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches deleteSingleMessageThunk.
    */
   const deleteMessage = useCallback(
-    async (id: string) => {
+    async (id: string, traceId?: string, modelName?: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
+      window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
     [dispatch, topic.id]
   )
@@ -99,6 +101,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -139,6 +142,7 @@ export function useMessageOperations(topic: Topic) {
     for (const askId of askIds) {
       abortCompletion(askId)
     }
+    pauseTrace(topic.id)
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
@@ -158,6 +162,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       if (message.role !== 'assistant') {
         logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
@@ -173,6 +178,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      await appendTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
         return
@@ -181,7 +187,15 @@ export function useMessageOperations(topic: Topic) {
         logger.error('Cannot append response: The existing assistant message is missing its askId.')
         return
       }
-      await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
+      await dispatch(
+        appendAssistantResponseThunk(
+          topic.id,
+          existingAssistantMessage.id,
+          newModel,
+          assistant,
+          existingAssistantMessage.traceId
+        )
+      )
     },
     [dispatch, topic.id]
   )
@@ -374,6 +388,8 @@ export function useMessageOperations(topic: Topic) {
         logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
+
+      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE

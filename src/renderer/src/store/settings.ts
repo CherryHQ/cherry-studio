@@ -198,6 +198,8 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
+  // Developer mode
+  enableDeveloperMode: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -364,7 +366,9 @@ export const initialState: SettingsState = {
     syncInterval: 0,
     maxBackups: 0,
     skipBackupFile: false
-  }
+  },
+  // Developer mode
+  enableDeveloperMode: false
 }
 
 const settingsSlice = createSlice({
@@ -756,6 +760,9 @@ const settingsSlice = createSlice({
     },
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
+    },
+    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+      state.enableDeveloperMode = action.payload
     }
   }
 })
@@ -874,7 +881,8 @@ export const {
   setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider,
   setS3,
-  setS3Partial
+  setS3Partial,
+  setEnableDeveloperMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
