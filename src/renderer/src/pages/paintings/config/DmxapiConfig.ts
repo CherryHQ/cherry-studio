@@ -124,9 +124,8 @@ export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   } catch {
     /* empty */
   }
-  window.message.warning({
-    content: t('message.empty_url'),
-    key: 'empty-url-warning'
+  window.message.error({
+    content: t('paintings.req_error_model')
   })
 
   return {}
