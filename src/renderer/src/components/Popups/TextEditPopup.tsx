@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
@@ -14,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('TextEditPopup')
 
 interface ShowParams {
   text: string
@@ -118,7 +121,7 @@ const PopupContainer: React.FC<Props> = ({
         setTextValue(translatedText)
       }
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

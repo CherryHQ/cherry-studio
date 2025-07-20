@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getMessageTitle } from '@renderer/services/MessagesService'
@@ -11,6 +12,8 @@ import { getCitationContent, getMainTextContent, getThinkingContent } from '@ren
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
+
+const logger = loggerService.withContext('Utils:export')
 
 /**
  * 获取话题的消息列表，使用TopicManager确保消息被正确加载
@@ -540,7 +543,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
-    console.error('导出到Obsidian失败:', error)
+    logger.error('导出到Obsidian失败:', error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
   }
 }
@@ -696,7 +699,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
       key: 'siyuan-success'
     })
   } catch (error) {
-    console.error('导出到思源笔记失败:', error)
+    logger.error('导出到思源笔记失败:', error)
     window.message.error({
       content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
       key: 'siyuan-error'

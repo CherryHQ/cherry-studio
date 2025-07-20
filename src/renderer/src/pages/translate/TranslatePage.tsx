@@ -1,4 +1,5 @@
 import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
@@ -33,6 +34,8 @@ import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TranslatePage')
 
 let _text = ''
 let _result = ''
@@ -428,7 +431,7 @@ const TranslatePage: FC = () => {
       await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
       setLoading(false)
     } catch (error) {
-      console.error('Translation error:', error)
+      logger.error('Translation error:', error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
@@ -545,7 +548,7 @@ const TranslatePage: FC = () => {
         )
       }
     } catch (error) {
-      console.error('Error getting language display:', error)
+      logger.error('Error getting language display:', error)
       setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
@@ -590,7 +593,7 @@ const TranslatePage: FC = () => {
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
-            <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
+            <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
@@ -623,13 +626,8 @@ const TranslatePage: FC = () => {
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
                       <Flex align="center" justify="space-between" style={{ flex: 1 }}>
                         <Flex align="center" gap={6}>
-                          <span>
-                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
-                          </span>
-                          →
-                          <span>
-                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
-                          </span>
+                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                         </Flex>
                         <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
                       </Flex>
@@ -929,6 +927,11 @@ const HistoryListItemTitle = styled.div`
 `
 
 const HistoryListItemDate = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
 `
