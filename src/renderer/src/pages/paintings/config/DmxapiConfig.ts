@@ -5,8 +5,9 @@ import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
 import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { uuid } from '@renderer/utils'
-import { DmxapiPainting, generationModeType } from '../../../types'
 import { t } from 'i18next'
+
+import { DmxapiPainting, generationModeType } from '../../../types'
 
 // 模型数据类型
 export type DMXApiModelData = {
