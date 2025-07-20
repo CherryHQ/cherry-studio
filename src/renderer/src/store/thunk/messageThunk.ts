@@ -573,6 +573,11 @@ export const streamCallback = (
       toolBlockId = null
     },
     onExternalToolInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        console.warn('[onExternalToolInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
       citationBlockId = citationBlock.id
       await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
@@ -591,6 +596,11 @@ export const streamCallback = (
       }
     },
     onLLMWebSearchInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        console.warn('[onLLMWebSearchInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       if (initialPlaceholderBlockId) {
         citationBlockId = initialPlaceholderBlockId
         const changes = {

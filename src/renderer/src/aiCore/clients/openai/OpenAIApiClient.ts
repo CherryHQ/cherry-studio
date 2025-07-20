@@ -556,6 +556,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   // 在RawSdkChunkToGenericChunkMiddleware中使用
   getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
+    let hasEmittedWebSearchInProgress = false
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
       contentSource: OpenAISdkRawContentSource,
@@ -726,6 +727,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {
+              // 如果还未发送搜索进度事件，先发送进度事件
+              if (!hasEmittedWebSearchInProgress) {
+                controller.enqueue({
+                  type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                })
+                hasEmittedWebSearchInProgress = true
+              }
               controller.enqueue({
                 type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                 llm_web_search: webSearchData
@@ -790,6 +798,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               Logger.debug(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
               const webSearchData = collectWebSearchData(chunk, contentSource, context)
               if (webSearchData) {
+                // 如果还未发送搜索进度事件，先发送进度事件
+                if (!hasEmittedWebSearchInProgress) {
+                  controller.enqueue({
+                    type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                  })
+                  hasEmittedWebSearchInProgress = true
+                }
                 controller.enqueue({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: webSearchData
