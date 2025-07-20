@@ -181,7 +181,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.obsidian.getVaults()
+        const vaultsData = await window.api.obsidian.getVaults()
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
@@ -191,7 +191,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.obsidian.getFiles(vaultToUse)
+          const filesData = await window.api.obsidian.getFiles(vaultToUse)
           setFiles(filesData)
         }
       } catch (error) {
@@ -210,7 +210,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         try {
           setLoading(true)
           setError(null)
-          const filesData = await window.obsidian.getFiles(selectedVault)
+          const filesData = await window.api.obsidian.getFiles(selectedVault)
           setFiles(filesData)
         } catch (error) {
           logger.error('获取Obsidian文件失败:', error)
