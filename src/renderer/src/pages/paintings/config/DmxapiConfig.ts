@@ -5,9 +5,23 @@ import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
 import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { uuid } from '@renderer/utils'
-import { DmxapiPainting } from '@types'
+import { DmxapiPainting, generationModeType } from '../../../types'
+import { t } from 'i18next'
 
-import { generationModeType } from '../../../types'
+// 模型数据类型
+export type DMXApiModelData = {
+  id: string
+  provider: string
+  name: string
+  price: string
+}
+
+// 模型分组类型
+export type DMXApiModelGroups = {
+  TEXT_TO_IMAGES?: Record<string, DMXApiModelData[]>
+  IMAGE_EDIT?: Record<string, DMXApiModelData[]>
+  IMAGE_MERGE?: Record<string, DMXApiModelData[]>
+}
 
 export const STYLE_TYPE_OPTIONS = [
   { label: '吉卜力', value: '吉卜力' },
@@ -95,16 +109,25 @@ export const MODEOPTIONS = [
   { label: '合并图', value: generationModeType.MERGE }
 ]
 
-export const GetModelGroup = async () => {
+// 获取模型分组数据
+export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   try {
-    const response = await fetch(`https://dmxapi.cn/cherry_painting_models.json`, {})
+    const response = await fetch('https://dmxapi.cn/cherry_painting_models.json')
 
     if (response.ok) {
-      return await response.json()
+      const data = await response.json()
+
+      if (data) {
+        return data
+      }
     }
   } catch {
     /* empty */
   }
+  window.message.warning({
+    content: t('message.empty_url'),
+    key: 'empty-url-warning'
+  })
 
-  return []
+  return {}
 }

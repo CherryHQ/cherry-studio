@@ -119,32 +119,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const modelData = await GetModelGroup()
       setDynamicModelGroups(modelData)
 
-      // 合并所有模型到一个数组中
-      const allModelsList: any[] = []
-      if (modelData.TEXT_TO_IMAGES) {
-        Object.values(modelData.TEXT_TO_IMAGES).forEach((models: any) => {
-          allModelsList.push(...models)
-        })
-      }
-      if (modelData.IMAGE_EDIT) {
-        Object.values(modelData.IMAGE_EDIT).forEach((models: any) => {
-          allModelsList.push(...models)
-        })
-      }
-      if (modelData.IMAGE_MERGE) {
-        Object.values(modelData.IMAGE_MERGE).forEach((models: any) => {
-          allModelsList.push(...models)
-        })
-      }
+      const allModelsList = Object.values(modelData).flatMap((group) => Object.values(group).flat())
+
       setAllModels(allModelsList)
     } catch (error) {
       // 如果加载失败，可以设置一个默认的空状态
-      setDynamicModelGroups({
-        TEXT_TO_IMAGES: {},
-        IMAGE_EDIT: {},
-        IMAGE_MERGE: {}
-      })
-      setAllModels([])
     } finally {
       setIsLoadingModels(false)
     }
@@ -164,7 +143,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     // 获取第一个非空分组的第一个模型
     let firstModel = ''
     for (const provider of Object.keys(modelGroups)) {
-      if (modelGroups[provider] && modelGroups[provider].length > 0) {
+      if (modelGroups[provider].length > 0) {
         firstModel = modelGroups[provider][0].id
         break
       }
