@@ -1,6 +1,6 @@
 import { modelSelectFilter, modelSelectOptionsFlat } from '@renderer/components/SelectOptions'
 import { TopView } from '@renderer/components/TopView'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Provider } from '@renderer/types'
@@ -19,10 +19,14 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
   const [open, setOpen] = useState(true)
-  const [model, setModel] = useState(first(provider.models))
+
+  // Keep the natural order of models
+  const models = useMemo(() => provider.models.filter((m) => !isRerankModel(m)), [provider])
+
+  const [model, setModel] = useState(first(models))
 
   const modelOptions = useMemo(() => {
-    return modelSelectOptionsFlat([provider], (m) => !isEmbeddingModel(m) && !isRerankModel(m), false)
+    return modelSelectOptionsFlat([provider], (m) => !isRerankModel(m), false)
   }, [provider])
 
   const defaultModelValue = useMemo(() => {
@@ -66,7 +70,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
         style={{ width: '100%' }}
         showSearch
         onChange={(value) => {
-          setModel(provider.models.find((m) => value === getModelUniqId(m))!)
+          setModel(models.find((m) => value === getModelUniqId(m))!)
         }}
         filterOption={modelSelectFilter}
       />
