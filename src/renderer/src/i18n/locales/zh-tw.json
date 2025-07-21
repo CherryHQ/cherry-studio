@@ -1134,6 +1134,7 @@
         "quality": "高品質",
         "turbo": "快速"
       },
+      "req_error_model": "獲取模型失敗",
       "req_error_no_balance": "請檢查令牌的有效性",
       "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
       "req_error_token": "請檢查令牌的有效性",

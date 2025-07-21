@@ -300,6 +300,7 @@ export interface DmxapiPainting extends PaintingParams {
   style_type?: string
   autoCreate?: boolean
   generationMode?: generationModeType
+  priceModel?: string
 }
 
 export interface TokenFluxPainting extends PaintingParams {
