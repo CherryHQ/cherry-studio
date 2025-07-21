@@ -221,6 +221,8 @@ class KnowledgeService {
     pendingDeleteIds.forEach((id) => {
       if (this.deleteKnowledgeFile(id)) {
         deletedCount++
+      } else {
+        logger.info(`Failed to delete knowledge base ${id}, please delete it manually`)
       }
     })
 
