@@ -61,11 +61,7 @@ export const getFileIcon = (type?: string) => {
     return <FileZipFilled />
   }
 
-  if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
-    return <FileTextFilled />
-  }
-
-  if (['.tscn', '.gd'].includes(ext)) {
+  if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv', '.tscn', '.gd'].includes(ext)) {
     return <FileTextFilled />
   }
 
