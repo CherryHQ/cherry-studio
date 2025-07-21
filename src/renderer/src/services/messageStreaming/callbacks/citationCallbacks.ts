@@ -22,6 +22,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
 
   return {
     onExternalToolInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        logger.warn('[onExternalToolInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
       citationBlockId = citationBlock.id
       await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
@@ -41,6 +46,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
     },
 
     onLLMWebSearchInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        logger.warn('[onLLMWebSearchInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       if (blockManager.hasInitialPlaceholder) {
         // blockManager.lastBlockType = MessageBlockType.CITATION
         logger.debug('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)

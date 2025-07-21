@@ -28,7 +28,7 @@ const ObsidianSettings: FC = () => {
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.obsidian.getVaults()
+        const vaultsData = await window.api.obsidian.getVaults()
 
         if (vaultsData.length === 0) {
           setError(t('settings.data.obsidian.default_vault_no_vaults'))
