@@ -105,7 +105,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       textArea.style.height = 'auto'
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
       scrollTo(scrollTop)
-      logger.debug('scroll to', scrollTop)
     }
   }, [scrollTo, scrollTop])
 

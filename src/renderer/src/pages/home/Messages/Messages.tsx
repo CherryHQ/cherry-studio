@@ -31,7 +31,7 @@ import {
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
-import { last } from 'lodash'
+import { debounce, last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
@@ -107,12 +107,21 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
-      scrollTo(scrollContainerRef.current.scrollHeight)
+      scrollTo(0)
     }
   }, [scrollContainerRef, scrollTo])
 
   useEffect(() => {
-    setScrollTop(scrollContainerRef.current?.scrollTop ?? 0)
+    if (!scrollContainerRef.current) return
+    const scrollContainer = scrollContainerRef.current
+    const updateScrollTop = debounce(() => {
+      setScrollTop(scrollContainer.scrollTop ?? 0)
+    }, 100)
+    scrollContainer.addEventListener('scroll', updateScrollTop, { passive: true })
+    updateScrollTop()
+    return () => {
+      scrollContainer.removeEventListener('scroll', updateScrollTop)
+    }
   }, [scrollContainerRef, scrollContainerRef.current?.scrollTop])
 
   const clearTopic = useCallback(
@@ -248,7 +257,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
           }
         }
-      )
+      ),
+      EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, async () => {
+        if (scrollContainerRef.current) {
+          const diff = 0 - scrollTop
+          if (diff < 10) {
+            scrollToBottom()
+          }
+        }
+      })
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
