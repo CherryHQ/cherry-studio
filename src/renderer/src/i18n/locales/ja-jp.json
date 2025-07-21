@@ -2165,6 +2165,7 @@
       "models.manage.add_listed": "リストにモデルを追加",
       "models.manage.add_whole_group": "グループ全体を追加",
       "models.manage.remove_listed": "リストからモデルを削除",
+      "models.manage.remove_model": "モデルを削除",
       "models.manage.remove_whole_group": "グループ全体を削除",
       "models.provider_id": "プロバイダー ID",
       "models.provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",

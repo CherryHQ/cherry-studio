@@ -561,6 +561,7 @@ export class GeminiAPIClient extends BaseApiClient<
     let isFirstThinkingChunk = true
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        logger.silly('chunk', chunk)
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {
