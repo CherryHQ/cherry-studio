@@ -64,6 +64,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
         try {
           while (true) {
             const { done, value: chunk } = await reader.read()
+            logger.silly('chunk', chunk)
             if (done) {
               logger.debug(`Input stream finished.`)
               break

@@ -1,8 +1,15 @@
 import { loggerService } from '@logger'
-import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
+import { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import {
+  callMCPTool,
+  getMcpServerByTool,
+  isToolAutoApproved,
+  parseToolUse,
+  upsertMCPToolResponse
+} from '@renderer/utils/mcp-tools'
+import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from '@renderer/utils/userConfirmation'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -369,4 +376,207 @@ function getCurrentReqMessages(ctx: CompletionsContext): SdkMessageParam[] {
   return ctx.apiClientInstance.extractMessagesFromSdkPayload(sdkPayload)
 }
 
-export default McpToolChunkMiddleware
+export async function parseAndCallTools<R>(
+  tools: MCPToolResponse[],
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
+
+export async function parseAndCallTools<R>(
+  content: string,
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
+
+export async function parseAndCallTools<R>(
+  content: string | MCPToolResponse[],
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
+  const toolResults: R[] = []
+  let curToolResponses: MCPToolResponse[] = []
+  if (Array.isArray(content)) {
+    curToolResponses = content
+  } else {
+    // process tool use
+    curToolResponses = parseToolUse(content, mcpTools || [], 0)
+  }
+  if (!curToolResponses || curToolResponses.length === 0) {
+    return { toolResults, confirmedToolResponses: [] }
+  }
+
+  for (const toolResponse of curToolResponses) {
+    upsertMCPToolResponse(
+      allToolResponses,
+      {
+        ...toolResponse,
+        status: 'pending'
+      },
+      onChunk!
+    )
+  }
+
+  // 创建工具确认Promise映射，并立即处理每个确认
+  const confirmedTools: MCPToolResponse[] = []
+  const pendingPromises: Promise<void>[] = []
+
+  curToolResponses.forEach((toolResponse) => {
+    const server = getMcpServerByTool(toolResponse.tool)
+    const isAutoApproveEnabled = isToolAutoApproved(toolResponse.tool, server)
+    let confirmationPromise: Promise<boolean>
+    if (isAutoApproveEnabled) {
+      confirmationPromise = Promise.resolve(true)
+    } else {
+      setToolIdToNameMapping(toolResponse.id, toolResponse.tool.name)
+
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal).then((confirmed) => {
+        if (confirmed && server) {
+          // 自动确认其他同名的待确认工具
+          confirmSameNameTools(toolResponse.tool.name)
+        }
+        return confirmed
+      })
+    }
+
+    const processingPromise = confirmationPromise
+      .then(async (confirmed) => {
+        if (confirmed) {
+          // 立即更新为invoking状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'invoking'
+            },
+            onChunk!
+          )
+
+          // 执行工具调用
+          try {
+            const images: string[] = []
+            const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
+
+            // 立即更新为done状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: toolCallResponse
+              },
+              onChunk!
+            )
+
+            // 处理图片
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'image' && content.data) {
+                images.push(`data:${content.mimeType};base64,${content.data}`)
+              }
+            }
+
+            if (images.length) {
+              onChunk?.({
+                type: ChunkType.IMAGE_CREATED
+              })
+              onChunk?.({
+                type: ChunkType.IMAGE_COMPLETE,
+                image: {
+                  type: 'base64',
+                  images: images
+                }
+              })
+            }
+
+            // 转换消息并添加到结果
+            const convertedMessage = convertToMessage(toolResponse, toolCallResponse, model)
+            if (convertedMessage) {
+              confirmedTools.push(toolResponse)
+              toolResults.push(convertedMessage)
+            }
+          } catch (error) {
+            logger.error(`Error executing tool ${toolResponse.id}:`, error)
+            // 更新为错误状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: {
+                  isError: true,
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    }
+                  ]
+                }
+              },
+              onChunk!
+            )
+          }
+        } else {
+          // 立即更新为cancelled状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'cancelled',
+              response: {
+                isError: false,
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Tool call cancelled by user.'
+                  }
+                ]
+              }
+            },
+            onChunk!
+          )
+        }
+      })
+      .catch((error) => {
+        logger.error(`Error waiting for tool confirmation ${toolResponse.id}:`, error)
+        // 立即更新为cancelled状态
+        upsertMCPToolResponse(
+          allToolResponses,
+          {
+            ...toolResponse,
+            status: 'cancelled',
+            response: {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: `Error in confirmation process: ${error instanceof Error ? error.message : 'Unknown error'}`
+                }
+              ]
+            }
+          },
+          onChunk!
+        )
+      })
+
+    pendingPromises.push(processingPromise)
+  })
+
+  // 等待所有工具处理完成（但每个工具的状态已经实时更新）
+  await Promise.all(pendingPromises)
+
+  return { toolResults, confirmedToolResponses: confirmedTools }
+}

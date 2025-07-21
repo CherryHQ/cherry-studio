@@ -2165,6 +2165,7 @@
       "models.manage.add_listed": "Добавить в список",
       "models.manage.add_whole_group": "Добавить всю группу",
       "models.manage.remove_listed": "Удалить из списка",
+      "models.manage.remove_model": "Удалить модель",
       "models.manage.remove_whole_group": "Удалить всю группу",
       "models.provider_id": "ID провайдера",
       "models.provider_key_add_confirm": "Добавить API ключ для {{provider}}?",

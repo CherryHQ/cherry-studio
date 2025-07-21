@@ -2165,6 +2165,7 @@
       "models.manage.add_listed": "Add models to the list",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_listed": "Remove models from the list",
+      "models.manage.remove_model": "Remove model",
       "models.manage.remove_whole_group": "Remove the whole group",
       "models.provider_id": "Provider ID",
       "models.provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",

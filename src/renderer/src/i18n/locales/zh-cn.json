@@ -2165,6 +2165,7 @@
       "models.manage.add_listed": "添加列表中的模型",
       "models.manage.add_whole_group": "添加整个分组",
       "models.manage.remove_listed": "移除列表中的模型",
+      "models.manage.remove_model": "移除模型",
       "models.manage.remove_whole_group": "移除整个分组",
       "models.provider_id": "服务商 ID",
       "models.provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",

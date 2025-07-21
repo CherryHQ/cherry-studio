@@ -55,7 +55,8 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission } from './utils/file'
+import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
