@@ -1,3 +1,4 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { MCPServer } from '@types'
 import { EventEmitter } from 'events'
 
@@ -11,6 +12,7 @@ interface MCPSession {
   id: string
   serverId: string
   serverName: string
+  client?: Client
   isConnected: boolean
   connectionTime?: Date
   lastActivity?: Date
@@ -21,6 +23,12 @@ interface ToolToggleResult {
   serverName: string
   toolName: string
   enabled: boolean
+}
+
+interface StreamingCallbacks {
+  onProgress?: (progress: { current: number; total?: number; message?: string }) => Promise<void>
+  onChunk?: (chunk: { type: string; content: any }) => Promise<void>
+  onError?: (error: Error) => Promise<void>
 }
 
 /**
@@ -373,7 +381,55 @@ class MCPApiService extends EventEmitter {
     }
   }
 
-  async callTool(serverId: string, toolName: string, args: any, callId?: string): Promise<any> {
+  async listTools(serverId: string): Promise<any[]> {
+    try {
+      logger.silly(`listTools called for server ID: ${serverId}`)
+      const session = this.sessions.get(serverId)
+      if (!session) {
+        throw new Error(`No session found for server ID '${serverId}'`)
+      }
+      const { tools } = (await session.client?.listTools()) || {}
+      logger.silly(`Retrieved ${tools?.length || 0} tools for server: ${session.serverName}`)
+      return tools || ([] as any)
+    } catch (error) {
+      logger.error('Failed to list tools:', error)
+      throw error
+    }
+  }
+
+  async listResources(serverId: string): Promise<any[]> {
+    try {
+      logger.silly(`listResources called for server ID: ${serverId}`)
+      const session = this.sessions.get(serverId)
+      if (!session) {
+        throw new Error(`No session found for server ID '${serverId}'`)
+      }
+      const { resources } = (await session.client?.listResources()) || {}
+      logger.silly(`Retrieved ${resources?.length || 0} resources for server: ${session.serverName}`)
+      return resources || ([] as any)
+    } catch (error) {
+      logger.error('Failed to list resources:', error)
+      throw error
+    }
+  }
+
+  async listPrompts(serverId: string): Promise<any[]> {
+    try {
+      logger.silly(`listPrompts called for server ID: ${serverId}`)
+      const session = this.sessions.get(serverId)
+      if (!session) {
+        throw new Error(`No session found for server ID '${serverId}'`)
+      }
+      const { prompts } = (await session.client?.listPrompts()) || {}
+      logger.silly(`Retrieved ${prompts?.length || 0} prompts for server: ${session.serverName}`)
+      return prompts || ([] as any)
+    } catch (error) {
+      logger.error('Failed to list prompts:', error)
+      throw error
+    }
+  }
+
+  async callTool(serverId: string, toolName: string, args: any): Promise<any> {
     try {
       logger.silly(`callTool called for server ID: ${serverId}, tool: ${toolName}`)
 
@@ -383,13 +439,110 @@ class MCPApiService extends EventEmitter {
         throw new Error(`Server with ID '${serverId}' not found`)
       }
 
-      // Use MCPService to call tool
-      const result = await McpService.callTool(null as any, { server, name: toolName, args, callId })
+      const session = this.sessions.get(serverId)
+      if (!session) {
+        throw new Error(`No session found for server ID '${serverId}'`)
+      }
+
+      if (!session.isConnected || !session.client) {
+        throw new Error(
+          `Session for server '${server.name}' is not connected or client is unavailable. Connection status: ${session.isConnected}, Client: ${!!session.client}, Error: ${session.error}`
+        )
+      }
+
+      const result = await session.client.callTool({ name: toolName, arguments: args })
       logger.info(`Called tool ${toolName} on server: ${server.name}`)
 
       return result
     } catch (error) {
       logger.error(`Failed to call tool ${toolName}:`, error)
+      throw error
+    }
+  }
+
+  async callToolWithStreaming(
+    serverId: string,
+    toolName: string,
+    args: any,
+    callId?: string,
+    callbacks?: StreamingCallbacks
+  ): Promise<any> {
+    try {
+      logger.silly(`callToolWithStreaming called for server ID: ${serverId}, tool: ${toolName}`)
+
+      const servers = await this.getServersFromRedux()
+      const server = servers.find((s) => s.id === serverId)
+      if (!server) {
+        throw new Error(`Server with ID '${serverId}' not found`)
+      }
+
+      // For now, wrap the existing callTool with progress simulation
+      // In a full implementation, this would integrate with the MCP SDK's streaming capabilities
+      let progressStep = 0
+      const totalSteps = 3
+
+      try {
+        // Send initial progress
+        if (callbacks?.onProgress) {
+          await callbacks.onProgress({
+            current: progressStep++,
+            total: totalSteps,
+            message: 'Initializing tool call...'
+          })
+        }
+
+        // Send starting chunk
+        if (callbacks?.onChunk) {
+          await callbacks.onChunk({
+            type: 'start',
+            content: { serverName: server.name, toolName, args, callId }
+          })
+        }
+
+        // Send progress update
+        if (callbacks?.onProgress) {
+          await callbacks.onProgress({
+            current: progressStep++,
+            total: totalSteps,
+            message: 'Executing tool...'
+          })
+        }
+
+        // Call the actual tool (this could be enhanced to support real streaming)
+        const session = this.sessions.get(serverId)
+        if (!session) {
+          throw new Error(`No session found for server ID '${serverId}'`)
+        }
+        logger.debug(`Calling tool ${toolName} with arguments:`, args)
+        const result = await session.client?.callTool({ name: toolName, arguments: args })
+
+        // Send result chunk
+        if (callbacks?.onChunk) {
+          await callbacks.onChunk({
+            type: 'result',
+            content: result
+          })
+        }
+
+        // Send completion progress
+        if (callbacks?.onProgress) {
+          await callbacks.onProgress({
+            current: totalSteps,
+            total: totalSteps,
+            message: 'Tool execution completed'
+          })
+        }
+
+        logger.info(`Called streaming tool ${toolName} on server: ${server.name}`)
+        return result
+      } catch (error) {
+        if (callbacks?.onError) {
+          await callbacks.onError(error instanceof Error ? error : new Error(String(error)))
+        }
+        throw error
+      }
+    } catch (error) {
+      logger.error(`Failed to call streaming tool ${toolName}:`, error)
       throw error
     }
   }
@@ -520,7 +673,8 @@ class MCPApiService extends EventEmitter {
 
       // Try to initialize client through MCPService
       try {
-        await McpService.initClient(server)
+        const client = await McpService.initClient(server)
+        session.client = client
         session.isConnected = true
         session.lastActivity = new Date()
         logger.info(`Created session for MCP server: ${server.name}`)

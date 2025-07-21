@@ -186,8 +186,10 @@ class McpService {
                 requestInit: {
                   headers: server.headers || {}
                 },
-                authProvider
+                authProvider,
+                sessionId: server.sessionId
               }
+              logger.debug(`StreamableHTTPClientTransport options:`, options)
               return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
@@ -560,6 +562,7 @@ class McpService {
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     logger.debug(`Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
+    logger.debug(`Client for server: ${server.name}`, client)
     try {
       const { tools } = await client.listTools()
       const serverTools: MCPTool[] = []

@@ -641,6 +641,7 @@ export interface MCPServer {
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
   dxtVersion?: string // Version of the DXT package
   dxtPath?: string // Path where the DXT package was extracted
+  sessionId?: string // Session ID for the connection
 }
 
 export interface MCPToolInputSchema {
