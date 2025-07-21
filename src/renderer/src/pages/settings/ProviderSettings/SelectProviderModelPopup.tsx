@@ -1,12 +1,12 @@
-import { modelSelectFilter, modelSelectOptionsFlat } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Provider } from '@renderer/types'
-import { Modal, Select } from 'antd'
+import { Model, Provider } from '@renderer/types'
+import { Modal } from 'antd'
 import { first } from 'lodash'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 interface ShowParams {
   provider: Provider
@@ -25,9 +25,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   const [model, setModel] = useState(first(models))
 
-  const modelOptions = useMemo(() => {
-    return modelSelectOptionsFlat([provider], (m) => !isRerankModel(m), false)
-  }, [provider])
+  const modelPredicate = useCallback((m: Model) => !isRerankModel(m), [])
 
   const defaultModelValue = useMemo(() => {
     return model ? getModelUniqId(model) : undefined
@@ -63,16 +61,16 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       transitionName="animation-move-down"
       width={400}
       centered>
-      <Select
+      <ModelSelector
+        providers={[provider]}
+        predicate={modelPredicate}
+        grouped={false}
         defaultValue={defaultModelValue}
         placeholder={i18n.t('settings.models.empty')}
-        options={modelOptions}
         style={{ width: '100%' }}
-        showSearch
         onChange={(value) => {
           setModel(models.find((m) => value === getModelUniqId(m))!)
         }}
-        filterOption={modelSelectFilter}
       />
     </Modal>
   )

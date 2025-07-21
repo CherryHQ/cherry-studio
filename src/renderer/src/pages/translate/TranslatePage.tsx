@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { modelSelectFilter, modelSelectOptions } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
@@ -32,7 +32,7 @@ import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { find, isEmpty } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -55,8 +55,6 @@ const TranslateSettings: FC<{
   setBidirectionalPair: (value: [Language, Language]) => void
   translateModel: Model | undefined
   onModelChange: (model: Model) => void
-  allModels: Model[]
-  selectOptions: any[]
 }> = ({
   visible,
   onClose,
@@ -69,9 +67,7 @@ const TranslateSettings: FC<{
   bidirectionalPair,
   setBidirectionalPair,
   translateModel,
-  onModelChange,
-  allModels,
-  selectOptions
+  onModelChange
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -79,6 +75,14 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
+
+  const { providers } = useProviders()
+  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
+
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -137,7 +141,9 @@ const TranslateSettings: FC<{
             </Tooltip>
           </div>
           <HStack alignItems="center" gap={5}>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={modelPredicate}
               style={{ width: '100%' }}
               placeholder={t('translate.settings.model_placeholder')}
               value={defaultTranslateModel}
@@ -147,9 +153,6 @@ const TranslateSettings: FC<{
                   onModelChange(selectedModel)
                 }
               }}
-              options={selectOptions}
-              showSearch
-              filterOption={modelSelectFilter}
             />
           </HStack>
           {!translateModel && (
@@ -304,9 +307,6 @@ const TranslatePage: FC = () => {
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
-
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
   const translateHistory = useMemo(() => {
@@ -320,11 +320,6 @@ const TranslatePage: FC = () => {
   _text = text
   _result = result
   _targetLanguage = targetLanguage
-
-  const selectOptions = useMemo(
-    () => modelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m)),
-    [providers]
-  )
 
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
@@ -742,8 +737,6 @@ const TranslatePage: FC = () => {
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
         onModelChange={handleModelChange}
-        allModels={allModels}
-        selectOptions={selectOptions}
       />
     </Container>
   )

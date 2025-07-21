@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
-import { modelSelectFilter, modelSelectOptions } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
@@ -9,7 +9,7 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
+import { Button, InputNumber, Slider, Tooltip } from 'antd'
 import { find } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -33,15 +33,8 @@ const RagSettings = () => {
     return providers.flatMap((p) => p.models).filter((model) => isRerankModel(model))
   }, [providers])
 
-  const embeddingSelectOptions = useMemo(() => {
-    return modelSelectOptions(providers, isEmbeddingModel)
-  }, [providers])
-
-  const rerankSelectOptions = useMemo(() => {
-    return modelSelectOptions(
-      providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id)),
-      isRerankModel
-    )
+  const rerankProviders = useMemo(() => {
+    return providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
   }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {
@@ -96,15 +89,14 @@ const RagSettings = () => {
     <>
       <SettingRow>
         <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
-        <Select
+        <ModelSelector
+          providers={providers}
+          predicate={isEmbeddingModel}
           value={compressionConfig?.embeddingModel ? getModelUniqId(compressionConfig.embeddingModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
-          options={embeddingSelectOptions}
           placeholder={t('settings.models.empty')}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
-          showSearch
-          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />
@@ -138,15 +130,14 @@ const RagSettings = () => {
 
       <SettingRow>
         <SettingRowTitle>{t('models.rerank_model')}</SettingRowTitle>
-        <Select
+        <ModelSelector
+          providers={rerankProviders}
+          predicate={isRerankModel}
           value={compressionConfig?.rerankModel ? getModelUniqId(compressionConfig.rerankModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
-          options={rerankSelectOptions}
           placeholder={t('settings.models.empty')}
           onChange={handleRerankModelChange}
           allowClear
-          showSearch
-          filterOption={modelSelectFilter}
         />
       </SettingRow>
       <SettingDivider />

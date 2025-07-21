@@ -3,7 +3,90 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
+import { Select, SelectProps } from 'antd'
 import { sortBy } from 'lodash'
+import { BaseSelectRef } from 'rc-select'
+import { memo, useCallback, useMemo } from 'react'
+
+interface ModelSelectorProps extends SelectProps {
+  providers?: Provider[]
+  predicate?: (model: Model) => boolean
+  grouped?: boolean
+  showAvatar?: boolean
+  showSuffix?: boolean
+}
+
+interface ModelOption {
+  label: React.ReactNode
+  title: string
+  value: string
+}
+
+interface GroupedModelOption {
+  label: string
+  title: string
+  options: ModelOption[]
+}
+
+type SelectOption = ModelOption | GroupedModelOption
+
+const ModelSelector = ({
+  providers,
+  predicate,
+  grouped = true,
+  showAvatar = true,
+  showSuffix = true,
+  ref,
+  ...props
+}: ModelSelectorProps & { ref?: React.Ref<BaseSelectRef> | null }) => {
+  // 单个 provider 的模型选项
+  const getModelOptions = useCallback(
+    (p: Provider) => {
+      const fancyName = getFancyProviderName(p)
+      const suffix = showSuffix ? <span style={{ opacity: 0.45 }}>{` | ${fancyName}`}</span> : null
+      return sortBy(p.models, 'name')
+        .filter((model) => predicate?.(model) ?? true)
+        .map((m) => ({
+          label: (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {showAvatar && <ModelAvatar model={m} size={18} />}
+              <span>
+                {m.name}
+                {suffix}
+              </span>
+            </div>
+          ),
+          title: `${m.name} | ${fancyName}`,
+          value: getModelUniqId(m)
+        }))
+    },
+    [predicate, showAvatar, showSuffix]
+  )
+
+  // 所有 provider 的模型选项
+  const options = useMemo((): SelectOption[] => {
+    if (!providers) return []
+
+    return grouped
+      ? providers.flatMap((p) => {
+          const modelOptions = getModelOptions(p)
+          return modelOptions.length > 0
+            ? [
+                {
+                  label: getFancyProviderName(p),
+                  title: p.name,
+                  options: modelOptions
+                } as GroupedModelOption
+              ]
+            : []
+        })
+      : providers.flatMap(getModelOptions)
+  }, [providers, grouped, getModelOptions])
+
+  return <Select ref={ref} options={options} filterOption={modelSelectFilter} showSearch {...props} />
+}
+
+export default memo(ModelSelector)
 
 /**
  * 用于 antd Select 组件的 options
@@ -18,6 +101,7 @@ import { sortBy } from 'lodash'
 export function modelSelectOptions(
   providers: Provider[],
   predicate?: (model: Model) => boolean,
+  showAvatar: boolean = true,
   showSuffix: boolean = true
 ) {
   return providers.flatMap((p) => {
@@ -28,7 +112,7 @@ export function modelSelectOptions(
       .map((m) => ({
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ModelAvatar model={m} size={18} />
+            {showAvatar && <ModelAvatar model={m} size={18} />}
             <span>
               {m.name}
               {suffix}
@@ -64,6 +148,7 @@ export function modelSelectOptions(
 export function modelSelectOptionsFlat(
   providers: Provider[],
   predicate?: (model: Model) => boolean,
+  showAvatar: boolean = true,
   showSuffix: boolean = true
 ) {
   return providers.flatMap((p) => {
@@ -75,7 +160,7 @@ export function modelSelectOptionsFlat(
       .map((m) => ({
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ModelAvatar model={m} size={18} />
+            {showAvatar && <ModelAvatar model={m} size={18} />}
             <span>
               {m.name}
               {suffix}

@@ -1,7 +1,7 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
-import { modelSelectOptions } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -45,10 +45,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     resolve(null)
     return null
   }
-
-  const selectOptions = modelSelectOptions(providers, isEmbeddingModel)
-
-  const rerankSelectOptions = modelSelectOptions(providers, isRerankModel)
 
   const preprocessOptions = {
     label: t('settings.tool.preprocess.provider'),
@@ -157,9 +153,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isEmbeddingModel}
               style={{ width: '100%' }}
-              options={selectOptions}
               placeholder={t('settings.models.empty')}
               defaultValue={getModelUniqId(base.model)}
               disabled
@@ -178,10 +175,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isRerankModel}
               style={{ width: '100%' }}
               defaultValue={getModelUniqId(base.rerankModel) || undefined}
-              options={rerankSelectOptions}
               placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const rerankModel = value

@@ -2,7 +2,7 @@ import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { HStack } from '@renderer/components/Layout'
-import { modelSelectFilter, modelSelectOptions } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -64,14 +64,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const nameInputRef = useRef<any>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-
-  const embeddingSelectOptions = useMemo(() => {
-    return modelSelectOptions(providers, isEmbeddingModel)
-  }, [providers])
-
-  const rerankSelectOptions = useMemo(() => {
-    return modelSelectOptions(providers, isRerankModel)
-  }, [providers])
 
   const preprocessOrOcrSelectOptions = useMemo(() => {
     const preprocessOptions = {
@@ -265,9 +257,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                 </Tooltip>
               </div>
-              <Select
+              <ModelSelector
+                providers={providers}
+                predicate={isEmbeddingModel}
                 style={{ width: '100%' }}
-                options={embeddingSelectOptions}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
                   const model = value
@@ -276,8 +269,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   if (!model) return
                   setNewBase({ ...newBase, model })
                 }}
-                showSearch
-                filterOption={modelSelectFilter}
               />
             </SettingsItem>
 
@@ -288,9 +279,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                 </Tooltip>
               </div>
-              <Select
+              <ModelSelector
+                providers={providers}
+                predicate={isRerankModel}
                 style={{ width: '100%' }}
-                options={rerankSelectOptions}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
                   const rerankModel = value
@@ -298,8 +290,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     : undefined
                   setNewBase({ ...newBase, rerankModel })
                 }}
-                showSearch
-                filterOption={modelSelectFilter}
                 allowClear
               />
             </SettingsItem>

@@ -1,15 +1,16 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
-import { modelSelectFilter, modelSelectOptions } from '@renderer/components/SelectOptions'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
+import { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
-import { Form, InputNumber, Modal, Select, Switch } from 'antd'
+import { Form, InputNumber, Modal, Switch } from 'antd'
 import { t } from 'i18next'
-import { FC, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 interface MemoriesSettingsModalProps {
@@ -129,13 +130,9 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
     }
   }
 
-  const llmSelectOptions = useMemo(() => {
-    return modelSelectOptions(providers, (m) => !isEmbeddingModel(m) && !isRerankModel(m))
-  }, [providers])
+  const llmPredicate = useCallback((m: Model) => !isEmbeddingModel(m) && !isRerankModel(m), [])
 
-  const embeddingSelectOptions = useMemo(() => {
-    return modelSelectOptions(providers, (m) => isEmbeddingModel(m) && !isRerankModel(m))
-  }, [providers])
+  const embeddingPredicate = useCallback((m: Model) => isEmbeddingModel(m) && !isRerankModel(m), [])
 
   return (
     <Modal
@@ -163,22 +160,20 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           label={t('memory.llm_model')}
           name="llmModel"
           rules={[{ required: true, message: t('memory.please_select_llm_model') }]}>
-          <Select
+          <ModelSelector
+            providers={providers}
+            predicate={llmPredicate}
             placeholder={t('memory.select_llm_model_placeholder')}
-            options={llmSelectOptions}
-            showSearch
-            filterOption={modelSelectFilter}
           />
         </Form.Item>
         <Form.Item
           label={t('memory.embedding_model')}
           name="embedderModel"
           rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}>
-          <Select
+          <ModelSelector
+            providers={providers}
+            predicate={embeddingPredicate}
             placeholder={t('memory.select_embedding_model_placeholder')}
-            options={embeddingSelectOptions}
-            showSearch
-            filterOption={modelSelectFilter}
           />
         </Form.Item>
         <Form.Item
