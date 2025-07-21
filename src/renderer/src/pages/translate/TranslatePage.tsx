@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { modelSelectOptions } from '@renderer/components/SelectOptions'
+import { modelSelectFilter, modelSelectOptions } from '@renderer/components/SelectOptions'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
@@ -18,7 +18,7 @@ import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { modelSelectFilter, runAsyncFunction, uuid } from '@renderer/utils'
+import { runAsyncFunction, uuid } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,

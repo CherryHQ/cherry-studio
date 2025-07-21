@@ -1,6 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
+import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
 import { sortBy } from 'lodash'
 
@@ -39,4 +40,26 @@ export function modelSelectOptions(providers: Provider[], predicate?: (model: Mo
         ]
       : []
   })
+}
+
+/**
+ * 用于 antd Select 组件的 filterOption，统一搜索行为：
+ * - 优先使用 label 匹配
+ * - 其次使用 title 匹配
+ * - 最后使用 value 匹配
+ *
+ * @param input 用户输入的搜索字符串
+ * @param option Select 选项对象，包含 label 或 value
+ * @returns 是否匹配
+ */
+export function modelSelectFilter(input: string, option: any): boolean {
+  const target =
+    typeof option?.title === 'string'
+      ? option.title
+      : typeof option?.label === 'string'
+        ? option.label
+        : typeof option?.value === 'string'
+          ? option.value
+          : ''
+  return matchKeywordsInString(input, target)
 }
