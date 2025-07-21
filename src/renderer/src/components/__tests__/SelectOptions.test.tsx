@@ -24,7 +24,7 @@ vi.mock('@renderer/utils/naming', () => ({
 // Import after mocking
 import { Provider } from '@renderer/types'
 
-import { modelSelectFilter, modelSelectOptions } from '../SelectOptions'
+import { modelSelectFilter, modelSelectOptions, modelSelectOptionsFlat } from '../SelectOptions'
 
 describe('SelectOptions', () => {
   const mockProviders: Provider[] = [
@@ -52,6 +52,7 @@ describe('SelectOptions', () => {
     }
   ]
 
+  // Models in each provider are sorted by name
   describe('modelSelectOptions', () => {
     it('should generate grouped options for embedding models', () => {
       const options = modelSelectOptions(mockProviders as any, (model) => model.group === 'embedding')
@@ -68,8 +69,69 @@ describe('SelectOptions', () => {
       expect(options[1].options[0].title).toBe('embed-english-v3.0 | Cohere')
     })
 
+    it('should hide provider suffix when showSuffix is false', () => {
+      const options = modelSelectOptions(mockProviders as any, (model) => model.group === 'embedding', false)
+
+      expect(options).toHaveLength(2)
+      expect(options[0].options[0].title).toBe('text-embedding-ada-002 | OpenAI')
+      expect(options[1].options[0].title).toBe('embed-english-v3.0 | Cohere')
+    })
+
     it('should return empty array when no models match predicate', () => {
       const options = modelSelectOptions(mockProviders as any, (model) => model.group === 'nonexistent')
+      expect(options).toHaveLength(0)
+    })
+
+    it('should handle empty providers array', () => {
+      const options = modelSelectOptions([])
+      expect(options).toHaveLength(0)
+    })
+
+    it('should handle providers with empty models array', () => {
+      const emptyProvider = { id: 'test', name: 'Test', models: [] }
+      const options = modelSelectOptions([emptyProvider] as any)
+      expect(options).toHaveLength(0)
+    })
+  })
+
+  // Models are sorted by name, but providers are not sorted
+  describe('modelSelectOptionsFlat', () => {
+    it('should generate flat options without grouping', () => {
+      const options = modelSelectOptionsFlat(mockProviders as any)
+
+      expect(options).toHaveLength(4)
+      expect(options[0].value).toBe('openai-gpt-4.1')
+      expect(options[0].title).toBe('GPT-4.1')
+      expect(options[0].label).toBeDefined()
+
+      expect(options[1].value).toBe('openai-text-embedding-ada-002')
+      expect(options[1].title).toBe('text-embedding-ada-002')
+      expect(options[1].label).toBeDefined()
+    })
+
+    it('should hide provider suffix when showSuffix is false', () => {
+      const options = modelSelectOptionsFlat(mockProviders as any, undefined, false)
+
+      expect(options).toHaveLength(4)
+      expect(options[0].title).toBe('GPT-4.1')
+      expect(options[1].title).toBe('text-embedding-ada-002')
+      expect(options[2].title).toBe('embed-english-v3.0')
+      expect(options[3].title).toBe('rerank-english-v2.0')
+    })
+
+    it('should return empty array when no models match predicate', () => {
+      const options = modelSelectOptionsFlat(mockProviders as any, (model) => model.group === 'nonexistent')
+      expect(options).toHaveLength(0)
+    })
+
+    it('should handle empty providers array', () => {
+      const options = modelSelectOptionsFlat([])
+      expect(options).toHaveLength(0)
+    })
+
+    it('should handle providers with empty models array', () => {
+      const emptyProvider = { id: 'test', name: 'Test', models: [] }
+      const options = modelSelectOptionsFlat([emptyProvider] as any)
       expect(options).toHaveLength(0)
     })
   })

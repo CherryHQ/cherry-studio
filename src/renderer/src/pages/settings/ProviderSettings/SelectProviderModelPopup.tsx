@@ -1,11 +1,12 @@
-import { modelSelectFilter } from '@renderer/components/SelectOptions'
+import { modelSelectFilter, modelSelectOptionsFlat } from '@renderer/components/SelectOptions'
 import { TopView } from '@renderer/components/TopView'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { Provider } from '@renderer/types'
 import { Modal, Select } from 'antd'
-import { first, orderBy } from 'lodash'
-import { useState } from 'react'
+import { first } from 'lodash'
+import { useMemo, useState } from 'react'
 
 interface ShowParams {
   provider: Provider
@@ -17,9 +18,16 @@ interface Props extends ShowParams {
 }
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
-  const models = orderBy(provider.models, 'group').filter((i) => !isEmbeddingModel(i) && !isRerankModel(i))
   const [open, setOpen] = useState(true)
-  const [model, setModel] = useState(first(models))
+  const [model, setModel] = useState(first(provider.models))
+
+  const modelOptions = useMemo(() => {
+    return modelSelectOptionsFlat([provider], (m) => !isEmbeddingModel(m) && !isRerankModel(m), false)
+  }, [provider])
+
+  const defaultModelValue = useMemo(() => {
+    return model ? getModelUniqId(model) : undefined
+  }, [model])
 
   const onOk = () => {
     if (!model) {
@@ -52,13 +60,13 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       width={400}
       centered>
       <Select
-        value={model?.id}
+        defaultValue={defaultModelValue}
         placeholder={i18n.t('settings.models.empty')}
-        options={models.map((m) => ({ label: m.name, value: m.id }))}
+        options={modelOptions}
         style={{ width: '100%' }}
         showSearch
         onChange={(value) => {
-          setModel(provider.models.find((m) => m.id === value)!)
+          setModel(provider.models.find((m) => value === getModelUniqId(m))!)
         }}
         filterOption={modelSelectFilter}
       />
