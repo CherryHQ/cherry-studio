@@ -175,7 +175,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               })
           }, 1000) // Delay to ensure server is properly added to store
         } catch (error) {
-          logger.error('DXT processing error:', error)
+          logger.error('DXT processing error:', error as Error)
           window.message.error({
             content: t('settings.mcp.addServer.importFrom.dxtProcessFailed'),
             key: 'mcp-dxt-error'

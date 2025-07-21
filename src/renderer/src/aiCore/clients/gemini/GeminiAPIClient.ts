@@ -142,7 +142,7 @@ export class GeminiAPIClient extends BaseApiClient<
       //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
       return images
     } catch (error) {
-      logger.error('[generateImage] error:', error)
+      logger.error('[generateImage] error:', error as Error)
       throw error
     }
   }

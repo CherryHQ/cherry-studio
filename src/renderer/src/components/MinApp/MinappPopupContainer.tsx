@@ -299,7 +299,7 @@ const MinappPopupContainer: React.FC = () => {
   const handleWebviewNavigate = (appid: string, url: string) => {
     // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
-      logger.debug('URL changed:', url)
+      logger.debug(`URL changed: ${url}`)
       setCurrentUrl(url)
     }
   }

@@ -54,7 +54,7 @@ const Chat: FC<Props> = (props) => {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
-      logger.error('Error enabling content search:', error)
+      logger.error('Error enabling content search:', error as Error)
     }
   })
 

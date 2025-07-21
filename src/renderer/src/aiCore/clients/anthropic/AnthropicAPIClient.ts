@@ -687,7 +687,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                     tool_calls: [toolCall]
                   } as MCPToolCreatedChunk)
                 } catch (error) {
-                  logger.error(`Error parsing tool call input: ${error}`)
+                  logger.error('Error parsing tool call input:', error as Error)
                 }
               }
               break

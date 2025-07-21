@@ -141,7 +141,7 @@ export function hasPath(url: string): boolean {
     const parsedUrl = new URL(url)
     return parsedUrl.pathname !== '/' && parsedUrl.pathname !== ''
   } catch (error) {
-    logger.error('Invalid URL:', error)
+    logger.error('Invalid URL:', error as Error)
     return false
   }
 }
@@ -212,7 +212,7 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
         }
       }
     } catch (e) {
-      logger.error('getMcpConfigSampleFromReadme', e)
+      logger.error('getMcpConfigSampleFromReadme', e as Error)
     }
   }
   return null

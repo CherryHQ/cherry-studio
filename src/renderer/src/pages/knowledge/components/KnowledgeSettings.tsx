@@ -100,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       setOpen(false)
       resolve(newBase)
     } catch (error) {
-      logger.error('Validation failed:', error)
+      logger.error('Validation failed:', error as Error)
     }
   }
 

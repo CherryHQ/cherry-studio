@@ -86,7 +86,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
             }
           }
         } catch (error) {
-          logger.error(`Error consuming stream:`, error)
+          logger.error(`Error consuming stream:`, error as Error)
           throw error
         } finally {
           if (params.onChunk && !isRecursiveCall) {
@@ -160,7 +160,7 @@ function extractAndAccumulateUsageMetrics(ctx: CompletionsContext, chunk: Generi
       )
     }
   } catch (error) {
-    logger.error(`Error extracting usage/metrics from chunk:`, error)
+    logger.error('Error extracting usage/metrics from chunk:', error as Error)
   }
 }
 

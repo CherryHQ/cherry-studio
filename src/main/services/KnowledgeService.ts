@@ -140,7 +140,7 @@ class KnowledgeService {
         .setSearchResultCount(documentCount || 30)
         .build()
     } catch (e) {
-      logger.error('Failed to create RAGApplication:', e)
+      logger.error('Failed to create RAGApplication:', e as Error)
       throw new Error(`Failed to create RAGApplication: ${e}`)
     }
 
@@ -157,7 +157,7 @@ class KnowledgeService {
   }
 
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
-    logger.debug('delete id', id)
+    logger.debug(`delete id: ${id}`)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })

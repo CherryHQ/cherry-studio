@@ -51,7 +51,7 @@ const pyodidePromise = (async () => {
     })
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Failed to load Pyodide:', errorMessage)
+    logger.error(`Failed to load Pyodide: ${errorMessage}`)
 
     // 通知主线程初始化错误
     self.postMessage({
@@ -81,7 +81,7 @@ function processResult(result: any): any {
     return result
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Result processing error:', errorMessage)
+    logger.error(`Result processing error: ${errorMessage}`)
     return { __error__: 'Result processing failed', details: errorMessage }
   }
 }
@@ -93,7 +93,7 @@ pyodidePromise
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Failed to load Pyodide:', errorMessage)
+    logger.error(`Failed to load Pyodide: ${errorMessage}`)
     self.postMessage({ type: 'error', error: errorMessage })
   })
 
@@ -145,7 +145,7 @@ self.onmessage = async (event) => {
   } catch (error: unknown) {
     // 处理所有其他错误
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Python processing error:', errorMessage)
+    logger.error(`Python processing error: ${errorMessage}`)
 
     if (output.error) {
       output.error += `\nSystem error:\n${errorMessage}`

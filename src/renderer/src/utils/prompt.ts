@@ -178,7 +178,7 @@ export const buildSystemPrompt = async (
         const systemType = await window.api.system.getDeviceType()
         userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
       } catch (error) {
-        logger.error('Failed to get system type:', error)
+        logger.error('Failed to get system type:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
       }
     }
@@ -188,7 +188,7 @@ export const buildSystemPrompt = async (
         const language = store.getState().settings.language
         userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
       } catch (error) {
-        logger.error('Failed to get language:', error)
+        logger.error('Failed to get language:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
       }
     }
@@ -198,7 +198,7 @@ export const buildSystemPrompt = async (
         const appInfo = await window.api.getAppInfo()
         userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
       } catch (error) {
-        logger.error('Failed to get architecture:', error)
+        logger.error('Failed to get architecture:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
       }
     }
@@ -207,7 +207,7 @@ export const buildSystemPrompt = async (
       try {
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, assistant?.model?.name || 'Unknown Model')
       } catch (error) {
-        logger.error('Failed to get model name:', error)
+        logger.error('Failed to get model name:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
       }
     }
@@ -217,7 +217,7 @@ export const buildSystemPrompt = async (
         const username = store.getState().settings.userName || 'Unknown Username'
         userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
       } catch (error) {
-        logger.error('Failed to get username:', error)
+        logger.error('Failed to get username:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
       }
     }

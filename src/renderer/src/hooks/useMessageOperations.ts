@@ -220,7 +220,7 @@ export function useMessageOperations(topic: Topic) {
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message) {
-        logger.error('[getTranslationUpdater] cannot find message:', messageId)
+        logger.error(`[getTranslationUpdater] cannot find message: ${messageId}`)
         return null
       }
 
@@ -305,7 +305,7 @@ export function useMessageOperations(topic: Topic) {
         const state = store.getState()
         const message = state.messages.entities[messageId]
         if (!message) {
-          logger.error('[editMessageBlocks] Message not found:', messageId)
+          logger.error(`[editMessageBlocks] Message not found: ${messageId}`)
           return
         }
 
@@ -369,7 +369,7 @@ export function useMessageOperations(topic: Topic) {
           await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
         }
       } catch (error) {
-        logger.error('[editMessageBlocks] Failed to update message blocks:', error)
+        logger.error('[editMessageBlocks] Failed to update message blocks:', error as Error)
       }
     },
     [dispatch, topic?.id]
@@ -426,7 +426,7 @@ export function useMessageOperations(topic: Topic) {
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message || !message.blocks) {
-        logger.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        logger.error(`[removeMessageBlock] Message not found or has no blocks: ${messageId}`)
         return
       }
 

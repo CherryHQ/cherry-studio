@@ -401,7 +401,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     // eslint-disable-next-line no-restricted-syntax
-    console.error(error)
+    console.error('[Preload]Failed to expose APIs:', error as Error)
   }
 } else {
   // @ts-ignore (define in dts)

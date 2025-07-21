@@ -334,7 +334,7 @@ const MemorySettings = () => {
       const users = usersList.map((user) => user.userId)
       setUniqueUsers(users)
     } catch (error) {
-      logger.error('Failed to load users list:', error)
+      logger.error('Failed to load users list:', error as Error)
     }
   }, [memoryService])
 
@@ -342,7 +342,7 @@ const MemorySettings = () => {
   const loadMemories = useCallback(
     async (userId?: string) => {
       const targetUser = userId || currentUser
-      logger.debug('Loading all memories for user:', targetUser)
+      logger.debug(`Loading all memories for user: ${targetUser}`)
       setLoading(true)
       try {
         // First, ensure the memory service is using the correct user
@@ -353,10 +353,10 @@ const MemorySettings = () => {
 
         // Get all memories for current user context (load up to 10000)
         const result = await memoryService.list({ limit: 10000, offset: 0 })
-        logger.verbose('Loaded memories for user:', targetUser, 'count:', result.results?.length || 0)
+        logger.verbose(`Loaded memories for user: ${targetUser}, count: ${result.results?.length || 0}`)
         setAllMemories(result.results || [])
       } catch (error) {
-        logger.error('Failed to load memories:', error)
+        logger.error('Failed to load memories:', error as Error)
         window.message.error(t('memory.load_failed'))
       } finally {
         setLoading(false)
@@ -367,7 +367,7 @@ const MemorySettings = () => {
 
   // Sync memoryService with Redux store on mount and when currentUser changes
   useEffect(() => {
-    logger.verbose('useEffect triggered for currentUser:', currentUser)
+    logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset to first page when user changes
     setCurrentPage(1)
     loadMemories(currentUser)
@@ -422,7 +422,7 @@ const MemorySettings = () => {
       setCurrentPage(1)
       await loadMemories(currentUser)
     } catch (error) {
-      logger.error('Failed to add memory:', error)
+      logger.error('Failed to add memory:', error as Error)
       window.message.error(t('memory.add_failed'))
     }
   }
@@ -434,7 +434,7 @@ const MemorySettings = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      logger.error('Failed to delete memory:', error)
+      logger.error('Failed to delete memory:', error as Error)
       window.message.error(t('memory.delete_failed'))
     }
   }
@@ -451,13 +451,13 @@ const MemorySettings = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      logger.error('Failed to update memory:', error)
+      logger.error('Failed to update memory:', error as Error)
       window.message.error(t('memory.update_failed'))
     }
   }
 
   const handleUserSwitch = async (userId: string) => {
-    logger.verbose('Switching to user:', userId)
+    logger.verbose(`Switching to user: ${userId}`)
 
     // First update Redux state
     dispatch(setCurrentUserId(userId))
@@ -476,7 +476,7 @@ const MemorySettings = () => {
         t('memory.user_switched', { user: userId === DEFAULT_USER_ID ? t('memory.default_user') : userId })
       )
     } catch (error) {
-      logger.error('Failed to switch user:', error)
+      logger.error('Failed to switch user:', error as Error)
       window.message.error(t('memory.user_switch_failed'))
     }
   }
@@ -496,7 +496,7 @@ const MemorySettings = () => {
       window.message.success(t('memory.user_created', { user: userId }))
       setAddUserModalVisible(false)
     } catch (error) {
-      logger.error('Failed to add user:', error)
+      logger.error('Failed to add user:', error as Error)
       window.message.error(t('memory.add_user_failed'))
     }
   }
@@ -533,7 +533,7 @@ const MemorySettings = () => {
           // Reload memories to show the empty state
           await loadMemories(currentUser)
         } catch (error) {
-          logger.error('Failed to reset memories:', error)
+          logger.error('Failed to reset memories:', error as Error)
           window.message.error(t('memory.reset_memories_failed'))
         }
       }
@@ -567,7 +567,7 @@ const MemorySettings = () => {
             await loadMemories(currentUser)
           }
         } catch (error) {
-          logger.error('Failed to delete user:', error)
+          logger.error('Failed to delete user:', error as Error)
           window.message.error(t('memory.delete_user_failed'))
         }
       }

@@ -61,7 +61,7 @@ export class MemoryProcessor {
 
       // Parse response using Zod schema
       try {
-        logger.debug('Response content for extraction:', responseContent)
+        logger.debug(`Response content for extraction: ${responseContent}`)
         const jsonParsed = jaison(responseContent)
         // Handle both expected format and potential variations
         let dataToValidate = jsonParsed
@@ -75,11 +75,11 @@ export class MemoryProcessor {
         const parsed = FactRetrievalSchema.parse(dataToValidate)
         return parsed.facts
       } catch (error) {
-        logger.error('Failed to parse fact extraction response:', error, 'responseContent: ', responseContent)
+        logger.error(`Failed to parse fact extraction response: responseContent: ${responseContent}`, error as Error)
         return []
       }
     } catch (error) {
-      logger.error('Error extracting facts:', error)
+      logger.error('Error extracting facts:', error as Error)
       return []
     }
   }
@@ -131,13 +131,13 @@ export class MemoryProcessor {
       }
 
       try {
-        logger.debug('Response content for memory update:', responseContent)
+        logger.debug(`Response content for memory update: ${responseContent}`)
         const jsonParsed = jaison(responseContent)
         // Handle both direct array and wrapped object format
         const dataToValidate = Array.isArray(jsonParsed) ? jsonParsed : jsonParsed.memory
         parsed = MemoryUpdateSchema.parse(dataToValidate)
       } catch (error) {
-        logger.error('Failed to parse memory update response:', error, 'responseContent: ', responseContent)
+        logger.error(`Failed to parse memory update response: responseContent: ${responseContent}`, error as Error)
         return []
       }
     }
@@ -152,7 +152,7 @@ export class MemoryProcessor {
             })
             operations.push({ action: 'ADD', memory: memoryOp.text, result })
           } catch (error) {
-            logger.error('Failed to add memory:', error)
+            logger.error('Failed to add memory:', error as Error)
           }
           break
 
@@ -174,7 +174,7 @@ export class MemoryProcessor {
               })
             }
           } catch (error) {
-            logger.error('Failed to update memory:', error)
+            logger.error('Failed to update memory:', error as Error)
           }
           break
 
@@ -183,7 +183,7 @@ export class MemoryProcessor {
             await this.memoryService.delete(memoryOp.id)
             operations.push({ action: 'DELETE', id: memoryOp.id, memory: memoryOp.text })
           } catch (error) {
-            logger.error('Failed to delete memory:', error)
+            logger.error('Failed to delete memory:', error as Error)
           }
           break
 
@@ -216,7 +216,7 @@ export class MemoryProcessor {
 
       return { facts, operations }
     } catch (error) {
-      logger.error('Error processing conversation:', error)
+      logger.error('Error processing conversation:', error as Error)
       return { facts: [], operations: [] }
     }
   }
@@ -239,18 +239,11 @@ export class MemoryProcessor {
       })
 
       logger.debug(
-        'Searching memories with query:',
-        query,
-        'for user:',
-        userId,
-        'and assistant:',
-        assistantId,
-        'result: ',
-        result
+        `Searching memories with query: ${query} for user: ${userId} and assistant: ${assistantId} result: ${result}`
       )
       return result.results
     } catch (error) {
-      logger.error('Error searching memories:', error)
+      logger.error('Error searching memories:', error as Error)
       return []
     }
   }

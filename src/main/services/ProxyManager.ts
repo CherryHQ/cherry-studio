@@ -57,7 +57,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    logger.debug('configureProxy: %s %s', config?.mode, config?.proxyRules)
+    logger.debug(`configureProxy: ${config?.mode} ${config?.proxyRules}`)
     if (this.isSettingProxy) {
       return
     }
@@ -75,7 +75,7 @@ export class ProxyManager {
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          logger.info('current system proxy: %s', currentProxy.proxyUrl)
+          logger.info(`current system proxy: ${currentProxy.proxyUrl}`)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
         }
         this.monitorSystemProxy()
@@ -83,7 +83,7 @@ export class ProxyManager {
 
       this.setGlobalProxy()
     } catch (error) {
-      logger.error('Failed to config proxy:', error)
+      logger.error('Failed to config proxy:', error as Error)
       throw error
     } finally {
       this.isSettingProxy = false

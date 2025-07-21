@@ -52,7 +52,7 @@ export const useActionItems = (
         const currentItems = initialItems || []
         setActionItems([...currentItems, actionItem])
       } catch (error) {
-        logger.debug('Error adding item:', error)
+        logger.debug('Error adding item:', error as Error)
       }
     }
     setIsUserModalOpen(false)

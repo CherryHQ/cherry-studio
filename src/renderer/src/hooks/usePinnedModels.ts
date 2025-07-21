@@ -56,7 +56,7 @@ export const usePinnedModels = () => {
           : [...pinnedModels, modelId]
         await updatePinnedModels(newPinnedModels)
       } catch (error) {
-        logger.error('Failed to toggle pinned model', error)
+        logger.error('Failed to toggle pinned model', error as Error)
       }
     },
     [pinnedModels, updatePinnedModels]

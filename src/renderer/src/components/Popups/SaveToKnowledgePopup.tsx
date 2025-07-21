@@ -203,7 +203,7 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
       setOpen(false)
       resolve({ success: true, savedCount })
     } catch (error) {
-      logger.error('save failed:', error)
+      logger.error('save failed:', error as Error)
       window.message.error(t('chat.save.knowledge.error.save_failed'))
       setLoading(false)
     }

@@ -1156,7 +1156,7 @@ const migrateConfig = {
       state.settings.trayOnClose = true
       return state
     } catch (error) {
-      logger.error('migrate 83 error', error)
+      logger.error('migrate 83 error', error as Error)
       return state
     }
   },
@@ -1165,7 +1165,7 @@ const migrateConfig = {
       addProvider(state, 'voyageai')
       return state
     } catch (error) {
-      logger.error('migrate 84 error', error)
+      logger.error('migrate 84 error', error as Error)
       return state
     }
   },
@@ -1386,7 +1386,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 100 error', error)
+      logger.error('migrate 100 error', error as Error)
       return state
     }
   },
@@ -1414,7 +1414,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 101 error', error)
+      logger.error('migrate 101 error', error as Error)
       return state
     }
   },
@@ -1449,7 +1449,7 @@ const migrateConfig = {
       delete state.settings.codeCacheThreshold
       return state
     } catch (error) {
-      logger.error('migrate 102 error', error)
+      logger.error('migrate 102 error', error as Error)
       return state
     }
   },
@@ -1478,7 +1478,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 103 error', error)
+      logger.error('migrate 103 error', error as Error)
       return state
     }
   },
@@ -1488,7 +1488,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
       return state
     } catch (error) {
-      logger.error('migrate 104 error', error)
+      logger.error('migrate 104 error', error as Error)
       return state
     }
   },
@@ -1504,7 +1504,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 105 error', error)
+      logger.error('migrate 105 error', error as Error)
       return state
     }
   },
@@ -1514,7 +1514,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
       return state
     } catch (error) {
-      logger.error('migrate 106 error', error)
+      logger.error('migrate 106 error', error as Error)
       return state
     }
   },
@@ -1525,7 +1525,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 107 error', error)
+      logger.error('migrate 107 error', error as Error)
       return state
     }
   },
@@ -1535,7 +1535,7 @@ const migrateConfig = {
       state.inputTools.isCollapsed = false
       return state
     } catch (error) {
-      logger.error('migrate 108 error', error)
+      logger.error('migrate 108 error', error as Error)
       return state
     }
   },
@@ -1544,7 +1544,7 @@ const migrateConfig = {
       state.settings.userTheme = settingsInitialState.userTheme
       return state
     } catch (error) {
-      logger.error('migrate 109 error', error)
+      logger.error('migrate 109 error', error as Error)
       return state
     }
   },
@@ -1557,7 +1557,7 @@ const migrateConfig = {
       state.settings.testPlan = false
       return state
     } catch (error) {
-      logger.error('migrate 110 error', error)
+      logger.error('migrate 110 error', error as Error)
       return state
     }
   },
@@ -1576,7 +1576,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 111 error', error)
+      logger.error('migrate 111 error', error as Error)
       return state
     }
   },
@@ -1590,7 +1590,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
       return state
     } catch (error) {
-      logger.error('migrate 112 error', error)
+      logger.error('migrate 112 error', error as Error)
       return state
     }
   },
@@ -1608,7 +1608,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 113 error', error)
+      logger.error('migrate 113 error', error as Error)
       return state
     }
   },
@@ -1625,7 +1625,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 114 error', error)
+      logger.error('migrate 114 error', error as Error)
       return state
     }
   },
@@ -1646,7 +1646,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 115 error', error)
+      logger.error('migrate 115 error', error as Error)
       return state
     }
   },
@@ -1675,7 +1675,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 116 error', error)
+      logger.error('migrate 116 error', error as Error)
       return state
     }
   },
@@ -1713,7 +1713,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 117 error', error)
+      logger.error('migrate 117 error', error as Error)
       return state
     }
   },
@@ -1734,7 +1734,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 118 error', error)
+      logger.error('migrate 118 error', error as Error)
       return state
     }
   },
@@ -1752,7 +1752,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 119 error', error)
+      logger.error('migrate 119 error', error as Error)
       return state
     }
   },
@@ -1800,7 +1800,7 @@ const migrateConfig = {
       state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
-      logger.error('migrate 120 error', error)
+      logger.error('migrate 120 error', error as Error)
       return state
     }
   },
@@ -1832,7 +1832,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 121 error', error)
+      logger.error('migrate 121 error', error as Error)
       return state
     }
   }

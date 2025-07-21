@@ -72,7 +72,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
                 window.message.error(t('settings.miniapps.custom.remove_error'))
-                logger.error('Failed to remove custom mini app:', error)
+                logger.error('Failed to remove custom mini app:', error as Error)
               }
             }
           }

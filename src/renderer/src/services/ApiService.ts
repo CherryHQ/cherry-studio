@@ -202,7 +202,7 @@ async function fetchExternalTool(
       }
     } catch (error) {
       if (isAbortError(error)) throw error
-      logger.error('Web search failed:', error)
+      logger.error('Web search failed:', error as Error)
       return
     }
   }
@@ -221,7 +221,7 @@ async function fetchExternalTool(
         const currentUserId = selectCurrentUserId(store.getState())
         // Search for relevant memories
         const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info('Searching for relevant memories with content:', content)
+        logger.info(`Searching for relevant memories with content: ${content}`)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -240,7 +240,7 @@ async function fetchExternalTool(
         return []
       }
     } catch (error) {
-      logger.error('Error processing memory search:', error)
+      logger.error('Error processing memory search:', error as Error)
       // Continue with conversation even if memory processing fails
       return []
     }
@@ -289,7 +289,7 @@ async function fetchExternalTool(
         modelName
       )
     } catch (error) {
-      logger.error('Knowledge base search failed:', error)
+      logger.error('Knowledge base search failed:', error as Error)
       return
     }
   }
@@ -360,7 +360,7 @@ async function fetchExternalTool(
             const tools = await window.api.mcp.listTools(mcpServer, spanContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
-            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
             return []
           }
         })
@@ -370,14 +370,14 @@ async function fetchExternalTool(
           .map((result) => result.value)
           .flat()
       } catch (toolError) {
-        logger.error('Error fetching MCP tools:', toolError)
+        logger.error('Error fetching MCP tools:', toolError as Error)
       }
     }
 
     return { mcpTools }
   } catch (error) {
     if (isAbortError(error)) throw error
-    logger.error('Tool execution failed:', error)
+    logger.error('Tool execution failed:', error as Error)
 
     // 发送错误状态
     const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
@@ -567,10 +567,10 @@ async function processConversationMemory(messages: Message[], assistant: Assista
         }
       })
       .catch((error) => {
-        logger.error('Background memory processing failed:', error)
+        logger.error('Background memory processing failed:', error as Error)
       })
   } catch (error) {
-    logger.error('Error in post-conversation memory processing:', error)
+    logger.error('Error in post-conversation memory processing:', error as Error)
   }
 }
 

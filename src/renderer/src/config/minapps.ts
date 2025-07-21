@@ -82,7 +82,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       addTime: app.addTime || now
     }))
   } catch (error) {
-    logger.error('Failed to load custom mini apps:', error)
+    logger.error('Failed to load custom mini apps:', error as Error)
     return []
   }
 }

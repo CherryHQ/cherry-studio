@@ -59,7 +59,7 @@ export const saveMessageAndBlocksToDB = async (message: Message, blocks: Message
       logger.error(`[saveMessageAndBlocksToDB] Topic ${message.topicId} not found.`)
     }
   } catch (error) {
-    logger.error(`[saveMessageAndBlocksToDB] Failed to save message ${message.id}:`, error)
+    logger.error(`[saveMessageAndBlocksToDB] Failed to save message ${message.id}:`, error as Error)
   }
 }
 
@@ -99,7 +99,7 @@ const updateExistingMessageAndBlocksInDB = async (
       }
     })
   } catch (error) {
-    logger.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error)
+    logger.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error as Error)
   }
 }
 
@@ -217,7 +217,7 @@ const saveUpdatesToDB = async (
     }
     await updateExistingMessageAndBlocksInDB(messageDataToSave, blocksToUpdate)
   } catch (error) {
-    logger.error(`[DB Save Updates] Failed for message ${messageId}:`, error)
+    logger.error(`[DB Save Updates] Failed for message ${messageId}:`, error as Error)
   }
 }
 
@@ -954,7 +954,7 @@ export const sendMessage =
         })
       }
     } catch (error) {
-      logger.error('Error in sendMessage thunk:', error)
+      logger.error('Error in sendMessage thunk:', error as Error)
     } finally {
       handleChangeLoadingOfTopic(topicId)
     }
@@ -1029,7 +1029,7 @@ export const deleteSingleMessageThunk =
         dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
-      logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error)
+      logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error as Error)
     }
   }
 
@@ -1073,7 +1073,7 @@ export const deleteMessageGroupThunk =
         dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
-      logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error)
+      logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error as Error)
     }
   }
 
@@ -1103,7 +1103,7 @@ export const clearTopicMessagesThunk =
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
     } catch (error) {
-      logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error)
+      logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error as Error)
     }
   }
 
@@ -1131,7 +1131,7 @@ export const resendMessageThunk =
         window.keyv.remove(`web-search-${userMessageToResend.id}`)
         window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
-        logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error)
+        logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }
 
       const resetDataList: Message[] = []
@@ -1197,7 +1197,7 @@ export const resendMessageThunk =
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
       } catch (dbError) {
-        logger.error('[resendMessageThunk] Error updating database:', dbError)
+        logger.error('[resendMessageThunk] Error updating database:', dbError as Error)
       }
 
       const queue = getTopicQueue(topicId)
@@ -1211,7 +1211,7 @@ export const resendMessageThunk =
         })
       }
     } catch (error) {
-      logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
+      logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error as Error)
     } finally {
       handleChangeLoadingOfTopic(topicId)
     }
@@ -1343,7 +1343,7 @@ export const regenerateAssistantResponseThunk =
     } catch (error) {
       logger.error(
         `[regenerateAssistantResponseThunk] Error regenerating response for assistant message ${assistantMessageToRegenerate.id}:`,
-        error
+        error as Error
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
@@ -1404,7 +1404,7 @@ export const initiateTranslationThunk =
       })
       return newBlock.id // Return the ID
     } catch (error) {
-      logger.error(`[initiateTranslationThunk] Failed for message ${messageId}:`, error)
+      logger.error(`[initiateTranslationThunk] Failed for message ${messageId}:`, error as Error)
       return undefined
       // Optional: Dispatch an error action or show notification
     }
@@ -1429,7 +1429,7 @@ export const updateTranslationBlockThunk =
       await db.message_blocks.update(blockId, changes)
       // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
     } catch (error) {
-      logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
+      logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error as Error)
     }
   }
 
@@ -1520,7 +1520,7 @@ export const appendAssistantResponseThunk =
         )
       })
     } catch (error) {
-      logger.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error)
+      logger.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error as Error)
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
@@ -1667,7 +1667,7 @@ export const cloneMessagesToNewTopicThunk =
 
       return true // Indicate success
     } catch (error) {
-      logger.error(`[cloneMessagesToNewTopicThunk] Failed to clone messages:`, error)
+      logger.error(`[cloneMessagesToNewTopicThunk] Failed to clone messages:`, error as Error)
       return false // Indicate failure
     }
   }
@@ -1739,7 +1739,7 @@ export const updateMessageAndBlocksThunk =
 
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
-      logger.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+      logger.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error as Error)
     }
   }
 
@@ -1784,7 +1784,7 @@ export const removeBlocksThunk =
 
       return
     } catch (error) {
-      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error)
+      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }

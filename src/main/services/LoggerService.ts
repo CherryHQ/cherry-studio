@@ -1,4 +1,4 @@
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
@@ -37,7 +37,7 @@ const SYSTEM_INFO = {
   os: `${os.platform()}-${os.arch()} / ${os.version()}`,
   hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
-const APP_VERSION = `v${app?.getVersion?.() || 'unknown'}`
+const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 
 const DEFAULT_LEVEL = isDev ? LEVEL.SILLY : LEVEL.INFO
 
@@ -125,7 +125,6 @@ class LoggerService {
       // Development: all levels, Production: info and above
       level: DEFAULT_LEVEL,
       format: winston.format.combine(
-        winston.format.splat(),
         winston.format.timestamp({
           format: 'YYYY-MM-DD HH:mm:ss'
         }),
@@ -283,42 +282,42 @@ class LoggerService {
   /**
    * Log error message
    */
-  public error(message: string, ...data: any[]): void {
+  public error(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.ERROR, message, data)
   }
 
   /**
    * Log warning message
    */
-  public warn(message: string, ...data: any[]): void {
+  public warn(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.WARN, message, data)
   }
 
   /**
    * Log info message
    */
-  public info(message: string, ...data: any[]): void {
+  public info(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.INFO, message, data)
   }
 
   /**
    * Log verbose message
    */
-  public verbose(message: string, ...data: any[]): void {
+  public verbose(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.VERBOSE, message, data)
   }
 
   /**
    * Log debug message
    */
-  public debug(message: string, ...data: any[]): void {
+  public debug(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.DEBUG, message, data)
   }
 
   /**
    * Log silly level message
    */
-  public silly(message: string, ...data: any[]): void {
+  public silly(message: string, ...data: LogContextData): void {
     this.processMainLog(LEVEL.SILLY, message, data)
   }
 

@@ -130,7 +130,7 @@ class PyodideService {
     try {
       await this.initialize()
     } catch (error: unknown) {
-      logger.error('Pyodide initialization failed, cannot execute Python code', error)
+      logger.error('Pyodide initialization failed, cannot execute Python code', error as Error)
       return `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
     }
 

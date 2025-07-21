@@ -142,7 +142,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
       }
     } catch (error) {
-      logger.error('Error processing stream chunk:', error)
+      logger.error('Error processing stream chunk:', error as Error)
       callbacks.onError?.(error)
     }
   }

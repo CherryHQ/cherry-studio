@@ -74,7 +74,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
       }
       return next(ctx, params)
     } catch (error) {
-      logger.error(`Error during request transformation:`, error)
+      logger.error('Error during request transformation:', error as Error)
       // 让错误向上传播，或者可以在这里进行特定的错误处理
       throw error
     }

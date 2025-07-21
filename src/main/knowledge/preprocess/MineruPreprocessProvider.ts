@@ -107,7 +107,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       const response: QuotaResponse = await quota.json()
       return response.data.user_left_quota
     } catch (error) {
-      logger.error('Error checking quota:', error)
+      logger.error('Error checking quota:', error as Error)
       throw error
     }
   }

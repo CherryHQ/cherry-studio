@@ -109,7 +109,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(
           'Parsed environment is empty or output was very short. This might indicate an issue with shell execution or environment variable retrieval.'
         )
-        logger.warn('Raw output from shell:\n', output)
+        logger.warn(`Raw output from shell:\n${output}`)
       }
 
       env.PATH = env.Path || env.PATH || ''

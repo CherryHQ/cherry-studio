@@ -306,7 +306,7 @@ async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model
     if (!selectedModel) return null
     return selectedModel
   } catch (error) {
-    logger.error('failed to select model', error)
+    logger.error('failed to select model', error as Error)
     return null
   }
 }

@@ -103,7 +103,7 @@ class CopilotService {
         avatar: response.data.avatar_url
       }
     } catch (error) {
-      logger.error('Failed to get user information:', error)
+      logger.error('Failed to get user information:', error as Error)
       throw new CopilotServiceError('无法获取GitHub用户信息', error)
     }
   }
@@ -129,7 +129,7 @@ class CopilotService {
 
       return response.data
     } catch (error) {
-      logger.error('Failed to get auth message:', error)
+      logger.error('Failed to get auth message:', error as Error)
       throw new CopilotServiceError('无法获取GitHub授权信息', error)
     }
   }
@@ -171,7 +171,7 @@ class CopilotService {
         // 仅在最后一次尝试失败时记录详细错误
         const isLastAttempt = attempt === CONFIG.POLLING.MAX_ATTEMPTS - 1
         if (isLastAttempt) {
-          logger.error(`Token polling failed after ${CONFIG.POLLING.MAX_ATTEMPTS} attempts:`, error)
+          logger.error(`Token polling failed after ${CONFIG.POLLING.MAX_ATTEMPTS} attempts:`, error as Error)
         }
       }
     }
@@ -187,7 +187,7 @@ class CopilotService {
       const encryptedToken = safeStorage.encryptString(token)
       await fs.writeFile(this.tokenFilePath, encryptedToken)
     } catch (error) {
-      logger.error('Failed to save token:', error)
+      logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)
     }
   }
@@ -216,7 +216,7 @@ class CopilotService {
 
       return response.data
     } catch (error) {
-      logger.error('Failed to get Copilot token:', error)
+      logger.error('Failed to get Copilot token:', error as Error)
       throw new CopilotServiceError('无法获取Copilot令牌，请重新授权', error)
     }
   }
@@ -235,7 +235,7 @@ class CopilotService {
         logger.debug('Token file not found, nothing to delete')
       }
     } catch (error) {
-      logger.error('Failed to logout:', error)
+      logger.error('Failed to logout:', error as Error)
       throw new CopilotServiceError('无法完成退出登录操作', error)
     }
   }

@@ -154,7 +154,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
 
             counter++
           } catch (error) {
-            logger.error(`Failed to save image ${imageFileName}:`, error)
+            logger.error(`Failed to save image ${imageFileName}:`, error as Error)
           }
         }
       })

@@ -160,7 +160,7 @@ export default class AiProvider {
       const dimensions = await this.apiClient.getEmbeddingDimensions(model)
       return dimensions
     } catch (error) {
-      logger.error('Error getting embedding dimensions:', error)
+      logger.error('Error getting embedding dimensions:', error as Error)
       throw error
     }
   }

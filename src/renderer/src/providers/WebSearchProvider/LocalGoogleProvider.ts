@@ -25,7 +25,7 @@ export default class LocalGoogleProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      logger.error('Failed to parse Google search HTML:', error)
+      logger.error('Failed to parse Google search HTML:', error as Error)
     }
     return results
   }

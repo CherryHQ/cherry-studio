@@ -6,7 +6,7 @@ import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
-import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
@@ -21,7 +21,7 @@ export default class AppUpdater {
   private updateCheckResult: UpdateCheckResult | null = null
 
   constructor(mainWindow: BrowserWindow) {
-    autoUpdater.logger = logger
+    autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
@@ -71,7 +71,7 @@ export default class AppUpdater {
 
   private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
     try {
-      logger.info('get pre release version from github', channel)
+      logger.info(`get pre release version from github: ${channel}`)
       const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
         headers: {
           Accept: 'application/vnd.github+json',
@@ -90,10 +90,9 @@ export default class AppUpdater {
         return null
       }
 
-      logger.info('release info', release.tag_name)
       return `https://github.com/CherryHQ/cherry-studio/releases/download/${release.tag_name}`
     } catch (error) {
-      logger.error('Failed to get latest not draft version from github:', error)
+      logger.error('Failed to get latest not draft version from github:', error as Error)
       return null
     }
   }
@@ -117,7 +116,7 @@ export default class AppUpdater {
       const data = await ipinfo.json()
       return data.country || 'CN'
     } catch (error) {
-      logger.error('Failed to get ipinfo:', error)
+      logger.error('Failed to get ipinfo:', error as Error)
       return 'CN'
     }
   }
@@ -225,7 +224,7 @@ export default class AppUpdater {
         updateInfo: this.updateCheckResult?.updateInfo
       }
     } catch (error) {
-      logger.error('Failed to check for update:', error)
+      logger.error('Failed to check for update:', error as Error)
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
