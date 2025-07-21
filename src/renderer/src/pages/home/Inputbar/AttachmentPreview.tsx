@@ -65,6 +65,10 @@ export const getFileIcon = (type?: string) => {
     return <FileTextFilled />
   }
 
+  if (['.tscn', '.gd'].includes(ext)) {
+    return <FileTextFilled />
+  }
+
   if (['.url'].includes(ext)) {
     return <LinkOutlined />
   }
