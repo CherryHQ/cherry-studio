@@ -46,7 +46,7 @@ export class ProxyManager {
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase()
       })
-    }, 1000 * 10)
+    }, 1000 * 60)
   }
 
   private clearSystemProxyMonitor(): void {
@@ -57,7 +57,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    logger.info('configureProxy: %s %s', config?.mode, config?.proxyRules)
+    logger.debug('configureProxy: %s %s', config?.mode, config?.proxyRules)
     if (this.isSettingProxy) {
       return
     }
