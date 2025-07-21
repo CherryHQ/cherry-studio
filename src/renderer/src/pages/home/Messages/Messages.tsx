@@ -3,6 +3,7 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
+import { MessagesContext } from '@renderer/context/MessagesContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -64,6 +65,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [scrollTop, setScrollTop] = useState<number>(0)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
@@ -90,17 +92,28 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  const scrollTo = useCallback(
+    (top: number) => {
+      if (scrollContainerRef.current) {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({ top })
+          }
+        })
+      }
+    },
+    [scrollContainerRef]
+  )
+
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight
-          })
-        }
-      })
+      scrollTo(scrollContainerRef.current.scrollHeight)
     }
-  }, [scrollContainerRef])
+  }, [scrollContainerRef, scrollTo])
+
+  useEffect(() => {
+    setScrollTop(scrollContainerRef.current?.scrollTop ?? 0)
+  }, [scrollContainerRef, scrollContainerRef.current?.scrollTop])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -280,51 +293,53 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
 
   return (
-    <MessagesContainer
-      id="messages"
-      className="messages-container"
-      ref={scrollContainerRef}
-      key={assistant.id}
-      onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <InfiniteScroll
-          dataLength={displayMessages.length}
-          next={loadMoreMessages}
-          hasMore={hasMore}
-          loader={null}
-          scrollableTarget="messages"
-          inverse
-          style={{ overflow: 'visible' }}>
-          <ContextMenu>
-            <ScrollContainer>
-              {groupedMessages.map(([key, groupMessages]) => (
-                <MessageGroup
-                  key={key}
-                  messages={groupMessages}
-                  topic={topic}
-                  registerMessageElement={registerMessageElement}
-                />
-              ))}
-              {isLoadingMore && (
-                <LoaderContainer>
-                  <SvgSpinners180Ring color="var(--color-text-2)" />
-                </LoaderContainer>
-              )}
-            </ScrollContainer>
-          </ContextMenu>
-        </InfiniteScroll>
+    <MessagesContext value={{ scrollTop, scrollTo }}>
+      <MessagesContainer
+        id="messages"
+        className="messages-container"
+        ref={scrollContainerRef}
+        key={assistant.id}
+        onScroll={handleScrollPosition}>
+        <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+          <InfiniteScroll
+            dataLength={displayMessages.length}
+            next={loadMoreMessages}
+            hasMore={hasMore}
+            loader={null}
+            scrollableTarget="messages"
+            inverse
+            style={{ overflow: 'visible' }}>
+            <ContextMenu>
+              <ScrollContainer>
+                {groupedMessages.map(([key, groupMessages]) => (
+                  <MessageGroup
+                    key={key}
+                    messages={groupMessages}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                  />
+                ))}
+                {isLoadingMore && (
+                  <LoaderContainer>
+                    <SvgSpinners180Ring color="var(--color-text-2)" />
+                  </LoaderContainer>
+                )}
+              </ScrollContainer>
+            </ContextMenu>
+          </InfiniteScroll>
 
-        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
-      </NarrowLayout>
-      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
-      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-      <SelectionBox
-        isMultiSelectMode={isMultiSelectMode}
-        scrollContainerRef={scrollContainerRef}
-        messageElements={messageElements.current}
-        handleSelectMessage={handleSelectMessage}
-      />
-    </MessagesContainer>
+          {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
+        </NarrowLayout>
+        {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+        {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+        <SelectionBox
+          isMultiSelectMode={isMultiSelectMode}
+          scrollContainerRef={scrollContainerRef}
+          messageElements={messageElements.current}
+          handleSelectMessage={handleSelectMessage}
+        />
+      </MessagesContainer>
+    </MessagesContext>
   )
 }
 
