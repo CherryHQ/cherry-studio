@@ -30,6 +30,17 @@ interface ModelSelectorProps extends SelectProps {
   showSuffix?: boolean
 }
 
+/**
+ * 模型选择器，封装了 antd Select
+ * - 通过传入模型服务商列表和模型 predicate 来构造选项
+ * - 支持按服务商分组
+ * - 可以控制 avatar 和 suffix 显示与否
+ * @param providers 服务商列表
+ * @param predicate 模型过滤条件
+ * @param grouped 是否按服务商分组
+ * @param showAvatar 是否显示模型图标
+ * @param showSuffix 是否在模型名称后显示服务商作为后缀
+ */
 const ModelSelector = ({
   providers,
   predicate,
@@ -91,8 +102,8 @@ export default memo(ModelSelector)
 
 /**
  * 用于 antd Select 组件的 filterOption，统一搜索行为：
- * - 优先使用 label 匹配
- * - 其次使用 title 匹配
+ * - 优先使用 title 匹配
+ * - 其次使用 label 匹配
  * - 最后使用 value 匹配
  *
  * @param input 用户输入的搜索字符串
