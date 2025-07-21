@@ -18,6 +18,7 @@ import {
 import { getModel } from '@renderer/hooks/useModel'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import {
@@ -110,11 +111,24 @@ async function fetchExternalTool(
     summaryAssistant.model = assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
+    const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
+      return await fetchSearchSummary(params)
+    }
+
+    const traceParams = {
+      name: `${summaryAssistant.model?.name}.Summary`,
+      tag: 'LLM',
+      topicId: lastUserMessage.topicId,
+      modelName: summaryAssistant.model.name
+    }
+
+    const searchSummaryParams = {
+      messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+      assistant: summaryAssistant
+    }
+
     try {
-      const result = await fetchSearchSummary({
-        messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-        assistant: summaryAssistant
-      })
+      const result = await withSpanResult(callSearchSummary, traceParams, searchSummaryParams)
 
       if (!result) return getFallbackResult()
 
@@ -145,7 +159,10 @@ async function fetchExternalTool(
   }
 
   // --- Web Search Function ---
-  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
+  const searchTheWeb = async (
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string
+  ): Promise<WebSearchResponse | undefined> => {
     if (!shouldWebSearch) return
 
     // Add check for extractResults existence early
@@ -165,8 +182,17 @@ async function fetchExternalTool(
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
+      let safeWebSearchProvider = webSearchProvider
+      if (webSearchProvider) {
+        safeWebSearchProvider = {
+          ...webSearchProvider,
+          topicId: lastUserMessage.topicId,
+          parentSpanId,
+          modelName: assistant.model.name
+        }
+      }
       const webSearchResponse = await WebSearchService.processWebsearch(
-        webSearchProvider!,
+        safeWebSearchProvider!,
         extractResults,
         lastUserMessage.id
       )
@@ -222,7 +248,9 @@ async function fetchExternalTool(
 
   // --- Knowledge Base Search Function ---
   const searchKnowledgeBase = async (
-    extractResults: ExtractResults | undefined
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string,
+    modelName?: string
   ): Promise<KnowledgeReference[] | undefined> => {
     if (!hasKnowledgeBase) return
 
@@ -253,7 +281,13 @@ async function fetchExternalTool(
       // const mainTextBlock = mainTextBlocks
       //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
+      return await processKnowledgeSearch(
+        tempExtractResults,
+        knowledgeBaseIds,
+        lastUserMessage.topicId,
+        parentSpanId,
+        modelName
+      )
     } catch (error) {
       logger.error('Knowledge base search failed:', error)
       return
@@ -274,11 +308,12 @@ async function fetchExternalTool(
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
     let memorySearchReferences: MemoryItem[] | undefined
 
+    const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
-        searchTheWeb(extractResults),
-        searchKnowledgeBase(extractResults),
+        searchTheWeb(extractResults, parentSpanId),
+        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
         searchMemory()
       ])
     }
@@ -319,9 +354,10 @@ async function fetchExternalTool(
 
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
+        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
           try {
-            const tools = await window.api.mcp.listTools(mcpServer)
+            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
             logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
@@ -398,6 +434,7 @@ export async function fetchChatCompletion({
     filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
   )
 
+  // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
@@ -416,24 +453,27 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-  await AI.completions(
-    {
-      callType: 'chat',
-      messages: _messages,
-      assistant,
-      onChunk: onChunkReceived,
-      mcpTools: mcpTools,
-      maxTokens,
-      streamOutput: assistant.settings?.streamOutput || false,
-      enableReasoning,
-      enableWebSearch,
-      enableUrlContext,
-      enableGenerateImage
-    },
-    {
-      streamOutput: assistant.settings?.streamOutput || false
-    }
-  )
+
+  const completionsParams: CompletionsParams = {
+    callType: 'chat',
+    messages: _messages,
+    assistant,
+    onChunk: onChunkReceived,
+    mcpTools: mcpTools,
+    maxTokens,
+    streamOutput: assistant.settings?.streamOutput || false,
+    enableReasoning,
+    enableWebSearch,
+    enableUrlContext,
+    enableGenerateImage,
+    topicId: lastUserMessage.topicId
+  }
+
+  const requestOptions = {
+    streamOutput: assistant.settings?.streamOutput || false
+  }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
@@ -599,6 +639,8 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
@@ -636,11 +678,12 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
     streamOutput: false,
+    topicId,
     enableReasoning: false
   }
 
   try {
-    const { getText } = await AI.completions(params)
+    const { getText } = await AI.completionsForTrace(params)
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -656,16 +699,19 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     return null
   }
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
     callType: 'search',
     messages: messages,
     assistant,
-    streamOutput: false
+    streamOutput: false,
+    topicId
   }
 
-  return await AI.completions(params)
+  return await AI.completionsForTrace(params)
 }
 
 export async function fetchGenerate({

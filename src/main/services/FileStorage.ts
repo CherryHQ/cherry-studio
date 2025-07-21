@@ -15,8 +15,8 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
-import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
+import pdfjs from 'pdfjs-dist'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
@@ -45,6 +45,7 @@ class FileStorage {
     }
   }
 
+  // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
   private getFileHash = async (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('md5')
@@ -219,6 +220,7 @@ class FileStorage {
     return fileInfo
   }
 
+  // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
@@ -365,7 +367,7 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
 
-    const doc = await getDocument({ data: buffer }).promise
+    const doc = await pdfjs.getDocument({ data: buffer }).promise
     const pages = doc.numPages
     await doc.destroy()
     return pages
@@ -586,6 +588,7 @@ class FileStorage {
     return mimeToExtension[mimeType] || '.bin'
   }
 
+  // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex' // 引入 Mutex
@@ -45,6 +46,7 @@ class KnowledgeGraphManager {
   }
 
   // Static async factory method for initialization
+  @TraceMethod({ spanName: 'create', tag: 'KnowledgeGraph' })
   public static async create(memoryPath: string): Promise<KnowledgeGraphManager> {
     const manager = new KnowledgeGraphManager(memoryPath)
     await manager._ensureMemoryPathExists()
@@ -143,6 +145,7 @@ class KnowledgeGraphManager {
     return JSON.parse(relationStr) as Relation
   }
 
+  @TraceMethod({ spanName: 'createEntities', tag: 'KnowledgeGraph' })
   async createEntities(entities: Entity[]): Promise<Entity[]> {
     const newEntities: Entity[] = []
     entities.forEach((entity) => {
@@ -159,6 +162,7 @@ class KnowledgeGraphManager {
     return newEntities
   }
 
+  @TraceMethod({ spanName: 'createRelations', tag: 'KnowledgeGraph' })
   async createRelations(relations: Relation[]): Promise<Relation[]> {
     const newRelations: Relation[] = []
     relations.forEach((relation) => {
@@ -179,6 +183,7 @@ class KnowledgeGraphManager {
     return newRelations
   }
 
+  @TraceMethod({ spanName: 'addObservtions', tag: 'KnowledgeGraph' })
   async addObservations(
     observations: { entityName: string; contents: string[] }[]
   ): Promise<{ entityName: string; addedObservations: string[] }[]> {
@@ -213,6 +218,7 @@ class KnowledgeGraphManager {
     return results
   }
 
+  @TraceMethod({ spanName: 'deleteEntities', tag: 'KnowledgeGraph' })
   async deleteEntities(entityNames: string[]): Promise<void> {
     let changed = false
     const namesToDelete = new Set(entityNames)
@@ -244,6 +250,7 @@ class KnowledgeGraphManager {
     }
   }
 
+  @TraceMethod({ spanName: 'deleteObservations', tag: 'KnowledgeGraph' })
   async deleteObservations(deletions: { entityName: string; observations: string[] }[]): Promise<void> {
     let changed = false
     deletions.forEach((d) => {
@@ -262,6 +269,7 @@ class KnowledgeGraphManager {
     }
   }
 
+  @TraceMethod({ spanName: 'deleteRelations', tag: 'KnowledgeGraph' })
   async deleteRelations(relations: Relation[]): Promise<void> {
     let changed = false
     relations.forEach((rel) => {
@@ -276,6 +284,7 @@ class KnowledgeGraphManager {
   }
 
   // Read the current state from memory
+  @TraceMethod({ spanName: 'readGraph', tag: 'KnowledgeGraph' })
   async readGraph(): Promise<KnowledgeGraph> {
     // Return a deep copy to prevent external modification of the internal state
     return JSON.parse(
@@ -287,6 +296,7 @@ class KnowledgeGraphManager {
   }
 
   // Search operates on the in-memory graph
+  @TraceMethod({ spanName: 'searchNodes', tag: 'KnowledgeGraph' })
   async searchNodes(query: string): Promise<KnowledgeGraph> {
     const lowerCaseQuery = query.toLowerCase()
     const filteredEntities = Array.from(this.entities.values()).filter(
@@ -309,6 +319,7 @@ class KnowledgeGraphManager {
   }
 
   // Open operates on the in-memory graph
+  @TraceMethod({ spanName: 'openNodes', tag: 'KnowledgeGraph' })
   async openNodes(names: string[]): Promise<KnowledgeGraph> {
     const nameSet = new Set(names)
     const filteredEntities = Array.from(this.entities.values()).filter((e) => nameSet.has(e.name))

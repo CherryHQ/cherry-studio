@@ -35,6 +35,15 @@ export default defineConfig({
           setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
           include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}']
         }
+      },
+      // 脚本单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/**/*.{test,spec}.{ts,tsx}', 'scripts/**/__tests__/**/*.{test,spec}.{ts,tsx}']
+        }
       }
     ],
     // 全局共享配置

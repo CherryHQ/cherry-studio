@@ -327,7 +327,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.moonshot.cn'
     },
     websites: {
-      official: 'https://moonshot.ai/',
+      official: 'https://www.moonshot.cn/',
       platform: 'https://platform.moonshot.cn/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',

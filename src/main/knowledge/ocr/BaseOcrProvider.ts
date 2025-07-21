@@ -3,25 +3,22 @@ import path from 'node:path'
 
 import { windowService } from '@main/services/WindowService'
 import { getFileExt } from '@main/utils/file'
-import { FileMetadata, PreprocessProvider } from '@types'
+import { FileMetadata, OcrProvider } from '@types'
 import { app } from 'electron'
+import pdfjs from 'pdfjs-dist'
 import { TypedArray } from 'pdfjs-dist/types/src/display/api'
 
-export default abstract class BasePreprocessProvider {
-  protected provider: PreprocessProvider
-  protected userId?: string
+export default abstract class BaseOcrProvider {
+  protected provider: OcrProvider
   public storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
 
-  constructor(provider: PreprocessProvider, userId?: string) {
+  constructor(provider: OcrProvider) {
     if (!provider) {
-      throw new Error('Preprocess provider is not set')
+      throw new Error('OCR provider is not set')
     }
     this.provider = provider
-    this.userId = userId
   }
   abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata; quota?: number }>
-
-  abstract checkQuota(): Promise<number>
 
   /**
    * 检查文件是否已经被预处理过
@@ -80,8 +77,7 @@ export default abstract class BasePreprocessProvider {
     source: string | URL | TypedArray,
     passwordCallback?: (fn: (password: string) => void, reason: string) => string
   ) {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    const documentLoadingTask = getDocument(source)
+    const documentLoadingTask = pdfjs.getDocument(source)
     if (passwordCallback) {
       documentLoadingTask.onPassword = passwordCallback
     }
@@ -90,9 +86,9 @@ export default abstract class BasePreprocessProvider {
     return document
   }
 
-  public async sendPreprocessProgress(sourceId: string, progress: number): Promise<void> {
+  public async sendOcrProgress(sourceId: string, progress: number): Promise<void> {
     const mainWindow = windowService.getMainWindow()
-    mainWindow?.webContents.send('file-preprocess-progress', {
+    mainWindow?.webContents.send('file-ocr-progress', {
       itemId: sourceId,
       progress: progress
     })
