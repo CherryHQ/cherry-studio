@@ -1,6 +1,7 @@
 import 'emoji-picker-element'
 
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -29,6 +30,8 @@ type FieldType = {
   prompt: string
   knowledge_base_ids: string[]
 }
+
+const logger = loggerService.withContext('AddAgentPopup')
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
@@ -140,7 +143,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setOriginalPrompt(content)
       setHasUnsavedChanges(true)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      logger.error('Error fetching data:', error)
     }
 
     setLoading(false)

@@ -1,4 +1,5 @@
 import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -7,7 +8,6 @@ import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { message } from 'antd'
-import Logger from 'electron-log/renderer'
 import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,8 @@ import styled from 'styled-components'
 interface Props {
   block: ToolMessageBlock
 }
+
+const logger = loggerService.withContext('MessageTools')
 
 const COUNTDOWN_TIME = 30
 
@@ -42,7 +44,7 @@ const MessageTools: FC<Props> = ({ block }) => {
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
-        console.log('countdown', countdown)
+        logger.debug('countdown', countdown)
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
@@ -114,12 +116,12 @@ const MessageTools: FC<Props> = ({ block }) => {
       try {
         const success = await window.api.mcp.abortTool(toolResponse.id)
         if (success) {
-          message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
+          window.message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
         } else {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
       } catch (error) {
-        Logger.error('Failed to abort tool:', error)
+        logger.error('Failed to abort tool:', error)
         message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
@@ -152,7 +154,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     // Also confirm the current tool
     confirmToolAction(id)
 
-    message.success({
+    window.message.success({
       content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
       key: 'auto-approve'
     })
@@ -292,7 +294,7 @@ const MessageTools: FC<Props> = ({ block }) => {
           return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
-      console.error('failed to render the preview of mcp results:', e)
+      logger.error('failed to render the preview of mcp results:', e)
       return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
     }
   }

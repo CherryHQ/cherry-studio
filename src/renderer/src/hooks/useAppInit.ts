@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -20,6 +21,8 @@ import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
+const logger = loggerService.withContext('useAppInit')
+
 export function useAppInit() {
   const dispatch = useAppDispatch()
   const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
@@ -31,6 +34,7 @@ export function useAppInit() {
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
+    // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
 
     // Initialize MemoryService after app is ready
@@ -133,7 +137,7 @@ export function useAppInit() {
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
     memoryService.updateConfig().catch((error) => {
-      console.error('Failed to update memory config:', error)
+      logger.error('Failed to update memory config:', error)
     })
   }, [memoryConfig])
 }

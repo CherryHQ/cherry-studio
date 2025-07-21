@@ -1,4 +1,5 @@
 import { CodeOutlined, LinkOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { extractTitle } from '@renderer/utils/formats'
@@ -10,6 +11,8 @@ import { ClipLoader } from 'react-spinners'
 import styled, { keyframes } from 'styled-components'
 
 import HtmlArtifactsPopup from './HtmlArtifactsPopup'
+
+const logger = loggerService.withContext('HtmlArtifactsCard')
 
 const HTML_VOID_ELEMENTS = new Set([
   'area',
@@ -123,7 +126,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
     if (window.api.shell?.openExternal) {
       window.api.shell.openExternal(filePath)
     } else {
-      console.error(t('artifacts.preview.openExternal.error.content'))
+      logger.error(t('artifacts.preview.openExternal.error.content'))
     }
   }
 

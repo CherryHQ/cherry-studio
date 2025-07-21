@@ -2,7 +2,6 @@ import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
 import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-openai-embeddings'
-import { getInstanceName } from '@main/utils'
 import { ApiClient } from '@types'
 
 import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
@@ -45,7 +44,7 @@ export default class EmbeddingsFactory {
         azureOpenAIApiKey: apiKey,
         azureOpenAIApiVersion: apiVersion,
         azureOpenAIApiDeploymentName: model,
-        azureOpenAIApiInstanceName: getInstanceName(baseURL),
+        azureOpenAIEndpoint: baseURL,
         dimensions,
         batchSize
       })

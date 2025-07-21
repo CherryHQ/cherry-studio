@@ -1,4 +1,4 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
@@ -9,6 +9,8 @@ import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
 const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归
+
+const logger = loggerService.withContext('McpToolChunkMiddleware')
 
 /**
  * MCP工具处理中间件
@@ -32,7 +34,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
 
     const executeWithToolHandling = async (currentParams: CompletionsParams, depth = 0): Promise<CompletionsResult> => {
       if (depth >= MAX_TOOL_RECURSION_DEPTH) {
-        Logger.error(`🔧 [${MIDDLEWARE_NAME}] Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
+        logger.error(`Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
         throw new Error(`Maximum tool recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
       }
 
@@ -43,7 +45,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
       } else {
         const enhancedCompletions = ctx._internal.enhancedDispatch
         if (!enhancedCompletions) {
-          Logger.error(`🔧 [${MIDDLEWARE_NAME}] Enhanced completions method not found, cannot perform recursive call`)
+          logger.error(`Enhanced completions method not found, cannot perform recursive call`)
           throw new Error('Enhanced completions method not found')
         }
 
@@ -54,7 +56,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
       }
 
       if (!result.stream) {
-        Logger.error(`🔧 [${MIDDLEWARE_NAME}] No stream returned from enhanced completions`)
+        logger.error(`No stream returned from enhanced completions`)
         throw new Error('No stream returned from enhanced completions')
       }
 
@@ -98,6 +100,7 @@ function createToolHandlingTransform(
     async transform(chunk: GenericChunk, controller) {
       try {
         // 处理MCP工具进展chunk
+        logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
           const createdChunk = chunk as MCPToolCreatedChunk
 
@@ -116,14 +119,15 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
                   executedToolResults.push(...result.toolResults)
                   executedToolCalls.push(...result.confirmedToolCalls)
                 } catch (error) {
-                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool call asynchronously:`, error)
+                  logger.error(`Error executing tool call asynchronously:`, error)
                 }
               })()
 
@@ -144,13 +148,14 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
                   executedToolResults.push(...result.toolResults)
                 } catch (error) {
-                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool use response asynchronously:`, error)
+                  logger.error(`Error executing tool use response asynchronously:`, error)
                   // 错误时不影响其他工具的执行
                 }
               })()
@@ -162,7 +167,7 @@ function createToolHandlingTransform(
           controller.enqueue(chunk)
         }
       } catch (error) {
-        console.error(`🔧 [${MIDDLEWARE_NAME}] Error processing chunk:`, error)
+        logger.error(`Error processing chunk:`, error)
         controller.error(error)
       }
     },
@@ -194,7 +199,7 @@ function createToolHandlingTransform(
             await executeWithToolHandling(newParams, depth + 1)
           }
         } catch (error) {
-          Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
+          logger.error(`Error in tool processing:`, error)
           controller.error(error)
         } finally {
           hasToolCalls = false
@@ -214,7 +219,8 @@ async function executeToolCalls(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: string
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
@@ -227,7 +233,7 @@ async function executeToolCalls(
     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
 
   if (mcpToolResponses.length === 0) {
-    console.warn(`🔧 [${MIDDLEWARE_NAME}] No valid MCP tool responses to execute`)
+    logger.warn(`No valid MCP tool responses to execute`)
     return { toolResults: [], confirmedToolCalls: [] }
   }
 
@@ -241,7 +247,8 @@ async function executeToolCalls(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   // 找出已确认工具对应的原始toolCalls
@@ -272,7 +279,8 @@ async function executeToolUseResponses(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const { toolResults } = await parseAndCallTools(
@@ -284,7 +292,8 @@ async function executeToolUseResponses(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   return { toolResults }
@@ -325,7 +334,7 @@ function buildParamsWithToolResults(
         ctx._internal.observer.usage.total_tokens += additionalTokens
       }
     } catch (error) {
-      Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error estimating token usage for new messages:`, error)
+      logger.error(`Error estimating token usage for new messages:`, error)
     }
   }
 
