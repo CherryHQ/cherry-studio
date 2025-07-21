@@ -16,7 +16,7 @@ function hasWritePermission(path: string) {
   }
 }
 
-function getConfigPath() {
+function getConfigDir() {
   return path.join(os.homedir(), '.cherrystudio', 'config')
 }
 
@@ -36,7 +36,7 @@ export function initAppDataDir() {
 
 function getAppDataPathFromConfig() {
   try {
-    const configPath = getConfigPath()
+    const configPath = path.join(getConfigDir(), 'config.json')
     if (!fs.existsSync(configPath)) {
       return null
     }
@@ -81,7 +81,7 @@ function getAppDataPathFromConfig() {
 }
 
 export function updateAppDataConfig(appDataPath: string) {
-  const configDir = getConfigPath()
+  const configDir = getConfigDir()
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true })
   }
