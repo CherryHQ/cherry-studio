@@ -22,27 +22,18 @@ vi.mock('@renderer/utils/naming', () => ({
 }))
 
 // Import after mocking
+import { Provider } from '@renderer/types'
+
 import { modelSelectFilter, modelSelectOptions } from '../SelectOptions'
 
-// Simple mock types for testing
-interface TestModel {
-  id: string
-  name: string
-  provider: string
-  group?: string
-}
-
-interface TestProvider {
-  id: string
-  name: string
-  models: TestModel[]
-}
-
 describe('SelectOptions', () => {
-  const mockProviders: TestProvider[] = [
+  const mockProviders: Provider[] = [
     {
       id: 'openai',
       name: 'OpenAI',
+      type: 'openai',
+      apiKey: '123',
+      apiHost: 'https://api.openai.com',
       models: [
         { id: 'text-embedding-ada-002', name: 'text-embedding-ada-002', provider: 'openai', group: 'embedding' },
         { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'openai', group: 'chat' }
@@ -51,6 +42,9 @@ describe('SelectOptions', () => {
     {
       id: 'cohere',
       name: 'Cohere',
+      type: 'openai',
+      apiKey: '123',
+      apiHost: 'https://api.cohere.com',
       models: [
         { id: 'embed-english-v3.0', name: 'embed-english-v3.0', provider: 'cohere', group: 'embedding' },
         { id: 'rerank-english-v2.0', name: 'rerank-english-v2.0', provider: 'cohere', group: 'rerank' }
