@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -77,7 +78,7 @@ class LoggerService {
         Object.values(LEVEL).includes(process.env.CSLOGGER_MAIN_LEVEL as LogLevel)
       ) {
         this.envLevel = process.env.CSLOGGER_MAIN_LEVEL as LogLevel
-        // eslint-disable-next-line no-restricted-syntax
+
         console.log(colorText(`[LoggerService] env CSLOGGER_MAIN_LEVEL loaded: ${this.envLevel}`, 'BLUE'))
       }
 
@@ -88,7 +89,7 @@ class LoggerService {
           .filter((module) => module !== '')
         if (showModules.length > 0) {
           this.envShowModules = showModules
-          // eslint-disable-next-line no-restricted-syntax
+
           console.log(
             colorText(`[LoggerService] env CSLOGGER_MAIN_SHOW_MODULES loaded: ${this.envShowModules.join(' ')}`, 'BLUE')
           )
@@ -137,7 +138,6 @@ class LoggerService {
 
     // Handle transport events
     this.logger.on('error', (error) => {
-      // eslint-disable-next-line no-restricted-syntax
       console.error('LoggerService fatal error:', error)
     })
 
@@ -217,39 +217,33 @@ class LoggerService {
 
       switch (level) {
         case LEVEL.ERROR:
-          // eslint-disable-next-line no-restricted-syntax
           console.error(
             `${datetimeColored} ${colorText(colorText('<ERROR>', 'RED'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case LEVEL.WARN:
-          // eslint-disable-next-line no-restricted-syntax
           console.warn(
             `${datetimeColored} ${colorText(colorText('<WARN>', 'YELLOW'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case LEVEL.INFO:
-          // eslint-disable-next-line no-restricted-syntax
           console.info(
             `${datetimeColored} ${colorText(colorText('<INFO>', 'GREEN'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case LEVEL.DEBUG:
-          // eslint-disable-next-line no-restricted-syntax
           console.debug(
             `${datetimeColored} ${colorText(colorText('<DEBUG>', 'BLUE'), 'BOLD')}${moduleString}${message}`,
             ...meta
           )
           break
         case LEVEL.VERBOSE:
-          // eslint-disable-next-line no-restricted-syntax
           console.log(`${datetimeColored} ${colorText('<VERBOSE>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
         case LEVEL.SILLY:
-          // eslint-disable-next-line no-restricted-syntax
           console.log(`${datetimeColored} ${colorText('<SILLY>', 'BOLD')}${moduleString}${message}`, ...meta)
           break
       }

@@ -139,22 +139,22 @@ class LoggerService {
 
     switch (level) {
       case LEVEL.ERROR:
-        console.error(logMessage, ...data)
+        console.error('%c<error>', 'color: red; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.WARN:
-        console.warn(logMessage, ...data)
+        console.warn('%c<warn>', 'color: #FFA500; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.INFO:
-        console.info(logMessage, ...data)
+        console.info('%c<info>', 'color: #32CD32; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.VERBOSE:
-        console.debug(logMessage, ...data)
+        console.debug('%c<verbose>', 'color: #808080', logMessage, ...data)
         break
       case LEVEL.DEBUG:
-        console.debug(logMessage, ...data)
+        console.debug('%c<debug>', 'color: #7B68EE', logMessage, ...data)
         break
       case LEVEL.SILLY:
-        console.debug(logMessage, ...data)
+        console.debug('%c<silly>', 'color: #808080', logMessage, ...data)
         break
     }
 
