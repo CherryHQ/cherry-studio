@@ -111,18 +111,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }
   }, [scrollContainerRef, scrollTo])
 
-  useEffect(() => {
-    if (!scrollContainerRef.current) return
-    const scrollContainer = scrollContainerRef.current
-    const updateScrollTop = debounce(() => {
-      setScrollTop(scrollContainer.scrollTop ?? 0)
-    }, 100)
-    scrollContainer.addEventListener('scroll', updateScrollTop, { passive: true })
-    updateScrollTop()
-    return () => {
-      scrollContainer.removeEventListener('scroll', updateScrollTop)
-    }
-  }, [scrollContainerRef, scrollContainerRef.current?.scrollTop])
+  // NOTE: 使用debouce来防止频繁更新scrollTop，从而防止MessageEditor中resizeTextArea频繁更新
+  const wrappedOnScroll = useMemo(
+    () =>
+      debounce(() => {
+        handleScrollPosition()
+        if (!scrollContainerRef.current) return
+        const scrollContainer = scrollContainerRef.current
+        setScrollTop(scrollContainer.scrollTop ?? 0)
+        logger.silly('debounced setScrollTop', scrollContainer.scrollTop ?? 0)
+      }, 100),
+    [handleScrollPosition, scrollContainerRef]
+  )
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -308,7 +308,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         className="messages-container"
         ref={scrollContainerRef}
         key={assistant.id}
-        onScroll={handleScrollPosition}>
+        onScroll={wrappedOnScroll}>
         <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
           <InfiniteScroll
             dataLength={displayMessages.length}
