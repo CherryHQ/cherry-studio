@@ -6,6 +6,9 @@
   "main": "./out/main/index.js",
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "workspaces": {
     "packages": [
       "local",
@@ -22,7 +25,7 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "dotenv electron-vite dev",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn typecheck && yarn check:i18n && yarn test",
@@ -173,12 +176,12 @@
     "diff": "^7.0.0",
     "docx": "^9.0.2",
     "dotenv-cli": "^7.4.2",
-    "electron": "35.6.0",
+    "electron": "37.2.3",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
     "electron-store": "^8.2.0",
     "electron-updater": "6.6.4",
-    "electron-vite": "^3.1.0",
+    "electron-vite": "4.0.0",
     "electron-window-state": "^5.0.3",
     "emittery": "^1.0.3",
     "emoji-picker-element": "^1.22.1",
@@ -270,6 +273,7 @@
     "openai@npm:^4.87.3": "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch",
     "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch",
     "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch",
+    "node-abi": "4.12.0",
     "undici": "6.21.2"
   },
   "packageManager": "yarn@4.9.1",

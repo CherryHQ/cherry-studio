@@ -3,7 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,

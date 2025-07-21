@@ -136,6 +136,30 @@ logger.info('message', { logToMain: true })
 const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 ```
 
+## 使用环境变量来筛选要显示的日志
+
+在开发环境中，可以通过环境变量的定义，来筛选要显示的日志的级别和module。开发者可以专注于自己的日志，提高开发效率。
+
+环境变量可以在终端中自行设置，或者在开发根目录的`.env`文件中进行定义，可以定义的变量如下：
+
+| 变量名 | 含义 |
+| ----- | ----- |
+| CSLOGGER_MAIN_LEVEL | 用于`main`进程的日志级别，低于该级别的日志将不显示 |
+| CSLOGGER_MAIN_SHOW_MODULES | 用于`main`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
+| CSLOGGER_RENDERER_LEVEL | 用于`renderer`进程的日志级别，低于该级别的日志将不显示 |
+| CSLOGGER_RENDERER_SHOW_MODULES |  用于`renderer`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
+
+示例：
+
+```bash
+CSLOGGER_MAIN_LEVEL=vebose
+CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
+```
+
+注意：
+- 环境变量仅在开发环境中生效
+- 该变量仅会改变在终端或在devTools中显示的日志，不会影响文件日志和`logToMain`的记录逻辑
+
 ## 日志级别的使用规范
 
 日志有很多级别，什么时候应该用哪个级别，下面是在CherryStudio中应该遵循的规范：
