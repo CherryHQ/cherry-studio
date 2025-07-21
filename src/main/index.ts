@@ -26,6 +26,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import knowledgeService from './services/KnowledgeService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -179,16 +180,21 @@ if (!app.requestSingleInstanceLock()) {
     }
   })
 
-  app.on('will-quit', async () => {
-    // event.preventDefault()
-    try {
-      await mcpService.cleanup()
-    } catch (error) {
-      logger.error('Error cleaning up MCP service:', error)
-    }
+  app.on('will-quit', async (event) => {
+    // 暂停退出过程以确保清理完成
+    event.preventDefault()
 
-    // finish the logger
-    logger.finish()
+    try {
+      // Clean up services
+      await mcpService.cleanup()
+      await knowledgeService.cleanup()
+      logger.finish()
+      app.exit(0)
+    } catch (error) {
+      logger.warn('Error during app cleanup:', error)
+      logger.finish()
+      app.exit(0)
+    }
   })
 
   // In this file you can include the rest of your app"s specific main process

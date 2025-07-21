@@ -95,10 +95,9 @@ const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 class KnowledgeService {
   private storageDir = path.join(getDataPath(), 'KnowledgeBase')
+  private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete.json')
   // Byte based
   private workload = 0
   private processingItemCount = 0
@@ -118,12 +117,115 @@ class KnowledgeService {
 
   constructor() {
     this.initStorageDir()
+    this.cleanupOnStartup()
   }
 
   private initStorageDir = (): void => {
     if (!fs.existsSync(this.storageDir)) {
       fs.mkdirSync(this.storageDir, { recursive: true })
     }
+  }
+
+  /**
+   * Clean up knowledge base resources (RAG applications and database connections in memory)
+   */
+  private cleanupKnowledgeResources = async (id: string): Promise<void> => {
+    try {
+      // Remove RAG application instance
+      if (this.ragApplications.has(id)) {
+        const ragApp = this.ragApplications.get(id)!
+        await ragApp.reset()
+        this.ragApplications.delete(id)
+        logger.debug(`Cleaned up RAG application for id: ${id}`)
+      }
+
+      // Remove database instance reference
+      if (this.dbInstances.has(id)) {
+        this.dbInstances.delete(id)
+        logger.debug(`Removed database instance reference for id: ${id}`)
+      }
+    } catch (error) {
+      logger.debug(`Failed to cleanup resources for id: ${id}`, error)
+    }
+  }
+
+  /**
+   * Delete knowledge base file
+   */
+  private deleteKnowledgeFile = (id: string): boolean => {
+    const dbPath = path.join(this.storageDir, id)
+    if (fs.existsSync(dbPath)) {
+      try {
+        fs.rmSync(dbPath, { recursive: true })
+        logger.debug(`Deleted knowledge base file with id: ${id}`)
+        return true
+      } catch (error) {
+        logger.debug(`Failed to delete knowledge base file with id: ${id}: ${error}`)
+        return false
+      }
+    }
+    return true // File does not exist, consider deletion successful
+  }
+
+  /**
+   * Manage persistent deletion list
+   */
+  private pendingDeleteManager = {
+    load: (): string[] => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          return JSON.parse(fs.readFileSync(this.pendingDeleteFile, 'utf-8')) as string[]
+        }
+      } catch (error) {
+        logger.debug('Failed to load pending delete IDs:', error)
+      }
+      return []
+    },
+
+    save: (ids: string[]): void => {
+      try {
+        fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
+        logger.debug(`Saved ${ids.length} pending delete IDs to file`)
+      } catch (error) {
+        logger.debug('Failed to save pending delete IDs:', error)
+      }
+    },
+
+    add: (id: string): void => {
+      const existingIds = this.pendingDeleteManager.load()
+      const allIds = [...new Set([...existingIds, id])]
+      this.pendingDeleteManager.save(allIds)
+    },
+
+    clear: (): void => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          fs.unlinkSync(this.pendingDeleteFile)
+        }
+      } catch (error) {
+        logger.debug('Failed to clear pending delete file:', error)
+      }
+    }
+  }
+
+  /**
+   * Clean up databases marked for deletion on startup
+   */
+  private cleanupOnStartup = (): void => {
+    const pendingDeleteIds = this.pendingDeleteManager.load()
+    if (pendingDeleteIds.length === 0) return
+
+    logger.info(`Found ${pendingDeleteIds.length} knowledge bases pending deletion from previous session`)
+
+    let deletedCount = 0
+    pendingDeleteIds.forEach((id) => {
+      if (this.deleteKnowledgeFile(id)) {
+        deletedCount++
+      }
+    })
+
+    this.pendingDeleteManager.clear()
+    logger.info(`Startup cleanup completed: ${deletedCount}/${pendingDeleteIds.length} knowledge bases deleted`)
   }
 
   private getRagApplication = async ({
@@ -143,7 +245,7 @@ class KnowledgeService {
     })
     try {
       const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, id) })
-      // 保存数据库实例以便后续关闭
+      // Save database instance for later closing
       this.dbInstances.set(id, libSqlDb)
 
       ragApplication = await new RAGApplicationBuilder()
@@ -170,58 +272,60 @@ class KnowledgeService {
     await ragApplication.reset()
   }
 
+  private dbsToDelete: Set<string> = new Set()
+
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
     logger.debug('delete id', id)
 
-    // 1. 关闭 RAG 应用实例
-    if (this.ragApplications.has(id)) {
-      this.ragApplications.delete(id)
+    await this.cleanupKnowledgeResources(id)
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    // 尝试立即删除数据库文件
+    if (!this.deleteKnowledgeFile(id)) {
+      logger.debug(`Will delete knowledge base ${id} on next startup`)
+      this.pendingDeleteManager.add(id)
+    }
+  }
+
+  public cleanup = async (): Promise<void> => {
+    logger.debug('Cleaning up knowledge bases')
+
+    // Clean up all pending knowledge bases
+    for (const id of this.dbsToDelete) {
+      await this.cleanupKnowledgeResources(id)
     }
 
-    const db = this.dbInstances.get(id)
-    if (db) {
+    // Clean up all remaining RAG applications
+    for (const [id, ragApp] of this.ragApplications) {
       try {
-        if ((db as any).client && typeof (db as any).client.close === 'function') {
-          await (db as any).client.close()
-          logger.info(`Successfully closed database connection for knowledge base: ${id}`)
-        }
-      } catch (e) {
-        logger.error(`Failed to close database connection for knowledge base ${id}: ${e}`)
-      }
-      this.dbInstances.delete(id)
-    }
-
-    await sleep(300)
-
-    const dbPath = path.join(this.storageDir, id)
-
-    const maxRetries = 10
-    const retryDelayMs = 500
-
-    if (fs.existsSync(dbPath)) {
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          if (fs.statSync(dbPath).isDirectory()) {
-            fs.rmSync(dbPath, { recursive: true, force: true })
-          } else {
-            fs.unlinkSync(dbPath)
-          }
-          logger.info(`Successfully deleted: ${dbPath}`)
-          break // 删除成功，跳出重试循环
-        } catch (e: any) {
-          if (e.code === 'EBUSY' && i < maxRetries - 1) {
-            logger.warn(`File busy, retrying (${i + 1}/${maxRetries}): ${dbPath}`)
-            await sleep(retryDelayMs * (i + 1))
-          } else if (e.code !== 'ENOENT') {
-            // 忽略文件不存在的错误
-            logger.error(`Failed to delete file after ${i + 1} attempts: ${dbPath}`, e)
-            break
-          } else {
-            break // 文件不存在，不需要继续尝试
-          }
-        }
+        await ragApp.reset()
+        logger.debug(`Cleaned up remaining RAG application for id: ${id}`)
+      } catch (error) {
+        logger.debug(`Failed to cleanup RAG application for id: ${id}`, error)
       }
     }
+    this.ragApplications.clear()
+    this.dbInstances.clear()
+
+    // Try to delete files, failed to save to next startup
+    const failedDeletes: string[] = []
+    for (const id of this.dbsToDelete) {
+      if (!this.deleteKnowledgeFile(id)) {
+        failedDeletes.push(id)
+      }
+    }
+
+    // Update pending delete list
+    if (failedDeletes.length > 0) {
+      const existingIds = this.pendingDeleteManager.load()
+      const allIds = [...new Set([...existingIds, ...failedDeletes])]
+      this.pendingDeleteManager.save(allIds)
+      logger.info(`Saved ${failedDeletes.length} knowledge bases for deletion on next startup`)
+    }
+
+    this.dbsToDelete.clear()
+    logger.debug('Knowledge bases cleanup completed')
   }
 
   private maximumLoad() {
@@ -243,10 +347,10 @@ class KnowledgeService {
           state: LoaderTaskItemState.PENDING,
           task: async () => {
             try {
-              // 添加预处理逻辑
+              // Add preprocessing logic
               const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
 
-              // 使用处理后的文件进行加载
+              // Use processed file for loading
               return addFileLoader(ragApplication, fileToProcess, base, forceReload)
                 .then((result) => {
                   loaderTask.loaderDoneReturn = result
