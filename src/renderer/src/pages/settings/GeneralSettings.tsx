@@ -94,7 +94,6 @@ const GeneralSettings: FC = () => {
     }
 
     dispatch(_setProxyUrl(proxyUrl))
-    window.api.setProxy(proxyUrl)
   }
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -106,10 +105,8 @@ const GeneralSettings: FC = () => {
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
-      window.api.setProxy('system')
       dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
-      window.api.setProxy(undefined)
       dispatch(_setProxyUrl(undefined))
     }
   }
