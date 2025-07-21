@@ -73,12 +73,12 @@ export class ProxyManager {
       this.config = config
       this.clearSystemProxyMonitor()
       if (config.mode === 'system') {
-        this.monitorSystemProxy()
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
           logger.info('current system proxy: %s', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
         }
+        this.monitorSystemProxy()
       }
 
       this.setGlobalProxy()
