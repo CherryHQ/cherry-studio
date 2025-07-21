@@ -114,13 +114,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
           {!isEmpty(models) && (
             <HStack>
-              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={runHealthCheck}
-                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-                />
-              </Tooltip>
               <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
@@ -131,6 +124,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               </Tooltip>
               <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
                 <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+              </Tooltip>
+              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  onClick={runHealthCheck}
+                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                />
               </Tooltip>
             </HStack>
           )}
