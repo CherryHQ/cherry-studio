@@ -257,15 +257,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
           }
         }
-      ),
-      EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, async () => {
-        if (scrollContainerRef.current) {
-          const diff = 0 - scrollTop
-          if (diff < 10) {
-            scrollToBottom()
-          }
-        }
-      })
+      )
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
