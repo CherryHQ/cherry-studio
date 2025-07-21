@@ -48,7 +48,7 @@ export class ProxyManager {
           proxyRules: currentProxy?.proxyUrl.toLowerCase()
         })
       },
-      1000 * 30
+      1000 * 10
     )
   }
 
