@@ -343,6 +343,7 @@
       "provider": "Fornecedor",
       "reasoning_content": "Pensamento profundo concluído",
       "regenerate": "Regenerar",
+      "trace": "Regenerar",
       "rename": "Renomear",
       "reset": "Redefinir",
       "save": "Salvar",

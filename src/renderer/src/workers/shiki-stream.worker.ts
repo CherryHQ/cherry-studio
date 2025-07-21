@@ -7,7 +7,7 @@ import type { HighlighterCore, SpecialLanguage, ThemedToken } from 'shiki/core'
 // 注意保持 ShikiStreamTokenizer 依赖简单，避免打包出问题
 import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from '../services/ShikiStreamTokenizer'
 
-const logger = loggerService.withContext('ShikiStreamWorker')
+const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 
 // Worker 消息类型
 type WorkerMessageType = 'init' | 'highlight' | 'cleanup' | 'dispose'

@@ -107,6 +107,7 @@ function createToolHandlingTransform(
     async transform(chunk: GenericChunk, controller) {
       try {
         // 处理MCP工具进展chunk
+        logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
           const createdChunk = chunk as MCPToolCreatedChunk
 
@@ -125,7 +126,8 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
@@ -153,7 +155,8 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
@@ -223,7 +226,8 @@ async function executeToolCalls(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: string
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
@@ -250,7 +254,8 @@ async function executeToolCalls(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   // 找出已确认工具对应的原始toolCalls
@@ -281,7 +286,8 @@ async function executeToolUseResponses(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const { toolResults } = await parseAndCallTools(
@@ -293,7 +299,8 @@ async function executeToolUseResponses(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   return { toolResults }
@@ -369,34 +376,37 @@ function getCurrentReqMessages(ctx: CompletionsContext): SdkMessageParam[] {
   return ctx.apiClientInstance.extractMessagesFromSdkPayload(sdkPayload)
 }
 
-async function parseAndCallTools<R>(
+export async function parseAndCallTools<R>(
   tools: MCPToolResponse[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
-async function parseAndCallTools<R>(
+export async function parseAndCallTools<R>(
   content: string,
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
-async function parseAndCallTools<R>(
+export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
@@ -459,7 +469,7 @@ async function parseAndCallTools<R>(
           // 执行工具调用
           try {
             const images: string[] = []
-            const toolCallResponse = await callMCPTool(toolResponse)
+            const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
 
             // 立即更新为done状态
             upsertMCPToolResponse(
@@ -570,5 +580,3 @@ async function parseAndCallTools<R>(
 
   return { toolResults, confirmedToolResponses: confirmedTools }
 }
-
-export default McpToolChunkMiddleware

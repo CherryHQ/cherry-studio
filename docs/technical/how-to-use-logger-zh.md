@@ -1,12 +1,12 @@
 # 如何使用日志 LoggerService
-  
+
 这是关于如何使用日志的开发者文档。
 
 CherryStudio使用统一的日志服务来打印和记录日志，**若无特殊原因，请勿使用`console.xxx`来打印日志**
 
 以下是详细说明
 
-  
+
 ## 在`main`进程中使用
 
 ### 引入
@@ -81,6 +81,7 @@ loggerService.initWindowSource('windowName')
 - 未设置`windowName`会报错，`logger`将不起作用
 - `windowName`只能设置一次，重复设置将不生效
 - `windowName`不会在`devTool`的`console`中打印出来，但是会在`main`进程的终端和文件日志中记录
+- `initWindowSource`返回的是LoggerService的实例，因此可以做链式调用
 
 ### 记录级别
 
@@ -119,6 +120,45 @@ logger.getLogToMainLevel()
 ```typescript
 logger.info('message', { logToMain: true })
 ```
+
+## 关于`worker`线程
+
+- 现在不支持`main`进程中的`worker`的日志。
+- 支持`renderer`中起的`worker`的日志，但是现在该日志不会发送给`main`进行记录。
+
+### 如何在`renderer`的`worker`中使用日志
+
+由于`worker`线程是独立的，在其中使用LoggerService，等同于在一个新`renderer`窗口中使用。因此也必须先`initWindowSource`。
+
+如果`worker`比较简单，只有一个文件，也可以使用链式语法直接使用：
+
+```typescript
+const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
+```
+
+## 使用环境变量来筛选要显示的日志
+
+在开发环境中，可以通过环境变量的定义，来筛选要显示的日志的级别和module。开发者可以专注于自己的日志，提高开发效率。
+
+环境变量可以在终端中自行设置，或者在开发根目录的`.env`文件中进行定义，可以定义的变量如下：
+
+| 变量名 | 含义 |
+| ----- | ----- |
+| CSLOGGER_MAIN_LEVEL | 用于`main`进程的日志级别，低于该级别的日志将不显示 |
+| CSLOGGER_MAIN_SHOW_MODULES | 用于`main`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
+| CSLOGGER_RENDERER_LEVEL | 用于`renderer`进程的日志级别，低于该级别的日志将不显示 |
+| CSLOGGER_RENDERER_SHOW_MODULES |  用于`renderer`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
+
+示例：
+
+```bash
+CSLOGGER_MAIN_LEVEL=vebose
+CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
+```
+
+注意：
+- 环境变量仅在开发环境中生效
+- 该变量仅会改变在终端或在devTools中显示的日志，不会影响文件日志和`logToMain`的记录逻辑
 
 ## 日志级别的使用规范
 
