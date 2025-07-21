@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('RagSettings')
 
-const INPUT_BOX_WIDTH = '200px'
+const INPUT_BOX_WIDTH = 'min(350px, 60%)'
 
 const RagSettings = () => {
   const { t } = useTranslation()
@@ -26,17 +26,11 @@ const RagSettings = () => {
   const [loadingDimensions, setLoadingDimensions] = useState(false)
 
   const embeddingModels = useMemo(() => {
-    return providers
-      .map((p) => p.models)
-      .flat()
-      .filter((model) => isEmbeddingModel(model))
+    return providers.flatMap((p) => p.models).filter((model) => isEmbeddingModel(model))
   }, [providers])
 
   const rerankModels = useMemo(() => {
-    return providers
-      .map((p) => p.models)
-      .flat()
-      .filter((model) => isRerankModel(model))
+    return providers.flatMap((p) => p.models).filter((model) => isRerankModel(model))
   }, [providers])
 
   const embeddingSelectOptions = useMemo(() => {
