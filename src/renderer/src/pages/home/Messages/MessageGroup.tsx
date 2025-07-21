@@ -8,7 +8,6 @@ import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
-import { Popover } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -23,7 +22,7 @@ interface Props {
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
-  const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
   const messageLength = messages.length
 
@@ -165,7 +164,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
-      const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
         message,
@@ -187,36 +185,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         </MessageWrapper>
       )
 
-      if (isGridGroupMessage) {
-        return (
-          <Popover
-            key={message.id}
-            destroyTooltipOnHide
-            content={
-              <MessageWrapper
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem {...messageProps} />
-              </MessageWrapper>
-            }
-            trigger={gridPopoverTrigger}
-            styles={{
-              root: { maxWidth: '60vw', overflowY: 'auto', zIndex: 1000 },
-              body: { padding: 2 }
-            }}>
-            {messageContent}
-          </Popover>
-        )
-      }
-
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId]
   )
 
   return (
