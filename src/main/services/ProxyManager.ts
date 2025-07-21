@@ -36,20 +36,17 @@ export class ProxyManager {
     // Clear any existing interval first
     this.clearSystemProxyMonitor()
     // Set new interval
-    this.systemProxyInterval = setInterval(
-      async () => {
-        const currentProxy = await getSystemProxy()
-        if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
-          return
-        }
+    this.systemProxyInterval = setInterval(async () => {
+      const currentProxy = await getSystemProxy()
+      if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+        return
+      }
 
-        await this.configureProxy({
-          mode: 'system',
-          proxyRules: currentProxy?.proxyUrl.toLowerCase()
-        })
-      },
-      1000 * 10
-    )
+      await this.configureProxy({
+        mode: 'system',
+        proxyRules: currentProxy?.proxyUrl.toLowerCase()
+      })
+    }, 1000 * 10)
   }
 
   private clearSystemProxyMonitor(): void {
@@ -60,7 +57,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    logger.info('configureProxy', config?.mode, config?.proxyRules)
+    logger.info('configureProxy: %s %s', config?.mode, config?.proxyRules)
     if (this.isSettingProxy) {
       return
     }
@@ -79,7 +76,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          logger.info('current system proxy', currentProxy.proxyUrl)
+          logger.info('current system proxy: %s', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
         }
       }
