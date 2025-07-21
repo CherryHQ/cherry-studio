@@ -185,7 +185,7 @@ class KnowledgeService {
     save: (ids: string[]): void => {
       try {
         fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
-        logger.debug(`Saved ${ids.length} pending delete IDs to file`)
+        logger.debug(`Total ${ids.length} knowledge bases pending delete`)
       } catch (error) {
         logger.debug('Failed to save pending delete IDs:', error)
       }
@@ -283,7 +283,7 @@ class KnowledgeService {
 
     // 尝试立即删除数据库文件
     if (!this.deleteKnowledgeFile(id)) {
-      logger.debug(`Will delete knowledge base ${id} on next startup`)
+      logger.debug(`Will delete knowledge base ${id} on close`)
       this.pendingDeleteManager.add(id)
     }
   }
