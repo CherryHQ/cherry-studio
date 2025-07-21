@@ -39,7 +39,7 @@ export class ProxyManager {
     this.systemProxyInterval = setInterval(
       async () => {
         const currentProxy = await getSystemProxy()
-        if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config.proxyRules) {
+        if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
           return
         }
 
@@ -48,8 +48,7 @@ export class ProxyManager {
           proxyRules: currentProxy?.proxyUrl.toLowerCase()
         })
       },
-      // 1 minutes
-      1000 * 60
+      1000 * 30
     )
   }
 
@@ -61,7 +60,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    logger.info('configureProxy', config.mode, config.proxyRules)
+    logger.info('configureProxy', config?.mode, config?.proxyRules)
     if (this.isSettingProxy) {
       return
     }
@@ -77,14 +76,11 @@ export class ProxyManager {
       this.config = config
       this.clearSystemProxyMonitor()
       if (config.mode === 'system') {
+        this.monitorSystemProxy()
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
           logger.info('current system proxy', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
-          this.monitorSystemProxy()
-        } else {
-          // no system proxy, use direct mode
-          this.config.mode = 'direct'
         }
       }
 
@@ -131,8 +127,7 @@ export class ProxyManager {
   }
 
   private setGlobalHttpProxy(config: ProxyConfig) {
-    const proxyUrl = config.proxyRules
-    if (config.mode === 'direct' || !proxyUrl) {
+    if (config.mode === 'direct' || !config.proxyRules) {
       http.get = this.originalHttpGet
       http.request = this.originalHttpRequest
       https.get = this.originalHttpsGet
@@ -225,17 +220,11 @@ export class ProxyManager {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    let c = config
-
-    if (config.mode === 'direct' || !config.proxyRules) {
-      c = { mode: 'direct' }
-    }
-
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    await Promise.all(sessions.map((session) => session.setProxy(c)))
+    await Promise.all(sessions.map((session) => session.setProxy(config)))
 
     // set proxy for electron
-    app.setProxy(c)
+    app.setProxy(config)
   }
 }
 
