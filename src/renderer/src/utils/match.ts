@@ -58,6 +58,11 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
   return includeKeywords(fullName, keywords)
 }
 
+/**
+ * 获取 Provider 的搜索字符串，它和 getFancyProviderName 不同
+ * @param provider Provider 对象
+ * @returns 搜索字符串
+ */
 function getProviderSearchString(provider: Provider) {
   return provider.isSystem ? `${i18n.t(`provider.${provider.id}`)} ${provider.id}` : provider.name
 }
