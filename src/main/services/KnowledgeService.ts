@@ -274,8 +274,6 @@ class KnowledgeService {
     await ragApplication.reset()
   }
 
-  private dbsToDelete: Set<string> = new Set()
-
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
     logger.debug('delete id', id)
 
@@ -283,51 +281,11 @@ class KnowledgeService {
 
     await new Promise((resolve) => setTimeout(resolve, 100))
 
-    // 尝试立即删除数据库文件
+    // Try to delete database file immediately
     if (!this.deleteKnowledgeFile(id)) {
       logger.debug(`Will delete knowledge base ${id} on close`)
       this.pendingDeleteManager.add(id)
     }
-  }
-
-  public cleanup = async (): Promise<void> => {
-    logger.debug('Cleaning up knowledge bases')
-
-    // Clean up all pending knowledge bases
-    for (const id of this.dbsToDelete) {
-      await this.cleanupKnowledgeResources(id)
-    }
-
-    // Clean up all remaining RAG applications
-    for (const [id, ragApp] of this.ragApplications) {
-      try {
-        await ragApp.reset()
-        logger.debug(`Cleaned up remaining RAG application for id: ${id}`)
-      } catch (error) {
-        logger.debug(`Failed to cleanup RAG application for id: ${id}`, error)
-      }
-    }
-    this.ragApplications.clear()
-    this.dbInstances.clear()
-
-    // Try to delete files, failed to save to next startup
-    const failedDeletes: string[] = []
-    for (const id of this.dbsToDelete) {
-      if (!this.deleteKnowledgeFile(id)) {
-        failedDeletes.push(id)
-      }
-    }
-
-    // Update pending delete list
-    if (failedDeletes.length > 0) {
-      const existingIds = this.pendingDeleteManager.load()
-      const allIds = [...new Set([...existingIds, ...failedDeletes])]
-      this.pendingDeleteManager.save(allIds)
-      logger.info(`Saved ${failedDeletes.length} knowledge bases for deletion on next startup`)
-    }
-
-    this.dbsToDelete.clear()
-    logger.debug('Knowledge bases cleanup completed')
   }
 
   private maximumLoad() {
