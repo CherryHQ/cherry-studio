@@ -29,7 +29,7 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
 const logger = loggerService.withContext('MessageThunk')
 
-const handleChangeLoadingOfTopic = async (topicId: string) => {
+const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
@@ -957,7 +957,7 @@ export const sendMessage =
     } catch (error) {
       logger.error('Error in sendMessage thunk:', error)
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1214,7 +1214,7 @@ export const resendMessageThunk =
     } catch (error) {
       logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1348,7 +1348,7 @@ export const regenerateAssistantResponseThunk =
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1525,7 +1525,7 @@ export const appendAssistantResponseThunk =
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
