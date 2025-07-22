@@ -13,7 +13,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
 import { Button, Flex, Tooltip } from 'antd'
-import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
+import { groupBy, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,31 +110,22 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {!isEmpty(models) && <CollapsibleSearchBar onSearch={setSearchText} />}
+            <CollapsibleSearchBar onSearch={setSearchText} />
           </HStack>
           <HStack>
-            {!isEmpty(models) && (
-              <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={onManageModel}
-                  icon={<ListCheck size={16} />}
-                  disabled={isHealthChecking}
-                />
-              </Tooltip>
-            )}
+            <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
+              <Button type="text" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking} />
+            </Tooltip>
             <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
               <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
             </Tooltip>
-            {!isEmpty(models) && (
-              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={runHealthCheck}
-                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-                />
-              </Tooltip>
-            )}
+            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+              <Button
+                type="text"
+                onClick={runHealthCheck}
+                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+              />
+            </Tooltip>
           </HStack>
         </HStack>
       </SettingSubtitle>
