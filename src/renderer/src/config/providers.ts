@@ -328,7 +328,6 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.moonshot.cn/',
-      platform: 'https://platform.moonshot.cn/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',
       models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
