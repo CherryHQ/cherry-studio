@@ -112,8 +112,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <CollapsibleSearchBar onSearch={setSearchText} />}
           </HStack>
-          {!isEmpty(models) && (
-            <HStack>
+          <HStack>
+            {!isEmpty(models) && (
               <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
@@ -122,9 +122,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                   disabled={isHealthChecking}
                 />
               </Tooltip>
-              <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-                <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
-              </Tooltip>
+            )}
+            <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
+              <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+            </Tooltip>
+            {!isEmpty(models) && (
               <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
@@ -132,8 +134,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                   icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
                 />
               </Tooltip>
-            </HStack>
-          )}
+            )}
+          </HStack>
         </HStack>
       </SettingSubtitle>
       <Flex gap={12} vertical>
