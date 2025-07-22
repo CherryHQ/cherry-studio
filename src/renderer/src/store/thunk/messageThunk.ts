@@ -32,6 +32,7 @@ const logger = loggerService.withContext('MessageThunk')
 const handleChangeLoadingOfTopic = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+  store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {

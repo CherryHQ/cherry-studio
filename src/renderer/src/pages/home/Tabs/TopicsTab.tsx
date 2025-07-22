@@ -59,6 +59,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
+  const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -67,6 +68,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
+  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
 
   const isRenaming = useCallback(
     (topicId: string) => {
@@ -452,6 +454,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick={() => onSwitchTopic(topic)}
               style={{ borderRadius }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
+              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
                 <TopicName className={getTopicNameClassName()} title={topicName}>
                   {topicName}
@@ -605,7 +608,20 @@ const PendingIndicator = styled.div.attrs({
   left: 3px;
   top: 15px;
   border-radius: 50%;
-  background-color: var(--color-primary);
+  background-color: var(--color-status-warning);
+`
+
+const FulfilledIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-status-success);
 `
 
 const TopicPromptText = styled.div`

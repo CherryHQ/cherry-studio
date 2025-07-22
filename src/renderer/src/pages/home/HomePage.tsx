@@ -3,8 +3,10 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -24,6 +26,7 @@ const HomePage: FC = () => {
   const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
+  const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
 
@@ -42,9 +45,12 @@ const HomePage: FC = () => {
 
   const setActiveTopic = useCallback(
     (newTopic: Topic) => {
-      startTransition(() => _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic)))
+      startTransition(() => {
+        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
+        dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
+      })
     },
-    [_setActiveTopic]
+    [_setActiveTopic, dispatch]
   )
 
   useEffect(() => {

@@ -14,6 +14,7 @@ export interface MessagesState extends EntityState<Message, string> {
   messageIdsByTopic: Record<string, string[]> // Map: topicId -> ordered message IDs
   currentTopicId: string | null
   loadingByTopic: Record<string, boolean>
+  fulfilledByTopic: Record<string, boolean>
   displayCount: number
 }
 
@@ -22,6 +23,7 @@ const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
   currentTopicId: null,
   loadingByTopic: {},
+  fulfilledByTopic: {},
   displayCount: 20
 })
 
@@ -35,6 +37,12 @@ interface MessagesReceivedPayload {
 interface SetTopicLoadingPayload {
   topicId: string
   loading: boolean
+}
+
+// Payload for setting topic loading state
+interface SetTopicFulfilledPayload {
+  topicId: string
+  fulfilled: boolean
 }
 
 // Payload for upserting a block reference
@@ -85,6 +93,10 @@ export const messagesSlice = createSlice({
       const { topicId, loading } = action.payload
       state.loadingByTopic[topicId] = loading
     },
+    setTopicFulfilled(state, action: PayloadAction<SetTopicFulfilledPayload>) {
+      const { topicId, fulfilled } = action.payload
+      state.fulfilledByTopic[topicId] = fulfilled
+    },
     setDisplayCount(state, action: PayloadAction<number>) {
       state.displayCount = action.payload
     },
@@ -104,6 +116,9 @@ export const messagesSlice = createSlice({
       if (!(topicId in state.loadingByTopic)) {
         state.loadingByTopic[topicId] = false
       }
+      if (!(topicId in state.fulfilledByTopic)) {
+        state.fulfilledByTopic[topicId] = false
+      }
     },
     insertMessageAtIndex(state, action: PayloadAction<InsertMessageAtIndexPayload>) {
       const { topicId, message, index } = action.payload
@@ -117,6 +132,9 @@ export const messagesSlice = createSlice({
 
       if (!(topicId in state.loadingByTopic)) {
         state.loadingByTopic[topicId] = false
+      }
+      if (!(topicId in state.fulfilledByTopic)) {
+        state.fulfilledByTopic[topicId] = false
       }
     },
     updateMessage(
@@ -162,6 +180,7 @@ export const messagesSlice = createSlice({
       }
       delete state.messageIdsByTopic[topicId]
       state.loadingByTopic[topicId] = false
+      state.fulfilledByTopic[topicId] = false
     },
     removeMessage(state, action: PayloadAction<RemoveMessagePayload>) {
       const { topicId, messageId } = action.payload
