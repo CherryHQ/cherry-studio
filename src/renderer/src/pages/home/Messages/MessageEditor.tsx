@@ -110,11 +110,19 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   useEffect(() => {
     setTimeout(() => {
       resizeTextArea()
-      if (textareaRef.current) {
-        textareaRef.current.focus({ cursor: 'end' })
-      }
     }, 0)
   }, [resizeTextArea])
+
+  // 仅在打开时执行一次
+  useEffect(() => {
+    if (textareaRef.current) {
+      const realTextarea = textareaRef.current.resizableTextArea?.textArea
+      if (realTextarea) {
+        realTextarea.scrollTo({ top: realTextarea.scrollHeight })
+      }
+      textareaRef.current.focus({ cursor: 'end' })
+    }
+  }, [])
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
