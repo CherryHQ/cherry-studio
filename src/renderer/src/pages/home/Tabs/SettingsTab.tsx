@@ -161,7 +161,7 @@ const SettingsTab: FC<Props> = (props) => {
   }, [assistant])
 
   const assistantContextCount = assistant?.settings?.contextCount || 20
-  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
+  const maxContextCount = assistantContextCount > 200 ? assistantContextCount : 200
 
   const model = assistant.model || getDefaultModel()
 
