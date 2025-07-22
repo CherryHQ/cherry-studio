@@ -105,6 +105,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     [scrollContainerRef]
   )
 
+  // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       scrollTo(0)
@@ -119,7 +120,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         if (!scrollContainerRef.current) return
         const scrollContainer = scrollContainerRef.current
         setScrollTop(scrollContainer.scrollTop ?? 0)
-        logger.silly('debounced setScrollTop', scrollContainer.scrollTop ?? 0)
       }, 100),
     [handleScrollPosition, scrollContainerRef]
   )
