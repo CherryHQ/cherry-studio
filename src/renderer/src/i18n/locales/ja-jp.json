@@ -2079,6 +2079,10 @@
         "title": "ローカルバックアップ"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Markdownエクスポート時に引用や参考文献を除外し、メインコンテンツのみを保持します。",
+          "title": "引用を除外"
+        },
         "force_dollar_math": {
           "help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
           "title": "LaTeX数式に$$を強制使用"
@@ -2095,7 +2099,7 @@
           "help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
           "title": "モデルプロバイダーを表示"
         },
-        "title": "Markdown エクスポート"
+        "title": "Markdownエクスポート"
       },
       "message_title": {
         "use_topic_naming": {

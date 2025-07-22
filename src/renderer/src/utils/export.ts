@@ -83,7 +83,31 @@ const getRoleText = (role: string, modelName?: string, providerId?: string) => {
   }
 }
 
-const createBaseMarkdown = (message: Message, includeReasoning: boolean = false) => {
+/**
+ * 移除文本中的引用标记
+ * @param content 原始文本内容
+ * @returns 移除引用标记后的文本
+ */
+const removeCitationMarks = (content: string): string => {
+  // 移除各种形式的引用标记，但保留其他Markdown格式
+  const result = content
+    .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+    .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+    .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
+    .replace(/\[(\d+)\](?!\()/g, '')
+
+  const lines = result.split('\n')
+  const processedLines = lines.map((line) => {
+    if (line.match(/^```|^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
+      return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
+    }
+    return line.replace(/[ ]+/g, ' ').trim()
+  })
+
+  return processedLines.join('\n').trim()
+}
+
+const createBaseMarkdown = (message: Message, includeReasoning: boolean = false, excludeCitations: boolean = false) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
   const titleSection = `### ${roleText}`
@@ -117,25 +141,43 @@ const createBaseMarkdown = (message: Message, includeReasoning: boolean = false)
   }
 
   const content = getMainTextContent(message)
-  const citation = getCitationContent(message)
-  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
+  const citation = excludeCitations ? '' : getCitationContent(message)
 
-  return { titleSection, reasoningSection, contentSection, citation }
+  let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
+
+  // 如果排除引用，同时移除正文中的引用标记
+  if (excludeCitations) {
+    processedContent = removeCitationMarks(processedContent)
+  }
+
+  return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
-export const messageToMarkdown = (message: Message) => {
-  const { titleSection, contentSection, citation } = createBaseMarkdown(message)
+export const messageToMarkdown = (message: Message, excludeCitations?: boolean) => {
+  const { excludeCitationsInExport } = store.getState().settings
+  const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
+  const { titleSection, contentSection, citation } = createBaseMarkdown(message, false, shouldExcludeCitations)
   return [titleSection, '', contentSection, citation].join('\n\n')
 }
 
-export const messageToMarkdownWithReasoning = (message: Message) => {
-  const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(message, true)
+export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean) => {
+  const { excludeCitationsInExport } = store.getState().settings
+  const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
+  const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(
+    message,
+    true,
+    shouldExcludeCitations
+  )
   return [titleSection, '', reasoningSection + contentSection, citation].join('\n\n')
 }
 
-export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean) => {
+export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean, excludeCitations?: boolean) => {
   return messages
-    .map((message) => (exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)))
+    .map((message) =>
+      exportReasoning
+        ? messageToMarkdownWithReasoning(message, excludeCitations)
+        : messageToMarkdown(message, excludeCitations)
+    )
     .join('\n\n---\n\n')
 }
 
@@ -155,13 +197,13 @@ const messagesToPlainText = (messages: Message[]): string => {
   return messages.map(formatMessageAsPlainText).join('\n\n')
 }
 
-export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
+export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean, excludeCitations?: boolean) => {
   const topicName = `# ${topic.name}`
 
   const messages = await fetchTopicMessages(topic.id)
 
   if (messages && messages.length > 0) {
-    return topicName + '\n\n' + messagesToMarkdown(messages, exportReasoning)
+    return topicName + '\n\n' + messagesToMarkdown(messages, exportReasoning, excludeCitations)
   }
 
   return topicName
@@ -179,12 +221,12 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   return topicName
 }
 
-export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
+export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean, excludeCitations?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic, exportReasoning)
+      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -194,27 +236,35 @@ export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: bool
       }
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
+      logger.debug(error)
     }
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic, exportReasoning)
+      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
+      logger.debug(error)
     }
   }
 }
 
-export const exportMessageAsMarkdown = async (message: Message, exportReasoning?: boolean) => {
+export const exportMessageAsMarkdown = async (
+  message: Message,
+  exportReasoning?: boolean,
+  excludeCitations?: boolean
+) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
+      const markdown = exportReasoning
+        ? messageToMarkdownWithReasoning(message, excludeCitations)
+        : messageToMarkdown(message, excludeCitations)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -224,17 +274,21 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
       }
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
+      logger.debug(error)
     }
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
+      const markdown = exportReasoning
+        ? messageToMarkdownWithReasoning(message, excludeCitations)
+        : messageToMarkdown(message, excludeCitations)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
+      logger.debug(error)
     }
   }
 }
@@ -348,6 +402,7 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
     return mainPageResponse
   } catch (error: any) {
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
+    logger.debug(error)
     return null
   } finally {
     setExportState({ isExporting: false })
@@ -375,7 +430,7 @@ export const exportMessageToNotion = async (title: string, content: string, mess
 }
 
 export const exportTopicToNotion = async (topic: Topic) => {
-  const { notionExportReasoning } = store.getState().settings
+  const { notionExportReasoning, excludeCitationsInExport } = store.getState().settings
 
   const topicMessages = await fetchTopicMessages(topic.id)
 
@@ -387,7 +442,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
 
   for (const message of topicMessages) {
     // 将单个消息转换为markdown
-    const messageMarkdown = messageToMarkdown(message)
+    const messageMarkdown = messageToMarkdown(message, excludeCitationsInExport)
     const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
 
     if (notionExportReasoning) {
@@ -471,6 +526,7 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     })
     return data
   } catch (error: any) {
+    logger.debug(error)
     window.message.error({
       content: i18n.t('message.error.yuque.export'),
       key: 'yuque-error'
@@ -595,7 +651,7 @@ function transformObsidianFileName(fileName: string): string {
 }
 
 export const exportMarkdownToJoplin = async (title: string, contentOrMessages: string | Message | Message[]) => {
-  const { joplinUrl, joplinToken, joplinExportReasoning } = store.getState().settings
+  const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } = store.getState().settings
 
   if (!joplinUrl || !joplinToken) {
     window.message.error(i18n.t('message.error.joplin.no_config'))
@@ -606,12 +662,12 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
   if (typeof contentOrMessages === 'string') {
     content = contentOrMessages
   } else if (Array.isArray(contentOrMessages)) {
-    content = messagesToMarkdown(contentOrMessages, joplinExportReasoning)
+    content = messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
   } else {
     // 单条Message
     content = joplinExportReasoning
-      ? messageToMarkdownWithReasoning(contentOrMessages)
-      : messageToMarkdown(contentOrMessages)
+      ? messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+      : messageToMarkdown(contentOrMessages, excludeCitationsInExport)
   }
 
   try {
@@ -639,8 +695,9 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
 
     window.message.success(i18n.t('message.success.joplin.export'))
     return
-  } catch (error) {
+  } catch (error: any) {
     window.message.error(i18n.t('message.error.joplin.export'))
+    logger.debug(error)
     return
   }
 }

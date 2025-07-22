@@ -2079,6 +2079,10 @@
         "title": "本地備份"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "匯出 Markdown 時排除引用和參考文獻，僅保留主要內容",
+          "title": "不匯出引用內容"
+        },
         "force_dollar_math": {
           "help": "開啟後，匯出 Markdown 時會強制使用 $$ 來標記 LaTeX 公式。注意：該項也會影響所有透過 Markdown 匯出的方式，如 Notion、語雀等",
           "title": "LaTeX 公式強制使用 $$"

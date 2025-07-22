@@ -2079,6 +2079,10 @@
         "title": "Local Backup"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
+          "title": "Exclude Citations"
+        },
         "force_dollar_math": {
           "help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
           "title": "Force $$ for LaTeX formulas"

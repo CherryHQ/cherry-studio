@@ -140,6 +140,7 @@ export interface SettingsState {
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionExportReasoning: boolean
+  excludeCitationsInExport: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -304,6 +305,7 @@ export const initialState: SettingsState = {
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
+  excludeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -659,6 +661,9 @@ const settingsSlice = createSlice({
     setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
       state.notionExportReasoning = action.payload
     },
+    setExcludeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.excludeCitationsInExport = action.payload
+    },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
     },
@@ -853,6 +858,7 @@ export const {
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionExportReasoning,
+  setExcludeCitationsInExport,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
