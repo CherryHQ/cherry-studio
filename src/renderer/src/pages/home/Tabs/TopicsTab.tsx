@@ -34,7 +34,6 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
@@ -43,6 +42,8 @@ import { FC, useCallback, useDeferredValue, useMemo, useRef, useState } from 're
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+
+// const logger = loggerService.withContext('TopicsTab')
 
 interface Props {
   assistant: Assistant
@@ -57,6 +58,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -64,27 +66,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
-  const pendingTopics = useMemo(() => {
-    return new Set<string>()
-  }, [])
-  const isPending = useCallback(
-    (topicId: string) => {
-      const hasPending = hasTopicPendingRequests(topicId)
-      if (topicId === activeTopic.id && !hasPending) {
-        pendingTopics.delete(topicId)
-        return false
-      }
-      if (pendingTopics.has(topicId)) {
-        return true
-      }
-      if (hasPending) {
-        pendingTopics.add(topicId)
-        return true
-      }
-      return false
-    },
-    [activeTopic.id, pendingTopics]
-  )
+  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
 
   const isRenaming = useCallback(
     (topicId: string) => {
