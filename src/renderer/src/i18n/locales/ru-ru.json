@@ -149,6 +149,7 @@
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
+      "add.topic.title": "Новый топик",
       "artifacts.button.download": "Скачать",
       "artifacts.button.openExternal": "Открыть во внешнем браузере",
       "artifacts.button.preview": "Предпросмотр",
@@ -655,6 +656,10 @@
       "urdu": "Урду",
       "vietnamese": "Вьетнамский"
     },
+    "launchpad": {
+      "apps": "Приложения",
+      "minapps": "Приложения"
+    },
     "lmstudio": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
       "keep_alive_time.placeholder": "Минуты",
@@ -885,6 +890,8 @@
       }
     },
     "minapp": {
+      "add_to_launchpad": "Добавить в стартовый экран",
+      "add_to_sidebar": "Добавить в боковую панель",
       "popup": {
         "close": "Закрыть встроенное приложение",
         "devtools": "Инструменты разработчика",
@@ -897,10 +904,9 @@
         "refresh": "Обновить",
         "rightclick_copyurl": "ПКМ → Копировать URL"
       },
+      "remove_from_launchpad": "Удалить из стартового экрана",
+      "remove_from_sidebar": "Удалить из боковой панели",
       "sidebar": {
-        "add": {
-          "title": "Добавить в боковую панель"
-        },
         "close": {
           "title": "Закрыть"
         },
@@ -909,9 +915,6 @@
         },
         "hide": {
           "title": "Скрыть"
-        },
-        "remove": {
-          "title": "Удалить из боковой панели"
         },
         "remove_custom": {
           "title": "Удалить пользовательское приложение"
@@ -1810,6 +1813,10 @@
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
+      "display.navbar.position": "Положение навигации",
+      "display.navbar.position.left": "Слева",
+      "display.navbar.position.top": "Сверху",
+      "display.navbar.title": "Настройки навигации",
       "display.sidebar.chat.hiddenMessage": "Помощник является базовой функцией и не поддерживает скрытие",
       "display.sidebar.disabled": "Скрыть иконки",
       "display.sidebar.empty": "Перетащите скрываемую функцию с левой стороны сюда",
@@ -2508,6 +2515,19 @@
         "reset": "Сбросить",
         "title": "Масштаб страницы"
       }
+    },
+    "title": {
+      "agents": "Агенты",
+      "apps": "Приложения",
+      "files": "Файлы",
+      "home": "Главная",
+      "knowledge": "База знаний",
+      "launchpad": "Запуск",
+      "mcp-servers": "MCP серверы",
+      "memories": "Память",
+      "paintings": "Рисунки",
+      "settings": "Настройки",
+      "translate": "Перевод"
     },
     "trace": {
       "backList": "Вернуться к списку",

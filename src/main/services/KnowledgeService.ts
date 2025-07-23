@@ -144,7 +144,7 @@ class KnowledgeService {
         logger.debug(`Removed database instance reference for id: ${id}`)
       }
     } catch (error) {
-      logger.warn(`Failed to cleanup resources for id: ${id}`, error)
+      logger.warn(`Failed to cleanup resources for id: ${id}`, error as Error)
     }
   }
 
@@ -176,7 +176,7 @@ class KnowledgeService {
           return JSON.parse(fs.readFileSync(this.pendingDeleteFile, 'utf-8')) as string[]
         }
       } catch (error) {
-        logger.warn('Failed to load pending delete IDs:', error)
+        logger.warn('Failed to load pending delete IDs:', error as Error)
       }
       return []
     },
@@ -186,7 +186,7 @@ class KnowledgeService {
         fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
         logger.debug(`Total ${ids.length} knowledge bases pending delete`)
       } catch (error) {
-        logger.warn('Failed to save pending delete IDs:', error)
+        logger.warn('Failed to save pending delete IDs:', error as Error)
       }
     },
 
@@ -202,7 +202,7 @@ class KnowledgeService {
           fs.unlinkSync(this.pendingDeleteFile)
         }
       } catch (error) {
-        logger.warn('Failed to clear pending delete file:', error)
+        logger.warn('Failed to clear pending delete file:', error as Error)
       }
     }
   }
@@ -257,7 +257,7 @@ class KnowledgeService {
         .build()
       this.ragApplications.set(id, ragApplication)
     } catch (e) {
-      logger.error('Failed to create RAGApplication:', e)
+      logger.error('Failed to create RAGApplication:', e as Error)
       throw new Error(`Failed to create RAGApplication: ${e}`)
     }
 
@@ -274,7 +274,7 @@ class KnowledgeService {
   }
 
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
-    logger.debug('delete id', id)
+    logger.debug(`delete id: ${id}`)
 
     await this.cleanupKnowledgeResources(id)
 

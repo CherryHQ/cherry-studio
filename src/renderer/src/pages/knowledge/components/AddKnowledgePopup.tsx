@@ -114,7 +114,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
             setDimensions(finalDimensions)
           } catch (error) {
-            logger.error('Error getting embedding dimensions:', error)
+            logger.error('Error getting embedding dimensions:', error as Error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
@@ -144,7 +144,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         resolve(_newBase)
       }
     } catch (error) {
-      logger.error('Validation failed:', error)
+      logger.error('Validation failed:', error as Error)
     }
   }
   const onCancel = () => {

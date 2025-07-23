@@ -38,20 +38,24 @@ const logger = loggerService.withContext('moduleName', CONTEXT)
 
 ### 记录日志
 
-在代码中，可以随时调用 `logger` 来记录日志，支持的方法有：`error`, `warn`, `info`, `verbose`, `debug`, `silly`
-各级别的含义，请参考下面的章节。
+在代码中，可以随时调用 `logger` 来记录日志，支持的级别有：`error`, `warn`, `info`, `verbose`, `debug`, `silly`
+各级别的含义，请参考后面的章节。
 
-以下以 `logger.info` 和 `logger.error` 举例如何使用，其他级别是一样的：
+以下支持的记录日志的参数（以 `logger.LEVEL` 举例如何使用，`LEVEL`指代为上述级别）：
 
 ```typescript
-logger.info('message', CONTEXT)
-logger.info('message %s %d', 'hello', 123, CONTEXT)
-logger.error('message', new Error('error message'), CONTEXT)
+logger.LEVEL(message)
+logger.LEVEL(message, CONTEXT)
+logger.LEVEL(message, error)
+logger.LEVEL(message, error, CONTEXT)
 ```
 
-- `message` 是必填的，`string`类型，其他选项都是可选的
-- `CONTEXT`为`{ key: value, ...}` 是可选的，会在日志文件中记录
-- 如果传递了`Error`类型，会自动记录错误堆栈
+**只支持上述四种调用方式**：
+| 参数 | 类型 | 说明 |
+| ----- | ----- | ----- |
+| `message` | `string` | 必填项。这是日志的核心字段，记录的重点内容 |
+| `CONTEXT` | `object` | 可选。其他需要再日志文件中记录的信息，建议为`{ key: value, ...}`格式
+| `error` | `Error` | 可选。同时会打印错误堆栈信息。<br />注意`catch(error)`所捕获的`error`是`unknown`类型，按照`Typescript`最佳实践，请先用`instanceof`进行类型判断，如果确信一定是`Error`类型，也可用断言`as Error`。|
 
 ### 记录级别
 

@@ -335,7 +335,6 @@
       "provider": "Fournisseur",
       "reasoning_content": "Réflexion approfondie",
       "regenerate": "Regénérer",
-      "trace": "Tracer",
       "rename": "Renommer",
       "reset": "Réinitialiser",
       "save": "Enregistrer",
@@ -347,6 +346,7 @@
         "pinyin.desc": "Сортировать по пиньинь в порядке убывания"
       },
       "topics": "Sujets",
+      "trace": "Tracer",
       "warning": "Avertissement",
       "you": "Vous"
     },

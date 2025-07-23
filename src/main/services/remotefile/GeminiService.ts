@@ -71,7 +71,7 @@ export class GeminiService extends BaseFileService {
 
       return response
     } catch (error) {
-      logger.error('Error uploading file to Gemini:', error)
+      logger.error('Error uploading file to Gemini:', error as Error)
       return {
         fileId: '',
         displayName: file.origin_name,
@@ -117,7 +117,7 @@ export class GeminiService extends BaseFileService {
         originalFile: undefined
       }
     } catch (error) {
-      logger.error('Error retrieving file from Gemini:', error)
+      logger.error('Error retrieving file from Gemini:', error as Error)
       return {
         fileId: fileId,
         displayName: '',
@@ -175,7 +175,7 @@ export class GeminiService extends BaseFileService {
       CacheService.set(GeminiService.FILE_LIST_CACHE_KEY, fileList, GeminiService.LIST_CACHE_DURATION)
       return fileList
     } catch (error) {
-      logger.error('Error listing files from Gemini:', error)
+      logger.error('Error listing files from Gemini:', error as Error)
       return { files: [] }
     }
   }
@@ -185,7 +185,7 @@ export class GeminiService extends BaseFileService {
       await this.fileManager.delete({ name: fileId })
       logger.debug(`File ${fileId} deleted from Gemini`)
     } catch (error) {
-      logger.error('Error deleting file from Gemini:', error)
+      logger.error('Error deleting file from Gemini:', error as Error)
       throw error
     }
   }

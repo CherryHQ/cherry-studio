@@ -130,7 +130,7 @@ const BlacklistSettings: FC = () => {
             })
           }
         } catch (error) {
-          logger.error(`Error updating subscribe source ${source.url}:`, error)
+          logger.error(`Error updating subscribe source ${source.url}:`, error as Error)
           // 显示具体源更新失败的消息
           window.message.warning({
             content: t('settings.tool.websearch.subscribe_source_update_failed', { url: source.url }),
@@ -154,7 +154,7 @@ const BlacklistSettings: FC = () => {
         throw new Error('No valid sources updated')
       }
     } catch (error) {
-      logger.error('Error updating subscribes:', error)
+      logger.error('Error updating subscribes:', error as Error)
       window.message.error({
         content: t('settings.tool.websearch.subscribe_update_failed'),
         duration: 2
@@ -213,7 +213,7 @@ const BlacklistSettings: FC = () => {
       // 清空选中状态
       setSelectedRowKeys([])
     } catch (error) {
-      logger.error('Error deleting subscribes:', error)
+      logger.error('Error deleting subscribes:', error as Error)
     }
   }
 

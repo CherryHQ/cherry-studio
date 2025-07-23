@@ -98,7 +98,7 @@ function FileList(props: FileListProps) {
         setFiles(items)
       } catch (error) {
         if (error instanceof Error) {
-          logger.error('Error fetching files:', error)
+          logger.error('Error fetching files:', error as Error)
           window.modal.error({
             content: error.message,
             centered: true

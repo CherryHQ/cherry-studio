@@ -78,7 +78,7 @@ const RagSettings = () => {
 
       window.message.success(t('settings.tool.websearch.compression.info.dimensions_auto_success', { dimensions }))
     } catch (error) {
-      logger.error('handleAutoGetDimensions: failed to get embedding dimensions', error)
+      logger.error('handleAutoGetDimensions: failed to get embedding dimensions', error as Error)
       window.message.error(t('settings.tool.websearch.compression.error.dimensions_auto_failed'))
     } finally {
       setLoadingDimensions(false)

@@ -21,7 +21,7 @@ const PaintingsRoutePage: FC = () => {
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    logger.debug('defaultPaintingProvider', provider)
+    logger.debug(`defaultPaintingProvider: ${provider}`)
     if (provider && Options.includes(provider)) {
       dispatch(setDefaultPaintingProvider(provider as PaintingProvider))
     }

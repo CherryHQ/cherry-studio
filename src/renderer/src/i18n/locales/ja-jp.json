@@ -149,6 +149,7 @@
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
+      "add.topic.title": "新しいトピック",
       "artifacts.button.download": "ダウンロード",
       "artifacts.button.openExternal": "外部ブラウザで開く",
       "artifacts.button.preview": "プレビュー",
@@ -655,6 +656,10 @@
       "urdu": "ウルドゥー語",
       "vietnamese": "ベトナム語"
     },
+    "launchpad": {
+      "apps": "アプリ",
+      "minapps": "アプリ"
+    },
     "lmstudio": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
       "keep_alive_time.placeholder": "分",
@@ -885,6 +890,8 @@
       }
     },
     "minapp": {
+      "add_to_launchpad": "スタート画面に追加",
+      "add_to_sidebar": "サイドバーに追加",
       "popup": {
         "close": "ミニアプリを閉じる",
         "devtools": "開発者ツール",
@@ -897,10 +904,9 @@
         "refresh": "更新",
         "rightclick_copyurl": "右クリックでURLをコピー"
       },
+      "remove_from_launchpad": "スタート画面から削除",
+      "remove_from_sidebar": "サイドバーから削除",
       "sidebar": {
-        "add": {
-          "title": "サイドバーに追加"
-        },
         "close": {
           "title": "閉じる"
         },
@@ -909,9 +915,6 @@
         },
         "hide": {
           "title": "非表示"
-        },
-        "remove": {
-          "title": "サイドバーから削除"
         },
         "remove_custom": {
           "title": "カスタムアプリを削除"
@@ -1810,6 +1813,10 @@
       "display.custom.css": "カスタムCSS",
       "display.custom.css.cherrycss": "cherrycss.comから取得",
       "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
+      "display.navbar.position": "ナビゲーションバー位置",
+      "display.navbar.position.left": "左",
+      "display.navbar.position.top": "上",
+      "display.navbar.title": "ナビゲーションバー設定",
       "display.sidebar.chat.hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません",
       "display.sidebar.disabled": "アイコンを非表示",
       "display.sidebar.empty": "非表示にする機能を左側からここにドラッグ",
@@ -2508,6 +2515,19 @@
         "reset": "リセット",
         "title": "ページズーム"
       }
+    },
+    "title": {
+      "agents": "エージェント",
+      "apps": "アプリ",
+      "files": "ファイル",
+      "home": "ホーム",
+      "knowledge": "ナレッジベース",
+      "launchpad": "ランチパッド",
+      "mcp-servers": "MCP サーバー",
+      "memories": "メモリ",
+      "paintings": "ペインティング",
+      "settings": "設定",
+      "translate": "翻訳"
     },
     "trace": {
       "backList": "リストに戻る",

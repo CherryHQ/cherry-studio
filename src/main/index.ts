@@ -71,7 +71,7 @@ app.on('web-contents-created', (_, webContents) => {
     // Interrupt execution and collect call stack from unresponsive renderer
     logger.error('Renderer unresponsive start')
     const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    logger.error('Renderer unresponsive js call stack\n', callStack)
+    logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
   })
 })
 
@@ -84,7 +84,7 @@ if (!isDev) {
 
   // handle unhandled rejection
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
   })
 }
 
@@ -184,7 +184,7 @@ if (!app.requestSingleInstanceLock()) {
     try {
       await mcpService.cleanup()
     } catch (error) {
-      logger.warn('Error cleaning up MCP service:', error)
+      logger.warn('Error cleaning up MCP service:', error as Error)
     }
     // finish the logger
     logger.finish()

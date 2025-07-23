@@ -24,7 +24,7 @@ export default class LocalBingProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      logger.error('Failed to parse Bing search HTML:', error)
+      logger.error('Failed to parse Bing search HTML:', error as Error)
     }
     return results
   }

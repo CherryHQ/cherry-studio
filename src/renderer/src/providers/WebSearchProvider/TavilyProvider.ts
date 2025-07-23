@@ -41,7 +41,7 @@ export default class TavilyProvider extends BaseWebSearchProvider {
         })
       }
     } catch (error) {
-      logger.error('Tavily search failed:', error)
+      logger.error('Tavily search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

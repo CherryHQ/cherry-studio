@@ -104,7 +104,7 @@ print('python code here')`,
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error('Python execution error:', errorMessage)
+        logger.error(`Python execution error: ${errorMessage}`)
 
         throw new McpError(ErrorCode.InternalError, `Python execution failed: ${errorMessage}`)
       }

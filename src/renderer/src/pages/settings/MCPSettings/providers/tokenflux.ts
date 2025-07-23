@@ -128,7 +128,7 @@ export const syncTokenFluxServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing TokenFlux server:', err)
+        logger.error('Error processing TokenFlux server:', err as Error)
       }
     }
 
@@ -138,7 +138,7 @@ export const syncTokenFluxServers = async (
       addedServers
     }
   } catch (error) {
-    logger.error('TokenFlux sync error:', error)
+    logger.error('TokenFlux sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

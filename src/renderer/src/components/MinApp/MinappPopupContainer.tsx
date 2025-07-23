@@ -18,7 +18,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
@@ -143,6 +143,7 @@ const MinappPopupContainer: React.FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
+  const { isTopNavbar } = useNavbarPosition()
   const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
@@ -163,6 +164,8 @@ const MinappPopupContainer: React.FC = () => {
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
   const { minappsOpenLinkExternal } = useSettings()
+
+  const { isLeftNavbar } = useNavbarPosition()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -299,7 +302,7 @@ const MinappPopupContainer: React.FC = () => {
   const handleWebviewNavigate = (appid: string, url: string) => {
     // 记录当前URL，用于GoogleLoginTip判断
     if (appid === currentMinappId) {
-      logger.debug('URL changed:', url)
+      logger.debug(`URL changed: ${url}`)
       setCurrentUrl(url)
     }
   }
@@ -420,7 +423,15 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
           {appInfo.canPinned && (
             <Tooltip
-              title={appInfo.isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title')}
+              title={
+                appInfo.isPinned
+                  ? isTopNavbar
+                    ? t('minapp.remove_from_launchpad')
+                    : t('minapp.remove_from_sidebar')
+                  : isTopNavbar
+                    ? t('minapp.add_to_launchpad')
+                    : t('minapp.add_to_sidebar')
+              }
               mouseEnterDelay={0.8}
               placement="bottom">
               <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
@@ -495,7 +506,7 @@ const MinappPopupContainer: React.FC = () => {
       maskClosable={false}
       closeIcon={null}
       style={{
-        marginLeft: 'var(--sidebar-width)',
+        marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
@@ -519,7 +530,6 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;
@@ -527,6 +537,13 @@ const TitleContainer = styled.div`
   right: 0;
   bottom: 0;
   background-color: transparent;
+  [navbar-position='left'] & {
+    padding-left: ${isMac ? '20px' : '10px'};
+  }
+  [navbar-position='top'] & {
+    padding-left: ${isMac ? '80px' : '10px'};
+    border-bottom: 0.5px solid var(--color-border);
+  }
 `
 
 const TitleText = styled.div`

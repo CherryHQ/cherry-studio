@@ -23,7 +23,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
         const module = await import('@cherrystudio/mac-system-ocr')
         this.MacOCR = module.default
       } catch (error) {
-        logger.error('Failed to load mac-system-ocr:', error)
+        logger.error('Failed to load mac-system-ocr:', error as Error)
         throw error
       }
     }
@@ -121,7 +121,7 @@ export default class MacSysOcrProvider extends BaseOcrProvider {
           }
         }
       } catch (error) {
-        logger.error('Error during OCR process:', error)
+        logger.error('Error during OCR process:', error as Error)
         throw error
       }
     }

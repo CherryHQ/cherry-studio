@@ -89,7 +89,7 @@ export async function backupToNutstore({
   try {
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
   } catch (error) {
-    logger.error('[backupToNutstore] Failed to get device type:', error)
+    logger.error('[backupToNutstore] Failed to get device type:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
@@ -121,7 +121,7 @@ export async function backupToNutstore({
     }
   } catch (error) {
     store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
-    logger.error('[Nutstore] Backup failed:', error)
+    logger.error('[Nutstore] Backup failed:', error as Error)
     window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
   } finally {
     store.dispatch(setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false }))
@@ -145,7 +145,7 @@ export async function restoreFromNutstore(fileName?: string) {
   try {
     data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
   } catch (error: any) {
-    logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
+    logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
     window.modal.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
@@ -155,7 +155,7 @@ export async function restoreFromNutstore(fileName?: string) {
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
-    logger.error('[backup] Error downloading file from WebDAV:', error)
+    logger.error('[backup] Error downloading file from WebDAV:', error as Error)
     window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
   }
 }
@@ -221,7 +221,7 @@ export async function startNutstoreAutoSync() {
       logger.verbose('[Nutstore AutoSync] Starting auto backup...')
       await backupToNutstore({ showMessage: false })
     } catch (error) {
-      logger.error('[Nutstore AutoSync] Auto backup failed:', error)
+      logger.error('[Nutstore AutoSync] Auto backup failed:', error as Error)
     } finally {
       isAutoBackupRunning = false
       scheduleNextBackup()

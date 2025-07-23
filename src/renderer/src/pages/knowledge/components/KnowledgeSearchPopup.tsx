@@ -44,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       const searchResults = await searchKnowledgeBase(value, base)
       setResults(searchResults)
     } catch (error) {
-      logger.error(`Failed to search knowledge base ${base.name}:`, error)
+      logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
       setResults([])
     } finally {
       setLoading(false)
@@ -82,7 +82,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       await navigator.clipboard.writeText(text)
       message.success(t('message.copied'))
     } catch (error) {
-      logger.error('Failed to copy text:', error)
+      logger.error('Failed to copy text:', error as Error)
       window.message.error(t('message.copyError') || 'Failed to copy text')
     }
   }

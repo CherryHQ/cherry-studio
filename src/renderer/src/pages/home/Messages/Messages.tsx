@@ -225,7 +225,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
               window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
             } catch (error) {
-              logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error)
+              logger.error(
+                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
+                error as Error
+              )
               window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
             }
           } else {
@@ -376,7 +379,7 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 16px 20px;
+  padding: 10px 10px 20px;
   .multi-select-mode & {
     padding-bottom: 60px;
   }

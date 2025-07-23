@@ -184,7 +184,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             .filter((model) => !isEmpty(model.name))
         )
       } catch (error) {
-        logger.error('Failed to fetch models', error)
+        logger.error('Failed to fetch models', error as Error)
       } finally {
         setTimeout(() => setLoading(false), 300)
       }

@@ -83,7 +83,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
       })
       setIsModalVisible(false)
     } catch (error) {
-      logger.error('Backup failed:', error)
+      logger.error('Backup failed:', error as Error)
     } finally {
       setBackuping(false)
     }

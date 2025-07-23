@@ -75,7 +75,8 @@
     "node-stream-zip": "^1.15.0",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "selection-hook": "^1.0.7",
+    "react-json-view": "^1.21.3",
+    "selection-hook": "^1.0.8",
     "turndown": "7.2.0"
   },
   "devDependencies": {
