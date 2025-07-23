@@ -169,7 +169,7 @@ const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 
 示例：
 
-```env
+```bash
 CSLOGGER_MAIN_LEVEL=verbose
 CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
 ```
