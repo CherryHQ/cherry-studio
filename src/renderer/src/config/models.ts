@@ -269,8 +269,8 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return false
   }
 
-  if (model.newType?.some((t) => t.type === 'function_calling' && t.isUserSelected)) {
-    return true
+  if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
+    return isUserSelectedModelType(model, 'function_calling')!
   }
 
   if (model.provider === 'qiniu') {
