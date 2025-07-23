@@ -204,8 +204,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               const isRerankDisabled = selectedTypes.includes('embedding')
               const isEmbeddingDisabled = selectedTypes.includes('rerank')
 
-              const showTypeConfirmModal = (type: NewModelType) => {
-                const onUpdateType = tempModelTypes?.find((t) => t.type === type.type)
+              const showTypeConfirmModal = (newType: NewModelType) => {
+                const onUpdateType = selectedTypes?.find((t) => t === newType.type)
                 window.modal.confirm({
                   title: t('settings.moresetting.warn'),
                   content: t('settings.moresetting.check.warn'),
@@ -215,30 +215,30 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   cancelButtonProps: { type: 'primary' },
                   onOk: () => {
                     if (onUpdateType) {
-                      const updatedTypes = tempModelTypes?.map((t) => {
-                        if (t.type === type.type) {
-                          return { ...t, isUserSelected: true }
+                      const updatedTypes = selectedTypes?.map((t) => {
+                        if (t === newType.type) {
+                          return { type: t, isUserSelected: true }
                         }
                         if (
-                          (onUpdateType !== t && onUpdateType.type === 'rerank') ||
-                          (onUpdateType.type === 'embedding' && onUpdateType !== t)
+                          (onUpdateType !== t && onUpdateType === 'rerank') ||
+                          (onUpdateType === 'embedding' && onUpdateType !== t)
                         ) {
-                          return { ...t, isUserSelected: false }
+                          return { type: t, isUserSelected: false }
                         }
-                        return t
+                        return { type: t }
                       })
-                      setTempModelTypes(updatedTypes || [])
+                      setTempModelTypes(updatedTypes as NewModelType[])
                     } else {
-                      const updatedTypes = tempModelTypes?.map((t) => {
+                      const updatedTypes = selectedTypes?.map((t) => {
                         if (
-                          (type.type !== t.type && type.type === 'rerank') ||
-                          (type.type === 'embedding' && type.type !== t.type)
+                          (newType.type !== t && newType.type === 'rerank') ||
+                          (newType.type === 'embedding' && newType.type !== t)
                         ) {
-                          return { ...t, isUserSelected: false }
+                          return { type: t, isUserSelected: false }
                         }
-                        return t
+                        return { type: t }
                       })
-                      setTempModelTypes([...(updatedTypes ?? []), type])
+                      setTempModelTypes([...(updatedTypes as NewModelType[]), newType])
                     }
                   },
                   onCancel: () => {},
@@ -262,12 +262,27 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                       if (t.type === disabledTypes[0]) {
                         return { ...t, isUserSelected: false }
                       }
+                      if (
+                        (onUpdateType !== t && onUpdateType.type === 'rerank') ||
+                        (onUpdateType.type === 'embedding' && onUpdateType !== t && t.isUserSelected === false)
+                      ) {
+                        return { ...t, isUserSelected: true }
+                      }
                       return t
                     })
                     setTempModelTypes(updatedTypes || [])
                   } else {
+                    const updatedTypes = tempModelTypes?.map((t) => {
+                      if (
+                        (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
+                        (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
+                      ) {
+                        return { ...t, isUserSelected: true }
+                      }
+                      return t
+                    })
                     setTempModelTypes([
-                      ...(tempModelTypes ?? []),
+                      ...(updatedTypes ?? []),
                       { type: disabledTypes[0] as ModelType, isUserSelected: false }
                     ])
                   }
