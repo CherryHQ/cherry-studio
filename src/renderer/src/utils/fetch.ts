@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import TurndownService from 'turndown'
+
+const logger = loggerService.withContext('Utils:fetch')
 
 const turndownService = new TurndownService()
 export const noContent = 'No content found'
@@ -118,7 +121,7 @@ export async function fetchWebContent(
       throw e
     }
 
-    console.error(`Failed to fetch ${url}`, e)
+    logger.error(`Failed to fetch ${url}`, e as Error)
     return {
       title: url,
       url: url,
@@ -139,7 +142,7 @@ export async function fetchRedirectUrl(url: string) {
     })
     return response.url
   } catch (e) {
-    console.error(`Failed to fetch redirect url: ${e}`)
+    logger.error('Failed to fetch redirect url', e as Error)
     return url
   }
 }

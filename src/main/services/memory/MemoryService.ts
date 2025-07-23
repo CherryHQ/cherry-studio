@@ -1,4 +1,5 @@
 import { Client, createClient } from '@libsql/client'
+import { loggerService } from '@logger'
 import Embeddings from '@main/knowledge/embeddings/Embeddings'
 import type {
   AddMemoryOptions,
@@ -11,10 +12,11 @@ import type {
 } from '@types'
 import crypto from 'crypto'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import path from 'path'
 
 import { MemoryQueries } from './queries'
+
+const logger = loggerService.withContext('MemoryService')
 
 export interface EmbeddingOptions {
   model: string
@@ -88,9 +90,9 @@ export class MemoryService {
       // Create tables
       await this.createTables()
       this.isInitialized = true
-      Logger.info('Memory database initialized successfully')
+      logger.debug('Memory database initialized successfully')
     } catch (error) {
-      Logger.error('Failed to initialize memory database:', error)
+      logger.error('Failed to initialize memory database:', error as Error)
       throw new Error(
         `Memory database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -118,7 +120,7 @@ export class MemoryService {
       await this.db.execute(MemoryQueries.createIndexes.vector)
     } catch (error) {
       // Vector index might not be supported in all versions
-      Logger.warn('Failed to create vector index, falling back to non-indexed search:', error)
+      logger.warn('Failed to create vector index, falling back to non-indexed search:', error as Error)
     }
   }
 
@@ -157,11 +159,11 @@ export class MemoryService {
 
           if (!isDeleted) {
             // Active record exists, skip insertion
-            Logger.info(`Memory already exists with hash: ${hash}`)
+            logger.debug(`Memory already exists with hash: ${hash}`)
             continue
           } else {
             // Deleted record exists, restore it instead of inserting new one
-            Logger.info(`Restoring deleted memory with hash: ${hash}`)
+            logger.debug(`Restoring deleted memory with hash: ${hash}`)
 
             // Generate embedding if model is configured
             let embedding: number[] | null = null
@@ -169,11 +171,11 @@ export class MemoryService {
             if (embedderApiClient) {
               try {
                 embedding = await this.generateEmbedding(trimmedMemory)
-                Logger.info(
+                logger.debug(
                   `Generated embedding for restored memory with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
                 )
               } catch (error) {
-                Logger.error('Failed to generate embedding for restored memory:', error)
+                logger.error('Failed to generate embedding for restored memory:', error as Error)
               }
             }
 
@@ -211,7 +213,7 @@ export class MemoryService {
         if (this.config?.embedderApiClient) {
           try {
             embedding = await this.generateEmbedding(trimmedMemory)
-            Logger.info(
+            logger.debug(
               `Generated embedding with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
             )
 
@@ -227,15 +229,15 @@ export class MemoryService {
             if (similarMemories.memories.length > 0) {
               const highestSimilarity = Math.max(...similarMemories.memories.map((m) => m.score || 0))
               if (highestSimilarity >= MemoryService.SIMILARITY_THRESHOLD) {
-                Logger.info(
+                logger.debug(
                   `Skipping memory addition due to high similarity: ${highestSimilarity.toFixed(3)} >= ${MemoryService.SIMILARITY_THRESHOLD}`
                 )
-                Logger.info(`Similar memory found: "${similarMemories.memories[0].memory}"`)
+                logger.debug(`Similar memory found: "${similarMemories.memories[0].memory}"`)
                 continue
               }
             }
           } catch (error) {
-            Logger.error('Failed to generate embedding:', error)
+            logger.error('Failed to generate embedding:', error as Error)
           }
         }
 
@@ -277,7 +279,7 @@ export class MemoryService {
         count: addedMemories.length
       }
     } catch (error) {
-      Logger.error('Failed to add memories:', error)
+      logger.error('Failed to add memories:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -302,7 +304,7 @@ export class MemoryService {
           const queryEmbedding = await this.generateEmbedding(query)
           return await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId, filters })
         } catch (error) {
-          Logger.error('Vector search failed, falling back to text search:', error)
+          logger.error('Vector search failed, falling back to text search:', error as Error)
         }
       }
 
@@ -357,7 +359,7 @@ export class MemoryService {
         count: memories.length
       }
     } catch (error) {
-      Logger.error('Search failed:', error)
+      logger.error('Search failed:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -422,7 +424,7 @@ export class MemoryService {
         count: totalCount
       }
     } catch (error) {
-      Logger.error('List failed:', error)
+      logger.error('List failed:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -460,9 +462,9 @@ export class MemoryService {
       // Add to history
       await this.addHistory(id, currentMemory, null, 'DELETE')
 
-      Logger.info(`Memory deleted: ${id}`)
+      logger.debug(`Memory deleted: ${id}`)
     } catch (error) {
-      Logger.error('Delete failed:', error)
+      logger.error('Delete failed:', error as Error)
       throw new Error(`Failed to delete memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -497,11 +499,11 @@ export class MemoryService {
       if (this.config?.embedderApiClient) {
         try {
           embedding = await this.generateEmbedding(memory)
-          Logger.info(
+          logger.debug(
             `Updated embedding with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
           )
         } catch (error) {
-          Logger.error('Failed to generate embedding for update:', error)
+          logger.error('Failed to generate embedding for update:', error as Error)
         }
       }
 
@@ -524,9 +526,9 @@ export class MemoryService {
       // Add to history
       await this.addHistory(id, previousMemory, memory, 'UPDATE')
 
-      Logger.info(`Memory updated: ${id}`)
+      logger.debug(`Memory updated: ${id}`)
     } catch (error) {
-      Logger.error('Update failed:', error)
+      logger.error('Update failed:', error as Error)
       throw new Error(`Failed to update memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -555,7 +557,7 @@ export class MemoryService {
         isDeleted: row.is_deleted === 1
       }))
     } catch (error) {
-      Logger.error('Get history failed:', error)
+      logger.error('Get history failed:', error as Error)
       throw new Error(`Failed to get memory history: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -591,9 +593,9 @@ export class MemoryService {
         args: [userId]
       })
 
-      Logger.info(`Reset all memories for user ${userId} (${totalCount} memories deleted)`)
+      logger.debug(`Reset all memories for user ${userId} (${totalCount} memories deleted)`)
     } catch (error) {
-      Logger.error('Reset user memories failed:', error)
+      logger.error('Reset user memories failed:', error as Error)
       throw new Error(`Failed to reset user memories: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -633,9 +635,9 @@ export class MemoryService {
         args: [userId]
       })
 
-      Logger.info(`Deleted user ${userId} and ${totalCount} memories`)
+      logger.debug(`Deleted user ${userId} and ${totalCount} memories`)
     } catch (error) {
-      Logger.error('Delete user failed:', error)
+      logger.error('Delete user failed:', error as Error)
       throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -659,7 +661,7 @@ export class MemoryService {
         lastMemoryDate: row.last_memory_date as string
       }))
     } catch (error) {
-      Logger.error('Get users list failed:', error)
+      logger.error('Get users list failed:', error as Error)
       throw new Error(`Failed to get users list: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -730,7 +732,7 @@ export class MemoryService {
       // Normalize to unified dimension
       return this.normalizeEmbedding(embedding)
     } catch (error) {
-      Logger.error('Embedding generation failed:', error)
+      logger.error('Embedding generation failed:', error as Error)
       throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -800,7 +802,7 @@ export class MemoryService {
         count: memories.length
       }
     } catch (error) {
-      Logger.error('Hybrid search failed:', error)
+      logger.error('Hybrid search failed:', error as Error)
       throw new Error(`Hybrid search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

@@ -1,10 +1,12 @@
+import { loggerService } from '@logger'
 import { getMcpDir, getTempDir } from '@main/utils/file'
-import logger from 'electron-log'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as os from 'os'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('DxtService')
 
 // Type definitions
 export interface DxtManifest {
@@ -174,7 +176,7 @@ class DxtService {
         fs.mkdirSync(this.mcpDir, { recursive: true })
       }
     } catch (error) {
-      logger.error('[DxtService] Failed to create directories:', error)
+      logger.error('Failed to create directories:', error as Error)
     }
   }
 
@@ -184,7 +186,7 @@ class DxtService {
       fs.renameSync(source, destination)
     } catch (error) {
       // If rename fails (cross-filesystem), use copy + remove
-      logger.info('[DxtService] Cross-filesystem move detected, using copy + remove')
+      logger.debug('Cross-filesystem move detected, using copy + remove')
 
       // Ensure parent directory exists
       const parentDir = path.dirname(destination)
@@ -230,7 +232,7 @@ class DxtService {
       }
 
       // Extract the DXT file (which is a ZIP archive) to a temporary directory
-      logger.info('[DxtService] Extracting DXT file:', filePath)
+      logger.debug(`Extracting DXT file: ${filePath}`)
 
       const zip = new StreamZip.async({ file: filePath })
       await zip.extract(null, tempExtractDir)
@@ -276,14 +278,14 @@ class DxtService {
 
       // Clean up any existing version of this server
       if (fs.existsSync(finalExtractDir)) {
-        logger.info('[DxtService] Removing existing server directory:', finalExtractDir)
+        logger.debug(`Removing existing server directory: ${finalExtractDir}`)
         fs.rmSync(finalExtractDir, { recursive: true, force: true })
       }
 
       // Move the temporary directory to the final location
       // Use recursive copy + remove instead of rename to handle cross-filesystem moves
       await this.moveDirectory(tempExtractDir, finalExtractDir)
-      logger.info('[DxtService] DXT server extracted to:', finalExtractDir)
+      logger.debug(`DXT server extracted to: ${finalExtractDir}`)
 
       // Clean up the uploaded DXT file if it's in temp directory
       if (filePath.startsWith(this.tempDir)) {
@@ -305,7 +307,7 @@ class DxtService {
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to process DXT file'
-      logger.error('[DxtService] DXT upload error:', error)
+      logger.error('DXT upload error:', error as Error)
 
       return {
         success: false,
@@ -322,7 +324,7 @@ class DxtService {
       // Read the manifest from the DXT server directory
       const manifestPath = path.join(dxtPath, 'manifest.json')
       if (!fs.existsSync(manifestPath)) {
-        logger.error('[DxtService] Manifest not found:', manifestPath)
+        logger.error(`Manifest not found: ${manifestPath}`)
         return null
       }
 
@@ -330,14 +332,14 @@ class DxtService {
       const manifest: DxtManifest = JSON.parse(manifestContent)
 
       if (!manifest.server?.mcp_config) {
-        logger.error('[DxtService] No mcp_config found in manifest')
+        logger.error('No mcp_config found in manifest')
         return null
       }
 
       // Apply platform overrides and variable substitution
       const resolvedConfig = applyPlatformOverrides(manifest.server.mcp_config, dxtPath, userConfig)
 
-      logger.info('[DxtService] Resolved MCP config:', {
+      logger.debug('Resolved MCP config:', {
         command: resolvedConfig.command,
         args: resolvedConfig.args,
         env: resolvedConfig.env ? Object.keys(resolvedConfig.env) : undefined
@@ -345,7 +347,7 @@ class DxtService {
 
       return resolvedConfig
     } catch (error) {
-      logger.error('[DxtService] Failed to resolve MCP config:', error)
+      logger.error('Failed to resolve MCP config:', error as Error)
       return null
     }
   }
@@ -360,7 +362,7 @@ class DxtService {
 
       // First try the sanitized path
       if (fs.existsSync(serverDir)) {
-        logger.info('[DxtService] Removing DXT server directory:', serverDir)
+        logger.debug(`Removing DXT server directory: ${serverDir}`)
         fs.rmSync(serverDir, { recursive: true, force: true })
         return true
       }
@@ -368,15 +370,15 @@ class DxtService {
       // Fallback: try with original name in case it was stored differently
       const originalServerDir = path.join(this.mcpDir, `server-${serverName}`)
       if (fs.existsSync(originalServerDir)) {
-        logger.info('[DxtService] Removing DXT server directory:', originalServerDir)
+        logger.debug(`Removing DXT server directory: ${originalServerDir}`)
         fs.rmSync(originalServerDir, { recursive: true, force: true })
         return true
       }
 
-      logger.warn('[DxtService] Server directory not found:', serverDir)
+      logger.warn(`Server directory not found: ${serverDir}`)
       return false
     } catch (error) {
-      logger.error('[DxtService] Failed to cleanup DXT server:', error)
+      logger.error('Failed to cleanup DXT server:', error as Error)
       return false
     }
   }
@@ -388,7 +390,7 @@ class DxtService {
         fs.rmSync(this.tempDir, { recursive: true, force: true })
       }
     } catch (error) {
-      logger.error('[DxtService] Cleanup error:', error)
+      logger.error('Cleanup error:', error as Error)
     }
   }
 }

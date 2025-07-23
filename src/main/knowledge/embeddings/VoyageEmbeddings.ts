@@ -1,7 +1,10 @@
 import { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { VoyageEmbeddings as _VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
+import { loggerService } from '@logger'
 
 import { VOYAGE_SUPPORTED_DIM_MODELS } from './utils'
+
+const logger = loggerService.withContext('VoyageEmbeddings')
 
 /**
  * 支持设置嵌入维度的模型
@@ -16,7 +19,7 @@ export class VoyageEmbeddings extends BaseEmbeddings {
     if (!this.configuration.modelName) this.configuration.modelName = 'voyage-3'
 
     if (!VOYAGE_SUPPORTED_DIM_MODELS.includes(this.configuration.modelName) && this.configuration.outputDimension) {
-      console.error(`VoyageEmbeddings only supports ${VOYAGE_SUPPORTED_DIM_MODELS.join(', ')} to set outputDimension.`)
+      logger.error(`VoyageEmbeddings only supports ${VOYAGE_SUPPORTED_DIM_MODELS.join(', ')} to set outputDimension.`)
       this.model = new _VoyageEmbeddings({ ...this.configuration, outputDimension: undefined })
     } else {
       this.model = new _VoyageEmbeddings(this.configuration)

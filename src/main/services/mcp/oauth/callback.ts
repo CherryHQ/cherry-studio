@@ -1,9 +1,11 @@
-import Logger from 'electron-log'
+import { loggerService } from '@logger'
 import EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
 
 import { OAuthCallbackServerOptions } from './types'
+
+const logger = loggerService.withContext('MCP:OAuthCallbackServer')
 
 export class CallBackServer {
   private server: Promise<http.Server>
@@ -28,7 +30,7 @@ export class CallBackServer {
             this.events.emit('auth-code-received', code)
           }
         } catch (error) {
-          Logger.error('Error processing OAuth callback:', error)
+          logger.error('Error processing OAuth callback:', error as Error)
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('Internal Server Error')
         }
@@ -41,12 +43,12 @@ export class CallBackServer {
 
     // Handle server errors
     server.on('error', (error) => {
-      Logger.error('OAuth callback server error:', error)
+      logger.error('OAuth callback server error:', error as Error)
     })
 
     return new Promise<http.Server>((resolve, reject) => {
       server.listen(port, () => {
-        Logger.info(`OAuth callback server listening on port ${port}`)
+        logger.info(`OAuth callback server listening on port ${port}`)
         resolve(server)
       })
 

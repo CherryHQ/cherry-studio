@@ -1,5 +1,5 @@
 import { SearxngClient } from '@agentic/searxng'
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
@@ -7,6 +7,8 @@ import axios from 'axios'
 import ky from 'ky'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
+
+const logger = loggerService.withContext('SearxngProvider')
 
 export default class SearxngProvider extends BaseWebSearchProvider {
   private searxng: SearxngClient
@@ -41,11 +43,11 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         `Failed to initialize SearxNG client: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
-    this.initEngines().catch((err) => console.error('Failed to initialize SearxNG engines:', err))
+    this.initEngines().catch((err) => logger.error('Failed to initialize SearxNG engines:', err))
   }
   private async initEngines(): Promise<void> {
     try {
-      Logger.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      logger.info(`Initializing SearxNG with API host: ${this.apiHost}`)
       const auth = this.basicAuthUsername
         ? {
             username: this.basicAuthUsername,
@@ -67,7 +69,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       const allEngines = response.data.engines
-      Logger.log(`Found ${allEngines.length} total engines in SearxNG`)
+      logger.info(`Found ${allEngines.length} total engines in SearxNG`)
 
       this.engines = allEngines
         .filter(
@@ -84,11 +86,11 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       this.isInitialized = true
-      Logger.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
+      logger.info(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
     } catch (err) {
       this.isInitialized = false
 
-      Logger.error('Failed to fetch SearxNG engine configuration:', err)
+      logger.error('Failed to fetch SearxNG engine configuration:', err as Error)
       throw new Error(`Failed to initialize SearxNG: ${err}`)
     }
   }
@@ -133,7 +135,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      Logger.error('Searxng search failed:', error)
+      logger.error('Searxng search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

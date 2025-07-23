@@ -1,8 +1,9 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/CustomTag'
 import { HStack } from '@renderer/components/Layout'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { NavbarIcon } from '@renderer/pages/home/Navbar'
+import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
@@ -20,6 +21,7 @@ import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
 
+const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
@@ -52,7 +54,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       }),
 
       window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
-        console.log('[Progress] Directory:', itemId, percent)
+        logger.debug('[Progress] Directory:', itemId, percent)
         setProgressMap((prev) => new Map(prev).set(itemId, percent))
       })
     ]

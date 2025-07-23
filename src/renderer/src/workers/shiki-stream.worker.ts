@@ -1,10 +1,13 @@
 /// <reference lib="webworker" />
 
+import { loggerService } from '@logger'
 import { LRUCache } from 'lru-cache'
 import type { HighlighterCore, SpecialLanguage, ThemedToken } from 'shiki/core'
 
 // 注意保持 ShikiStreamTokenizer 依赖简单，避免打包出问题
 import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from '../services/ShikiStreamTokenizer'
+
+const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 
 // Worker 消息类型
 type WorkerMessageType = 'init' | 'highlight' | 'cleanup' | 'dispose'
@@ -93,7 +96,7 @@ async function ensureLanguageAndThemeLoaded(
       await highlighter.loadTheme(themeData)
     } catch (error) {
       // 回退到 one-light
-      console.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error)
+      logger.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
       const { bundledThemes } = await import('shiki')
       const oneLightTheme = await bundledThemes['one-light']()
       await highlighter.loadTheme(oneLightTheme)
@@ -154,7 +157,7 @@ async function highlightCodeChunk(
       recall: result.recall
     }
   } catch (error) {
-    console.error('Worker failed to highlight code chunk:', error)
+    logger.error('Worker failed to highlight code chunk:', error as Error)
 
     // 提供简单的 fallback
     const fallbackToken: ThemedToken = { content: chunk || '', color: '#000000', offset: 0 }

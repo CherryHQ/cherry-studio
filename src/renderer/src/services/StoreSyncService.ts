@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import { Middleware } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { StoreSyncAction } from '@types'
+
+const logger = loggerService.withContext('StoreSyncService')
 
 type SyncOptions = {
   syncList: string[]
@@ -102,7 +105,7 @@ export class StoreSyncService {
             window.store.dispatch(action)
           }
         } catch (error) {
-          console.error('Error dispatching synced action:', error)
+          logger.error('Error dispatching synced action:', error as Error)
         }
       }
     )

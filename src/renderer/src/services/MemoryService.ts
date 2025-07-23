@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
@@ -8,6 +9,8 @@ import {
   MemorySearchOptions,
   MemorySearchResult
 } from '@types'
+
+const logger = loggerService.withContext('MemoryService')
 
 // Main process SearchResult type (matches what the IPC actually returns)
 interface SearchResult {
@@ -39,7 +42,7 @@ class MemoryService {
     if (!MemoryService.instance) {
       MemoryService.instance = new MemoryService()
       MemoryService.instance.updateConfig().catch((error) => {
-        console.error('Failed to initialize MemoryService:', error)
+        logger.error('Failed to initialize MemoryService:', error)
       })
     }
     return MemoryService.instance
@@ -81,7 +84,7 @@ class MemoryService {
 
       // Handle error responses from main process
       if (result.error) {
-        console.error('Memory service error:', result.error)
+        logger.error(`Memory service error: ${result.error}`)
         throw new Error(result.error)
       }
 
@@ -91,7 +94,7 @@ class MemoryService {
         relations: []
       }
     } catch (error) {
-      console.error('Failed to list memories:', error)
+      logger.error('Failed to list memories:', error as Error)
       // Return empty result on error to prevent UI crashes
       return {
         results: [],
@@ -195,7 +198,7 @@ class MemoryService {
   public async updateConfig(): Promise<void> {
     try {
       if (!store || !store.getState) {
-        console.warn('Store not available, skipping memory config update')
+        logger.warn('Store not available, skipping memory config update')
         return
       }
 
@@ -211,7 +214,7 @@ class MemoryService {
 
       return window.api.memory.setConfig(configWithProviders)
     } catch (error) {
-      console.warn('Failed to update memory config:', error)
+      logger.warn('Failed to update memory config:', error as Error)
       return
     }
   }

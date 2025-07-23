@@ -5,22 +5,12 @@ import { expect, vi } from 'vitest'
 
 expect.addSnapshotSerializer(styleSheetSerializer)
 
-vi.mock('electron-log/renderer', () => {
+// Mock LoggerService globally for renderer tests
+vi.mock('@logger', async () => {
+  const { MockRendererLoggerService, mockRendererLoggerService } = await import('./__mocks__/RendererLoggerService')
   return {
-    default: {
-      info: console.log,
-      error: console.error,
-      warn: console.warn,
-      debug: console.debug,
-      verbose: console.log,
-      silly: console.log,
-      log: console.log,
-      transports: {
-        console: {
-          level: 'info'
-        }
-      }
-    }
+    LoggerService: MockRendererLoggerService,
+    loggerService: mockRendererLoggerService
   }
 })
 

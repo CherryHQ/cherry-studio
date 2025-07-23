@@ -9,6 +9,7 @@ import {
   getDefaultModel,
   getDefaultTopic
 } from '@renderer/services/AssistantService'
+import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { Assistant, Topic } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -139,6 +140,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (askId.current) {
       abortCompletion(askId.current)
       setIsLoading(false)
+    }
+    if (topicRef.current?.id) {
+      pauseTrace(topicRef.current.id)
     }
   }
 

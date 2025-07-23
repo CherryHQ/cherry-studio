@@ -1,8 +1,11 @@
 import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
 import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
+import { loggerService } from '@logger'
 import md5 from 'md5'
 import { OfficeParserConfig, parseOfficeAsync } from 'officeparser'
+
+const logger = loggerService.withContext('OdLoader')
 
 export enum OdType {
   OdtLoader = 'OdtLoader',
@@ -42,7 +45,7 @@ export class OdLoader<OdType> extends BaseLoader<{ type: string }> {
     try {
       this.extractedText = await parseOfficeAsync(this.filePath, this.config)
     } catch (err) {
-      console.error('odLoader error', err)
+      logger.error('odLoader error', err as Error)
       throw err
     }
   }

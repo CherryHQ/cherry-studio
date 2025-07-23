@@ -1,4 +1,8 @@
+import { loggerService } from '@logger'
+
 import LocalSearchProvider, { SearchItem } from './LocalSearchProvider'
+
+const logger = loggerService.withContext('LocalBingProvider')
 
 export default class LocalBingProvider extends LocalSearchProvider {
   protected parseValidUrls(htmlContent: string): SearchItem[] {
@@ -20,7 +24,7 @@ export default class LocalBingProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      console.error('Failed to parse Bing search HTML:', error)
+      logger.error('Failed to parse Bing search HTML:', error as Error)
     }
     return results
   }

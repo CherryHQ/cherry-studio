@@ -1,11 +1,13 @@
 import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
 import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
+import { loggerService } from '@logger'
 import { getTempDir } from '@main/utils/file'
-import Logger from 'electron-log'
 import EPub from 'epub'
 import * as fs from 'fs'
 import path from 'path'
+
+const logger = loggerService.withContext('EpubLoader')
 
 /**
  * epub 加载器的配置选项
@@ -183,7 +185,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
             writeStream.write(text + '\n\n')
           }
         } catch (error) {
-          Logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error)
+          logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error as Error)
         }
       }
 
@@ -203,9 +205,9 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       fs.unlinkSync(tempFilePath)
 
       // 只添加一条完成日志
-      Logger.info(`[EpubLoader] 电子书 ${this.metadata?.title || path.basename(this.filePath)} 处理完成`)
+      logger.info(`[EpubLoader] 电子书 ${this.metadata?.title || path.basename(this.filePath)} 处理完成`)
     } catch (error) {
-      Logger.error('[EpubLoader] Error in extractTextFromEpub:', error)
+      logger.error('[EpubLoader] Error in extractTextFromEpub:', error as Error)
       throw error
     }
   }
@@ -221,7 +223,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       await this.extractTextFromEpub()
     }
 
-    Logger.info('[EpubLoader] 书名：', this.metadata?.title || '未知书名', ' 文本大小：', this.extractedText.length)
+    logger.info(`[EpubLoader] 书名：${this.metadata?.title || '未知书名'} 文本大小：${this.extractedText.length}`)
 
     // 创建文本分块器
     const chunker = new RecursiveCharacterTextSplitter({

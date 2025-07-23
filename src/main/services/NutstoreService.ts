@@ -1,11 +1,14 @@
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
 
 import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
+
+const logger = loggerService.withContext('NutstoreService')
 
 interface OAuthResponse {
   username: string
@@ -45,7 +48,7 @@ export async function decryptToken(token: string) {
     })
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
-    console.error('解密失败:', error)
+    logger.error('Failed to decrypt token:', error as Error)
     return null
   }
 }

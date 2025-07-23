@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
+
+const logger = loggerService.withContext('ModelScopeSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'modelscope_token'
@@ -114,7 +117,7 @@ export const syncModelScopeServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        console.error('Error processing ModelScope server:', err)
+        logger.error('Error processing ModelScope server:', err as Error)
       }
     }
 
@@ -124,7 +127,7 @@ export const syncModelScopeServers = async (
       addedServers
     }
   } catch (error) {
-    console.error('ModelScope sync error:', error)
+    logger.error('ModelScope sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

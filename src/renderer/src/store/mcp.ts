@@ -1,6 +1,8 @@
+import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import Logger from '@renderer/config/logger'
 import type { MCPConfig, MCPServer } from '@renderer/types'
+
+const logger = loggerService.withContext('Store:MCP')
 
 export const initialState: MCPConfig = {
   servers: [],
@@ -161,7 +163,7 @@ export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (ac
   // Filter out any built-in servers that are already present
   const newServers = builtinMCPServers.filter((server) => !serverIds.has(server.name))
 
-  Logger.log('[initializeMCPServers] Adding new servers:', newServers)
+  logger.info('Adding new servers:', newServers)
   // Add the new built-in servers to the existing servers
   newServers.forEach((server) => {
     dispatch(addMCPServer(server))

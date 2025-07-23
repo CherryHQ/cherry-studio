@@ -1,14 +1,24 @@
-import Logger from '@renderer/config/logger'
-import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
+import { loggerService } from '@logger'
+import { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import {
+  callBuiltInTool,
+  callMCPTool,
+  getMcpServerByTool,
+  isToolAutoApproved,
+  parseToolUse,
+  upsertMCPToolResponse
+} from '@renderer/utils/mcp-tools'
+import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from '@renderer/utils/userConfirmation'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
 const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归
+
+const logger = loggerService.withContext('McpToolChunkMiddleware')
 
 /**
  * MCP工具处理中间件
@@ -32,7 +42,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
 
     const executeWithToolHandling = async (currentParams: CompletionsParams, depth = 0): Promise<CompletionsResult> => {
       if (depth >= MAX_TOOL_RECURSION_DEPTH) {
-        Logger.error(`🔧 [${MIDDLEWARE_NAME}] Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
+        logger.error(`Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
         throw new Error(`Maximum tool recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
       }
 
@@ -43,7 +53,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
       } else {
         const enhancedCompletions = ctx._internal.enhancedDispatch
         if (!enhancedCompletions) {
-          Logger.error(`🔧 [${MIDDLEWARE_NAME}] Enhanced completions method not found, cannot perform recursive call`)
+          logger.error(`Enhanced completions method not found, cannot perform recursive call`)
           throw new Error('Enhanced completions method not found')
         }
 
@@ -54,7 +64,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
       }
 
       if (!result.stream) {
-        Logger.error(`🔧 [${MIDDLEWARE_NAME}] No stream returned from enhanced completions`)
+        logger.error(`No stream returned from enhanced completions`)
         throw new Error('No stream returned from enhanced completions')
       }
 
@@ -98,6 +108,7 @@ function createToolHandlingTransform(
     async transform(chunk: GenericChunk, controller) {
       try {
         // 处理MCP工具进展chunk
+        logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
           const createdChunk = chunk as MCPToolCreatedChunk
 
@@ -116,14 +127,15 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
                   executedToolResults.push(...result.toolResults)
                   executedToolCalls.push(...result.confirmedToolCalls)
                 } catch (error) {
-                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool call asynchronously:`, error)
+                  logger.error(`Error executing tool call asynchronously:`, error as Error)
                 }
               })()
 
@@ -144,13 +156,14 @@ function createToolHandlingTransform(
                     mcpTools,
                     allToolResponses,
                     currentParams.onChunk,
-                    currentParams.assistant.model!
+                    currentParams.assistant.model!,
+                    currentParams.topicId
                   )
 
                   // 缓存执行结果
                   executedToolResults.push(...result.toolResults)
                 } catch (error) {
-                  console.error(`🔧 [${MIDDLEWARE_NAME}] Error executing tool use response asynchronously:`, error)
+                  logger.error(`Error executing tool use response asynchronously:`, error as Error)
                   // 错误时不影响其他工具的执行
                 }
               })()
@@ -162,7 +175,7 @@ function createToolHandlingTransform(
           controller.enqueue(chunk)
         }
       } catch (error) {
-        console.error(`🔧 [${MIDDLEWARE_NAME}] Error processing chunk:`, error)
+        logger.error(`Error processing chunk:`, error as Error)
         controller.error(error)
       }
     },
@@ -194,7 +207,7 @@ function createToolHandlingTransform(
             await executeWithToolHandling(newParams, depth + 1)
           }
         } catch (error) {
-          Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
+          logger.error(`Error in tool processing:`, error as Error)
           controller.error(error)
         } finally {
           hasToolCalls = false
@@ -214,7 +227,8 @@ async function executeToolCalls(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: string
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
@@ -227,7 +241,7 @@ async function executeToolCalls(
     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
 
   if (mcpToolResponses.length === 0) {
-    console.warn(`🔧 [${MIDDLEWARE_NAME}] No valid MCP tool responses to execute`)
+    logger.warn(`No valid MCP tool responses to execute`)
     return { toolResults: [], confirmedToolCalls: [] }
   }
 
@@ -241,7 +255,8 @@ async function executeToolCalls(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   // 找出已确认工具对应的原始toolCalls
@@ -272,7 +287,8 @@ async function executeToolUseResponses(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: CompletionsParams['topicId']
 ): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const { toolResults } = await parseAndCallTools(
@@ -284,7 +300,8 @@ async function executeToolUseResponses(
     },
     model,
     mcpTools,
-    ctx._internal?.flowControl?.abortSignal
+    ctx._internal?.flowControl?.abortSignal,
+    topicId
   )
 
   return { toolResults }
@@ -325,7 +342,7 @@ function buildParamsWithToolResults(
         ctx._internal.observer.usage.total_tokens += additionalTokens
       }
     } catch (error) {
-      Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error estimating token usage for new messages:`, error)
+      logger.error(`Error estimating token usage for new messages:`, error as Error)
     }
   }
 
@@ -360,4 +377,214 @@ function getCurrentReqMessages(ctx: CompletionsContext): SdkMessageParam[] {
   return ctx.apiClientInstance.extractMessagesFromSdkPayload(sdkPayload)
 }
 
-export default McpToolChunkMiddleware
+export async function parseAndCallTools<R>(
+  tools: MCPToolResponse[],
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
+
+export async function parseAndCallTools<R>(
+  content: string,
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
+
+export async function parseAndCallTools<R>(
+  content: string | MCPToolResponse[],
+  allToolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
+  model: Model,
+  mcpTools?: MCPTool[],
+  abortSignal?: AbortSignal,
+  topicId?: CompletionsParams['topicId']
+): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
+  const toolResults: R[] = []
+  let curToolResponses: MCPToolResponse[] = []
+  if (Array.isArray(content)) {
+    curToolResponses = content
+  } else {
+    // process tool use
+    curToolResponses = parseToolUse(content, mcpTools || [], 0)
+  }
+  if (!curToolResponses || curToolResponses.length === 0) {
+    return { toolResults, confirmedToolResponses: [] }
+  }
+
+  for (const toolResponse of curToolResponses) {
+    upsertMCPToolResponse(
+      allToolResponses,
+      {
+        ...toolResponse,
+        status: 'pending'
+      },
+      onChunk!
+    )
+  }
+
+  // 创建工具确认Promise映射，并立即处理每个确认
+  const confirmedTools: MCPToolResponse[] = []
+  const pendingPromises: Promise<void>[] = []
+
+  curToolResponses.forEach((toolResponse) => {
+    const server = getMcpServerByTool(toolResponse.tool)
+    const isAutoApproveEnabled = isToolAutoApproved(toolResponse.tool, server)
+    let confirmationPromise: Promise<boolean>
+    if (isAutoApproveEnabled) {
+      confirmationPromise = Promise.resolve(true)
+    } else {
+      setToolIdToNameMapping(toolResponse.id, toolResponse.tool.name)
+
+      confirmationPromise = requestToolConfirmation(toolResponse.id, abortSignal).then((confirmed) => {
+        if (confirmed && server) {
+          // 自动确认其他同名的待确认工具
+          confirmSameNameTools(toolResponse.tool.name)
+        }
+        return confirmed
+      })
+    }
+
+    const processingPromise = confirmationPromise
+      .then(async (confirmed) => {
+        if (confirmed) {
+          // 立即更新为invoking状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'invoking'
+            },
+            onChunk!
+          )
+
+          // 执行工具调用
+          try {
+            const images: string[] = []
+            // 根据工具类型选择不同的调用方式
+            const toolCallResponse = toolResponse.tool.isBuiltIn
+              ? await callBuiltInTool(toolResponse)
+              : await callMCPTool(toolResponse, topicId, model.name)
+
+            // 立即更新为done状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: toolCallResponse
+              },
+              onChunk!
+            )
+
+            if (!toolCallResponse) {
+              return
+            }
+
+            // 处理图片
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'image' && content.data) {
+                images.push(`data:${content.mimeType};base64,${content.data}`)
+              }
+            }
+
+            if (images.length) {
+              onChunk?.({
+                type: ChunkType.IMAGE_CREATED
+              })
+              onChunk?.({
+                type: ChunkType.IMAGE_COMPLETE,
+                image: {
+                  type: 'base64',
+                  images: images
+                }
+              })
+            }
+
+            // 转换消息并添加到结果
+            const convertedMessage = convertToMessage(toolResponse, toolCallResponse, model)
+            if (convertedMessage) {
+              confirmedTools.push(toolResponse)
+              toolResults.push(convertedMessage)
+            }
+          } catch (error) {
+            logger.error(`Error executing tool ${toolResponse.id}:`, error as Error)
+            // 更新为错误状态
+            upsertMCPToolResponse(
+              allToolResponses,
+              {
+                ...toolResponse,
+                status: 'done',
+                response: {
+                  isError: true,
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    }
+                  ]
+                }
+              },
+              onChunk!
+            )
+          }
+        } else {
+          // 立即更新为cancelled状态
+          upsertMCPToolResponse(
+            allToolResponses,
+            {
+              ...toolResponse,
+              status: 'cancelled',
+              response: {
+                isError: false,
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Tool call cancelled by user.'
+                  }
+                ]
+              }
+            },
+            onChunk!
+          )
+        }
+      })
+      .catch((error) => {
+        logger.error(`Error waiting for tool confirmation ${toolResponse.id}:`, error as Error)
+        // 立即更新为cancelled状态
+        upsertMCPToolResponse(
+          allToolResponses,
+          {
+            ...toolResponse,
+            status: 'cancelled',
+            response: {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: `Error in confirmation process: ${error instanceof Error ? error.message : 'Unknown error'}`
+                }
+              ]
+            }
+          },
+          onChunk!
+        )
+      })
+
+    pendingPromises.push(processingPromise)
+  })
+
+  // 等待所有工具处理完成（但每个工具的状态已经实时更新）
+  await Promise.all(pendingPromises)
+
+  return { toolResults, confirmedToolResponses: confirmedTools }
+}

@@ -664,10 +664,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://maas-api.lanyun.net'
     },
     websites: {
-      official: 'https://lanyun.net',
-      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
-      docs: 'https://archive.lanyun.net/maas/doc/',
-      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
+      official: 'https://maas.lanyun.net',
+      apiKey: 'https://maas.lanyun.net/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/#/maas/',
+      models: 'https://maas.lanyun.net/#/model/modelSquare'
     }
   },
   vertexai: {

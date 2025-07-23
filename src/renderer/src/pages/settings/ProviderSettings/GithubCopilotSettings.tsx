@@ -1,4 +1,5 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Alert, Button, Input, Slider, Steps, Tooltip, Typography } from 'antd'
@@ -7,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingRow, SettingSubtitle } from '..'
+
+const logger = loggerService.withContext('GithubCopilotSettings')
 
 interface GithubCopilotSettingsProps {
   providerId: string
@@ -53,9 +56,9 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       setLoading(true)
       setCurrentStep(1)
       const { device_code, user_code, verification_uri } = await window.api.copilot.getAuthMessage(defaultHeaders)
-      console.log('device_code', device_code)
-      console.log('user_code', user_code)
-      console.log('verification_uri', verification_uri)
+      logger.debug('device_code', device_code)
+      logger.debug('user_code', user_code)
+      logger.debug('verification_uri', verification_uri)
       setDeviceCode(device_code)
       setUserCode(user_code)
       setVerificationUri(verification_uri)
@@ -66,10 +69,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         await navigator.clipboard.writeText(user_code)
         window.message.success(t('settings.provider.copilot.code_copied'))
       } catch (error) {
-        console.error('Failed to copy to clipboard:', error)
+        logger.error('Failed to copy to clipboard:', error as Error)
       }
     } catch (error) {
-      console.error('Failed to get device code:', error)
+      logger.error('Failed to get device code:', error as Error)
       window.message.error(t('settings.provider.copilot.code_failed'))
       setCurrentStep(0)
     } finally {
@@ -95,7 +98,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         window.message.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
-      console.error('Failed to get token:', error)
+      logger.error('Failed to get token:', error as Error)
       window.message.error(t('settings.provider.copilot.auth_failed'))
       setCurrentStep(2)
     } finally {
@@ -124,7 +127,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
       window.message.success(t('settings.provider.copilot.logout_success'))
     } catch (error) {
-      console.error('Failed to logout:', error)
+      logger.error('Failed to logout:', error as Error)
       window.message.error(t('settings.provider.copilot.logout_failed'))
       // 如果登出失败，重置登出状态
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
@@ -139,7 +142,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       await navigator.clipboard.writeText(userCode)
       window.message.success(t('common.copied'))
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error)
+      logger.error('Failed to copy to clipboard:', error as Error)
       window.message.error(t('common.copy_failed'))
     }
   }, [userCode, t])

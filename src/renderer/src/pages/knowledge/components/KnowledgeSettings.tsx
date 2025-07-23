@@ -1,5 +1,7 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -11,11 +13,11 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
 import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip } from 'antd'
-import { sortBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('KnowledgeSettings')
 interface ShowParams {
   base: KnowledgeBase
 }
@@ -44,34 +46,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     return null
   }
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
-
-  const rerankSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
-
   const preprocessOptions = {
     label: t('settings.tool.preprocess.provider'),
     title: t('settings.tool.preprocess.provider'),
@@ -93,12 +67,12 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const onOk = async () => {
     try {
-      console.log('newbase', newBase)
+      logger.debug('newbase', newBase)
       updateKnowledgeBase(newBase)
       setOpen(false)
       resolve(newBase)
     } catch (error) {
-      console.error('Validation failed:', error)
+      logger.error('Validation failed:', error as Error)
     }
   }
 
@@ -179,13 +153,19 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isEmbeddingModel}
               style={{ width: '100%' }}
-              options={selectOptions}
               placeholder={t('settings.models.empty')}
               defaultValue={getModelUniqId(base.model)}
               disabled
             />
+          </SettingsItem>
+
+          <SettingsItem>
+            <div className="settings-label">{t('knowledge.dimensions')}</div>
+            <Input value={base.dimensions ?? t('knowledge.not_set')} style={{ width: '100%' }} disabled></Input>
           </SettingsItem>
 
           <SettingsItem>
@@ -195,10 +175,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isRerankModel}
               style={{ width: '100%' }}
               defaultValue={getModelUniqId(base.rerankModel) || undefined}
-              options={rerankSelectOptions}
               placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const rerankModel = value
@@ -320,7 +301,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       transitionName="animation-move-down"
       width="min(800px, 70vw)"
       styles={{
-        body: { padding: 0, height: 450 },
+        body: { padding: 0, height: 550 },
         header: {
           padding: '10px 15px',
           borderBottom: '0.5px solid var(--color-border)',

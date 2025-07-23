@@ -1,13 +1,15 @@
+import { loggerService } from '@logger'
 import {
   OAuthClientInformation,
   OAuthClientInformationFull,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
-import Logger from 'electron-log'
 import fs from 'fs/promises'
 import path from 'path'
 
 import { IOAuthStorage, OAuthStorageData, OAuthStorageSchema } from './types'
+
+const logger = loggerService.withContext('MCP:OAuthStorage')
 
 export class JsonFileStorage implements IOAuthStorage {
   private readonly filePath: string
@@ -38,7 +40,7 @@ export class JsonFileStorage implements IOAuthStorage {
         await this.writeStorage(initial)
         return initial
       }
-      Logger.error('Error reading OAuth storage:', error)
+      logger.error('Error reading OAuth storage:', error as Error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -59,7 +61,7 @@ export class JsonFileStorage implements IOAuthStorage {
       // Update cache
       this.cache = data
     } catch (error) {
-      Logger.error('Error writing OAuth storage:', error)
+      logger.error('Error writing OAuth storage:', error as Error)
       throw new Error(`Failed to write OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -112,7 +114,7 @@ export class JsonFileStorage implements IOAuthStorage {
       this.cache = null
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-        Logger.error('Error clearing OAuth storage:', error)
+        logger.error('Error clearing OAuth storage:', error as Error)
         throw new Error(`Failed to clear OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
       }
     }

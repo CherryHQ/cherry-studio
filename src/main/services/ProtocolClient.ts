@@ -3,12 +3,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { loggerService } from '@logger'
 import { app } from 'electron'
-import Logger from 'electron-log'
 
 import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
 import { handleMcpProtocolUrl } from './urlschema/mcp-install'
 import { windowService } from './WindowService'
+
+const logger = loggerService.withContext('ProtocolClient')
 
 export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
 
@@ -65,12 +67,12 @@ export async function setupAppImageDeepLink(): Promise<void> {
     return
   }
 
-  Logger.info('AppImage environment detected on Linux, setting up deep link.')
+  logger.debug('AppImage environment detected on Linux, setting up deep link.')
 
   try {
     const appPath = app.getPath('exe')
     if (!appPath) {
-      Logger.error('Could not determine App path.')
+      logger.error('Could not determine App path.')
       return
     }
 
@@ -95,24 +97,24 @@ NoDisplay=true
 
     // Write the .desktop file (overwrite if exists)
     await fs.writeFile(desktopFilePath, desktopFileContent, 'utf-8')
-    Logger.info(`Created/Updated desktop file: ${desktopFilePath}`)
+    logger.debug(`Created/Updated desktop file: ${desktopFilePath}`)
 
     // Update the desktop database
     // It's important to update the database for the changes to take effect
     try {
       const { stdout, stderr } = await execAsync(`update-desktop-database ${escapePathForExec(applicationsDir)}`)
       if (stderr) {
-        Logger.warn(`update-desktop-database stderr: ${stderr}`)
+        logger.warn(`update-desktop-database stderr: ${stderr}`)
       }
-      Logger.info(`update-desktop-database stdout: ${stdout}`)
-      Logger.info('Desktop database updated successfully.')
+      logger.debug(`update-desktop-database stdout: ${stdout}`)
+      logger.debug('Desktop database updated successfully.')
     } catch (updateError) {
-      Logger.error('Failed to update desktop database:', updateError)
+      logger.error('Failed to update desktop database:', updateError as Error)
       // Continue even if update fails, as the file is still created.
     }
   } catch (error) {
     // Log the error but don't prevent the app from starting
-    Logger.error('Failed to setup AppImage deep link:', error)
+    logger.error('Failed to setup AppImage deep link:', error as Error)
   }
 }
 

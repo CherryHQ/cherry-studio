@@ -1,4 +1,5 @@
 import { SwapOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
@@ -14,6 +15,8 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TranslateWindow')
 
 interface Props {
   text: string
@@ -55,7 +58,7 @@ const Translate: FC<Props> = ({ text }) => {
 
       translatingRef.current = false
     } catch (error) {
-      console.error(error)
+      logger.error('Error fetching result:', error as Error)
     } finally {
       translatingRef.current = false
     }

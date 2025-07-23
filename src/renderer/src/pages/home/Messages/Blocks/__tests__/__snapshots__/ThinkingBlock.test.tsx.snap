@@ -2,7 +2,6 @@
 
 exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
 .c0 {
-  margin-top: 15px;
   margin-bottom: 15px;
 }
 

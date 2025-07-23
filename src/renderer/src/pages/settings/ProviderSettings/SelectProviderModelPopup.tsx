@@ -1,10 +1,12 @@
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import { Provider } from '@renderer/types'
-import { Modal, Select } from 'antd'
-import { first, orderBy } from 'lodash'
-import { useState } from 'react'
+import { getModelUniqId } from '@renderer/services/ModelService'
+import { Model, Provider } from '@renderer/types'
+import { Modal } from 'antd'
+import { first } from 'lodash'
+import { useCallback, useMemo, useState } from 'react'
 
 interface ShowParams {
   provider: Provider
@@ -16,9 +18,18 @@ interface Props extends ShowParams {
 }
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
-  const models = orderBy(provider.models, 'group').filter((i) => !isEmbeddingModel(i) && !isRerankModel(i))
   const [open, setOpen] = useState(true)
+
+  // Keep the natural order of models
+  const models = useMemo(() => provider.models.filter((m) => !isRerankModel(m)), [provider])
+
   const [model, setModel] = useState(first(models))
+
+  const modelPredicate = useCallback((m: Model) => !isRerankModel(m), [])
+
+  const defaultModelValue = useMemo(() => {
+    return model ? getModelUniqId(model) : undefined
+  }, [model])
 
   const onOk = () => {
     if (!model) {
@@ -50,14 +61,15 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       transitionName="animation-move-down"
       width={400}
       centered>
-      <Select
-        value={model?.id}
+      <ModelSelector
+        providers={[provider]}
+        predicate={modelPredicate}
+        grouped={false}
+        defaultValue={defaultModelValue}
         placeholder={i18n.t('settings.models.empty')}
-        options={models.map((m) => ({ label: m.name, value: m.id }))}
         style={{ width: '100%' }}
-        showSearch
         onChange={(value) => {
-          setModel(provider.models.find((m) => m.id === value)!)
+          setModel(models.find((m) => value === getModelUniqId(m))!)
         }}
       />
     </Modal>

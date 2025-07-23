@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -11,11 +12,14 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import ImageViewer from '../ImageViewer'
 import CodePreview from './CodePreview'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
+
+const logger = loggerService.withContext('CodeBlockView')
 
 interface Props {
   children: string
@@ -45,7 +49,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const [viewMode, setViewMode] = useState<ViewMode>('special')
   const [isRunning, setIsRunning] = useState(false)
-  const [output, setOutput] = useState('')
+  const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
   const [tools, setTools] = useState<CodeTool[]>([])
   const { registerTool, removeTool } = useCodeTool(setTools)
@@ -84,16 +88,18 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const handleRunScript = useCallback(() => {
     setIsRunning(true)
-    setOutput('')
+    setExecutionResult(null)
 
     pyodideService
       .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
-      .then((formattedOutput) => {
-        setOutput(formattedOutput)
+      .then((result) => {
+        setExecutionResult(result)
       })
       .catch((error) => {
-        console.error('Unexpected error:', error)
-        setOutput(`Unexpected error: ${error.message || 'Unknown error'}`)
+        logger.error('Unexpected error:', error)
+        setExecutionResult({
+          text: `Unexpected error: ${error.message || 'Unknown error'}`
+        })
       })
       .finally(() => {
         setIsRunning(false)
@@ -238,7 +244,14 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
-      {isExecutable && output && <StatusBar>{output}</StatusBar>}
+      {isExecutable && executionResult && (
+        <StatusBar>
+          {executionResult.text}
+          {executionResult.image && (
+            <ImageViewer src={executionResult.image} alt="Matplotlib plot" style={{ cursor: 'pointer' }} />
+          )}
+        </StatusBar>
+      )}
     </CodeBlockWrapper>
   )
 })

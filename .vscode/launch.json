@@ -10,7 +10,7 @@
       "windows": {
         "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-vite.cmd"
       },
-      "runtimeArgs": ["--sourcemap"],
+      "runtimeArgs": ["--inspect", "--sourcemap"],
       "env": {
         "REMOTE_DEBUGGING_PORT": "9222"
       }
@@ -21,7 +21,7 @@
       "request": "attach",
       "type": "chrome",
       "webRoot": "${workspaceFolder}/src/renderer",
-      "timeout": 60000,
+      "timeout": 3000000,
       "presentation": {
         "hidden": true
       }

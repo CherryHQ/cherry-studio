@@ -3,7 +3,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
-import { initAppDataDir } from './utils/file'
+import { initAppDataDir } from './utils/init'
 
 app.isPackaged && initAppDataDir()
 

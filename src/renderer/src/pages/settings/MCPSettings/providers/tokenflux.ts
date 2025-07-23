@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
+
+const logger = loggerService.withContext('TokenFluxSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'tokenflux_token'
@@ -125,7 +128,7 @@ export const syncTokenFluxServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        console.error('Error processing TokenFlux server:', err)
+        logger.error('Error processing TokenFlux server:', err as Error)
       }
     }
 
@@ -135,7 +138,7 @@ export const syncTokenFluxServers = async (
       addedServers
     }
   } catch (error) {
-    console.error('TokenFlux sync error:', error)
+    logger.error('TokenFlux sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

@@ -125,7 +125,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        message.success(t('common.copied'))
+        window.message.success(t('common.copied'))
         setTimeout(() => setCopied(false), 2000)
       })
       .catch(() => {

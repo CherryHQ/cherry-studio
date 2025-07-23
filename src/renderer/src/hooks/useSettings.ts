@@ -5,8 +5,10 @@ import {
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setDisableHardwareAcceleration,
+  setEnableDeveloperMode,
   setLaunchOnBoot,
   setLaunchToTray,
+  setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
   setShowTokens,
@@ -120,4 +122,33 @@ export function useMessageStyle() {
 
 export const getStoreSetting = (key: keyof SettingsState) => {
   return store.getState().settings[key]
+}
+
+export const useEnableDeveloperMode = () => {
+  const enableDeveloperMode = useAppSelector((state) => state.settings.enableDeveloperMode)
+  const dispatch = useAppDispatch()
+
+  return {
+    enableDeveloperMode,
+    setEnableDeveloperMode: (enableDeveloperMode: boolean) => {
+      dispatch(setEnableDeveloperMode(enableDeveloperMode))
+      window.api.config.set('enableDeveloperMode', enableDeveloperMode)
+    }
+  }
+}
+
+export const getEnableDeveloperMode = () => {
+  return store.getState().settings.enableDeveloperMode
+}
+
+export const useNavbarPosition = () => {
+  const navbarPosition = useAppSelector((state) => state.settings.navbarPosition)
+  const dispatch = useAppDispatch()
+
+  return {
+    navbarPosition,
+    isLeftNavbar: navbarPosition === 'left',
+    isTopNavbar: navbarPosition === 'top',
+    setNavbarPosition: (position: 'left' | 'top') => dispatch(setNavbarPosition(position))
+  }
 }

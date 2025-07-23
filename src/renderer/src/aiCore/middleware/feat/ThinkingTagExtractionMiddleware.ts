@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { Model } from '@renderer/types'
 import {
   ChunkType,
@@ -7,10 +8,11 @@ import {
   ThinkingStartChunk
 } from '@renderer/types/chunk'
 import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
-import Logger from 'electron-log/renderer'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
+
+const logger = loggerService.withContext('ThinkingTagExtractionMiddleware')
 
 export const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 
@@ -66,10 +68,11 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         let thinkingStartTime = 0
 
         let isFirstTextChunk = true
-
+        let accumulatedThinkingContent = ''
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
+              logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 const textChunk = chunk as TextDeltaChunk
 
@@ -81,7 +84,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
-                      text: extractionResult.tagContentExtracted,
+                      text: extractionResult.tagContentExtracted.trim(),
                       thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                     }
                     controller.enqueue(thinkingCompleteChunk)
@@ -101,9 +104,10 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
 
                       if (extractionResult.content?.trim()) {
+                        accumulatedThinkingContent += extractionResult.content.trim()
                         const thinkingDeltaChunk: ThinkingDeltaChunk = {
                           type: ChunkType.THINKING_DELTA,
-                          text: extractionResult.content,
+                          text: accumulatedThinkingContent,
                           thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                         }
                         controller.enqueue(thinkingDeltaChunk)
@@ -150,7 +154,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
           stream: processedStream
         }
       } else {
-        Logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+        logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
       }
     }
     return result

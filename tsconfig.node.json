@@ -6,18 +6,26 @@
     "src/preload/**/*",
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
-    "packages/shared/**/*"
-  ],
+    "packages/shared/**/*",
+    "scripts",
+    "packages/mcp-trace/**/*",
+    "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
     "composite": true,
     "types": [
-      "electron-vite/node"
+      "electron-vite/node",
+      "vitest/globals"
     ],
     "baseUrl": ".",
     "paths": {
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
-      "@shared/*": ["packages/shared/*"]
-    }
+      "@shared/*": ["packages/shared/*"],
+      "@logger": ["src/main/services/LoggerService"],
+      "@mcp-trace/*": ["packages/mcp-trace/*"]
+    },
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": true
   }
 }

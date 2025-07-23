@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
@@ -57,6 +58,8 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import { MinAppType } from '@renderer/types'
 
+const logger = loggerService.withContext('Config:minapps')
+
 // 加载自定义小应用
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
@@ -79,7 +82,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       addTime: app.addTime || now
     }))
   } catch (error) {
-    console.error('Failed to load custom mini apps:', error)
+    logger.error('Failed to load custom mini apps:', error as Error)
     return []
   }
 }

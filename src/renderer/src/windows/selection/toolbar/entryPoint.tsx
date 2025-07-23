@@ -1,5 +1,6 @@
 import '@ant-design/v5-patch-for-react-19'
 
+import { loggerService } from '@logger'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
@@ -9,6 +10,8 @@ import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import SelectionToolbar from './SelectionToolbar'
+
+loggerService.initWindowSource('SelectionToolbar')
 
 //subscribe to store sync
 storeSyncService.subscribe()

@@ -1,6 +1,8 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 
 import LocalSearchProvider, { SearchItem } from './LocalSearchProvider'
+
+const logger = loggerService.withContext('LocalBaiduProvider')
 
 export default class LocalBaiduProvider extends LocalSearchProvider {
   protected parseValidUrls(htmlContent: string): SearchItem[] {
@@ -22,9 +24,9 @@ export default class LocalBaiduProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      console.error('Failed to parse Baidu search HTML:', error)
+      logger.error('Failed to parse Baidu search HTML:', error as Error)
     }
-    Logger.log('Parsed Baidu search results:', results)
+    logger.info('Parsed Baidu search results:', results)
     return results
   }
 }

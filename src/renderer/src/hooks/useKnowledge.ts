@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -26,6 +27,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
 
+const logger = loggerService.withContext('useKnowledge')
+
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
@@ -53,7 +56,7 @@ export const useKnowledge = (baseId: string) => {
       processingError: '',
       retryCount: 0
     }))
-    console.log('Adding files:', filesItems)
+    logger.debug('Adding files:', filesItems)
     dispatch(addFilesAction({ baseId, items: filesItems }))
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }

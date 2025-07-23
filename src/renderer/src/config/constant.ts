@@ -4,11 +4,14 @@ export const DEFAULT_MAX_TOKENS = 4096
 export const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
 export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
+export const SYSTEM_PROMPT_THRESHOLD = 128
 
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
 export const isWin = platform === 'win32' || platform === 'win64'
 export const isLinux = platform === 'linux'
+export const isDev = window.electron?.process?.env?.NODE_ENV === 'development'
+export const isProd = window.electron?.process?.env?.NODE_ENV === 'production'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 export const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'

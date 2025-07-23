@@ -2,6 +2,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
+import * as z from 'zod/v4'
 
 export * from './file'
 import type { FileMetadata } from './file'
@@ -123,6 +124,8 @@ export type LegacyMessage = {
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
+  // OpenRouter specific fields
+  cost?: number
 }
 
 export type Metrics = {
@@ -298,6 +301,7 @@ export interface DmxapiPainting extends PaintingParams {
   style_type?: string
   autoCreate?: boolean
   generationMode?: generationModeType
+  priceModel?: string
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -356,6 +360,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {
@@ -544,6 +549,9 @@ export type WebSearchProvider = {
   basicAuthUsername?: string
   basicAuthPassword?: string
   usingBrowser?: boolean
+  topicId?: string
+  parentSpanId?: string
+  modelName?: string
 }
 
 export type WebSearchProviderResult = {
@@ -650,6 +658,12 @@ export interface MCPToolInputSchema {
   properties: Record<string, object>
 }
 
+export const MCPToolOutputSchema = z.object({
+  type: z.literal('object'),
+  properties: z.record(z.string(), z.unknown()),
+  required: z.array(z.string())
+})
+
 export interface MCPTool {
   id: string
   serverId: string
@@ -657,6 +671,8 @@ export interface MCPTool {
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+  outputSchema?: z.infer<typeof MCPToolOutputSchema>
+  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
 }
 
 export interface MCPPromptArguments {

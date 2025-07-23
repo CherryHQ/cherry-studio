@@ -1,9 +1,11 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 
 // 存储每个工具的确认Promise的resolve函数
 const toolConfirmResolvers = new Map<string, (value: boolean) => void>()
 // 存储每个工具的abort监听器清理函数
 const abortListeners = new Map<string, () => void>()
+
+const logger = loggerService.withContext('Utils:UserConfirmation')
 
 export function requestUserConfirmation(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -55,7 +57,7 @@ export function confirmToolAction(toolId: string) {
       cleanup()
     }
   } else {
-    Logger.warn(`🔧 [userConfirmation] No resolver found for tool: ${toolId}`)
+    logger.warn(`No resolver found for tool: ${toolId}`)
   }
 }
 
@@ -71,7 +73,7 @@ export function cancelToolAction(toolId: string) {
       cleanup()
     }
   } else {
-    Logger.warn(`🔧 [userConfirmation] No resolver found for tool: ${toolId}`)
+    logger.warn(`No resolver found for tool: ${toolId}`)
   }
 }
 

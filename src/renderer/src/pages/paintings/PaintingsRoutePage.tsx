@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { PaintingProvider } from '@renderer/types'
@@ -10,6 +11,8 @@ import NewApiPage from './NewApiPage'
 import SiliconPage from './SiliconPage'
 import TokenFluxPage from './TokenFluxPage'
 
+const logger = loggerService.withContext('PaintingsRoutePage')
+
 const Options = ['aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'new-api']
 
 const PaintingsRoutePage: FC = () => {
@@ -18,7 +21,7 @@ const PaintingsRoutePage: FC = () => {
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    console.debug('defaultPaintingProvider', provider)
+    logger.debug(`defaultPaintingProvider: ${provider}`)
     if (provider && Options.includes(provider)) {
       dispatch(setDefaultPaintingProvider(provider as PaintingProvider))
     }

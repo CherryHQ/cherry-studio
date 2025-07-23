@@ -1,4 +1,4 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type {
@@ -23,6 +23,8 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
+
+const logger = loggerService.withContext('Utils:MessageUtils')
 
 /**
  * Creates a base message block with common properties.
@@ -101,7 +103,7 @@ export function createImageBlock(
   overrides: Partial<Omit<ImageMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): ImageMessageBlock {
   if (overrides.file && overrides.file.type !== FileTypes.IMAGE) {
-    console.warn('Attempted to create ImageBlock with non-image file type:', overrides.file.type)
+    logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
   const { file, url, metadata, ...baseOverrides } = overrides
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.IMAGE, baseOverrides)
@@ -178,7 +180,7 @@ export function createFileBlock(
   overrides: Partial<Omit<FileMessageBlock, 'id' | 'messageId' | 'type' | 'file'>> = {}
 ): FileMessageBlock {
   if (file.type === FileTypes.IMAGE) {
-    console.warn('Use createImageBlock for image file types.')
+    logger.warn('Use createImageBlock for image file types.')
   }
   return {
     ...createBaseMessageBlock(messageId, MessageBlockType.FILE, overrides),
@@ -232,9 +234,9 @@ export function createToolBlock(
     metadata: metadata,
     ...baseOnlyOverrides
   }
-  Logger.log('createToolBlock_baseOverrides', baseOverrides.metadata)
+  logger.info('createToolBlock_baseOverrides', baseOverrides.metadata)
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TOOL, baseOverrides)
-  Logger.log('createToolBlock_baseBlock', baseBlock.metadata)
+  logger.info('createToolBlock_baseBlock', baseBlock.metadata)
   return {
     ...baseBlock,
     toolId,
@@ -296,7 +298,7 @@ export function createMessage(
   let blocks: string[] = initialBlocks || []
 
   if (role !== 'system' && (!initialBlocks || initialBlocks.length === 0)) {
-    console.warn('createMessage: initialContent provided but no initialBlocks. Block must be created separately.')
+    logger.warn('createMessage: initialContent provided but no initialBlocks. Block must be created separately.')
   }
 
   blocks = blocks.map(String)
@@ -393,7 +395,7 @@ export const resetAssistantMessage = (
 ): Message => {
   // Ensure we are only resetting assistant messages
   if (originalMessage.role !== 'assistant') {
-    console.warn(
+    logger.warn(
       `[resetAssistantMessage] Attempted to reset a non-assistant message (ID: ${originalMessage.id}, Role: ${originalMessage.role}). Returning original.`
     )
     return originalMessage

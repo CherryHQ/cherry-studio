@@ -1,4 +1,5 @@
 import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
 import { Button, Input, InputNumber, Select, Switch, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -10,6 +11,8 @@ interface DynamicFormRenderProps {
   value: any
   onChange: (field: string, value: any) => void
 }
+
+const logger = loggerService.withContext('DynamicFormRender')
 
 export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   schemaProperty,
@@ -39,11 +42,11 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           if (typeof base64Image === 'string') {
             onChange(propertyName, base64Image)
           } else {
-            console.error('Failed to convert image to base64')
+            logger.error('Failed to convert image to base64')
           }
         }
       } catch (error) {
-        console.error('Error processing image:', error)
+        logger.error('Error processing image:', error as Error)
       }
     },
     []

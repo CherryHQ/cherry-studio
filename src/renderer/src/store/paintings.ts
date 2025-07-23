@@ -1,5 +1,8 @@
+import { loggerService } from '@logger'
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { PaintingAction, PaintingsState } from '@renderer/types'
+
+const logger = loggerService.withContext('Store:paintings')
 
 const initialState: PaintingsState = {
   paintings: [],
@@ -46,7 +49,7 @@ const paintingsSlice = createSlice({
       if (existingIndex !== -1) {
         state[namespace] = state[namespace].map((c) => (c.id === painting.id ? painting : c))
       } else {
-        console.error(`Painting with id ${painting.id} not found in ${namespace}`)
+        logger.error(`Painting with id ${painting.id} not found in ${namespace}`)
       }
     },
     updatePaintings: (

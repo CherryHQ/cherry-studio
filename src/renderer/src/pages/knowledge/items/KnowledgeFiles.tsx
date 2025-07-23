@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
@@ -15,6 +16,8 @@ import VirtualList from 'rc-virtual-list'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('KnowledgeFiles')
 
 import {
   ClickableSpan,
@@ -113,7 +116,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
         })
         .filter(({ ext }) => fileTypes.includes(ext))
       const uploadedFiles = await FileManager.uploadFiles(_files)
-      console.log('uploadedFiles', uploadedFiles)
+      logger.debug('uploadedFiles', uploadedFiles)
       addFiles(uploadedFiles)
     }
   }

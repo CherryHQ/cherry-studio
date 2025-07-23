@@ -1,6 +1,7 @@
+import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
-import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { appendTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -25,6 +26,8 @@ import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage
 import { abortCompletion } from '@renderer/utils/abortController'
 import { throttle } from 'lodash'
 import { useCallback } from 'react'
+
+const logger = loggerService.withContext('UseMessageOperations')
 
 const selectMessagesState = (state: RootState) => state.messages
 
@@ -51,8 +54,9 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches deleteSingleMessageThunk.
    */
   const deleteMessage = useCallback(
-    async (id: string) => {
+    async (id: string, traceId?: string, modelName?: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
+      window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
     [dispatch, topic.id]
   )
@@ -75,7 +79,7 @@ export function useMessageOperations(topic: Topic) {
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
       if (!topic?.id) {
-        console.error('[editMessage] Topic prop is not valid.')
+        logger.error('[editMessage] Topic prop is not valid.')
         return
       }
 
@@ -97,6 +101,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -137,6 +142,7 @@ export function useMessageOperations(topic: Topic) {
     for (const askId of askIds) {
       abortCompletion(askId)
     }
+    pauseTrace(topic.id)
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
@@ -156,8 +162,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       if (message.role !== 'assistant') {
-        console.warn('regenerateAssistantMessage should only be called for assistant messages.')
+        logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
       }
       await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
@@ -171,15 +178,24 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      await appendTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
-        console.error('appendAssistantResponse should only be called for an existing assistant message.')
+        logger.error('appendAssistantResponse should only be called for an existing assistant message.')
         return
       }
       if (!existingAssistantMessage.askId) {
-        console.error('Cannot append response: The existing assistant message is missing its askId.')
+        logger.error('Cannot append response: The existing assistant message is missing its askId.')
         return
       }
-      await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
+      await dispatch(
+        appendAssistantResponseThunk(
+          topic.id,
+          existingAssistantMessage.id,
+          newModel,
+          assistant,
+          existingAssistantMessage.traceId
+        )
+      )
     },
     [dispatch, topic.id]
   )
@@ -204,7 +220,7 @@ export function useMessageOperations(topic: Topic) {
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message) {
-        console.error('[getTranslationUpdater] cannot find message:', messageId)
+        logger.error(`[getTranslationUpdater] cannot find message: ${messageId}`)
         return null
       }
 
@@ -240,7 +256,7 @@ export function useMessageOperations(topic: Topic) {
       }
 
       if (!blockId) {
-        console.error('[getTranslationUpdater] Failed to create translation block.')
+        logger.error('[getTranslationUpdater] Failed to create translation block.')
         return null
       }
 
@@ -265,7 +281,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const createTopicBranch = useCallback(
     (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
-      Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
+      logger.info(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
       return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
     },
     [dispatch]
@@ -280,7 +296,7 @@ export function useMessageOperations(topic: Topic) {
   const editMessageBlocks = useCallback(
     async (messageId: string, editedBlocks: MessageBlock[]) => {
       if (!topic?.id) {
-        console.error('[editMessageBlocks] Topic prop is not valid.')
+        logger.error('[editMessageBlocks] Topic prop is not valid.')
         return
       }
 
@@ -289,7 +305,7 @@ export function useMessageOperations(topic: Topic) {
         const state = store.getState()
         const message = state.messages.entities[messageId]
         if (!message) {
-          console.error('[editMessageBlocks] Message not found:', messageId)
+          logger.error(`[editMessageBlocks] Message not found: ${messageId}`)
           return
         }
 
@@ -353,7 +369,7 @@ export function useMessageOperations(topic: Topic) {
           await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
         }
       } catch (error) {
-        console.error('[editMessageBlocks] Failed to update message blocks:', error)
+        logger.error('[editMessageBlocks] Failed to update message blocks:', error as Error)
       }
     },
     [dispatch, topic?.id]
@@ -369,9 +385,11 @@ export function useMessageOperations(topic: Topic) {
 
       const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
       if (!mainTextBlock) {
-        console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
+        logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
+
+      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
@@ -401,14 +419,14 @@ export function useMessageOperations(topic: Topic) {
   const removeMessageBlock = useCallback(
     async (messageId: string, blockIdToRemove: string) => {
       if (!topic?.id) {
-        console.error('[removeMessageBlock] Topic prop is not valid.')
+        logger.error('[removeMessageBlock] Topic prop is not valid.')
         return
       }
 
       const state = store.getState()
       const message = state.messages.entities[messageId]
       if (!message || !message.blocks) {
-        console.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        logger.error(`[removeMessageBlock] Message not found or has no blocks: ${messageId}`)
         return
       }
 

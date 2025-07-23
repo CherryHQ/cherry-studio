@@ -2,6 +2,7 @@ import '@renderer/assets/styles/index.scss'
 import '@ant-design/v5-patch-for-react-19'
 
 import KeyvStorage from '@kangfenmao/keyv-storage'
+import { loggerService } from '@logger'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
@@ -14,6 +15,8 @@ import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import SelectionActionApp from './SelectionActionApp'
+
+loggerService.initWindowSource('SelectionActionWindow')
 
 /**
  * fetchChatCompletion depends on this,

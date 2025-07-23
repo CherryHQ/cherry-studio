@@ -1,7 +1,7 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import React, { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
@@ -25,63 +25,66 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
     }
   }, [content, isThinking, messages])
 
-  const lineHeight = 16
+  const showThinking = useMemo(() => {
+    return isThinking && !expanded
+  }, [expanded, isThinking])
+
+  const LINE_HEIGHT = 14
+
   const containerHeight = useMemo(() => {
-    if (expanded) return lineHeight * 3
-    return Math.min(80, Math.max(messages.length + 2, 3) * lineHeight)
-  }, [expanded, messages.length])
+    if (!showThinking || messages.length < 1) return 38
+    return Math.min(75, Math.max(messages.length + 1, 2) * LINE_HEIGHT + 25)
+  }, [showThinking, messages.length])
 
   return (
     <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
-      <LoadingContainer className={expanded || !messages.length ? 'expanded' : ''}>
+      <LoadingContainer>
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
-          <Lightbulb size={expanded || !messages.length ? 20 : 30} style={{ transition: 'width,height, 150ms' }} />
+          <Lightbulb
+            size={!showThinking || messages.length < 2 ? 20 : 30}
+            style={{ transition: 'width,height, 150ms' }}
+          />
         </motion.div>
       </LoadingContainer>
 
       <TextContainer>
-        <Title className={expanded || !messages.length ? 'expanded' : ''}>{thinkingTimeText}</Title>
+        <Title className={!showThinking || !messages.length ? 'showThinking' : ''}>{thinkingTimeText}</Title>
 
-        {!expanded && (
+        {showThinking && (
           <Content>
-            <AnimatePresence>
+            <Messages
+              style={{
+                height: messages.length * LINE_HEIGHT
+              }}
+              initial={{
+                y: -2
+              }}
+              animate={{
+                y: -messages.length * LINE_HEIGHT - 2
+              }}
+              transition={{
+                duration: 0.15,
+                ease: 'linear'
+              }}>
               {messages.map((message, index) => {
-                const finalY = containerHeight - (messages.length - index) * lineHeight - 4
-
                 if (index < messages.length - 5) return null
 
-                return (
-                  <ContentLineMotion
-                    key={index}
-                    initial={{
-                      y: index === messages.length - 1 ? containerHeight : finalY + lineHeight,
-                      height: lineHeight
-                    }}
-                    animate={{
-                      y: finalY
-                    }}
-                    transition={{
-                      duration: 0.15,
-                      ease: 'linear'
-                    }}>
-                    {message}
-                  </ContentLineMotion>
-                )
+                return <Message key={index}>{message}</Message>
               })}
-            </AnimatePresence>
+            </Messages>
           </Content>
         )}
       </TextContainer>
       <ArrowContainer className={expanded ? 'expanded' : ''}>
-        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1.2} />
+        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1} />
       </ArrowContainer>
     </ThinkingContainer>
   )
 }
 
-const ThinkingContainer = styled(motion.div)`
+const ThinkingContainer = styled.div`
   width: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -91,7 +94,7 @@ const ThinkingContainer = styled(motion.div)`
   pointer-events: none;
   user-select: none;
   &.expanded {
-    border-radius: 12px 12px 0 0;
+    border-radius: 10px 10px 0 0;
   }
 `
 
@@ -99,17 +102,18 @@ const Title = styled.div`
   position: absolute;
   inset: 0 0 auto 0;
   font-size: 14px;
+  line-height: 14px;
   font-weight: 500;
-  padding: 4px 0 30px;
+  padding: 10px 0;
   z-index: 99;
   transition: padding-top 150ms;
-  &.expanded {
-    padding-top: 14px;
+  &.showThinking {
+    padding-top: 12px;
   }
 `
 
 const LoadingContainer = styled.div`
-  width: 60px;
+  width: 50px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -123,19 +127,17 @@ const LoadingContainer = styled.div`
     justify-content: center;
     align-items: center;
   }
-  &.expanded {
-    width: 40px;
-  }
 `
 
 const TextContainer = styled.div`
   flex: 1;
   height: 100%;
+  padding: 5px 0;
   overflow: hidden;
   position: relative;
 `
 
-const Content = styled(motion.div)`
+const Content = styled.div`
   width: 100%;
   height: 100%;
   mask: linear-gradient(
@@ -146,17 +148,26 @@ const Content = styled(motion.div)`
     rgb(0 0 0 / 100%) 90%,
     rgb(0 0 0 / 100%) 100%
   );
+  position: relative;
 `
 
-const ContentLineMotion = styled(motion.div)`
+const Messages = styled(motion.div)`
   width: 100%;
-  line-height: 16px;
-  font-size: 12px;
+  position: absolute;
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+`
+
+const Message = styled.div`
+  width: 100%;
+  line-height: 14px;
+  font-size: 11px;
   color: var(--color-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  position: absolute;
 `
 
 const ArrowContainer = styled.div`

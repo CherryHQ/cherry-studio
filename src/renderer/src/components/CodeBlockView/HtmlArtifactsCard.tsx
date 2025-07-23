@@ -1,4 +1,5 @@
 import { CodeOutlined, LinkOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { extractTitle } from '@renderer/utils/formats'
@@ -10,6 +11,8 @@ import { ClipLoader } from 'react-spinners'
 import styled, { keyframes } from 'styled-components'
 
 import HtmlArtifactsPopup from './HtmlArtifactsPopup'
+
+const logger = loggerService.withContext('HtmlArtifactsCard')
 
 const HTML_VOID_ELEMENTS = new Set([
   'area',
@@ -123,7 +126,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
     if (window.api.shell?.openExternal) {
       window.api.shell.openExternal(filePath)
     } else {
-      console.error(t('artifacts.preview.openExternal.error.content'))
+      logger.error(t('artifacts.preview.openExternal.error.content'))
     }
   }
 
@@ -200,6 +203,7 @@ const Container = styled.div<{ $isStreaming: boolean }>`
   border-radius: 8px;
   overflow: hidden;
   margin: 10px 0;
+  margin-top: 0;
 `
 
 const GeneratingContainer = styled.div`
@@ -230,8 +234,8 @@ const IconWrapper = styled.div<{ $isStreaming: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   background: ${(props) =>
     props.$isStreaming
       ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
@@ -252,10 +256,11 @@ const TitleSection = styled.div`
 
 const Title = styled.h3`
   margin: 0 !important;
-  font-size: 16px;
+  font-size: 14px !important;
   font-weight: 600;
   color: var(--color-text);
   line-height: 1.4;
+  font-family: 'Ubuntu';
 `
 
 const TypeBadge = styled.div`

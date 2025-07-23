@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import { t } from 'i18next'
+
+const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -28,7 +31,7 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 }
 
 export function formatErrorMessage(error: any): string {
-  console.error('Original error:', error)
+  logger.error('Original error:', error)
 
   try {
     const detailedError = getErrorDetails(error)

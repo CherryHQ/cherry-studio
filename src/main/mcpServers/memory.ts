@@ -1,10 +1,13 @@
+import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex' // 引入 Mutex
-import Logger from 'electron-log'
 import { promises as fs } from 'fs'
 import path from 'path'
+
+const logger = loggerService.withContext('MCPServer:Memory')
 
 // Define memory file path
 const defaultMemoryPath = path.join(getConfigDir(), 'memory.json')
@@ -43,6 +46,7 @@ class KnowledgeGraphManager {
   }
 
   // Static async factory method for initialization
+  @TraceMethod({ spanName: 'create', tag: 'KnowledgeGraph' })
   public static async create(memoryPath: string): Promise<KnowledgeGraphManager> {
     const manager = new KnowledgeGraphManager(memoryPath)
     await manager._ensureMemoryPathExists()
@@ -61,7 +65,7 @@ class KnowledgeGraphManager {
         await fs.writeFile(this.memoryPath, JSON.stringify({ entities: [], relations: [] }, null, 2))
       }
     } catch (error) {
-      console.error('Failed to ensure memory path exists:', error)
+      logger.error('Failed to ensure memory path exists:', error as Error)
       // Propagate the error or handle it more gracefully depending on requirements
       throw new McpError(
         ErrorCode.InternalError,
@@ -94,13 +98,13 @@ class KnowledgeGraphManager {
         this.relations = new Set()
         await this._persistGraph() // Create the file with empty structure
       } else if (error instanceof SyntaxError) {
-        console.error('Failed to parse memory.json, initializing with empty graph:', error)
+        logger.error('Failed to parse memory.json, initializing with empty graph:', error)
         // If JSON is invalid, start fresh and overwrite the corrupted file
         this.entities = new Map()
         this.relations = new Set()
         await this._persistGraph()
       } else {
-        console.error('Failed to load knowledge graph from disk:', error)
+        logger.error('Failed to load knowledge graph from disk:', error as Error)
         throw new McpError(
           ErrorCode.InternalError,
           `Failed to load graph: ${error instanceof Error ? error.message : String(error)}`
@@ -119,7 +123,7 @@ class KnowledgeGraphManager {
       }
       await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
     } catch (error) {
-      console.error('Failed to save knowledge graph:', error)
+      logger.error('Failed to save knowledge graph:', error as Error)
       // Decide how to handle write errors - potentially retry or notify
       throw new McpError(
         ErrorCode.InternalError,
@@ -141,6 +145,7 @@ class KnowledgeGraphManager {
     return JSON.parse(relationStr) as Relation
   }
 
+  @TraceMethod({ spanName: 'createEntities', tag: 'KnowledgeGraph' })
   async createEntities(entities: Entity[]): Promise<Entity[]> {
     const newEntities: Entity[] = []
     entities.forEach((entity) => {
@@ -157,12 +162,13 @@ class KnowledgeGraphManager {
     return newEntities
   }
 
+  @TraceMethod({ spanName: 'createRelations', tag: 'KnowledgeGraph' })
   async createRelations(relations: Relation[]): Promise<Relation[]> {
     const newRelations: Relation[] = []
     relations.forEach((relation) => {
       // Ensure related entities exist before creating a relation
       if (!this.entities.has(relation.from) || !this.entities.has(relation.to)) {
-        console.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
+        logger.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
         return // Skip this relation
       }
       const relationStr = this._serializeRelation(relation)
@@ -177,6 +183,7 @@ class KnowledgeGraphManager {
     return newRelations
   }
 
+  @TraceMethod({ spanName: 'addObservtions', tag: 'KnowledgeGraph' })
   async addObservations(
     observations: { entityName: string; contents: string[] }[]
   ): Promise<{ entityName: string; addedObservations: string[] }[]> {
@@ -188,7 +195,7 @@ class KnowledgeGraphManager {
         // Option 1: Throw error
         throw new McpError(ErrorCode.InvalidParams, `Entity with name ${o.entityName} not found`)
         // Option 2: Skip and warn
-        // console.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
+        // logger.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
         // return;
       }
       // Ensure observations array exists
@@ -211,6 +218,7 @@ class KnowledgeGraphManager {
     return results
   }
 
+  @TraceMethod({ spanName: 'deleteEntities', tag: 'KnowledgeGraph' })
   async deleteEntities(entityNames: string[]): Promise<void> {
     let changed = false
     const namesToDelete = new Set(entityNames)
@@ -242,6 +250,7 @@ class KnowledgeGraphManager {
     }
   }
 
+  @TraceMethod({ spanName: 'deleteObservations', tag: 'KnowledgeGraph' })
   async deleteObservations(deletions: { entityName: string; observations: string[] }[]): Promise<void> {
     let changed = false
     deletions.forEach((d) => {
@@ -260,6 +269,7 @@ class KnowledgeGraphManager {
     }
   }
 
+  @TraceMethod({ spanName: 'deleteRelations', tag: 'KnowledgeGraph' })
   async deleteRelations(relations: Relation[]): Promise<void> {
     let changed = false
     relations.forEach((rel) => {
@@ -274,6 +284,7 @@ class KnowledgeGraphManager {
   }
 
   // Read the current state from memory
+  @TraceMethod({ spanName: 'readGraph', tag: 'KnowledgeGraph' })
   async readGraph(): Promise<KnowledgeGraph> {
     // Return a deep copy to prevent external modification of the internal state
     return JSON.parse(
@@ -285,6 +296,7 @@ class KnowledgeGraphManager {
   }
 
   // Search operates on the in-memory graph
+  @TraceMethod({ spanName: 'searchNodes', tag: 'KnowledgeGraph' })
   async searchNodes(query: string): Promise<KnowledgeGraph> {
     const lowerCaseQuery = query.toLowerCase()
     const filteredEntities = Array.from(this.entities.values()).filter(
@@ -307,6 +319,7 @@ class KnowledgeGraphManager {
   }
 
   // Open operates on the in-memory graph
+  @TraceMethod({ spanName: 'openNodes', tag: 'KnowledgeGraph' })
   async openNodes(names: string[]): Promise<KnowledgeGraph> {
     const nameSet = new Set(names)
     const filteredEntities = Array.from(this.entities.values()).filter((e) => nameSet.has(e.name))
@@ -356,9 +369,9 @@ class MemoryServer {
   private async _initializeManager(memoryPath: string): Promise<void> {
     try {
       this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
-      Logger.log('KnowledgeGraphManager initialized successfully.')
+      logger.debug('KnowledgeGraphManager initialized successfully.')
     } catch (error) {
-      Logger.error('Failed to initialize KnowledgeGraphManager:', error)
+      logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
       // Server might be unusable, consider how to handle this state
       // Maybe set a flag and return errors for all tool calls?
       this.knowledgeGraphManager = null // Ensure it's null if init fails
@@ -385,7 +398,7 @@ class MemoryServer {
         await this._getManager() // Wait for initialization before confirming tools are available
       } catch (error) {
         // If manager failed to init, maybe return an empty tool list or throw?
-        console.error('Cannot list tools, manager initialization failed:', error)
+        logger.error('Cannot list tools, manager initialization failed:', error as Error)
         return { tools: [] } // Return empty list if server is not ready
       }
 
@@ -687,7 +700,7 @@ class MemoryServer {
         if (error instanceof McpError) {
           throw error // Re-throw McpErrors directly
         }
-        console.error(`Error executing tool ${name}:`, error)
+        logger.error(`Error executing tool ${name}:`, error as Error)
         // Throw a generic internal error for unexpected issues
         throw new McpError(
           ErrorCode.InternalError,

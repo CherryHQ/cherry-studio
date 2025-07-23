@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { sortBy } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 
 import { useProviders } from './useProvider'
+
+const logger = loggerService.withContext('usePinnedModels')
 
 export const usePinnedModels = () => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
@@ -30,7 +33,7 @@ export const usePinnedModels = () => {
     }
 
     loadPinnedModels().catch((error) => {
-      console.error('Failed to load pinned models', error)
+      logger.error('Failed to load pinned models', error)
       setPinnedModels([])
       setLoading(false)
     })
@@ -53,7 +56,7 @@ export const usePinnedModels = () => {
           : [...pinnedModels, modelId]
         await updatePinnedModels(newPinnedModels)
       } catch (error) {
-        console.error('Failed to toggle pinned model', error)
+        logger.error('Failed to toggle pinned model', error as Error)
       }
     },
     [pinnedModels, updatePinnedModels]

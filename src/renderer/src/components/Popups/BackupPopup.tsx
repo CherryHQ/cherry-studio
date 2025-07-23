@@ -1,12 +1,14 @@
+import { loggerService } from '@logger'
 import { backup } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
-import Logger from 'electron-log'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('BackupPopup')
 
 interface Props {
   resolve: (data: any) => void
@@ -35,7 +37,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    Logger.log('[BackupManager] ', skipBackupFile)
+    logger.debug(`skipBackupFile: ${skipBackupFile}`)
     await backup(skipBackupFile)
     setOpen(false)
   }

@@ -128,7 +128,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSymbolRef.current = ctx.symbol
 
     return newList
-  }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
+  }, [ctx.isVisible, ctx.list, ctx.symbol, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -611,7 +611,7 @@ const QuickPanelContainer = styled.div<{
   left: 0;
   right: 0;
   width: 100%;
-  padding: 0 30px 0 30px;
+  padding: 0 35px 0 35px;
   transform: translateY(-100%);
   transform-origin: bottom;
   transition: max-height 0.2s ease;

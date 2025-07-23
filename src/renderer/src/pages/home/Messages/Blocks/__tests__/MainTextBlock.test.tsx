@@ -78,11 +78,14 @@ vi.mock('@renderer/services/ModelService', () => ({
 // Mock Markdown component
 vi.mock('@renderer/pages/home/Markdown/Markdown', () => ({
   __esModule: true,
-  default: ({ block }: any) => (
-    <div data-testid="mock-markdown" data-content={block.content}>
-      Markdown: {block.content}
-    </div>
-  )
+  default: ({ block, postProcess }: any) => {
+    const content = postProcess ? postProcess(block.content) : block.content
+    return (
+      <div data-testid="mock-markdown" data-content={content}>
+        Markdown: {content}
+      </div>
+    )
+  }
 }))
 
 describe('MainTextBlock', () => {

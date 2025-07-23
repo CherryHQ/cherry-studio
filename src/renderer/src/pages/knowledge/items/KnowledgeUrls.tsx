@@ -6,7 +6,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Dropdown, message, Tooltip } from 'antd'
+import { Button, Dropdown, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import { FC } from 'react'
@@ -72,7 +72,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            message.success(t('knowledge.url_added'))
+            window.message.success(t('knowledge.url_added'))
           }
         } catch (e) {
           // Skip invalid URLs silently
@@ -143,7 +143,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         label: t('common.copy'),
                         onClick: () => {
                           navigator.clipboard.writeText(item.content as string)
-                          message.success(t('message.copied'))
+                          window.message.success(t('message.copied'))
                         }
                       }
                     ]

@@ -1,14 +1,16 @@
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
+import { loggerService } from '@logger'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
-import Logger from 'electron-log'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
 import { OdLoader, OdType } from './odLoader'
+
+const logger = loggerService.withContext('KnowledgeLoader')
 
 // 文件扩展名到加载器类型的映射
 const FILE_LOADER_MAP: Record<string, string> = {
@@ -75,7 +77,7 @@ export async function addFileLoader(
   // JSON类型处理
   let jsonObject = {}
   let jsonParsed = true
-  Logger.info(`[KnowledgeBase] processing file ${file.path} as ${loaderType} type`)
+  logger.info(`[KnowledgeBase] processing file ${file.path} as ${loaderType} type`)
   switch (loaderType) {
     case 'common':
       // 内置类型处理
@@ -127,7 +129,10 @@ export async function addFileLoader(
         jsonObject = JSON.parse(await readTextFileWithAutoEncoding(file.path))
       } catch (error) {
         jsonParsed = false
-        Logger.warn('[KnowledgeBase] failed parsing json file, falling back to text processing:', file.path, error)
+        logger.warn(
+          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${file.path}`,
+          error as Error
+        )
       }
 
       if (jsonParsed) {

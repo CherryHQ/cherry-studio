@@ -1,6 +1,8 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('FallbackFavicon')
 
 // 记录失败的URL的缓存键前缀
 const FAILED_FAVICON_CACHE_PREFIX = 'failed_favicon_'
@@ -121,7 +123,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
         setFaviconState({ status: 'loaded', src: url })
       })
       .catch((error) => {
-        Logger.log('All favicon requests failed:', error)
+        logger.error('All favicon requests failed:', error)
         setFaviconState({ status: 'loaded', src: faviconUrls[0] })
       })
 

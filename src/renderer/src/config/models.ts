@@ -184,7 +184,9 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-thinking-preview',
+  `gemma3(?:-[\\w-]+)`
 ]
 
 const visionExcludedModels = [
@@ -239,7 +241,8 @@ export const FUNCTION_CALLING_MODELS = [
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-k2(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -247,7 +250,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'imagen(?:-[\\w-]+)?',
   'o1-mini',
   'o1-preview',
-  'AIDC-AI/Marco-o1'
+  'AIDC-AI/Marco-o1',
+  'gemini-1(?:\\.[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -260,7 +264,11 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   'i'
 )
 
-export function isFunctionCallingModel(model: Model): boolean {
+export function isFunctionCallingModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
   if (model.type?.includes('function_calling')) {
     return true
   }
@@ -2235,7 +2243,44 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  lanyun: [],
+  lanyun: [
+    {
+      id: '/maas/deepseek-ai/DeepSeek-R1-0528',
+      name: 'deepseek-ai/DeepSeek-R1',
+      provider: 'lanyun',
+      group: 'deepseek-ai'
+    },
+    {
+      id: '/maas/deepseek-ai/DeepSeek-V3-0324',
+      name: 'deepseek-ai/DeepSeek-V3',
+      provider: 'lanyun',
+      group: 'deepseek-ai'
+    },
+    {
+      id: '/maas/qwen/Qwen2.5-72B-Instruct',
+      provider: 'lanyun',
+      name: 'Qwen2.5-72B-Instruct',
+      group: 'Qwen'
+    },
+    {
+      id: '/maas/qwen/Qwen3-235B-A22B',
+      name: 'Qwen/Qwen3-235B',
+      provider: 'lanyun',
+      group: 'Qwen'
+    },
+    {
+      id: '/maas/minimax/MiniMax-M1-80k',
+      name: 'MiniMax-M1-80k',
+      provider: 'lanyun',
+      group: 'MiniMax'
+    },
+    {
+      id: '/maas/google/Gemma3-27B',
+      name: 'Gemma3-27B',
+      provider: 'lanyun',
+      group: 'google'
+    }
+  ],
   'new-api': []
 }
 
@@ -2468,7 +2513,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
-    isSupportedThinkingTokenDoubaoModel(model)
+    isSupportedThinkingTokenDoubaoModel(model) ||
+    isSupportedThinkingTokenHunyuanModel(model)
   )
 }
 
@@ -2553,6 +2599,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
+  if (baseName.includes('coder')) {
+    return false
+  }
+
   return (
     baseName.startsWith('qwen3') ||
     [
@@ -2560,10 +2610,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-plus-latest',
       'qwen-plus-0428',
       'qwen-plus-2025-04-28',
+      'qwen-plus-0714',
+      'qwen-plus-2025-07-14',
       'qwen-turbo',
       'qwen-turbo-latest',
       'qwen-turbo-0428',
-      'qwen-turbo-2025-04-28'
+      'qwen-turbo-2025-04-28',
+      'qwen-turbo-0715',
+      'qwen-turbo-2025-07-15'
     ].includes(baseName)
   )
 }
@@ -2590,12 +2644,27 @@ export function isClaudeReasoningModel(model?: Model): boolean {
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
+export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('hunyuan-a13b')
+}
+
+export const isHunyuanReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenHunyuanModel(model) || model.id.toLowerCase().includes('hunyuan-t1')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
-  if (isEmbeddingModel(model)) {
+  if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -2615,8 +2684,10 @@ export function isReasoningModel(model?: Model): boolean {
     isGeminiReasoningModel(model) ||
     isQwenReasoningModel(model) ||
     isGrokReasoningModel(model) ||
-    model.id.includes('glm-z1') ||
-    model.id.includes('magistral')
+    isHunyuanReasoningModel(model) ||
+    model.id.toLowerCase().includes('glm-z1') ||
+    model.id.toLowerCase().includes('magistral') ||
+    model.id.toLowerCase().includes('minimax-m1')
   ) {
     return true
   }
@@ -2701,7 +2772,7 @@ export function isWebSearchModel(model: Model): boolean {
     }
   }
 
-  if (provider.id === 'gemini' || provider?.type === 'gemini') {
+  if (provider.id === 'gemini' || provider?.type === 'gemini' || provider.type === 'vertexai') {
     return GEMINI_SEARCH_REGEX.test(baseName)
   }
 

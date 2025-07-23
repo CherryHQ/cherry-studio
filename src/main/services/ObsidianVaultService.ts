@@ -1,8 +1,9 @@
+import { loggerService } from '@logger'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import fs from 'fs'
 import path from 'path'
 
+const logger = loggerService.withContext('ObsidianVaultService')
 interface VaultInfo {
   path: string
   name: string
@@ -56,7 +57,7 @@ class ObsidianVaultService {
         name: vault.name || path.basename(vault.path)
       }))
     } catch (error) {
-      console.error('获取Obsidian Vault失败:', error)
+      logger.error('Failed to get Obsidian Vault:', error as Error)
       return []
     }
   }
@@ -70,20 +71,20 @@ class ObsidianVaultService {
     try {
       // 检查vault路径是否存在
       if (!fs.existsSync(vaultPath)) {
-        console.error('Vault路径不存在:', vaultPath)
+        logger.error(`Vault path does not exist: ${vaultPath}`)
         return []
       }
 
       // 检查是否是目录
       const stats = fs.statSync(vaultPath)
       if (!stats.isDirectory()) {
-        console.error('Vault路径不是一个目录:', vaultPath)
+        logger.error(`Vault path is not a directory: ${vaultPath}`)
         return []
       }
 
       this.traverseDirectory(vaultPath, '', results)
     } catch (error) {
-      console.error('读取Vault文件夹结构失败:', error)
+      logger.error('Failed to read Vault folder structure:', error as Error)
     }
 
     return results
@@ -105,7 +106,7 @@ class ObsidianVaultService {
 
       // 确保目录存在且可访问
       if (!fs.existsSync(dirPath)) {
-        console.error('目录不存在:', dirPath)
+        logger.error(`Directory does not exist: ${dirPath}`)
         return
       }
 
@@ -113,7 +114,7 @@ class ObsidianVaultService {
       try {
         items = fs.readdirSync(dirPath, { withFileTypes: true })
       } catch (err) {
-        console.error(`无法读取目录 ${dirPath}:`, err)
+        logger.error(`Failed to read directory ${dirPath}:`, err as Error)
         return
       }
 
@@ -138,7 +139,7 @@ class ObsidianVaultService {
         }
       }
     } catch (error) {
-      console.error(`遍历目录出错 ${dirPath}:`, error)
+      logger.error(`Failed to traverse directory ${dirPath}:`, error as Error)
     }
   }
 
@@ -152,14 +153,14 @@ class ObsidianVaultService {
       const vault = vaults.find((v) => v.name === vaultName)
 
       if (!vault) {
-        console.error('未找到指定名称的Vault:', vaultName)
+        logger.error(`Vault not found: ${vaultName}`)
         return []
       }
 
-      Logger.log('获取Vault文件结构:', vault.name, vault.path)
+      logger.debug(`Get Vault file structure: ${vault.name} ${vault.path}`)
       return this.getVaultStructure(vault.path)
     } catch (error) {
-      console.error('获取Vault文件结构时发生错误:', error)
+      logger.error('Failed to get Vault file structure:', error as Error)
       return []
     }
   }

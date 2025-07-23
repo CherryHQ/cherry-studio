@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -35,6 +36,8 @@ interface Props {
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
 }
 
+const logger = loggerService.withContext('MessageItem')
+
 const MessageItem: FC<Props> = ({
   message,
   topic,
@@ -70,7 +73,7 @@ const MessageItem: FC<Props> = ({
         editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
-        console.error('Failed to save message blocks:', error)
+        logger.error('Failed to save message blocks:', error as Error)
       }
     },
     [message, editMessageBlocks, stopEditing, editMessage]
@@ -85,7 +88,7 @@ const MessageItem: FC<Props> = ({
         await resendUserMessageWithEdit(message, blocks, assistantWithTopicPrompt)
         stopEditing()
       } catch (error) {
-        console.error('Failed to resend message:', error)
+        logger.error('Failed to resend message:', error as Error)
       }
     },
     [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]

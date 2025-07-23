@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
@@ -17,6 +18,8 @@ interface Props {
   style?: React.CSSProperties
   isLoading?: boolean
 }
+
+const logger = loggerService.withContext('TranslateButton')
 
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
@@ -59,7 +62,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       const translatedText = await fetchTranslate({ content: text, assistant })
       onTranslated(translatedText)
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

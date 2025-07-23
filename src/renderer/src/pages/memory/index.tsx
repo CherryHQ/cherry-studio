@@ -11,6 +11,7 @@ import {
   UserDeleteOutlined,
   UserOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -47,6 +48,8 @@ import styled from 'styled-components'
 
 import { SettingDivider, SettingRow, SettingRowTitle, SettingTitle } from '../settings'
 import MemoriesSettingsModal from './settings-modal'
+
+const logger = loggerService.withContext('MemoryPage')
 
 dayjs.extend(relativeTime)
 
@@ -327,7 +330,7 @@ const MemoriesPage = () => {
       const users = usersList.map((user) => user.userId)
       setUniqueUsers(users)
     } catch (error) {
-      console.error('Failed to load users list:', error)
+      logger.error('Failed to load users list:', error as Error)
     }
   }, [memoryService])
 
@@ -335,7 +338,7 @@ const MemoriesPage = () => {
   const loadMemories = useCallback(
     async (userId?: string) => {
       const targetUser = userId || currentUser
-      console.log('Loading all memories for user:', targetUser)
+      logger.debug(`Loading all memories for user: ${targetUser}`)
       setLoading(true)
       try {
         // First, ensure the memory service is using the correct user
@@ -346,10 +349,10 @@ const MemoriesPage = () => {
 
         // Get all memories for current user context (load up to 10000)
         const result = await memoryService.list({ limit: 10000, offset: 0 })
-        console.log('Loaded memories for user:', targetUser, 'count:', result.results?.length || 0)
+        logger.debug(`Loaded memories for user: ${targetUser} count: ${result.results?.length || 0}`)
         setAllMemories(result.results || [])
       } catch (error) {
-        console.error('Failed to load memories:', error)
+        logger.error('Failed to load memories:', error as Error)
         window.message.error(t('memory.load_failed'))
       } finally {
         setLoading(false)
@@ -360,7 +363,7 @@ const MemoriesPage = () => {
 
   // Sync memoryService with Redux store on mount and when currentUser changes
   useEffect(() => {
-    console.log('useEffect triggered for currentUser:', currentUser)
+    logger.debug(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset to first page when user changes
     setCurrentPage(1)
     loadMemories(currentUser)
@@ -415,7 +418,7 @@ const MemoriesPage = () => {
       setCurrentPage(1)
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to add memory:', error)
+      logger.error('Failed to add memory:', error as Error)
       window.message.error(t('memory.add_failed'))
     }
   }
@@ -427,7 +430,7 @@ const MemoriesPage = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to delete memory:', error)
+      logger.error('Failed to delete memory:', error as Error)
       window.message.error(t('memory.delete_failed'))
     }
   }
@@ -444,13 +447,13 @@ const MemoriesPage = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to update memory:', error)
+      logger.error('Failed to update memory:', error as Error)
       window.message.error(t('memory.update_failed'))
     }
   }
 
   const handleUserSwitch = async (userId: string) => {
-    console.log('Switching to user:', userId)
+    logger.debug(`Switching to user: ${userId}`)
 
     // First update Redux state
     dispatch(setCurrentUserId(userId))
@@ -469,7 +472,7 @@ const MemoriesPage = () => {
         t('memory.user_switched', { user: userId === DEFAULT_USER_ID ? t('memory.default_user') : userId })
       )
     } catch (error) {
-      console.error('Failed to switch user:', error)
+      logger.error('Failed to switch user:', error as Error)
       window.message.error(t('memory.user_switch_failed'))
     }
   }
@@ -489,7 +492,7 @@ const MemoriesPage = () => {
       window.message.success(t('memory.user_created', { user: userId }))
       setAddUserModalVisible(false)
     } catch (error) {
-      console.error('Failed to add user:', error)
+      logger.error('Failed to add user:', error as Error)
       window.message.error(t('memory.add_user_failed'))
     }
   }
@@ -521,7 +524,7 @@ const MemoriesPage = () => {
           // Reload memories to show the empty state
           await loadMemories(currentUser)
         } catch (error) {
-          console.error('Failed to reset memories:', error)
+          logger.error('Failed to reset memories:', error as Error)
           window.message.error(t('memory.reset_memories_failed'))
         }
       }
@@ -539,8 +542,6 @@ const MemoriesPage = () => {
       title: t('memory.delete_user_confirm_title'),
       content: t('memory.delete_user_confirm_content', { user: userId }),
       icon: <ExclamationCircleOutlined />,
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
       okType: 'danger',
       onOk: async () => {
         try {
@@ -557,7 +558,6 @@ const MemoriesPage = () => {
             await loadMemories(currentUser)
           }
         } catch (error) {
-          console.error('Failed to delete user:', error)
           window.message.error(t('memory.delete_user_failed'))
         }
       }

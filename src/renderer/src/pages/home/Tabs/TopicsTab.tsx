@@ -5,6 +5,7 @@ import {
   EditOutlined,
   FolderOutlined,
   MenuOutlined,
+  PlusOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
   UploadOutlined
@@ -22,9 +23,10 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
-import { removeSpecialCharactersForFileName } from '@renderer/utils'
+import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -34,29 +36,33 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
+
+// const logger = loggerService.withContext('TopicsTab')
 
 interface Props {
   assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  position: 'left' | 'right'
 }
 
-const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
+const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
+  const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -64,27 +70,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
-  const pendingTopics = useMemo(() => {
-    return new Set<string>()
-  }, [])
-  const isPending = useCallback(
-    (topicId: string) => {
-      const hasPending = hasTopicPendingRequests(topicId)
-      if (topicId === activeTopic.id && !hasPending) {
-        pendingTopics.delete(topicId)
-        return false
-      }
-      if (pendingTopics.has(topicId)) {
-        return true
-      }
-      if (hasPending) {
-        pendingTopics.add(topicId)
-        return true
-      }
-      return false
-    },
-    [activeTopic.id, pendingTopics]
-  )
+  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
+  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
+  const dispatch = useDispatch()
+
+  useEffect(() => {
+    dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
+  }, [activeTopic.id, dispatch, topicFulfilledQuery])
 
   const isRenaming = useCallback(
     (topicId: string) => {
@@ -443,13 +435,21 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     return assistant.topics
   }, [assistant.topics, pinTopicsToTop])
 
+  const singlealone = topicPosition === 'right' && position === 'right'
+
   return (
     <DraggableList
       className="topics-tab"
       list={sortedTopics}
       onUpdate={updateTopics}
       style={{ padding: '13px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}>
+      itemContainerStyle={{ paddingBottom: '8px' }}
+      header={
+        <AddTopicButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+          <PlusOutlined />
+          {t('chat.add.topic.title')}
+        </AddTopicButton>
+      }>
       {(topic) => {
         const isActive = topic.id === activeTopic?.id
         const topicName = topic.name.replace('`', '')
@@ -466,10 +466,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
-              className={isActive ? 'active' : ''}
+              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
               onClick={() => onSwitchTopic(topic)}
               style={{ borderRadius }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
+              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
                 <TopicName className={getTopicNameClassName()} title={topicName}>
                   {topicName}
@@ -548,11 +549,22 @@ const TopicListItem = styled.div`
   }
   &.active {
     background-color: var(--color-list-item);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     .menu {
       opacity: 1;
       &:hover {
         color: var(--color-text-2);
       }
+    }
+  }
+  &.singlealone {
+    border-radius: 0 !important;
+    &:hover {
+      background-color: var(--color-background-soft);
+    }
+    &.active {
+      border-left: 2px solid var(--color-primary);
+      box-shadow: none;
     }
   }
 `
@@ -623,7 +635,45 @@ const PendingIndicator = styled.div.attrs({
   left: 3px;
   top: 15px;
   border-radius: 50%;
-  background-color: var(--color-primary);
+  background-color: var(--color-status-warning);
+`
+
+const FulfilledIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-status-success);
+`
+
+const AddTopicButton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 10px);
+  padding: 7px 12px;
+  margin-bottom: 8px;
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 13px;
+  border-radius: var(--list-item-border-radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: -5px;
+
+  &:hover {
+    background-color: var(--color-list-item-hover);
+    color: var(--color-text-1);
+  }
+
+  .anticon {
+    font-size: 12px;
+  }
 `
 
 const TopicPromptText = styled.div`

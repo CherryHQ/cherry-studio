@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import Logger from '@renderer/config/logger'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { Message } from '@renderer/types/newMessage'
 import {
@@ -15,6 +15,8 @@ import { Check, CircleHelp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('SaveToKnowledgePopup')
 
 const { Text } = Typography
 
@@ -201,7 +203,7 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
       setOpen(false)
       resolve({ success: true, savedCount })
     } catch (error) {
-      Logger.error('[SaveToKnowledgePopup] save failed:', error)
+      logger.error('save failed:', error as Error)
       window.message.error(t('chat.save.knowledge.error.save_failed'))
       setLoading(false)
     }

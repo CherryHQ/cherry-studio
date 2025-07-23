@@ -229,6 +229,7 @@ const OpButton = styled.div<{ $isWindowFocus: boolean; $isHovered?: boolean }>`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: none;
 
   .btn-icon {
     color: var(--color-text-secondary);
