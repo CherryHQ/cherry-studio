@@ -635,6 +635,7 @@ export interface MCPServer {
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
+  shouldConfig?: boolean
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
   disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server

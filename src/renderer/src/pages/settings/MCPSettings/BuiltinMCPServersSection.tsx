@@ -57,7 +57,7 @@ const BuiltinMCPServersSection: FC = () => {
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
                   {t(`settings.mcp.types.${server.type || 'stdio'}`)}
                 </Tag>
-                {server.env && Object.keys(server.env).length > 0 && (
+                {server?.shouldConfig && (
                   <Tag color="warning" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
                     {t('settings.mcp.requiresConfig')}
                   </Tag>

@@ -70,12 +70,13 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
+// FIXME: description no i18n
 export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
     description: '自动安装 MCP 服务（测试版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
-    type: 'stdio',
+    type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
     isActive: false,
@@ -91,6 +92,7 @@ export const builtinMCPServers: MCPServer[] = [
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
     },
+    shouldConfig: true,
     provider: 'CherryAI'
   },
   {
@@ -111,6 +113,7 @@ export const builtinMCPServers: MCPServer[] = [
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
     },
+    shouldConfig: true,
     provider: 'CherryAI'
   },
   {
@@ -125,8 +128,9 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器',
+    description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器。需要配置允许访问的目录',
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
+    shouldConfig: true,
     isActive: false,
     provider: 'CherryAI'
   },
@@ -134,11 +138,12 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/dify-knowledge',
     type: 'inMemory',
-    description: 'Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互',
+    description: 'Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key',
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
+    shouldConfig: true,
     provider: 'CherryAI'
   },
   {
