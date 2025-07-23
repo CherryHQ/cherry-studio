@@ -116,6 +116,9 @@ vi.mock('@renderer/config/prompts', () => ({
  * 只实现必需的抽象方法，保持最小化以便专注于测试基类功能
  */
 class TestApiClient extends BaseApiClient {
+  // 显式声明继承的公共属性以便 TypeScript 正确识别
+  public useSystemPromptForTools: boolean = true
+
   // 核心API方法 - 在测试中不需要实现
   async createCompletions(): Promise<SdkRawOutput> {
     throw new Error('Not implemented in test')
@@ -764,14 +767,14 @@ describe('BaseApiClient', () => {
       }
 
       vi.mocked(findFileBlocks).mockReturnValue([fileBlock as FileMessageBlock])
-      
+
       // 创建一个模拟 fs 错误对象
-      const fsError = new Error('ENOENT: no such file or directory, open \'file-1.txt\'') as NodeJS.ErrnoException
+      const fsError = new Error("ENOENT: no such file or directory, open 'file-1.txt'") as NodeJS.ErrnoException
       fsError.code = 'ENOENT'
       fsError.errno = -2
       fsError.syscall = 'open'
       fsError.path = 'file-1.txt'
-      
+
       vi.mocked(mockApi.file.read).mockRejectedValue(fsError)
 
       // 当前源码没有错误处理，应该抛出错误
@@ -779,7 +782,7 @@ describe('BaseApiClient', () => {
         (client as TestApiClient & { extractFileContent: (msg: Message) => Promise<string> }).extractFileContent(
           message
         )
-      ).rejects.toThrow('ENOENT: no such file or directory, open \'file-1.txt\'')
+      ).rejects.toThrow("ENOENT: no such file or directory, open 'file-1.txt'")
     })
   })
 
