@@ -2664,7 +2664,7 @@ export function isReasoningModel(model?: Model): boolean {
     return false
   }
 
-  if (isEmbeddingModel(model)) {
+  if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -2685,8 +2685,9 @@ export function isReasoningModel(model?: Model): boolean {
     isQwenReasoningModel(model) ||
     isGrokReasoningModel(model) ||
     isHunyuanReasoningModel(model) ||
-    model.id.includes('glm-z1') ||
-    model.id.includes('magistral')
+    model.id.toLowerCase().includes('glm-z1') ||
+    model.id.toLowerCase().includes('magistral') ||
+    model.id.toLowerCase().includes('minimax-m1')
   ) {
     return true
   }
