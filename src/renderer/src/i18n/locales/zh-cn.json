@@ -2386,6 +2386,7 @@
         "key": "按键",
         "mini_window": "快捷助手",
         "new_topic": "新建话题",
+        "pin_window": "置顶窗口",
         "press_shortcut": "按下快捷键",
         "reset_defaults": "重置默认快捷键",
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",

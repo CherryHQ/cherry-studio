@@ -10,6 +10,7 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import PinButton from '@renderer/pages/home/components/PinButton'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
@@ -101,6 +102,7 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
+        <PinButton />
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
           <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
             <CircleHelp size={20} className="icon" />

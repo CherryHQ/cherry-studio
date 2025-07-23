@@ -2387,6 +2387,7 @@
         "mini_window": "クイックアシスタント",
         "new_topic": "新しいトピック",
         "press_shortcut": "ショートカットを押す",
+        "pin_window": "最前面に表示されるウィンドウ",
         "reset_defaults": "デフォルトのショートカットをリセット",
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",

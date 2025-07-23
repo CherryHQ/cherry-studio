@@ -2387,6 +2387,7 @@
         "mini_window": "Quick Assistant",
         "new_topic": "New Topic",
         "press_shortcut": "Press Shortcut",
+        "pin_window": "Pin Window",
         "reset_defaults": "Reset Defaults",
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",

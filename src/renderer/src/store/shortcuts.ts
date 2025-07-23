@@ -31,6 +31,13 @@ const initialState: ShortcutsState = {
       system: true
     },
     {
+      key: 'pin_window',
+      shortcut: ['CommandOrControl', 'P'],
+      editable: true,
+      enabled: true,
+      system: true
+    },
+    {
       //enable/disable selection assistant
       key: 'selection_assistant_toggle',
       shortcut: [],
