@@ -725,7 +725,6 @@ async function renderSprigTemplate(apiUrl: string, token: string, template: stri
     body: JSON.stringify({ template })
   })
 
-
   const data = await response.json()
   if (data.code !== 0) {
     throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
