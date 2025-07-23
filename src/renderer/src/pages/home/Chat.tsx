@@ -166,7 +166,8 @@ export const useChatMaxWidth = () => {
   const showRightTopics = showTopics && topicPosition === 'right'
   const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
   const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-  return `calc(100vw - ${isLeftNavbar ? 'var(--sidebar-width)' : '0'} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
+  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
+  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
 }
 
 const Container = styled.div`
