@@ -116,9 +116,6 @@ vi.mock('@renderer/config/prompts', () => ({
  * 只实现必需的抽象方法，保持最小化以便专注于测试基类功能
  */
 class TestApiClient extends BaseApiClient {
-  // 显式声明继承的公共属性以便 TypeScript 正确识别
-  public useSystemPromptForTools: boolean = true
-
   // 核心API方法 - 在测试中不需要实现
   async createCompletions(): Promise<SdkRawOutput> {
     throw new Error('Not implemented in test')
@@ -363,7 +360,19 @@ describe('BaseApiClient', () => {
   describe('constructor', () => {
     it('should initialize with provider settings', () => {
       expect(client.provider).toBe(mockProvider)
-      expect(client.useSystemPromptForTools).toBe(true)
+    })
+  })
+
+  describe('getClientCompatibilityType', () => {
+    it('should return array with class name', () => {
+      const result = client.getClientCompatibilityType()
+      expect(result).toEqual(['TestApiClient'])
+    })
+
+    it('should return array with class name when model is provided', () => {
+      const mockModel = createMockModel()
+      const result = client.getClientCompatibilityType(mockModel)
+      expect(result).toEqual(['TestApiClient'])
     })
   })
 
@@ -794,10 +803,11 @@ describe('BaseApiClient', () => {
       expect(result.tools).toEqual([])
     })
 
-    it('should use system prompt when tools exceed threshold', () => {
+    it('should return empty tools when tools exceed any threshold', () => {
       vi.mocked(models.isFunctionCallingModel).mockReturnValue(true)
 
-      const mcpTools: MCPTool[] = Array(129)
+      // 测试超大数量的工具（比如200个）
+      const mcpTools: MCPTool[] = Array(200)
         .fill(null)
         .map((_, i) => ({
           id: `tool-${i}`,
@@ -818,8 +828,9 @@ describe('BaseApiClient', () => {
         enableToolUse: true
       })
 
-      expect(result.tools).toEqual([])
-      expect(client.useSystemPromptForTools).toBe(true)
+      // 根据最新代码，只要模型支持函数调用且启用了工具，就会转换所有工具
+      // 不再有阈值限制
+      expect(result.tools).toHaveLength(200)
     })
 
     it('should convert tools when model supports function calling', () => {
@@ -859,7 +870,6 @@ describe('BaseApiClient', () => {
       })
 
       expect(result.tools).toHaveLength(2)
-      expect(client.useSystemPromptForTools).toBe(false)
     })
 
     it('should not convert tools when model does not support function calling', () => {
