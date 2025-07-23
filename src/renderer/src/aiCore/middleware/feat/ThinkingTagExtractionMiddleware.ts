@@ -84,7 +84,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
-                      text: extractionResult.tagContentExtracted,
+                      text: extractionResult.tagContentExtracted.trim(),
                       thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                     }
                     controller.enqueue(thinkingCompleteChunk)
@@ -104,7 +104,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
 
                       if (extractionResult.content?.trim()) {
-                        accumulatedThinkingContent += extractionResult.content
+                        accumulatedThinkingContent += extractionResult.content.trim()
                         const thinkingDeltaChunk: ThinkingDeltaChunk = {
                           type: ChunkType.THINKING_DELTA,
                           text: accumulatedThinkingContent,

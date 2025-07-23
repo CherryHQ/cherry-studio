@@ -123,6 +123,8 @@ export default class AiProvider {
         logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
         logger.silly('FinalChunkConsumerMiddleware is removed')
+        builder.insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
+        logger.silly('ThinkingTagExtractionMiddleware is inserted')
       }
     }
 
