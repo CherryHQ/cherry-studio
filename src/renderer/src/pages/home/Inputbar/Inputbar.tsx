@@ -21,6 +21,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import { useTopic } from '@renderer/hooks/useTopic'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -112,6 +113,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+  const _topic = useTopic(assistant, topic.id)
 
   const isVisionSupported = useMemo(
     () =>
@@ -234,9 +236,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.files = [...(baseUserMessage.files || []), assistant.attachedDocument]
       }
 
-      if (!isEmpty(topic.attachedPages)) {
+      if (!isEmpty(_topic?.attachedPages)) {
         const pageContent =
-          topic.attachedPages?.reduce((acc, page) => acc + `\r\nIndex${page.index}: ${page.content}`, '') || ''
+          _topic?.attachedPages?.reduce((acc, page) => acc + `\r\nIndex${page.index}: ${page.content}`, '') || ''
         const pagePrompt = REFERENCE_DOCUMENT_PROMPT.replace('{document_content}', pageContent)
 
         assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${pagePrompt}` : pagePrompt
@@ -268,7 +270,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       logger.warn('Failed to send message:', error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, _topic, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
