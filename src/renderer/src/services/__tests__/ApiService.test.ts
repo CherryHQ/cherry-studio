@@ -1047,7 +1047,8 @@ const mockOpenaiApiClient = {
   provider: {} as Provider,
   useSystemPromptForTools: true,
   getBaseURL: vi.fn(() => 'https://api.openai.com'),
-  getApiKey: vi.fn(() => 'mock-api-key')
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['OpenAIAPIClient'])
 } as unknown as OpenAIAPIClient
 
 // 创建 mock 的 GeminiAPIClient
@@ -1165,7 +1166,8 @@ const mockGeminiApiClient = {
   provider: {} as Provider,
   useSystemPromptForTools: true,
   getBaseURL: vi.fn(() => 'https://api.gemini.com'),
-  getApiKey: vi.fn(() => 'mock-api-key')
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['GeminiAPIClient'])
 } as unknown as GeminiAPIClient
 
 const mockGeminiThinkingApiClient = cloneDeep(mockGeminiApiClient)
