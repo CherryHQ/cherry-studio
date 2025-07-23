@@ -64,7 +64,8 @@ vi.mock('@renderer/config/models', () => ({
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro'
     }
-  }
+  },
+  isAnthropicModel: vi.fn(() => false)
 }))
 
 // Mock uuid
