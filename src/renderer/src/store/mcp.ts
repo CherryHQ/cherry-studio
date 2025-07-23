@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
+import i18n from '@renderer/i18n'
 import type { MCPConfig, MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
@@ -70,12 +71,13 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
-// FIXME: description no i18n
+const prefix = 'settings.mcp.builtinServersDescriptions.'
+
 export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
-    description: '自动安装 MCP 服务（测试版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
+    getBuiltinDescription: () => i18n.t(prefix + 'mcp_auto_install'),
     type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -85,9 +87,8 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/memory',
+    getBuiltinDescription: () => i18n.t(prefix + 'memory'),
     type: 'inMemory',
-    description:
-      '基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     isActive: true,
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
@@ -98,8 +99,8 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/sequentialthinking',
+    getBuiltinDescription: () => i18n.t(prefix + 'sequentialthinking'),
     type: 'inMemory',
-    description: '一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具',
     isActive: true,
     provider: 'CherryAI'
   },
@@ -107,8 +108,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/brave-search',
     type: 'inMemory',
-    description:
-      '一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量',
+    getBuiltinDescription: () => i18n.t(prefix + 'brave_search'),
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
@@ -120,7 +120,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/fetch',
     type: 'inMemory',
-    description: '用于获取 URL 网页内容的 MCP 服务器',
+    getBuiltinDescription: () => i18n.t(prefix + 'fetch'),
     isActive: true,
     provider: 'CherryAI'
   },
@@ -128,7 +128,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器。需要配置允许访问的目录',
+    getBuiltinDescription: () => i18n.t(prefix + 'filesystem'),
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
@@ -138,7 +138,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/dify-knowledge',
     type: 'inMemory',
-    description: 'Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key',
+    getBuiltinDescription: () => i18n.t(prefix + 'dify-knowledge'),
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
@@ -150,7 +150,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/python',
     type: 'inMemory',
-    description: '在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包',
+    getBuiltinDescription: () => i18n.t(prefix + 'python'),
     isActive: false,
     provider: 'CherryAI'
   }

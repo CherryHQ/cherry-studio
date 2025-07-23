@@ -636,6 +636,7 @@ export interface MCPServer {
   args?: string[]
   env?: Record<string, string>
   shouldConfig?: boolean
+  getBuiltinDescription?: () => string
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
   disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server

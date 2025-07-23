@@ -43,13 +43,17 @@ const BuiltinMCPServersSection: FC = () => {
                 </StatusIndicator>
               </ServerHeader>
               <Popover
-                content={<PopoverContent>{server.description}</PopoverContent>}
+                content={
+                  <PopoverContent>
+                    {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'}
+                  </PopoverContent>
+                }
                 title={server.name}
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
                 <ServerDescription>
-                  {server.description}
+                  {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'}
                   <MoreIndicator>...</MoreIndicator>
                 </ServerDescription>
               </Popover>
