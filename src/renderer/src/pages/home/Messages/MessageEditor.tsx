@@ -287,7 +287,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                 // 阻止事件冒泡，避免触发全局的 Electron contextMenu
                 e.stopPropagation()
               }}
-              autoSize={{ minRows: 3, maxRows: 15 }}
+              autoSize={{ minRows: 1, maxRows: 15 }}
               style={{
                 fontSize
               }}>
