@@ -9,7 +9,7 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
-import { LRUCache } from 'lru-cache'
+import { LRUCache } from '@renderer/utils/lru-cache'
 import { useCallback } from 'react'
 
 let minAppsCache: LRUCache<string, MinAppType>
@@ -37,13 +37,11 @@ export const useMinappPopup = () => {
     return new LRUCache<string, MinAppType>({
       max: maxKeepAliveMinapps,
       disposeAfter: () => {
-        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+        dispatch(setOpenedKeepAliveMinapps(minAppsCache.values))
       },
       onInsert: () => {
-        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
-      },
-      updateAgeOnGet: true,
-      updateAgeOnHas: true
+        dispatch(setOpenedKeepAliveMinapps(minAppsCache.values))
+      }
     })
   }, [dispatch, maxKeepAliveMinapps])
 
@@ -53,11 +51,11 @@ export const useMinappPopup = () => {
   }
 
   // 缓存数量大小发生了改变
-  if (minAppsCache.max !== maxKeepAliveMinapps) {
+  if (minAppsCache.capacity !== maxKeepAliveMinapps) {
     // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
     if (minAppsCache.size <= maxKeepAliveMinapps) {
       // LRU cache 机制，后 set 的会被放到前面，所以需要反转一下
-      const oldEntries = Array.from(minAppsCache.entries()).reverse()
+      const oldEntries = minAppsCache.entries.reverse()
       minAppsCache = createLRUCache()
       oldEntries.forEach(([key, value]) => {
         minAppsCache.set(key, value)

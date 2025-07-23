@@ -200,7 +200,6 @@
     "jschardet": "^3.1.4",
     "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
-    "lru-cache": "^11.1.0",
     "lucide-react": "^0.487.0",
     "macos-release": "^3.4.0",
     "markdown-it": "^14.1.0",

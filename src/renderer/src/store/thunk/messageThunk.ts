@@ -12,6 +12,7 @@ import { type Assistant, type FileMetadata, type Model, type Topic } from '@rend
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
+import { LRUCache } from '@renderer/utils/lru-cache'
 import {
   createAssistantMessage,
   createTranslationBlock,
@@ -21,7 +22,6 @@ import { getTopicQueue } from '@renderer/utils/queue'
 import { waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
-import { LRUCache } from 'lru-cache'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
