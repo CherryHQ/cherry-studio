@@ -1602,7 +1602,8 @@ const mockAnthropicApiClient = {
   provider: {} as Provider,
   useSystemPromptForTools: true,
   getBaseURL: vi.fn(() => 'https://api.anthropic.com'),
-  getApiKey: vi.fn(() => 'mock-api-key')
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['AnthropicAPIClient'])
 } as unknown as AnthropicAPIClient
 
 const mockAnthropicApiClientStream = cloneDeep(mockAnthropicApiClient)
