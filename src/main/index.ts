@@ -15,6 +15,7 @@ import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
+import { nodeTraceService } from './services/NodeTraceService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -109,6 +110,8 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
     new TrayService()
 
+    nodeTraceService.init()
+
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
@@ -129,8 +132,8 @@ if (!app.requestSingleInstanceLock()) {
 
     if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
-        .then((name) => console.log(`Added Extension:  ${name}`))
-        .catch((err) => console.log('An error occurred: ', err))
+        .then((name) => logger.info(`Added Extension:  ${name}`))
+        .catch((err) => logger.error('An error occurred: ', err))
     }
 
     //start selection assistant service

@@ -202,8 +202,9 @@ const McpServersList: FC = () => {
                   {server.provider}
                 </Tag>
               )}
-              {server.tags &&
-                server.tags.map((tag) => (
+              {server.tags
+                ?.filter((tag): tag is string => typeof tag === 'string')
+                .map((tag) => (
                   <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
                     {tag}
                   </Tag>

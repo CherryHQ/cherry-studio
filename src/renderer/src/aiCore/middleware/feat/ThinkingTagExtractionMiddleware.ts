@@ -72,6 +72,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
+              logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 const textChunk = chunk as TextDeltaChunk
 

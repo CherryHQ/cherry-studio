@@ -125,7 +125,7 @@ export const syncTokenLanYunServers = async (
 
     // Transform Token servers to MCP servers format
     const addedServers: MCPServer[] = []
-    console.log('TokenLanYun servers:', servers)
+    logger.debug('TokenLanYun servers:', servers)
     for (const server of servers) {
       try {
         if (!server.operationalUrls?.[0]?.url) continue

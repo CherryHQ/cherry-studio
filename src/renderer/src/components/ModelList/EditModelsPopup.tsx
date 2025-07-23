@@ -4,7 +4,10 @@ import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
+import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { TopView } from '@renderer/components/TopView'
 import {
   getModelLogo,
   groupQwenModels,
@@ -18,11 +21,15 @@ import {
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
-import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
+import {
+  filterModelsByKeywords,
+  getDefaultGroupName,
+  getFancyProviderName,
+  isFreeModel,
+  runAsyncFunction
+} from '@renderer/utils'
 import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -32,9 +39,8 @@ import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState,
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { TopView } from '../../../components/TopView'
-
 const logger = loggerService.withContext('EditModelsPopup')
+
 interface ShowParams {
   provider: Provider
 }
@@ -86,34 +92,30 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const systemModels = SYSTEM_MODELS[_provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
 
-  const list = allModels.filter((model) => {
-    if (
-      filterSearchText &&
-      !model.id.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase()) &&
-      !model.name?.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase())
-    ) {
-      return false
-    }
-
-    switch (actualFilterType) {
-      case 'reasoning':
-        return isReasoningModel(model)
-      case 'vision':
-        return isVisionModel(model)
-      case 'websearch':
-        return isWebSearchModel(model)
-      case 'free':
-        return isFreeModel(model)
-      case 'embedding':
-        return isEmbeddingModel(model)
-      case 'function_calling':
-        return isFunctionCallingModel(model)
-      case 'rerank':
-        return isRerankModel(model)
-      default:
-        return true
-    }
-  })
+  const list = useMemo(
+    () =>
+      filterModelsByKeywords(filterSearchText, allModels).filter((model) => {
+        switch (actualFilterType) {
+          case 'reasoning':
+            return isReasoningModel(model)
+          case 'vision':
+            return isVisionModel(model)
+          case 'websearch':
+            return isWebSearchModel(model)
+          case 'free':
+            return isFreeModel(model)
+          case 'embedding':
+            return isEmbeddingModel(model)
+          case 'function_calling':
+            return isFunctionCallingModel(model)
+          case 'rerank':
+            return isRerankModel(model)
+          default:
+            return true
+        }
+      }),
+    [filterSearchText, actualFilterType, allModels]
+  )
 
   const modelGroups = useMemo(
     () =>
@@ -202,7 +204,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     return (
       <Flex>
         <ModelHeaderTitle>
-          {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
+          {getFancyProviderName(provider)}
           {i18n.language.startsWith('zh') ? '' : ' '}
           {t('common.models')}
         </ModelHeaderTitle>
@@ -218,7 +220,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         title={
           isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
         }
-        mouseEnterDelay={0.5}
+        mouseLeaveDelay={0}
         placement="top">
         <Button
           type="default"
@@ -245,11 +247,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               }
             }
           }}
-          disabled={list.length === 0}
+          disabled={loading || list.length === 0}
         />
       </Tooltip>
     )
-  }, [list, t, provider, onRemoveModel, models, onAddModel])
+  }, [list, t, loading, provider, onRemoveModel, models, onAddModel])
 
   const renderGroupTools = useCallback(
     (group: string) => {
@@ -262,7 +264,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               ? t(`settings.models.manage.remove_whole_group`)
               : t(`settings.models.manage.add_whole_group`)
           }
-          mouseEnterDelay={0.5}
+          mouseLeaveDelay={0}
           placement="top">
           <Button
             type="text"

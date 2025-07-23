@@ -2,11 +2,11 @@ import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useOcrProviders } from '@renderer/hooks/useOcr'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
@@ -16,7 +16,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model, OcrProvider, PreprocessProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Alert, Input, InputNumber, Modal, Select, Slider, Switch, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { ChevronDown } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -64,41 +64,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const nameInputRef = useRef<any>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-
-  const embeddingSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isEmbeddingModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m),
-            providerId: p.id,
-            modelId: m.id
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
-
-  const rerankSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isRerankModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m)
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
 
   const preprocessOrOcrSelectOptions = useMemo(() => {
     const preprocessOptions = {
@@ -292,9 +257,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                 </Tooltip>
               </div>
-              <Select
+              <ModelSelector
+                providers={providers}
+                predicate={isEmbeddingModel}
                 style={{ width: '100%' }}
-                options={embeddingSelectOptions}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
                   const model = value
@@ -313,9 +279,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                   <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
                 </Tooltip>
               </div>
-              <Select
+              <ModelSelector
+                providers={providers}
+                predicate={isRerankModel}
                 style={{ width: '100%' }}
-                options={rerankSelectOptions}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
                   const rerankModel = value

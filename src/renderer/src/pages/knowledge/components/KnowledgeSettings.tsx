@@ -1,6 +1,7 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -12,11 +13,11 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
 import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip } from 'antd'
-import { sortBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('KnowledgeSettings')
 interface ShowParams {
   base: KnowledgeBase
 }
@@ -24,8 +25,6 @@ interface ShowParams {
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
-
-const logger = loggerService.withContext('KnowledgeSettings')
 
 const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const { preprocessProviders } = usePreprocessProviders()
@@ -46,34 +45,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     resolve(null)
     return null
   }
-
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
-
-  const rerankSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
 
   const preprocessOptions = {
     label: t('settings.tool.preprocess.provider'),
@@ -96,7 +67,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const onOk = async () => {
     try {
-      console.log('newbase', newBase)
+      logger.debug('newbase', newBase)
       updateKnowledgeBase(newBase)
       setOpen(false)
       resolve(newBase)
@@ -182,9 +153,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isEmbeddingModel}
               style={{ width: '100%' }}
-              options={selectOptions}
               placeholder={t('settings.models.empty')}
               defaultValue={getModelUniqId(base.model)}
               disabled
@@ -203,10 +175,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
                 <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
               </Tooltip>
             </div>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={isRerankModel}
               style={{ width: '100%' }}
               defaultValue={getModelUniqId(base.rerankModel) || undefined}
-              options={rerankSelectOptions}
               placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const rerankModel = value

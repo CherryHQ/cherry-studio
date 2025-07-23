@@ -64,6 +64,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
         try {
           while (true) {
             const { done, value: chunk } = await reader.read()
+            logger.silly('chunk', chunk)
             if (done) {
               logger.debug(`Input stream finished.`)
               break
@@ -178,6 +179,10 @@ function accumulateUsage(accumulated: Usage, newUsage: Usage): void {
   }
   if (newUsage.thoughts_tokens !== undefined) {
     accumulated.thoughts_tokens = (accumulated.thoughts_tokens || 0) + newUsage.thoughts_tokens
+  }
+  // Handle OpenRouter specific cost fields
+  if (newUsage.cost !== undefined) {
+    accumulated.cost = (accumulated.cost || 0) + newUsage.cost
   }
 }
 

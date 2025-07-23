@@ -338,7 +338,7 @@ const MemoriesPage = () => {
   const loadMemories = useCallback(
     async (userId?: string) => {
       const targetUser = userId || currentUser
-      console.log('Loading all memories for user:', targetUser)
+      logger.debug('Loading all memories for user:', targetUser)
       setLoading(true)
       try {
         // First, ensure the memory service is using the correct user
@@ -349,7 +349,7 @@ const MemoriesPage = () => {
 
         // Get all memories for current user context (load up to 10000)
         const result = await memoryService.list({ limit: 10000, offset: 0 })
-        console.log('Loaded memories for user:', targetUser, 'count:', result.results?.length || 0)
+        logger.debug('Loaded memories for user:', targetUser, 'count:', result.results?.length || 0)
         setAllMemories(result.results || [])
       } catch (error) {
         logger.error('Failed to load memories:', error)
@@ -363,7 +363,7 @@ const MemoriesPage = () => {
 
   // Sync memoryService with Redux store on mount and when currentUser changes
   useEffect(() => {
-    console.log('useEffect triggered for currentUser:', currentUser)
+    logger.debug('useEffect triggered for currentUser:', currentUser)
     // Reset to first page when user changes
     setCurrentPage(1)
     loadMemories(currentUser)
@@ -453,7 +453,7 @@ const MemoriesPage = () => {
   }
 
   const handleUserSwitch = async (userId: string) => {
-    console.log('Switching to user:', userId)
+    logger.debug('Switching to user:', userId)
 
     // First update Redux state
     dispatch(setCurrentUserId(userId))

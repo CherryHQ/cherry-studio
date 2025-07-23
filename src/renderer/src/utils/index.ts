@@ -228,10 +228,10 @@ export function isOpenAIProvider(provider: Provider): boolean {
 }
 
 export * from './api'
-export * from './env'
 export * from './file'
 export * from './image'
 export * from './json'
+export * from './match'
 export * from './naming'
 export * from './sort'
 export * from './style'
