@@ -3,12 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
   streamDone: boolean
-  // 我们不再需要固定的interval，但可以保留一个最小延迟以保证动画感
   minDelay?: number
   initialText?: string
 }
-// 如果不行还可以使用Array.from(chunk)分割
-// const reg = /[\u4E00-\u9FFF]|[a-zA-Z0-9]+|\s+|[^\s\w]/g
 
 export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
   const [chunkQueue, setChunkQueue] = useState<string[]>([])
@@ -17,8 +14,6 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
   const lastUpdateTimeRef = useRef<number>(0)
 
   const addChunk = useCallback((chunk: string) => {
-    // 英文按照word拆分, 中文按照字拆分,使用正则表达式
-    // const words = chunk.match(/[\w\d]+/g)
     const chars = Array.from(chunk)
     setChunkQueue((prev) => [...prev, ...(chars || [])])
   }, [])
@@ -84,7 +79,7 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [renderLoop]) // 依赖 renderLoop
+  }, [renderLoop])
 
   // 当外部流结束，且队列即将变空时，进行最后一次"瞬移"渲染
   useEffect(() => {

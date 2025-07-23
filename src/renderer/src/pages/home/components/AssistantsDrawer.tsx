@@ -48,7 +48,11 @@ const PopupContainer: React.FC<Props> = ({
           padding: 0,
           paddingTop: isMac ? 'var(--navbar-height)' : 0,
           height: 'calc(100vh - var(--navbar-height))',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-background-opacity)'
+        },
+        wrapper: {
+          width: 'var(--assistants-width)'
         }
       }}>
       <HomeTabs

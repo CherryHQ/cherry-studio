@@ -7287,7 +7287,7 @@ __metadata:
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^1.0.7"
+    selection-hook: "npm:^1.0.8"
     shiki: "npm:^3.7.0"
     strict-url-sanitise: "npm:^0.0.1"
     string-width: "npm:^7.2.0"
@@ -18480,14 +18480,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^1.0.7":
-  version: 1.0.7
-  resolution: "selection-hook@npm:1.0.7"
+"selection-hook@npm:^1.0.8":
+  version: 1.0.8
+  resolution: "selection-hook@npm:1.0.8"
   dependencies:
     node-addon-api: "npm:^8.4.0"
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/d1fd7bc0a8dcbd3272b97ead7884777a073ff21054ed2d689df1c3fcfbfff450ce7b2ad09ad2e6d790ee364ff1fa146ad2cf9e94d3725a165fd11af544293738
+  checksum: 10c0/ed7e230ddf10fcd1974b166c5e73170900260664e40454e4e1fcdf0ba21d2a08cf95824c085fa07069aa99b663e0ee3f2aed74c3fbdba0f4e99abe6956bd51dc
   languageName: node
   linkType: hard
 

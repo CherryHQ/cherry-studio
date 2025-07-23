@@ -337,7 +337,6 @@
       "provider": "Fornecedor",
       "reasoning_content": "Pensamento profundo concluído",
       "regenerate": "Regenerar",
-      "trace": "Regenerar",
       "rename": "Renomear",
       "reset": "Redefinir",
       "save": "Salvar",
@@ -349,6 +348,7 @@
         "pinyin.desc": "Ordenar por Pinyin em ordem decrescente"
       },
       "topics": "Tópicos",
+      "trace": "Regenerar",
       "warning": "Aviso",
       "you": "Você"
     },
