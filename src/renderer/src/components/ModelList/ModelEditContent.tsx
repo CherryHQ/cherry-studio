@@ -10,7 +10,7 @@ import {
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelType, NewModelType, Provider } from '@renderer/types'
-import { findDifference, findUnion, getDefaultGroupName } from '@renderer/utils'
+import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
@@ -32,6 +32,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
+  const [tempModelTypes, setTempModelTypes] = useState(model.newType || [])
 
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
 
@@ -43,6 +44,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       name: values.name || model.name,
       group: values.group || model.group,
       endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
+      newType: tempModelTypes,
       pricing: {
         input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
         output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
@@ -56,6 +58,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
   const handleClose = () => {
     setShowMoreSettings(false)
+    setTempModelTypes(model.newType || [])
     onClose()
   }
 
@@ -188,16 +191,18 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               ]
 
               // 合并现有选择和默认类型用于前端展示
-              const selectedTypes = findUnion(
-                model.newType?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
-                findDifference(
+              const selectedTypes = getUnion(
+                tempModelTypes?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
+                getDifference(
                   defaultTypes,
-                  model.newType?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
+                  tempModelTypes?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
                 )
               )
 
+              const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
+
               const showTypeConfirmModal = (type: NewModelType) => {
-                const onUpdateType = model.newType?.find((t) => t.type === type.type)
+                const onUpdateType = tempModelTypes?.find((t) => t.type === type.type)
                 window.modal.confirm({
                   title: t('settings.moresetting.warn'),
                   content: t('settings.moresetting.check.warn'),
@@ -207,15 +212,15 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   cancelButtonProps: { type: 'primary' },
                   onOk: () => {
                     if (onUpdateType) {
-                      const updatedTypes = model.newType?.map((t) => {
+                      const updatedTypes = tempModelTypes?.map((t) => {
                         if (t.type === type.type) {
                           return { ...t, isUserSelected: true }
                         }
                         return t
                       })
-                      onUpdateModel({ ...model, newType: updatedTypes })
+                      setTempModelTypes(updatedTypes || [])
                     } else {
-                      onUpdateModel({ ...model, newType: [...(model.newType ?? []), type] })
+                      setTempModelTypes([...(tempModelTypes ?? []), type])
                     }
                   },
                   onCancel: () => {},
@@ -226,65 +231,77 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               const handleTypeChange = (types: string[]) => {
                 const diff = types.length > selectedTypes.length
                 if (diff) {
-                  const newType = findDifference(types, selectedTypes) // checkbox的特性，确保了newType只有一个元素
+                  const newType = getDifference(types, selectedTypes) // checkbox的特性，确保了newType只有一个元素
                   showTypeConfirmModal({
                     type: newType[0] as ModelType,
                     isUserSelected: true
                   })
                 } else {
-                  const disabledTypes = findDifference(selectedTypes, types)
-                  const onUpdateType = model.newType?.find((t) => t.type === disabledTypes[0])
+                  const disabledTypes = getDifference(selectedTypes, types)
+                  const onUpdateType = tempModelTypes?.find((t) => t.type === disabledTypes[0])
                   if (onUpdateType) {
-                    const updatedTypes = model.newType?.map((t) => {
+                    const updatedTypes = tempModelTypes?.map((t) => {
                       if (t.type === disabledTypes[0]) {
                         return { ...t, isUserSelected: false }
                       }
                       return t
                     })
-                    onUpdateModel({ ...model, newType: updatedTypes })
+                    setTempModelTypes(updatedTypes || [])
                   } else {
-                    onUpdateModel({
-                      ...model,
-                      newType: [
-                        ...(model.newType ?? []),
-                        { type: disabledTypes[0] as ModelType, isUserSelected: false }
-                      ]
-                    })
+                    setTempModelTypes([
+                      ...(tempModelTypes ?? []),
+                      { type: disabledTypes[0] as ModelType, isUserSelected: false }
+                    ])
                   }
                 }
               }
 
+              const handleResetTypes = () => {
+                setTempModelTypes([])
+              }
+
               return (
-                <Checkbox.Group
-                  value={selectedTypes}
-                  onChange={handleTypeChange}
-                  options={[
-                    {
-                      label: t('models.type.vision'),
-                      value: 'vision'
-                    },
-                    {
-                      label: t('models.type.websearch'),
-                      value: 'web_search'
-                    },
-                    {
-                      label: t('models.type.rerank'),
-                      value: 'rerank'
-                    },
-                    {
-                      label: t('models.type.embedding'),
-                      value: 'embedding'
-                    },
-                    {
-                      label: t('models.type.reasoning'),
-                      value: 'reasoning'
-                    },
-                    {
-                      label: t('models.type.function_calling'),
-                      value: 'function_calling'
-                    }
-                  ]}
-                />
+                <div>
+                  <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                    <Checkbox.Group
+                      value={selectedTypes}
+                      onChange={handleTypeChange}
+                      options={[
+                        {
+                          label: t('models.type.vision'),
+                          value: 'vision',
+                          disabled: isDisabled
+                        },
+                        {
+                          label: t('models.type.websearch'),
+                          value: 'web_search',
+                          disabled: isDisabled
+                        },
+                        {
+                          label: t('models.type.rerank'),
+                          value: 'rerank'
+                        },
+                        {
+                          label: t('models.type.embedding'),
+                          value: 'embedding'
+                        },
+                        {
+                          label: t('models.type.reasoning'),
+                          value: 'reasoning',
+                          disabled: isDisabled
+                        },
+                        {
+                          label: t('models.type.function_calling'),
+                          value: 'function_calling',
+                          disabled: isDisabled
+                        }
+                      ]}
+                    />
+                    <Button size="small" onClick={handleResetTypes}>
+                      {t('common.reset')}
+                    </Button>
+                  </Flex>
+                </div>
               )
             })()}
             <TypeTitle>{t('models.price.price')}</TypeTitle>
