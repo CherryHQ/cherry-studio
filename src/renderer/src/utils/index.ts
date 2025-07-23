@@ -238,45 +238,8 @@ export function isUserSelectedModelType(model: Model, type: ModelType): boolean 
   return t ? t.isUserSelected : undefined
 }
 
-/**
- * 使用 reduce 方法查找两个数组的交集
- * @param {T[]} arr1 第一个数组
- * @param {T[]} arr2 第二个数组
- * @returns {T[]} 交集数组
- */
-export function findIntersection<T>(arr1: T[], arr2: T[]): T[] {
-  const set2 = new Set(arr2) // 将 arr2 转换为 Set 以优化查询性能
-
-  return arr1.reduce((accumulator: T[], currentElement: T) => {
-    if (set2.has(currentElement)) {
-      accumulator.push(currentElement)
-    }
-    return accumulator
-  }, [])
-}
-
-/**
- * 使用 filter 方法查找两个数组的差集
- * @param {T[]} arr1 第一个数组
- * @param {T[]} arr2 第二个数组
- * @returns {T[]} 差集数组
- */
-export function findDifference<T>(arr1: T[], arr2: T[]): T[] {
-  const set2 = new Set(arr2)
-  return arr1.filter((element) => !set2.has(element))
-}
-
-/**
- * 使用 Set 合并两个数组
- * @param {T[]} arr1 第一个数组
- * @param {T[]} arr2 第二个数组
- * @returns {T[]} 合并后的数组
- */
-export function findUnion<T>(arr1: T[], arr2: T[]): T[] {
-  return Array.from(new Set([...arr1, ...arr2]))
-}
-
 export * from './api'
+export * from './collection'
 export * from './file'
 export * from './image'
 export * from './json'
