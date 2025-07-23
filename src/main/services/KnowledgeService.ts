@@ -283,7 +283,7 @@ class KnowledgeService {
 
     // Try to delete database file immediately
     if (!this.deleteKnowledgeFile(id)) {
-      logger.debug(`Will delete knowledge base ${id} on close`)
+      logger.debug(`Will delete knowledge base ${id} on next startup`)
       this.pendingDeleteManager.add(id)
     }
   }
