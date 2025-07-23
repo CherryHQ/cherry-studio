@@ -189,7 +189,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         setTimeout(() => updateAssistantSettings({ temperature: 0.3 }), 500)
       }
     }
-  }, [assistant, defaultModel, updateAssistant])
+  }, [assistant, defaultModel, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
