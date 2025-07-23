@@ -103,7 +103,6 @@ class KnowledgeService {
   private processingItemCount = 0
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
   private ragApplications: Map<string, RAGApplication> = new Map()
-  // 存储数据库实例，用于后续关闭
   private dbInstances: Map<string, LibSqlDb> = new Map()
   private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
@@ -145,7 +144,7 @@ class KnowledgeService {
         logger.debug(`Removed database instance reference for id: ${id}`)
       }
     } catch (error) {
-      logger.debug(`Failed to cleanup resources for id: ${id}`, error)
+      logger.warn(`Failed to cleanup resources for id: ${id}`, error)
     }
   }
 
@@ -160,7 +159,7 @@ class KnowledgeService {
         logger.debug(`Deleted knowledge base file with id: ${id}`)
         return true
       } catch (error) {
-        logger.debug(`Failed to delete knowledge base file with id: ${id}: ${error}`)
+        logger.warn(`Failed to delete knowledge base file with id: ${id}: ${error}`)
         return false
       }
     }
@@ -177,7 +176,7 @@ class KnowledgeService {
           return JSON.parse(fs.readFileSync(this.pendingDeleteFile, 'utf-8')) as string[]
         }
       } catch (error) {
-        logger.debug('Failed to load pending delete IDs:', error)
+        logger.warn('Failed to load pending delete IDs:', error)
       }
       return []
     },
@@ -187,7 +186,7 @@ class KnowledgeService {
         fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
         logger.debug(`Total ${ids.length} knowledge bases pending delete`)
       } catch (error) {
-        logger.debug('Failed to save pending delete IDs:', error)
+        logger.warn('Failed to save pending delete IDs:', error)
       }
     },
 
@@ -203,7 +202,7 @@ class KnowledgeService {
           fs.unlinkSync(this.pendingDeleteFile)
         }
       } catch (error) {
-        logger.debug('Failed to clear pending delete file:', error)
+        logger.warn('Failed to clear pending delete file:', error)
       }
     }
   }
@@ -222,7 +221,7 @@ class KnowledgeService {
       if (this.deleteKnowledgeFile(id)) {
         deletedCount++
       } else {
-        logger.info(`Failed to delete knowledge base ${id}, please delete it manually`)
+        logger.warn(`Failed to delete knowledge base ${id}, please delete it manually`)
       }
     })
 
@@ -696,14 +695,14 @@ class KnowledgeService {
         } else {
           provider = new OcrProvider(base.preprocessOrOcrProvider.provider)
         }
-        // 首先检查文件是否已经被预处理过
+        // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
           logger.debug(`File already preprocess processed, using cached result: ${file.path}`)
           return alreadyProcessed
         }
 
-        // 执行预处理
+        // Execute preprocessing
         logger.debug(`Starting preprocess processing for scanned PDF: ${file.path}`)
         const { processedFile, quota } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
@@ -714,7 +713,7 @@ class KnowledgeService {
         })
       } catch (err) {
         logger.error(`Preprocess processing failed: ${err}`)
-        // 如果预处理失败，使用原始文件
+        // If preprocessing fails, use original file
         // fileToProcess = file
         throw new Error(`Preprocess processing failed: ${err}`)
       }
