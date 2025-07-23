@@ -75,7 +75,6 @@
     "node-stream-zip": "^1.15.0",
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
-    "react-json-view": "^1.21.3",
     "selection-hook": "^1.0.7",
     "turndown": "7.2.0"
   },
@@ -222,6 +221,7 @@
     "react-hotkeys-hook": "^4.6.1",
     "react-i18next": "^14.1.2",
     "react-infinite-scroll-component": "^6.1.0",
+    "react-json-view": "^1.21.3",
     "react-markdown": "^10.1.0",
     "react-redux": "^9.1.2",
     "react-router": "6",
