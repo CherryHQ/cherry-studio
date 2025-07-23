@@ -15,9 +15,9 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
 
     // 在这里可以监听到从SDK返回的最原始流
     if (result.rawOutput) {
-      const providerType = ctx.apiClientInstance.provider.type
+      const model = params.assistant.model
       // TODO: 后面下放到AnthropicAPIClient
-      if (providerType === 'anthropic') {
+      if (model?.id.toLowerCase().includes('claude')) {
         const anthropicListener: AnthropicStreamListener<AnthropicSdkRawChunk> = {
           onMessage: (message) => {
             if (ctx._internal?.toolProcessingState) {
