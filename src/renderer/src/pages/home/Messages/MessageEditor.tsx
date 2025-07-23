@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
-import { MessagesContext } from '@renderer/context/MessagesContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
@@ -19,7 +18,7 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import { FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -50,7 +49,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const isUserMessage = message.role === 'user'
-  const { scrollTo, scrollTop } = use(MessagesContext)
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
 
