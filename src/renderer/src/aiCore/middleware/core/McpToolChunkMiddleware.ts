@@ -3,6 +3,7 @@ import { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, ToolCallResponse 
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 import {
+  callBuiltInTool,
   callMCPTool,
   getMcpServerByTool,
   isToolAutoApproved,
@@ -469,7 +470,10 @@ export async function parseAndCallTools<R>(
           // 执行工具调用
           try {
             const images: string[] = []
-            const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
+            // 根据工具类型选择不同的调用方式
+            const toolCallResponse = toolResponse.tool.isBuiltIn
+              ? await callBuiltInTool(toolResponse)
+              : await callMCPTool(toolResponse, topicId, model.name)
 
             // 立即更新为done状态
             upsertMCPToolResponse(
@@ -481,6 +485,10 @@ export async function parseAndCallTools<R>(
               },
               onChunk!
             )
+
+            if (!toolCallResponse) {
+              return
+            }
 
             // 处理图片
             for (const content of toolCallResponse.content) {
