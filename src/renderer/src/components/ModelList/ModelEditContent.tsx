@@ -4,12 +4,13 @@ import {
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
+  isRerankModel,
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { Model, ModelType, Provider } from '@renderer/types'
-import { getDefaultGroupName } from '@renderer/utils'
+import { Model, ModelType, NewModelType, Provider } from '@renderer/types'
+import { findDifference, findUnion, getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
@@ -179,16 +180,24 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
             {(() => {
               const defaultTypes = [
                 ...(isVisionModel(model) ? ['vision'] : []),
-                ...(isEmbeddingModel(model) ? ['embedding'] : []),
                 ...(isReasoningModel(model) ? ['reasoning'] : []),
                 ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
-                ...(isWebSearchModel(model) ? ['web_search'] : [])
-              ] as ModelType[]
+                ...(isWebSearchModel(model) ? ['web_search'] : []),
+                ...(isEmbeddingModel(model) ? ['embedding'] : []),
+                ...(isRerankModel(model) ? ['rerank'] : [])
+              ]
 
-              // 合并现有选择和默认类型
-              const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+              // 合并现有选择和默认类型用于前端展示
+              const selectedTypes = findUnion(
+                model.newType?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
+                findDifference(
+                  defaultTypes,
+                  model.newType?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
+                )
+              )
 
-              const showTypeConfirmModal = (type: string) => {
+              const showTypeConfirmModal = (type: NewModelType) => {
+                const onUpdateType = model.newType?.find((t) => t.type === type.type)
                 window.modal.confirm({
                   title: t('settings.moresetting.warn'),
                   content: t('settings.moresetting.check.warn'),
@@ -196,19 +205,52 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   cancelText: t('common.cancel'),
                   okButtonProps: { danger: true },
                   cancelButtonProps: { type: 'primary' },
-                  onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
+                  onOk: () => {
+                    if (onUpdateType) {
+                      const updatedTypes = model.newType?.map((t) => {
+                        if (t.type === type.type) {
+                          return { ...t, isUserSelected: true }
+                        }
+                        return t
+                      })
+                      onUpdateModel({ ...model, newType: updatedTypes })
+                    } else {
+                      onUpdateModel({ ...model, newType: [...(model.newType ?? []), type] })
+                    }
+                  },
                   onCancel: () => {},
                   centered: true
                 })
               }
 
               const handleTypeChange = (types: string[]) => {
-                const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
-
-                if (newType) {
-                  showTypeConfirmModal(newType)
+                const diff = types.length > selectedTypes.length
+                if (diff) {
+                  const newType = findDifference(types, selectedTypes) // checkbox的特性，确保了newType只有一个元素
+                  showTypeConfirmModal({
+                    type: newType[0] as ModelType,
+                    isUserSelected: true
+                  })
                 } else {
-                  onUpdateModel({ ...model, type: types as ModelType[] })
+                  const disabledTypes = findDifference(selectedTypes, types)
+                  const onUpdateType = model.newType?.find((t) => t.type === disabledTypes[0])
+                  if (onUpdateType) {
+                    const updatedTypes = model.newType?.map((t) => {
+                      if (t.type === disabledTypes[0]) {
+                        return { ...t, isUserSelected: false }
+                      }
+                      return t
+                    })
+                    onUpdateModel({ ...model, newType: updatedTypes })
+                  } else {
+                    onUpdateModel({
+                      ...model,
+                      newType: [
+                        ...(model.newType ?? []),
+                        { type: disabledTypes[0] as ModelType, isUserSelected: false }
+                      ]
+                    })
+                  }
                 }
               }
 
@@ -219,28 +261,27 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   options={[
                     {
                       label: t('models.type.vision'),
-                      value: 'vision',
-                      disabled: isVisionModel(model) && !selectedTypes.includes('vision')
+                      value: 'vision'
                     },
                     {
                       label: t('models.type.websearch'),
-                      value: 'web_search',
-                      disabled: isWebSearchModel(model) && !selectedTypes.includes('web_search')
+                      value: 'web_search'
+                    },
+                    {
+                      label: t('models.type.rerank'),
+                      value: 'rerank'
                     },
                     {
                       label: t('models.type.embedding'),
-                      value: 'embedding',
-                      disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
+                      value: 'embedding'
                     },
                     {
                       label: t('models.type.reasoning'),
-                      value: 'reasoning',
-                      disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
+                      value: 'reasoning'
                     },
                     {
                       label: t('models.type.function_calling'),
-                      value: 'function_calling',
-                      disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
+                      value: 'function_calling'
                     }
                   ]}
                 />

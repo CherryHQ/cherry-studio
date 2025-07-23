@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { Model, Provider } from '@renderer/types'
+import { Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -225,6 +225,55 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
  */
 export function isOpenAIProvider(provider: Provider): boolean {
   return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
+}
+
+/**
+ * 判断模型是否为用户手动选择
+ * @param {Model} model 模型对象
+ * @param {ModelType} type 模型类型
+ * @returns {boolean} 是否为用户手动选择
+ */
+export function isUserSelectedModelType(model: Model, type: ModelType): boolean | undefined {
+  const t = model.newType?.find((t) => t.type === type)
+  return t ? t.isUserSelected : undefined
+}
+
+/**
+ * 使用 reduce 方法查找两个数组的交集
+ * @param {T[]} arr1 第一个数组
+ * @param {T[]} arr2 第二个数组
+ * @returns {T[]} 交集数组
+ */
+export function findIntersection<T>(arr1: T[], arr2: T[]): T[] {
+  const set2 = new Set(arr2) // 将 arr2 转换为 Set 以优化查询性能
+
+  return arr1.reduce((accumulator: T[], currentElement: T) => {
+    if (set2.has(currentElement)) {
+      accumulator.push(currentElement)
+    }
+    return accumulator
+  }, [])
+}
+
+/**
+ * 使用 filter 方法查找两个数组的差集
+ * @param {T[]} arr1 第一个数组
+ * @param {T[]} arr2 第二个数组
+ * @returns {T[]} 差集数组
+ */
+export function findDifference<T>(arr1: T[], arr2: T[]): T[] {
+  const set2 = new Set(arr2)
+  return arr1.filter((element) => !set2.has(element))
+}
+
+/**
+ * 使用 Set 合并两个数组
+ * @param {T[]} arr1 第一个数组
+ * @param {T[]} arr2 第二个数组
+ * @returns {T[]} 合并后的数组
+ */
+export function findUnion<T>(arr1: T[], arr2: T[]): T[] {
+  return Array.from(new Set([...arr1, ...arr2]))
 }
 
 export * from './api'
