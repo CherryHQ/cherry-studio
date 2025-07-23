@@ -725,9 +725,6 @@ async function renderSprigTemplate(apiUrl: string, token: string, template: stri
     body: JSON.stringify({ template })
   })
 
-  if (!response.ok) {
-    throw new Error('渲染路径模板 API 请求失败')
-  }
 
   const data = await response.json()
   if (data.code !== 0) {
