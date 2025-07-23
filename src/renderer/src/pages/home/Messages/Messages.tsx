@@ -90,25 +90,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
-  const scrollTo = useCallback(
-    (top: number) => {
-      if (scrollContainerRef.current) {
-        requestAnimationFrame(() => {
-          if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTo({ top })
-          }
-        })
-      }
-    },
-    [scrollContainerRef]
-  )
-
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
-      scrollTo(0)
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({ top: 0 })
+        }
+      })
     }
-  }, [scrollContainerRef, scrollTo])
+  }, [scrollContainerRef])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
