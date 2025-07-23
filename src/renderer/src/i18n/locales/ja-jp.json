@@ -1900,6 +1900,16 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "builtinServers": "組み込みサーバー",
+        "builtinServersDescriptions": {
+          "brave_search": "Brave検索APIを統合したMCPサーバー実装で、ウェブと本地検索の両方の機能を提供します。BRAVE_API_KEY環境変数の設定が必要です",
+          "dify_knowledge": "DifyのMCPサーバー実装で、Difyとの対話のためのシンプルなAPIを提供します。Dify Keyの設定が必要です",
+          "fetch": "URL Webコンテンツを取得するためのMCPサーバー",
+          "filesystem": "ファイルシステム操作を実装するモデルコンテキストプロトコル（MCP）のNode.jsサーバー。アクセスを許可するディレクトリの設定が必要です",
+          "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+          "memory": "ローカル知識グラフに基づく永続的なメモリの基本実装。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できます。MEMORY_FILE_PATH環境変数の設定が必要です。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+          "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートします",
+          "sequentialthinking": "構造化された思考プロセスを通じて動的で反省的な問題解決を提供するMCPサーバー実装"
+        },
         "command": "コマンド",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",

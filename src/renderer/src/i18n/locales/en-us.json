@@ -1900,6 +1900,16 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "builtinServers": "Builtin Servers",
+        "builtinServersDescriptions": {
+          "brave_search": "An MCP server implementation integrated with Brave Search API, providing both web and local search capabilities. Requires BRAVE_API_KEY environment variable configuration",
+          "dify_knowledge": "Dify's MCP server implementation that provides a simple API to interact with Dify. Requires Dify Key configuration",
+          "fetch": "An MCP server for fetching URL webpage content",
+          "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for filesystem operations. Requires configuration of allowed directories",
+          "mcp_auto_install": "Automatic MCP service installation (Beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+          "memory": "A persistent memory implementation based on local knowledge graphs. This allows models to remember user-related information across different conversations. Requires MEMORY_FILE_PATH environment variable configuration. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+          "python": "Execute Python code in a secure sandbox environment. Uses Pyodide to run Python, supporting most standard libraries and scientific computing packages",
+          "sequentialthinking": "An MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
+        },
         "command": "Command",
         "config_description": "Configure Model Context Protocol servers",
         "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",

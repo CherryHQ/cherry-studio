@@ -1900,6 +1900,16 @@
         "argsTooltip": "每个参数占一行",
         "baseUrlTooltip": "远程 URL 地址",
         "builtinServers": "内置服务器",
+        "builtinServersDescriptions": {
+          "brave_search": "一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量",
+          "dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
+          "fetch": "用于获取 URL 网页内容的 MCP 服务器",
+          "filesystem": "实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器。需要配置允许访问的目录",
+          "mcp_auto_install": "自动安装 MCP 服务（测试版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+          "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+          "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
+          "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
+        },
         "command": "命令",
         "config_description": "配置模型上下文协议服务器",
         "customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
