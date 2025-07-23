@@ -2605,10 +2605,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-plus-latest',
       'qwen-plus-0428',
       'qwen-plus-2025-04-28',
+      'qwen-plus-0714',
+      'qwen-plus-2025-07-14',
       'qwen-turbo',
       'qwen-turbo-latest',
       'qwen-turbo-0428',
-      'qwen-turbo-2025-04-28'
+      'qwen-turbo-2025-04-28',
+      'qwen-turbo-0715',
+      'qwen-turbo-2025-07-15'
     ].includes(baseName)
   )
 }

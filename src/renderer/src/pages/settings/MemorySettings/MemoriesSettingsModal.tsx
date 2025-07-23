@@ -1,15 +1,16 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
+import { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
-import { Form, InputNumber, Modal, Select, Switch } from 'antd'
+import { Form, InputNumber, Modal, Switch } from 'antd'
 import { t } from 'i18next'
-import { sortBy } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 const logger = loggerService.withContext('MemoriesSettingsModal')
@@ -125,33 +126,9 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
     }
   }
 
-  const llmSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const llmPredicate = useCallback((m: Model) => !isEmbeddingModel(m) && !isRerankModel(m), [])
 
-  const embeddingSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const embeddingPredicate = useCallback((m: Model) => isEmbeddingModel(m) && !isRerankModel(m), [])
 
   return (
     <Modal
@@ -179,13 +156,21 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           label={t('memory.llm_model')}
           name="llmModel"
           rules={[{ required: true, message: t('memory.please_select_llm_model') }]}>
-          <Select placeholder={t('memory.select_llm_model_placeholder')} options={llmSelectOptions} showSearch />
+          <ModelSelector
+            providers={providers}
+            predicate={llmPredicate}
+            placeholder={t('memory.select_llm_model_placeholder')}
+          />
         </Form.Item>
         <Form.Item
           label={t('memory.embedding_model')}
           name="embedderModel"
           rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}>
-          <Select placeholder={t('memory.select_embedding_model_placeholder')} options={embeddingSelectOptions} />
+          <ModelSelector
+            providers={providers}
+            predicate={embeddingPredicate}
+            placeholder={t('memory.select_embedding_model_placeholder')}
+          />
         </Form.Item>
         <Form.Item
           label={t('knowledge.dimensions_auto_set')}

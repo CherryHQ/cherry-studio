@@ -2,6 +2,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
+import * as z from 'zod/v4'
 
 export * from './file'
 import type { FileMetadata } from './file'
@@ -657,6 +658,12 @@ export interface MCPToolInputSchema {
   properties: Record<string, object>
 }
 
+export const MCPToolOutputSchema = z.object({
+  type: z.literal('object'),
+  properties: z.record(z.string(), z.unknown()),
+  required: z.array(z.string())
+})
+
 export interface MCPTool {
   id: string
   serverId: string
@@ -664,6 +671,7 @@ export interface MCPTool {
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+  outputSchema?: z.infer<typeof MCPToolOutputSchema>
 }
 
 export interface MCPPromptArguments {

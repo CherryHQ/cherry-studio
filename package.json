@@ -257,7 +257,8 @@
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
-    "zipread": "^1.3.3"
+    "zipread": "^1.3.3",
+    "zod": "^3.25.74"
   },
   "optionalDependencies": {
     "@cherrystudio/mac-system-ocr": "^0.2.2"
