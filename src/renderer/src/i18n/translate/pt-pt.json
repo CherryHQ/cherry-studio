@@ -291,12 +291,6 @@
       "topics.unpinned": "Desfixar",
       "translate": "Traduzir"
     },
-    "html_artifacts": {
-      "code": "Código",
-      "generating": "Gerando",
-      "preview": "Visualizar",
-      "split": "Dividir"
-    },
     "code_block": {
       "collapse": "Recolher",
       "disable_wrap": "Desativar quebra de linha",
@@ -343,7 +337,6 @@
       "provider": "Fornecedor",
       "reasoning_content": "Pensamento profundo concluído",
       "regenerate": "Regenerar",
-      "trace": "Regenerar",
       "rename": "Renomear",
       "reset": "Redefinir",
       "save": "Salvar",
@@ -355,6 +348,7 @@
         "pinyin.desc": "Ordenar por Pinyin em ordem decrescente"
       },
       "topics": "Tópicos",
+      "trace": "Regenerar",
       "warning": "Aviso",
       "you": "Você"
     },
@@ -429,6 +423,12 @@
       "search.placeholder": "Procurar tópico ou mensagem...",
       "search.topics.empty": "Nenhum tópico relacionado encontrado, clique em Enter para procurar todas as mensagens",
       "title": "Procurar Tópicos"
+    },
+    "html_artifacts": {
+      "code": "Código",
+      "generating": "Gerando",
+      "preview": "Visualizar",
+      "split": "Dividir"
     },
     "knowledge": {
       "add": {
@@ -647,9 +647,9 @@
         "close": "Fechar aplicativo",
         "devtools": "Ferramentas de Desenvolvedor",
         "minimize": "Minimizar aplicativo",
+        "openExternal": "Abrir no navegador",
         "open_link_external_off": "Atual: Abrir links em janela padrão",
         "open_link_external_on": "Atual: Abrir links no navegador",
-        "openExternal": "Abrir no navegador",
         "refresh": "Atualizar",
         "rightclick_copyurl": "Copiar URL com botão direito"
       },
@@ -906,9 +906,9 @@
     },
     "settings": {
       "about": "Sobre Nós",
-      "about.checkingUpdate": "Verificando atualizações...",
       "about.checkUpdate": "Verificar atualizações",
       "about.checkUpdate.available": "Atualizar agora",
+      "about.checkingUpdate": "Verificando atualizações...",
       "about.contact.button": "E-mail",
       "about.contact.title": "Contato por e-mail",
       "about.description": "Um assistente de IA criado para criadores",

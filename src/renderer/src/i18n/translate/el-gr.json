@@ -289,12 +289,6 @@
       "topics.unpinned": "Αποστέλλω",
       "translate": "Μετάφραση"
     },
-    "html_artifacts": {
-      "code": "Κώδικας",
-      "generating": "Δημιουργία",
-      "preview": "Προεπισκόπηση",
-      "split": "Διαχωρισμός"
-    },
     "code_block": {
       "collapse": "συμπεριληφθείς",
       "disable_wrap": "ακύρωση αλλαγής γραμμής",
@@ -341,7 +335,6 @@
       "provider": "Παρέχων",
       "reasoning_content": "Έχει σκεφτεί πολύ καλά",
       "regenerate": "Ξαναπαραγωγή",
-      "trace": "ίχνος",
       "rename": "Μετονομασία",
       "reset": "Επαναφορά",
       "save": "Αποθήκευση",
@@ -353,6 +346,7 @@
         "pinyin.desc": "Φθίνουσα ταξινόμηση κατά Πινγίν"
       },
       "topics": "Θέματα",
+      "trace": "ίχνος",
       "warning": "Προσοχή",
       "you": "Εσείς"
     },
@@ -427,6 +421,12 @@
       "search.placeholder": "Αναζήτηση θεμάτων ή μηνυμάτων...",
       "search.topics.empty": "Δεν βρέθηκαν σχετικά θέματα, πατήστε Enter για να αναζητήσετε όλα τα μηνύματα",
       "title": "Αναζήτηση θεμάτων"
+    },
+    "html_artifacts": {
+      "code": "Κώδικας",
+      "generating": "Δημιουργία",
+      "preview": "Προεπισκόπηση",
+      "split": "Διαχωρισμός"
     },
     "knowledge": {
       "add": {
@@ -645,9 +645,9 @@
         "close": "Κλείσιμο της εφαρμογής",
         "devtools": "Εργαλεία προγραμματιστή",
         "minimize": "Ελαχιστοποίηση της εφαρμογής",
+        "openExternal": "Άνοιγμα στον περιηγητή",
         "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
         "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
-        "openExternal": "Άνοιγμα στον περιηγητή",
         "refresh": "Ανανέωση",
         "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
       },
@@ -905,9 +905,9 @@
     },
     "settings": {
       "about": "Περί μας",
-      "about.checkingUpdate": "Ελέγχω ενημερώσεις...",
       "about.checkUpdate": "Έλεγχος ενημερώσεων",
       "about.checkUpdate.available": "Άμεση ενημέρωση",
+      "about.checkingUpdate": "Ελέγχω ενημερώσεις...",
       "about.contact.button": "Ταχυδρομείο",
       "about.contact.title": "Επικοινωνία μέσω ταχυδρομείου",
       "about.description": "Ένα AI ασιστάντα που έχει σχεδιαστεί για δημιουργούς",

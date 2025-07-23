@@ -37,7 +37,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    logger.debug('skipBackupFile', skipBackupFile)
+    logger.debug(`skipBackupFile: ${skipBackupFile}`)
     await backup(skipBackupFile)
     setOpen(false)
   }

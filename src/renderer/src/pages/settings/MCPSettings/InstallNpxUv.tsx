@@ -76,7 +76,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     return (
       <Button
         type="primary"
-        size="small"
         variant="filled"
         shape="circle"
         icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}

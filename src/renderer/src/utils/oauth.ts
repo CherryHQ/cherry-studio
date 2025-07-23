@@ -50,7 +50,7 @@ export const oauthWithAihubmix = async (setKey) => {
           window.removeEventListener('message', messageHandler)
         }
       } catch (error) {
-        logger.error('[oauthWithAihubmix] error', error)
+        logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
         window.message.error(i18n.t('oauth.error'))
       }
@@ -113,7 +113,7 @@ export const oauthWithPPIO = async (setKey) => {
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          logger.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
+          logger.error(`[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
           throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
         }
 
@@ -127,7 +127,7 @@ export const oauthWithPPIO = async (setKey) => {
           reject(new Error('No access token received'))
         }
       } catch (error) {
-        logger.error('[PPIO OAuth] Error processing callback:', error)
+        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
         reject(error)
       } finally {
         removeListener()

@@ -1,9 +1,8 @@
 // inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema, ToolSchema } from '@modelcontextprotocol/sdk/types.js'
-import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import * as z from 'zod/v4'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
@@ -38,10 +37,6 @@ interface DifySearchKnowledgeResponse {
     score: number
   }>
 }
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ToolInputSchema = ToolSchema.shape.inputSchema
-type ToolInput = z.infer<typeof ToolInputSchema>
 
 const SearchKnowledgeArgsSchema = z.object({
   id: z.string().describe('Knowledge ID'),
@@ -96,7 +91,7 @@ class DifyKnowledgeServer {
           {
             name: 'search_knowledge',
             description: 'Search knowledge by id and query',
-            inputSchema: zodToJsonSchema(SearchKnowledgeArgsSchema) as ToolInput
+            inputSchema: SearchKnowledgeArgsSchema
           }
         ]
       }
@@ -171,7 +166,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error fetching knowledge list:', error)
+      logger.error('Error fetching knowledge list:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 返回包含错误信息的 MCP 响应
       return {
@@ -250,7 +245,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error searching knowledge:', error)
+      logger.error('Error searching knowledge:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       return {
         content: [{ type: 'text', text: `Search Knowledge Error: ${errorMessage}` }],

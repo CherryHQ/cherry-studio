@@ -136,6 +136,18 @@ export class AihubmixAPIClient extends BaseApiClient {
     return this.currentClient
   }
 
+  /**
+   * 重写基类方法，返回内部实际使用的客户端类型
+   */
+  public override getClientCompatibilityType(model?: Model): string[] {
+    if (!model) {
+      return [this.constructor.name]
+    }
+
+    const actualClient = this.getClient(model)
+    return actualClient.getClientCompatibilityType(model)
+  }
+
   // ============ BaseApiClient 抽象方法实现 ============
 
   async createCompletions(payload: SdkParams, options?: RequestOptions): Promise<SdkRawOutput> {

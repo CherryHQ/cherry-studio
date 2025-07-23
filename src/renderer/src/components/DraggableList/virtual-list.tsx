@@ -28,6 +28,7 @@ import { type Key, memo, useCallback, useRef } from 'react'
  * @property {T[]} list 渲染的数据源
  * @property {(index: number) => Key} [itemKey] 提供给虚拟列表的行 key，若不提供默认使用 index
  * @property {number} [overscan=5] 前后额外渲染的行数，提升快速滚动时的体验
+ * @property {React.ReactNode} [header] 列表头部内容
  * @property {(item: T, index: number) => React.ReactNode} children 列表项渲染函数
  */
 interface DraggableVirtualListProps<T> {
@@ -43,6 +44,7 @@ interface DraggableVirtualListProps<T> {
   list: T[]
   itemKey?: (index: number) => Key
   overscan?: number
+  header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
 }
 
@@ -66,6 +68,7 @@ function DraggableVirtualList<T>({
   list,
   itemKey,
   overscan = 5,
+  header,
   children
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
@@ -92,6 +95,7 @@ function DraggableVirtualList<T>({
   return (
     <div ref={ref} className={`${className} draggable-virtual-list`} style={{ height: '100%', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
+        {header}
         <Droppable
           droppableId="droppable"
           mode="virtual"

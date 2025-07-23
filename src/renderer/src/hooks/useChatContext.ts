@@ -118,7 +118,7 @@ export const useChatContext = (activeTopic: Topic) => {
                 window.message.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
-                logger.error('Failed to delete messages:', error)
+                logger.error('Failed to delete messages:', error as Error)
                 window.message.error(t('message.delete.failed'))
               }
             }

@@ -262,7 +262,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }

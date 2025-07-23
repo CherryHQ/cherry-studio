@@ -7,7 +7,15 @@ import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
-import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
+import {
+  droppableReorder,
+  generateColorFromChar,
+  getFancyProviderName,
+  getFirstCharacter,
+  matchKeywordsInModel,
+  matchKeywordsInProvider,
+  uuid
+} from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, Search, UserPen } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -42,7 +50,7 @@ const ProvidersList: FC = () => {
               logos[provider.id] = logoData
             }
           } catch (error) {
-            logger.error(`Failed to load logo for provider ${provider.id}`, error)
+            logger.error(`Failed to load logo for provider ${provider.id}`, error as Error)
           }
         }
       }
@@ -294,7 +302,7 @@ const ProvidersList: FC = () => {
         }
         setProviderLogos(updatedLogos)
       } catch (error) {
-        logger.error('Failed to save logo', error)
+        logger.error('Failed to save logo', error as Error)
         window.message.error('保存Provider Logo失败')
       }
     }
@@ -329,7 +337,7 @@ const ProvidersList: FC = () => {
                   [provider.id]: logo
                 }))
               } catch (error) {
-                logger.error('Failed to save logo', error)
+                logger.error('Failed to save logo', error as Error)
                 window.message.error('更新Provider Logo失败')
               }
             } else if (logo === undefined && logoFile === undefined) {
@@ -341,7 +349,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                logger.error('Failed to reset logo', error)
+                logger.error('Failed to reset logo', error as Error)
               }
             }
           }
@@ -372,7 +380,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                logger.error('Failed to delete logo', error)
+                logger.error('Failed to delete logo', error as Error)
               }
             }
 
@@ -420,19 +428,9 @@ const ProvidersList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
-    const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
-
-    const isProviderMatch =
-      provider.id.toLowerCase().includes(searchText.toLowerCase()) ||
-      providerName.toLowerCase().includes(searchText.toLowerCase())
-
-    const isModelMatch = provider.models.some((model) => {
-      return (
-        model.id.toLowerCase().includes(searchText.toLowerCase()) ||
-        model.name.toLowerCase().includes(searchText.toLowerCase())
-      )
-    })
-
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+    const isProviderMatch = matchKeywordsInProvider(keywords, provider)
+    const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
     return isProviderMatch || isModelMatch
   })
 
@@ -481,7 +479,7 @@ const ProvidersList: FC = () => {
                                 onClick={() => setSelectedProvider(provider)}>
                                 {getProviderAvatar(provider)}
                                 <ProviderItemName className="text-nowrap">
-                                  {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
+                                  {getFancyProviderName(provider)}
                                 </ProviderItemName>
                                 {provider.enabled && (
                                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>

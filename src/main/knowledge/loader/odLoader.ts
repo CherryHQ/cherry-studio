@@ -45,7 +45,7 @@ export class OdLoader<OdType> extends BaseLoader<{ type: string }> {
     try {
       this.extractedText = await parseOfficeAsync(this.filePath, this.config)
     } catch (err) {
-      logger.error('odLoader error', err)
+      logger.error('odLoader error', err as Error)
       throw err
     }
   }

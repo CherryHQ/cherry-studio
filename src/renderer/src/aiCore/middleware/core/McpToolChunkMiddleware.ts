@@ -3,6 +3,7 @@ import { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, ToolCallResponse 
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 import {
+  callBuiltInTool,
   callMCPTool,
   getMcpServerByTool,
   isToolAutoApproved,
@@ -134,7 +135,7 @@ function createToolHandlingTransform(
                   executedToolResults.push(...result.toolResults)
                   executedToolCalls.push(...result.confirmedToolCalls)
                 } catch (error) {
-                  logger.error(`Error executing tool call asynchronously:`, error)
+                  logger.error(`Error executing tool call asynchronously:`, error as Error)
                 }
               })()
 
@@ -162,7 +163,7 @@ function createToolHandlingTransform(
                   // 缓存执行结果
                   executedToolResults.push(...result.toolResults)
                 } catch (error) {
-                  logger.error(`Error executing tool use response asynchronously:`, error)
+                  logger.error(`Error executing tool use response asynchronously:`, error as Error)
                   // 错误时不影响其他工具的执行
                 }
               })()
@@ -174,7 +175,7 @@ function createToolHandlingTransform(
           controller.enqueue(chunk)
         }
       } catch (error) {
-        logger.error(`Error processing chunk:`, error)
+        logger.error(`Error processing chunk:`, error as Error)
         controller.error(error)
       }
     },
@@ -206,7 +207,7 @@ function createToolHandlingTransform(
             await executeWithToolHandling(newParams, depth + 1)
           }
         } catch (error) {
-          logger.error(`Error in tool processing:`, error)
+          logger.error(`Error in tool processing:`, error as Error)
           controller.error(error)
         } finally {
           hasToolCalls = false
@@ -341,7 +342,7 @@ function buildParamsWithToolResults(
         ctx._internal.observer.usage.total_tokens += additionalTokens
       }
     } catch (error) {
-      logger.error(`Error estimating token usage for new messages:`, error)
+      logger.error(`Error estimating token usage for new messages:`, error as Error)
     }
   }
 
@@ -469,7 +470,10 @@ export async function parseAndCallTools<R>(
           // 执行工具调用
           try {
             const images: string[] = []
-            const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
+            // 根据工具类型选择不同的调用方式
+            const toolCallResponse = toolResponse.tool.isBuiltIn
+              ? await callBuiltInTool(toolResponse)
+              : await callMCPTool(toolResponse, topicId, model.name)
 
             // 立即更新为done状态
             upsertMCPToolResponse(
@@ -481,6 +485,10 @@ export async function parseAndCallTools<R>(
               },
               onChunk!
             )
+
+            if (!toolCallResponse) {
+              return
+            }
 
             // 处理图片
             for (const content of toolCallResponse.content) {
@@ -509,7 +517,7 @@ export async function parseAndCallTools<R>(
               toolResults.push(convertedMessage)
             }
           } catch (error) {
-            logger.error(`Error executing tool ${toolResponse.id}:`, error)
+            logger.error(`Error executing tool ${toolResponse.id}:`, error as Error)
             // 更新为错误状态
             upsertMCPToolResponse(
               allToolResponses,
@@ -551,7 +559,7 @@ export async function parseAndCallTools<R>(
         }
       })
       .catch((error) => {
-        logger.error(`Error waiting for tool confirmation ${toolResponse.id}:`, error)
+        logger.error(`Error waiting for tool confirmation ${toolResponse.id}:`, error as Error)
         // 立即更新为cancelled状态
         upsertMCPToolResponse(
           allToolResponses,

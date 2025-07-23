@@ -289,12 +289,6 @@
       "topics.unpinned": "Annuler le fixage",
       "translate": "Traduire"
     },
-    "html_artifacts": {
-      "code": "Code",
-      "generating": "Génération",
-      "preview": "Aperçu",
-      "split": "Diviser"
-    },
     "code_block": {
       "collapse": "Réduire",
       "disable_wrap": "Désactiver le retour à la ligne",
@@ -341,7 +335,6 @@
       "provider": "Fournisseur",
       "reasoning_content": "Réflexion approfondie",
       "regenerate": "Regénérer",
-      "trace": "Tracer",
       "rename": "Renommer",
       "reset": "Réinitialiser",
       "save": "Enregistrer",
@@ -353,6 +346,7 @@
         "pinyin.desc": "Сортировать по пиньинь в порядке убывания"
       },
       "topics": "Sujets",
+      "trace": "Tracer",
       "warning": "Avertissement",
       "you": "Vous"
     },
@@ -427,6 +421,12 @@
       "search.placeholder": "Rechercher un sujet ou un message...",
       "search.topics.empty": "Aucun sujet correspondant trouvé, appuyez sur Entrée pour rechercher tous les messages",
       "title": "Recherche de sujets"
+    },
+    "html_artifacts": {
+      "code": "Code",
+      "generating": "Génération",
+      "preview": "Aperçu",
+      "split": "Diviser"
     },
     "knowledge": {
       "add": {
@@ -645,9 +645,9 @@
         "close": "Закрыть мини-программу",
         "devtools": "Инструменты разработчика",
         "minimize": "Свернуть мини-программу",
+        "openExternal": "Открыть в браузере",
         "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
         "open_link_external_on": "Текущий: открывать ссылки в браузере",
-        "openExternal": "Открыть в браузере",
         "refresh": "Обновить",
         "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
       },
@@ -905,9 +905,9 @@
     },
     "settings": {
       "about": "À propos de nous",
-      "about.checkingUpdate": "Vérification des mises à jour en cours...",
       "about.checkUpdate": "Vérifier les mises à jour",
       "about.checkUpdate.available": "Mettre à jour maintenant",
+      "about.checkingUpdate": "Vérification des mises à jour en cours...",
       "about.contact.button": "Courriel",
       "about.contact.title": "Contactez-nous par courriel",
       "about.description": "Un assistant IA conçu pour les créateurs",

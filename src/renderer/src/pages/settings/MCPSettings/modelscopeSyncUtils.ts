@@ -117,7 +117,7 @@ export const syncModelScopeServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing ModelScope server:', err)
+        logger.error('Error processing ModelScope server:', err as Error)
       }
     }
 
@@ -127,7 +127,7 @@ export const syncModelScopeServers = async (
       addedServers
     }
   } catch (error) {
-    logger.error('ModelScope sync error:', error)
+    logger.error('ModelScope sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

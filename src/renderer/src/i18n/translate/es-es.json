@@ -290,12 +290,6 @@
       "topics.unpinned": "Quitar fijación",
       "translate": "Traducir"
     },
-    "html_artifacts": {
-      "code": "Código",
-      "generating": "Generando",
-      "preview": "Vista previa",
-      "split": "Dividir"
-    },
     "code_block": {
       "collapse": "Replegar",
       "disable_wrap": "Deshabilitar salto de línea",
@@ -342,7 +336,6 @@
       "provider": "Proveedor",
       "reasoning_content": "Pensamiento profundo",
       "regenerate": "Regenerar",
-      "trace": "Rastro",
       "rename": "Renombrar",
       "reset": "Restablecer",
       "save": "Guardar",
@@ -354,6 +347,7 @@
         "pinyin.desc": "Ordenar por pinyin descendente"
       },
       "topics": "Temas",
+      "trace": "Rastro",
       "warning": "Advertencia",
       "you": "Usuario"
     },
@@ -428,6 +422,12 @@
       "search.placeholder": "Buscar tema o mensaje...",
       "search.topics.empty": "No se encontraron temas relacionados, presione Enter para buscar todos los mensajes",
       "title": "Búsqueda de temas"
+    },
+    "html_artifacts": {
+      "code": "Código",
+      "generating": "Generando",
+      "preview": "Vista previa",
+      "split": "Dividir"
     },
     "knowledge": {
       "add": {
@@ -646,9 +646,9 @@
         "close": "Cerrar la aplicación",
         "devtools": "Herramientas de desarrollo",
         "minimize": "Minimizar la aplicación",
+        "openExternal": "Abrir en el navegador",
         "open_link_external_off": "Actual: Abrir enlaces en ventana predeterminada",
         "open_link_external_on": "Actual: Abrir enlaces en el navegador",
-        "openExternal": "Abrir en el navegador",
         "refresh": "Actualizar",
         "rightclick_copyurl": "Copiar URL con clic derecho"
       },
@@ -906,9 +906,9 @@
     },
     "settings": {
       "about": "Acerca de nosotros",
-      "about.checkingUpdate": "Verificando actualizaciones...",
       "about.checkUpdate": "Comprobar actualizaciones",
       "about.checkUpdate.available": "Actualizar ahora",
+      "about.checkingUpdate": "Verificando actualizaciones...",
       "about.contact.button": "Correo electrónico",
       "about.contact.title": "Contacto por correo electrónico",
       "about.description": "Una asistente de IA creada para los creadores",

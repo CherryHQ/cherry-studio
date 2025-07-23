@@ -105,7 +105,7 @@ export class StoreSyncService {
             window.store.dispatch(action)
           }
         } catch (error) {
-          logger.error('Error dispatching synced action:', error)
+          logger.error('Error dispatching synced action:', error as Error)
         }
       }
     )

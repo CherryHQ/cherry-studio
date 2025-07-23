@@ -121,7 +121,7 @@ export async function fetchWebContent(
       throw e
     }
 
-    logger.error(`Failed to fetch ${url}`, e)
+    logger.error(`Failed to fetch ${url}`, e as Error)
     return {
       title: url,
       url: url,
@@ -142,7 +142,7 @@ export async function fetchRedirectUrl(url: string) {
     })
     return response.url
   } catch (e) {
-    logger.error(`Failed to fetch redirect url: ${e}`)
+    logger.error('Failed to fetch redirect url', e as Error)
     return url
   }
 }

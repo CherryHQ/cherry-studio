@@ -45,7 +45,7 @@ export default class ExaProvider extends BaseWebSearchProvider {
         })
       }
     } catch (error) {
-      logger.error('Exa search failed:', error)
+      logger.error('Exa search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

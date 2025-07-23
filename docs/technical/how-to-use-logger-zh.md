@@ -38,20 +38,24 @@ const logger = loggerService.withContext('moduleName', CONTEXT)
 
 ### 记录日志
 
-在代码中，可以随时调用 `logger` 来记录日志，支持的方法有：`error`, `warn`, `info`, `verbose`, `debug`, `silly`
-各级别的含义，请参考下面的章节。
+在代码中，可以随时调用 `logger` 来记录日志，支持的级别有：`error`, `warn`, `info`, `verbose`, `debug`, `silly`
+各级别的含义，请参考后面的章节。
 
-以下以 `logger.info` 和 `logger.error` 举例如何使用，其他级别是一样的：
+以下支持的记录日志的参数（以 `logger.LEVEL` 举例如何使用，`LEVEL`指代为上述级别）：
 
 ```typescript
-logger.info('message', CONTEXT)
-logger.info('message %s %d', 'hello', 123, CONTEXT)
-logger.error('message', new Error('error message'), CONTEXT)
+logger.LEVEL(message)
+logger.LEVEL(message, CONTEXT)
+logger.LEVEL(message, error)
+logger.LEVEL(message, error, CONTEXT)
 ```
 
-- `message` 是必填的，`string`类型，其他选项都是可选的
-- `CONTEXT`为`{ key: value, ...}` 是可选的，会在日志文件中记录
-- 如果传递了`Error`类型，会自动记录错误堆栈
+**只支持上述四种调用方式**：
+| 参数 | 类型 | 说明 |
+| ----- | ----- | ----- |
+| `message` | `string` | 必填项。这是日志的核心字段，记录的重点内容 |
+| `CONTEXT` | `object` | 可选。其他需要再日志文件中记录的信息，建议为`{ key: value, ...}`格式
+| `error` | `Error` | 可选。同时会打印错误堆栈信息。<br />注意`catch(error)`所捕获的`error`是`unknown`类型，按照`Typescript`最佳实践，请先用`instanceof`进行类型判断，如果确信一定是`Error`类型，也可用断言`as Error`。|
 
 ### 记录级别
 
@@ -145,12 +149,12 @@ const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
 
 环境变量可以在终端中自行设置，或者在开发根目录的`.env`文件中进行定义，可以定义的变量如下：
 
-| 变量名 | 含义 |
-| ----- | ----- |
-| CSLOGGER_MAIN_LEVEL | 用于`main`进程的日志级别，低于该级别的日志将不显示 |
-| CSLOGGER_MAIN_SHOW_MODULES | 用于`main`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
-| CSLOGGER_RENDERER_LEVEL | 用于`renderer`进程的日志级别，低于该级别的日志将不显示 |
-| CSLOGGER_RENDERER_SHOW_MODULES |  用于`renderer`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
+| 变量名                         | 含义                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| CSLOGGER_MAIN_LEVEL            | 用于`main`进程的日志级别，低于该级别的日志将不显示                                              |
+| CSLOGGER_MAIN_SHOW_MODULES     | 用于`main`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示     |
+| CSLOGGER_RENDERER_LEVEL        | 用于`renderer`进程的日志级别，低于该级别的日志将不显示                                          |
+| CSLOGGER_RENDERER_SHOW_MODULES | 用于`renderer`进程的日志module筛选，用`,`分隔，区分大小写。只有在该列表中的module的日志才会显示 |
 
 示例：
 
@@ -160,6 +164,7 @@ CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
 ```
 
 注意：
+
 - 环境变量仅在开发环境中生效
 - 该变量仅会改变在终端或在devTools中显示的日志，不会影响文件日志和`logToMain`的记录逻辑
 

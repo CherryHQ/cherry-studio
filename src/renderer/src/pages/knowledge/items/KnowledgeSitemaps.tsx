@@ -74,7 +74,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         }
         addSitemap(url)
       } catch (e) {
-        logger.error('Invalid Sitemap URL:', url)
+        logger.error(`Invalid Sitemap URL: ${url}`)
       }
     }
   }
