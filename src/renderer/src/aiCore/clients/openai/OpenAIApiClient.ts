@@ -14,6 +14,7 @@ import {
   isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel
@@ -128,7 +129,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         return { reasoning: { enabled: false, exclude: true } }
       }
-      if (isSupportedThinkingTokenQwenModel(model)) {
+      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
         return { enable_thinking: false }
       }
 
@@ -186,6 +187,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
       }
       return thinkConfig
+    }
+
+    // Hunyuan models
+    if (isSupportedThinkingTokenHunyuanModel(model)) {
+      return {
+        enable_thinking: true
+      }
     }
 
     // Grok models

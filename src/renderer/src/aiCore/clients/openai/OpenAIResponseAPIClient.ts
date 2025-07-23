@@ -96,6 +96,18 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
   }
 
+  /**
+   * 重写基类方法，返回内部实际使用的客户端类型
+   */
+  public override getClientCompatibilityType(model?: Model): string[] {
+    if (!model) {
+      return [this.constructor.name]
+    }
+
+    const actualClient = this.getClient(model)
+    return actualClient.getClientCompatibilityType(model)
+  }
+
   override async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance

@@ -2513,7 +2513,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
-    isSupportedThinkingTokenDoubaoModel(model)
+    isSupportedThinkingTokenDoubaoModel(model) ||
+    isSupportedThinkingTokenHunyuanModel(model)
   )
 }
 
@@ -2598,6 +2599,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
+  if (baseName.includes('coder')) {
+    return false
+  }
+
   return (
     baseName.startsWith('qwen3') ||
     [
@@ -2639,6 +2644,21 @@ export function isClaudeReasoningModel(model?: Model): boolean {
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
+export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('hunyuan-a13b')
+}
+
+export const isHunyuanReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenHunyuanModel(model) || model.id.toLowerCase().includes('hunyuan-t1')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2664,6 +2684,7 @@ export function isReasoningModel(model?: Model): boolean {
     isGeminiReasoningModel(model) ||
     isQwenReasoningModel(model) ||
     isGrokReasoningModel(model) ||
+    isHunyuanReasoningModel(model) ||
     model.id.includes('glm-z1') ||
     model.id.includes('magistral')
   ) {
