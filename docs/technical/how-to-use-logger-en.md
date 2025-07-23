@@ -2,7 +2,7 @@
 
 This is a developer document on how to use the logger.
 
-CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**
+CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**.
 
 The following are detailed instructions.
 
@@ -58,6 +58,13 @@ logger.LEVEL(message, error, CONTEXT)
 | `CONTEXT` | `object` | Optional. Additional information to be recorded in the log file. It is recommended to use the `{ key: value, ...}` format.                                                                                                                                                                                                    |
 | `error`   | `Error`  | Optional. The error stack trace will also be printed.<br />Note that the `error` caught by `catch(error)` is of the `unknown` type. According to TypeScript best practices, you should first use `instanceof` for type checking. If you are certain it is an `Error` type, you can also use a type assertion like `as Error`. |
 
+#### Recording non-`object` type context information
+
+```typescript
+const foo = getFoo()
+logger.debug(`foo ${foo}`)
+```
+
 ### Log Levels
 
 - In the development environment, all log levels are printed to the terminal and recorded in the file log.
@@ -89,7 +96,7 @@ As a rule, we will set this in the `window`'s `entryPoint.tsx`. This ensures tha
 - An error will be thrown if `windowName` is not set, and the `logger` will not work.
 - `windowName` can only be set once; subsequent attempts to set it will have no effect.
 - `windowName` will not be printed in the `devTool`'s `console`, but it will be recorded in the `main` process terminal and the file log.
-- `initWindowSource` returns the LoggerService instance, allowing for method chaining
+- `initWindowSource` returns the LoggerService instance, allowing for method chaining.
 
 ### Log Levels
 
@@ -150,12 +157,12 @@ In a development environment, you can define environment variables to filter dis
 
 Environment variables can be set in the terminal or defined in the `.env` file in the project's root directory. The available variables are as follows:
 
-| Variable Name                  | Description                                                                                                                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CSLOGGER_MAIN_LEVEL            | Log level for the `main` process. Logs below this level will not be displayed.                                                                                              |
-| CSLOGGER_MAIN_SHOW_MODULES     | Filters log modules for the `main` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed.     |
-| CSLOGGER_RENDERER_LEVEL        | Log level for the `renderer` process. Logs below this level will not be displayed.                                                                                          |
-| CSLOGGER_RENDERER_SHOW_MODULES | Filters log modules for the `renderer` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed. |
+| Variable Name                    | Description                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CSLOGGER_MAIN_LEVEL`            | Log level for the `main` process. Logs below this level will not be displayed.                                                                                              |
+| `CSLOGGER_MAIN_SHOW_MODULES`     | Filters log modules for the `main` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed.     |
+| `CSLOGGER_RENDERER_LEVEL`        | Log level for the `renderer` process. Logs below this level will not be displayed.                                                                                          |
+| `CSLOGGER_RENDERER_SHOW_MODULES` | Filters log modules for the `renderer` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed. |
 
 Example:
 
