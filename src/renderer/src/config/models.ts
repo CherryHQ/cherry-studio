@@ -2741,7 +2741,7 @@ export function isWebSearchModel(model: Model): boolean {
   const baseName = getLowerBaseModelName(model.id, '/')
 
   // 不管哪个供应商都判断了
-  if (model.id.includes('claude')) {
+  if (isAnthropicModel(model)) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(baseName)
   }
 
@@ -2996,4 +2996,12 @@ export const isVisionModels = (models: Model[]) => {
 
 export const isGenerateImageModels = (models: Model[]) => {
   return models.every((model) => isGenerateImageModel(model))
+}
+
+export const isAnthropicModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  return getLowerBaseModelName(model.id).startsWith('claude')
 }

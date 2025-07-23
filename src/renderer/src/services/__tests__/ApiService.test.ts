@@ -1392,6 +1392,9 @@ const mockGeminiApiClient = {
 
 const mockAnthropicApiClient = {
   createCompletions: vi.fn().mockImplementation(() => anthropicTextNonStreamChunkGenerator()),
+  attachRawStreamListener: vi.fn().mockImplementation((rawOutput: any) => {
+    return rawOutput
+  }),
   getResponseChunkTransformer: vi.fn().mockImplementation(() => {
     return () => {
       let accumulatedJson = ''
