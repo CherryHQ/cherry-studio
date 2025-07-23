@@ -79,6 +79,12 @@
       "settings.model": "モデル設定",
       "settings.more": "アシスタント設定",
       "settings.prompt": "プロンプト設定",
+      "settings.reader": "リーダー設定",
+      "settings.reader.pickFromFiles": "ファイルから選択",
+      "settings.reader.pickFromFiles.confirm": "このドキュメントを選択してもよろしいですか？",
+      "settings.reader.reference": "参照資料を選択",
+      "settings.reader.reupload": "再アップロード",
+      "settings.reader.upload": "クリックしてアップロード",
       "settings.reasoning_effort": "思考連鎖の長さ",
       "settings.reasoning_effort.default": "デフォルト",
       "settings.reasoning_effort.high": "最大限の思考",
@@ -1228,6 +1234,22 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI"
     },
+    "reader": {
+      "attaching": "関連付け中",
+      "close": "リーダーを閉じる",
+      "enableDragMode": "ドラッグモードを有効にする",
+      "enableTextSelection": "テキスト選択を有効にする",
+      "move": "ドラッグ",
+      "outlineEmpty": "読み込み可能な目次がありません",
+      "pageIndex": "第{{index}}ページ",
+      "reference": "参照資料",
+      "selectReference": "参照資料を選択",
+      "showOutline": "目次",
+      "showSelect": "ページ選択",
+      "switchPosition": "位置を切り替える",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小"
+    },
     "restore": {
       "confirm": "データを復元しますか？",
       "confirm.button": "バックアップファイルを選択",
@@ -1885,7 +1907,7 @@
         "addServer.importFrom.noDxtFile": "DXTファイルを選択してください",
         "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
         "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
-        "addServer.importFrom.selectDxtFile": "[to be translated]:选择 DXT 文件",
+        "addServer.importFrom.selectDxtFile": "DXTファイルを選択",
         "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
         "addSuccess": "サーバーが正常に追加されました",
         "advancedSettings": "詳細設定",
@@ -2578,9 +2600,9 @@
     "update": {
       "install": "今すぐインストール",
       "later": "後で",
-      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
-      "noReleaseNotes": "暫無更新日誌",
-      "title": "更新"
+      "message": "新しいバージョン {{version}} が見つかりました。今すぐインストールしますか？",
+      "noReleaseNotes": "更新履歴はありません",
+      "title": "更新通知"
     },
     "words": {
       "knowledgeGraph": "ナレッジグラフ",
