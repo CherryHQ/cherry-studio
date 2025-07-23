@@ -2,11 +2,11 @@
 
 type PrimitiveType = string | number | boolean | null | undefined
 
-// findIntersection - with strict overloads
-export function findIntersection<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
-export function findIntersection<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
-export function findIntersection<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
-export function findIntersection<T>(
+// getIntersection - with strict overloads
+export function getIntersection<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
+export function getIntersection<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
+export function getIntersection<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
+export function getIntersection<T>(
   arr1: T[],
   arr2: T[],
   comparator?: ((item: T) => any) | ((a: T, b: T) => boolean)
@@ -26,11 +26,11 @@ export function findIntersection<T>(
   }
 }
 
-// findDifference - with strict overloads
-export function findDifference<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
-export function findDifference<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
-export function findDifference<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
-export function findDifference<T>(
+// getDifference - with strict overloads
+export function getDifference<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
+export function getDifference<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
+export function getDifference<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
+export function getDifference<T>(
   arr1: T[],
   arr2: T[],
   comparator?: ((item: T) => any) | ((a: T, b: T) => boolean)
@@ -50,11 +50,11 @@ export function findDifference<T>(
   }
 }
 
-// findUnion - with strict overloads
-export function findUnion<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
-export function findUnion<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
-export function findUnion<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
-export function findUnion<T>(arr1: T[], arr2: T[], comparator?: ((item: T) => any) | ((a: T, b: T) => boolean)): T[] {
+// getUnion - with strict overloads
+export function getUnion<T extends PrimitiveType>(arr1: T[], arr2: T[]): T[]
+export function getUnion<T extends object, K>(arr1: T[], arr2: T[], keySelector: (item: T) => K): T[]
+export function getUnion<T extends object>(arr1: T[], arr2: T[], compareFn: (a: T, b: T) => boolean): T[]
+export function getUnion<T>(arr1: T[], arr2: T[], comparator?: ((item: T) => any) | ((a: T, b: T) => boolean)): T[] {
   if (!comparator) {
     return Array.from(new Set([...arr1, ...arr2]))
   }
