@@ -764,14 +764,22 @@ describe('BaseApiClient', () => {
       }
 
       vi.mocked(findFileBlocks).mockReturnValue([fileBlock as FileMessageBlock])
-      vi.mocked(mockApi.file.read).mockRejectedValue(new Error('File not found'))
+      
+      // 创建一个模拟 fs 错误对象
+      const fsError = new Error('ENOENT: no such file or directory, open \'file-1.txt\'') as NodeJS.ErrnoException
+      fsError.code = 'ENOENT'
+      fsError.errno = -2
+      fsError.syscall = 'open'
+      fsError.path = 'file-1.txt'
+      
+      vi.mocked(mockApi.file.read).mockRejectedValue(fsError)
 
       // 当前源码没有错误处理，应该抛出错误
       await expect(
         (client as TestApiClient & { extractFileContent: (msg: Message) => Promise<string> }).extractFileContent(
           message
         )
-      ).rejects.toThrow('File not found')
+      ).rejects.toThrow('ENOENT: no such file or directory, open \'file-1.txt\'')
     })
   })
 
