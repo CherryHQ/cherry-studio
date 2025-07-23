@@ -201,6 +201,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
               const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
 
+              const isRerankDisabled = selectedTypes.includes('embedding')
+              const isEmbeddingDisabled = selectedTypes.includes('rerank')
+
               const showTypeConfirmModal = (type: NewModelType) => {
                 const onUpdateType = tempModelTypes?.find((t) => t.type === type.type)
                 window.modal.confirm({
@@ -216,11 +219,26 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         if (t.type === type.type) {
                           return { ...t, isUserSelected: true }
                         }
+                        if (
+                          (onUpdateType !== t && onUpdateType.type === 'rerank') ||
+                          (onUpdateType.type === 'embedding' && onUpdateType !== t)
+                        ) {
+                          return { ...t, isUserSelected: false }
+                        }
                         return t
                       })
                       setTempModelTypes(updatedTypes || [])
                     } else {
-                      setTempModelTypes([...(tempModelTypes ?? []), type])
+                      const updatedTypes = tempModelTypes?.map((t) => {
+                        if (
+                          (type.type !== t.type && type.type === 'rerank') ||
+                          (type.type === 'embedding' && type.type !== t.type)
+                        ) {
+                          return { ...t, isUserSelected: false }
+                        }
+                        return t
+                      })
+                      setTempModelTypes([...(updatedTypes ?? []), type])
                     }
                   },
                   onCancel: () => {},
@@ -279,11 +297,13 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         },
                         {
                           label: t('models.type.rerank'),
-                          value: 'rerank'
+                          value: 'rerank',
+                          disabled: isRerankDisabled
                         },
                         {
                           label: t('models.type.embedding'),
-                          value: 'embedding'
+                          value: 'embedding',
+                          disabled: isEmbeddingDisabled
                         },
                         {
                           label: t('models.type.reasoning'),
