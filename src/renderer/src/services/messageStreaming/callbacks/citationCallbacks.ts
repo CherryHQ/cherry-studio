@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import type { ExternalToolResult } from '@renderer/types'
 import { CitationMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 
 import { BlockManager } from '../BlockManager'
+
+const logger = loggerService.withContext('CitationCallbacks')
 
 interface CitationCallbacksDependencies {
   blockManager: BlockManager
@@ -19,6 +22,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
 
   return {
     onExternalToolInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        logger.warn('[onExternalToolInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
       citationBlockId = citationBlock.id
       await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
@@ -33,16 +41,21 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         }
         blockManager.smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
       } else {
-        console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
+        logger.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
       }
     },
 
     onLLMWebSearchInProgress: async () => {
+      // 避免创建重复的引用块
+      if (citationBlockId) {
+        logger.warn('[onLLMWebSearchInProgress] Citation block already exists:', citationBlockId)
+        return
+      }
       if (blockManager.hasInitialPlaceholder) {
         // blockManager.lastBlockType = MessageBlockType.CITATION
-        console.log('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)
+        logger.debug('blockManager.initialPlaceholderBlockId', blockManager.initialPlaceholderBlockId)
         citationBlockId = blockManager.initialPlaceholderBlockId!
-        console.log('citationBlockId', citationBlockId)
+        logger.debug('citationBlockId', citationBlockId)
 
         const changes = {
           type: MessageBlockType.CITATION,

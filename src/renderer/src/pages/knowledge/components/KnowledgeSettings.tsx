@@ -1,4 +1,5 @@
 import { InfoCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, isMac } from '@renderer/config/constant'
@@ -16,6 +17,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('KnowledgeSettings')
 interface ShowParams {
   base: KnowledgeBase
 }
@@ -93,12 +95,12 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const onOk = async () => {
     try {
-      console.log('newbase', newBase)
+      logger.debug('newbase', newBase)
       updateKnowledgeBase(newBase)
       setOpen(false)
       resolve(newBase)
     } catch (error) {
-      console.error('Validation failed:', error)
+      logger.error('Validation failed:', error)
     }
   }
 

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -15,6 +16,8 @@ interface Props {
   size?: number
   isLast?: boolean
 }
+
+const logger = loggerService.withContext('App')
 
 const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
@@ -69,7 +72,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
                 window.message.error(t('settings.miniapps.custom.remove_error'))
-                console.error('Failed to remove custom mini app:', error)
+                logger.error('Failed to remove custom mini app:', error)
               }
             }
           }

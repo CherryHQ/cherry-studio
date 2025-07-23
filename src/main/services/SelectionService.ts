@@ -1,8 +1,8 @@
+import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
-import Logger from 'electron-log'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -16,6 +16,8 @@ import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
 import storeSyncService from './StoreSyncService'
 
+const logger = loggerService.withContext('SelectionService')
+
 const isSupportedOS = isWin || isMac
 
 let SelectionHook: SelectionHookConstructor | null = null
@@ -25,7 +27,7 @@ try {
     SelectionHook = require('selection-hook')
   }
 } catch (error) {
-  Logger.error('Failed to load selection-hook:', error)
+  logger.error('Failed to load selection-hook:', error)
 }
 
 // Type definitions
@@ -1504,12 +1506,12 @@ export class SelectionService {
 
   private logInfo(message: string, forceShow: boolean = false): void {
     if (isDev || forceShow) {
-      Logger.info('[SelectionService] Info: ', message)
+      logger.info(message)
     }
   }
 
   private logError(...args: [...string[], Error]): void {
-    Logger.error('[SelectionService] Error: ', ...args)
+    logger.error('[SelectionService] Error: ', ...args)
   }
 }
 
@@ -1525,7 +1527,7 @@ export function initSelectionService(): boolean {
     //avoid closure
     const ss = SelectionService.getInstance()
     if (!ss) {
-      Logger.error('SelectionService not initialized: instance is null')
+      logger.error('SelectionService not initialized: instance is null')
       return
     }
 
@@ -1540,7 +1542,7 @@ export function initSelectionService(): boolean {
 
   const ss = SelectionService.getInstance()
   if (!ss) {
-    Logger.error('SelectionService not initialized: instance is null')
+    logger.error('SelectionService not initialized: instance is null')
     return false
   }
 

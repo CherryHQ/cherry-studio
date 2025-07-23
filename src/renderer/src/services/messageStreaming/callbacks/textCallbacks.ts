@@ -1,8 +1,11 @@
+import { loggerService } from '@logger'
 import { WebSearchSource } from '@renderer/types'
 import { CitationMessageBlock, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 
 import { BlockManager } from '../BlockManager'
+
+const logger = loggerService.withContext('TextCallbacks')
 
 interface TextCallbacksDependencies {
   blockManager: BlockManager
@@ -60,7 +63,7 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
         mainTextBlockId = null
       } else {
-        console.warn(
+        logger.warn(
           `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${blockManager.lastBlockType}) or lastBlockId is null.`
         )
       }

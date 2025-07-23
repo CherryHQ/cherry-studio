@@ -1,4 +1,5 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
@@ -11,6 +12,8 @@ import styled from 'styled-components'
 interface Props {
   size?: number
 }
+
+const logger = loggerService.withContext('NewAppButton')
 
 const NewAppButton: FC<Props> = ({ size = 60 }) => {
   const { t } = useTranslation()
@@ -60,7 +63,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       updateMinapps([...minapps, newApp])
     } catch (error) {
       window.message.error(t('settings.miniapps.custom.save_error'))
-      console.error('Failed to save custom mini app:', error)
+      logger.error('Failed to save custom mini app:', error)
     }
   }
 
@@ -80,7 +83,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
         }
         reader.readAsDataURL(file)
       } catch (error) {
-        console.error('Failed to read file:', error)
+        logger.error('Failed to read file:', error)
         window.message.error(t('settings.miniapps.custom.logo_upload_error'))
       }
     }

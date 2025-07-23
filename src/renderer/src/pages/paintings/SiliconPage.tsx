@@ -1,4 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
@@ -38,6 +39,8 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+
+const logger = loggerService.withContext('SiliconPage')
 
 const IMAGE_SIZES = [
   {
@@ -206,7 +209,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls.map(async (url) => {
             try {
               if (!url || url.trim() === '') {
-                console.error('图像URL为空，可能是提示词违禁')
+                logger.error('图像URL为空，可能是提示词违禁')
                 window.message.warning({
                   content: t('message.empty_url'),
                   key: 'empty-url-warning'
@@ -215,7 +218,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               }
               return await window.api.file.download(url)
             } catch (error) {
-              console.error('Failed to download image:', error)
+              logger.error('Failed to download image:', error)
               if (
                 error instanceof Error &&
                 (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -306,7 +309,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error)
     } finally {
       setIsTranslating(false)
     }

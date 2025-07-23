@@ -1,12 +1,14 @@
+import { loggerService } from '@logger'
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
-import Logger from 'electron-log'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+
+const logger = loggerService.withContext('ProxyManager')
 
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
@@ -34,21 +36,17 @@ export class ProxyManager {
     // Clear any existing interval first
     this.clearSystemProxyMonitor()
     // Set new interval
-    this.systemProxyInterval = setInterval(
-      async () => {
-        const currentProxy = await getSystemProxy()
-        if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config.proxyRules) {
-          return
-        }
+    this.systemProxyInterval = setInterval(async () => {
+      const currentProxy = await getSystemProxy()
+      if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+        return
+      }
 
-        await this.configureProxy({
-          mode: 'system',
-          proxyRules: currentProxy?.proxyUrl.toLowerCase()
-        })
-      },
-      // 1 minutes
-      1000 * 60
-    )
+      await this.configureProxy({
+        mode: 'system',
+        proxyRules: currentProxy?.proxyUrl.toLowerCase()
+      })
+    }, 1000 * 60)
   }
 
   private clearSystemProxyMonitor(): void {
@@ -59,7 +57,7 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    Logger.info('configureProxy', config.mode, config.proxyRules)
+    logger.debug('configureProxy: %s %s', config?.mode, config?.proxyRules)
     if (this.isSettingProxy) {
       return
     }
@@ -68,7 +66,7 @@ export class ProxyManager {
 
     try {
       if (config?.mode === this.config?.mode && config?.proxyRules === this.config?.proxyRules) {
-        Logger.info('proxy config is the same, skip configure')
+        logger.info('proxy config is the same, skip configure')
         return
       }
 
@@ -77,18 +75,15 @@ export class ProxyManager {
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          Logger.info('current system proxy', currentProxy.proxyUrl)
+          logger.info('current system proxy: %s', currentProxy.proxyUrl)
           this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
-          this.monitorSystemProxy()
-        } else {
-          // no system proxy, use direct mode
-          this.config.mode = 'direct'
         }
+        this.monitorSystemProxy()
       }
 
       this.setGlobalProxy()
     } catch (error) {
-      Logger.error('Failed to config proxy:', error)
+      logger.error('Failed to config proxy:', error)
       throw error
     } finally {
       this.isSettingProxy = false
@@ -129,8 +124,7 @@ export class ProxyManager {
   }
 
   private setGlobalHttpProxy(config: ProxyConfig) {
-    const proxyUrl = config.proxyRules
-    if (config.mode === 'direct' || !proxyUrl) {
+    if (config.mode === 'direct' || !config.proxyRules) {
       http.get = this.originalHttpGet
       http.request = this.originalHttpRequest
       https.get = this.originalHttpsGet
@@ -223,17 +217,11 @@ export class ProxyManager {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    let c = config
-
-    if (config.mode === 'direct' || !config.proxyRules) {
-      c = { mode: 'direct' }
-    }
-
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    await Promise.all(sessions.map((session) => session.setProxy(c)))
+    await Promise.all(sessions.map((session) => session.setProxy(config)))
 
     // set proxy for electron
-    app.setProxy(c)
+    app.setProxy(config)
   }
 }
 

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
@@ -24,6 +25,8 @@ type formValue = {
   embedderDimensions: number
   autoDims: boolean
 }
+
+const logger = loggerService.withContext('MemoriesSettingsModal')
 
 const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubmit, onCancel, form }) => {
   const { providers } = useProviders()
@@ -82,7 +85,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
             const aiProvider = new AiProvider(provider)
             finalDimensions = await aiProvider.getEmbeddingDimensions(embedderModel)
           } catch (error) {
-            console.error('Error getting embedding dimensions:', error)
+            logger.error('Error getting embedding dimensions:', error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
@@ -121,7 +124,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         setLoading(false)
       }
     } catch (error) {
-      console.error('Error submitting form:', error)
+      logger.error('Error submitting form:', error)
       setLoading(false)
     }
   }

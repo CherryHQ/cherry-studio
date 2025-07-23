@@ -6,7 +6,7 @@ At Cherry Studio, we take security seriously and appreciate your efforts to resp
 
 **Please do not create public issues for security-related reports.**
 
-- Contact us directly via **security@cherry-ai.com**.
+- To report a security issue, please use the GitHub Security Advisories tab to "[Open a draft security advisory](https://github.com/CherryHQ/cherry-studio/security/advisories/new)".
 - Include a detailed description of the issue, steps to reproduce, potential impact, and any possible mitigations.
 - If applicable, please also attach proof-of-concept code or screenshots.
 
@@ -18,11 +18,11 @@ We will acknowledge your report within **72 hours** and provide a status update 
 
 We aim to support the latest released version and one previous minor release.
 
-| Version         | Supported          |
-|-----------------|--------------------|
-| Latest (`main`) | ✅ Supported       |
-| Previous minor  | ✅ Supported       |
-| Older versions  | ❌ Not supported   |
+| Version         | Supported        |
+| --------------- | ---------------- |
+| Latest (`main`) | ✅ Supported     |
+| Previous minor  | ✅ Supported     |
+| Older versions  | ❌ Not supported |
 
 If you are using an unsupported version, we strongly recommend updating to the latest release to receive security fixes.
 

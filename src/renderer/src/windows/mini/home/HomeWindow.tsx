@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -32,6 +33,8 @@ import ClipboardPreview from './components/ClipboardPreview'
 import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+
+const logger = loggerService.withContext('HomeWindow')
 
 const HomeWindow: FC = () => {
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
@@ -106,7 +109,7 @@ const HomeWindow: FC = () => {
       }
     } catch (error) {
       // Silently handle clipboard read errors (common in some environments)
-      console.warn('Failed to read clipboard:', error)
+      logger.warn('Failed to read clipboard:', error)
     }
   }, [readClipboardAtStartup])
 
@@ -394,7 +397,7 @@ const HomeWindow: FC = () => {
       } catch (err) {
         if (isAbortError(err)) return
         handleError(err instanceof Error ? err : new Error('An error occurred'))
-        console.error('Error fetching result:', err)
+        logger.error('Error fetching result:', err)
       } finally {
         setIsLoading(false)
         setIsOutputted(true)

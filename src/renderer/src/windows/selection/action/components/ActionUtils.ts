@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
@@ -7,8 +8,10 @@ import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/stor
 import { Assistant, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import { isAbortError } from '@renderer/utils/error'
-import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+
+const logger = loggerService.withContext('ActionUtils')
 
 export const processMessages = async (
   assistant: Assistant,
@@ -35,7 +38,7 @@ export const processMessages = async (
 
     let textBlockId: string | null = null
     let thinkingBlockId: string | null = null
-    const textBlockContent: string = ''
+    let textBlockContent: string = ''
 
     const assistantMessage = getAssistantMessage({
       assistant,
@@ -130,6 +133,7 @@ export const processMessages = async (
                 throttledBlockUpdate(textBlockId, { content: chunk.text })
               }
               onStream()
+              textBlockContent = chunk.text
             }
             break
           case ChunkType.TEXT_COMPLETE:
@@ -143,6 +147,7 @@ export const processMessages = async (
                   })
                 )
                 onFinish(chunk.text)
+                textBlockContent = chunk.text
                 textBlockId = null
               }
             }
@@ -156,7 +161,6 @@ export const processMessages = async (
                   updates: { status: AssistantMessageStatus.SUCCESS }
                 })
               )
-              onFinish(textBlockContent)
             }
             break
           case ChunkType.ERROR:
@@ -172,12 +176,36 @@ export const processMessages = async (
                   })
                 )
               }
+              const isErrorTypeAbort = isAbortError(chunk.error)
+              let pauseErrorLanguagePlaceholder = ''
+              if (isErrorTypeAbort) {
+                pauseErrorLanguagePlaceholder = 'pause_placeholder'
+              }
+              const serializableError = {
+                name: chunk.error.name,
+                message: pauseErrorLanguagePlaceholder || chunk.error.message || formatErrorMessage(chunk.error),
+                originalMessage: chunk.error.message,
+                stack: chunk.error.stack,
+                status: chunk.error.status || chunk.error.code,
+                requestId: chunk.error.request_id
+              }
+              const errorBlock = createErrorBlock(assistantMessage.id, serializableError, {
+                status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+              })
+              store.dispatch(
+                newMessagesActions.updateMessage({
+                  topicId: topic.id,
+                  messageId: assistantMessage.id,
+                  updates: { blockInstruction: { id: errorBlock.id } }
+                })
+              )
+              store.dispatch(upsertOneBlock(errorBlock))
               store.dispatch(
                 newMessagesActions.updateMessage({
                   topicId: topic.id,
                   messageId: assistantMessage.id,
                   updates: {
-                    status: isAbortError(chunk.error) ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.SUCCESS
+                    status: isAbortError(chunk.error) ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.ERROR
                   }
                 })
               )
@@ -190,6 +218,6 @@ export const processMessages = async (
   } catch (err) {
     if (isAbortError(err)) return
     onError(err instanceof Error ? err : new Error('An error occurred'))
-    console.error('Error fetching result:', err)
+    logger.error('Error fetching result:', err)
   }
 }

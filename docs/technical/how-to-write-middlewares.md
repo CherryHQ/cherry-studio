@@ -80,15 +80,13 @@ import { ChunkType } from '@renderer/types' // 调整路径
 
 export const createSimpleLoggingMiddleware = (): CompletionsMiddleware => {
   return (api: MiddlewareAPI<AiProviderMiddlewareCompletionsContext, [CompletionsParams]>) => {
-    // console.log(`[LoggingMiddleware] Initialized for provider: ${api.getProviderId()}`);
-
     return (next: (context: AiProviderMiddlewareCompletionsContext, params: CompletionsParams) => Promise<any>) => {
       return async (context: AiProviderMiddlewareCompletionsContext, params: CompletionsParams): Promise<void> => {
         const startTime = Date.now()
         // 从 context 中获取 onChunk (它最初来自 params.onChunk)
         const onChunk = context.onChunk
 
-        console.log(
+        logger.debug(
           `[LoggingMiddleware] Request for ${context.methodName} with params:`,
           params.messages?.[params.messages.length - 1]?.content
         )
@@ -104,14 +102,14 @@ export const createSimpleLoggingMiddleware = (): CompletionsMiddleware => {
           // 如果在之前，那么它需要自己处理 rawSdkResponse 或确保下游会处理。
 
           const duration = Date.now() - startTime
-          console.log(`[LoggingMiddleware] Request for ${context.methodName} completed in ${duration}ms.`)
+          logger.debug(`[LoggingMiddleware] Request for ${context.methodName} completed in ${duration}ms.`)
 
           // 假设下游已经通过 onChunk 发送了所有数据。
           // 如果这个中间件是链的末端，并且需要确保 BLOCK_COMPLETE 被发送，
           // 它可能需要更复杂的逻辑来跟踪何时所有数据都已发送。
         } catch (error) {
           const duration = Date.now() - startTime
-          console.error(`[LoggingMiddleware] Request for ${context.methodName} failed after ${duration}ms:`, error)
+          logger.error(`[LoggingMiddleware] Request for ${context.methodName} failed after ${duration}ms:`, error)
 
           // 如果 onChunk 可用，可以尝试发送一个错误块
           if (onChunk) {
@@ -207,7 +205,7 @@ export default middlewareConfig
 
 ### 调试技巧
 
-- 在中间件的关键点使用 `console.log` 或调试器来检查 `params`、`context` 的状态以及 `next` 的返回值。
+- 在中间件的关键点使用 `logger.debug` 或调试器来检查 `params`、`context` 的状态以及 `next` 的返回值。
 - 暂时简化中间件链，只保留你正在调试的中间件和最简单的核心逻辑，以隔离问题。
 - 编写单元测试来独立验证每个中间件的行为。
 

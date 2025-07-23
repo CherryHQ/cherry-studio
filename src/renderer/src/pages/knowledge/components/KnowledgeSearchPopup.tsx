@@ -1,5 +1,6 @@
 import { CopyOutlined } from '@ant-design/icons'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
@@ -19,6 +20,8 @@ interface ShowParams {
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
+
+const logger = loggerService.withContext('KnowledgeSearchPopup')
 
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -41,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       const searchResults = await searchKnowledgeBase(value, base)
       setResults(searchResults)
     } catch (error) {
-      console.error(`Failed to search knowledge base ${base.name}:`, error)
+      logger.error(`Failed to search knowledge base ${base.name}:`, error)
       setResults([])
     } finally {
       setLoading(false)
@@ -79,7 +82,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       await navigator.clipboard.writeText(text)
       message.success(t('message.copied'))
     } catch (error) {
-      console.error('Failed to copy text:', error)
+      logger.error('Failed to copy text:', error)
       window.message.error(t('message.copyError') || 'Failed to copy text')
     }
   }

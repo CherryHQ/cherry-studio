@@ -1,4 +1,5 @@
 import { CheckOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
@@ -9,6 +10,7 @@ import styled from 'styled-components'
 
 import Markdown from '../../Markdown/Markdown'
 
+const logger = loggerService.withContext('ThinkingBlock')
 interface Props {
   block: ThinkingMessageBlock
 }
@@ -39,7 +41,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
           setTimeout(() => setCopied(false), 2000)
         })
         .catch((error) => {
-          console.error('Failed to copy text:', error)
+          logger.error('Failed to copy text:', error)
           antdMessage.error({ content: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
