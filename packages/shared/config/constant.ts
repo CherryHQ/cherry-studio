@@ -193,6 +193,7 @@ const textExtsByCategory = new Map([
       '.htm',
       '.xhtml', // HTML
       '.xml', // XML
+      '.fxml', // JavaFX XML
       '.org', // Org-mode
       '.wiki', // Wiki
       '.tex',
@@ -347,7 +348,8 @@ const textExtsByCategory = new Map([
       '.x3d', // X3D文件
       '.gltf', // glTF JSON
       '.prefab', // Unity预制体 (YAML格式)
-      '.meta' // Unity元数据文件 (YAML格式)
+      '.meta', // Unity元数据文件 (YAML格式)
+      '.tscn' // Godot场景文件
     ]
   ],
   [

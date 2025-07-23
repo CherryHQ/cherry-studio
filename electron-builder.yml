@@ -54,7 +54,7 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
   - '!node_modules/pdfjs-dist/web/**/*'
-  - '!node_modules/pdfjs-dist/legacy/web/*'
+  - '!node_modules/pdfjs-dist/legacy/**/*'
   - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
   - '!node_modules/selection-hook/src' # we don't need source files
   - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
@@ -117,9 +117,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    服务商：新增 NewAPI 服务商支持
-    绘图：新增 NewAPI 绘图服务商支持
-    备份：支持 s3 兼容存储备份
-    服务商：支持多个密钥管理，支持配置自定义请求头
-    设置：支持禁用硬件加速
-    其他：性能优化和错误改进
+    新增全局记忆功能
+    MCP 支持 DXT 格式导入
+    全局快捷键支持 Linux 系统
+    模型思考过程增加动画效果
+    错误修复和性能优化

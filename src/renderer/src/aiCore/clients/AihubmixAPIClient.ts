@@ -103,7 +103,12 @@ export class AihubmixAPIClient extends BaseApiClient {
     }
 
     // gemini开头 且不以-nothink、-search结尾
-    if ((id.startsWith('gemini') || id.startsWith('imagen')) && !id.endsWith('-nothink') && !id.endsWith('-search')) {
+    if (
+      (id.startsWith('gemini') || id.startsWith('imagen')) &&
+      !id.endsWith('-nothink') &&
+      !id.endsWith('-search') &&
+      !id.includes('embedding')
+    ) {
       const client = this.clients.get('gemini')
       if (!client || !this.isValidClient(client)) {
         throw new Error('Gemini client not properly initialized')

@@ -1,5 +1,6 @@
+import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -30,6 +31,8 @@ import { getAssistantById, getAssistantProvider, getDefaultModel } from './Assis
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
+const logger = loggerService.withContext('MessagesService')
+
 export {
   filterContextMessages,
   filterEmptyMessages,
@@ -41,7 +44,7 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
+  const maxContextCount = rawContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : rawContextCount
 
   const _messages = takeRight(messages, maxContextCount)
 
@@ -232,7 +235,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       }
     } catch (e) {
       window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
-      console.error('Failed to generate title using topic naming, downgraded to default logic', e)
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e)
     }
   }
 
@@ -248,7 +251,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 export function checkRateLimit(assistant: Assistant): boolean {
   const provider = getAssistantProvider(assistant)
 
-  if (!provider.rateLimit) {
+  if (!provider?.rateLimit) {
     return false
   }
 

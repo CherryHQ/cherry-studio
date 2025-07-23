@@ -1,9 +1,11 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 
 // 存储每个工具的确认Promise的resolve函数
 const toolConfirmResolvers = new Map<string, (value: boolean) => void>()
 // 存储每个工具的abort监听器清理函数
 const abortListeners = new Map<string, () => void>()
+
+const logger = loggerService.withContext('Utils:UserConfirmation')
 
 export function requestUserConfirmation(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -55,7 +57,7 @@ export function confirmToolAction(toolId: string) {
       cleanup()
     }
   } else {
-    Logger.warn(`🔧 [userConfirmation] No resolver found for tool: ${toolId}`)
+    logger.warn(`No resolver found for tool: ${toolId}`)
   }
 }
 
@@ -71,7 +73,7 @@ export function cancelToolAction(toolId: string) {
       cleanup()
     }
   } else {
-    Logger.warn(`🔧 [userConfirmation] No resolver found for tool: ${toolId}`)
+    logger.warn(`No resolver found for tool: ${toolId}`)
   }
 }
 
@@ -83,4 +85,25 @@ export function getPendingToolIds(): string[] {
 // 检查某个工具是否在等待确认
 export function isToolPending(toolId: string): boolean {
   return toolConfirmResolvers.has(toolId)
+}
+
+const toolIdToNameMap = new Map<string, string>()
+
+export function setToolIdToNameMapping(toolId: string, toolName: string): void {
+  toolIdToNameMap.set(toolId, toolName)
+}
+
+export function confirmSameNameTools(confirmedToolName: string): void {
+  const toolIdsToConfirm: string[] = []
+
+  for (const [toolId, toolName] of toolIdToNameMap.entries()) {
+    if (toolName === confirmedToolName && toolConfirmResolvers.has(toolId)) {
+      toolIdsToConfirm.push(toolId)
+    }
+  }
+
+  toolIdsToConfirm.forEach((toolId) => {
+    confirmToolAction(toolId)
+    toolIdToNameMap.delete(toolId)
+  })
 }

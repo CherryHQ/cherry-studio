@@ -35,6 +35,7 @@ Thumbs.db
 node_modules
 dist
 out
+mcp_server
 stats.html
 
 # ENV
@@ -46,6 +47,10 @@ local
 .aider*
 .cursorrules
 .cursor/*
+.claude/*
+.gemini/*
+.trae/*
+.claude-code-router/*
 
 # vitest
 coverage

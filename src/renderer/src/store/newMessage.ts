@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import { createEntityAdapter, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+
+const logger = loggerService.withContext('newMessage')
 
 // 1. Create the Adapter
 const messagesAdapter = createEntityAdapter<Message>()
@@ -67,7 +70,7 @@ interface InsertMessageAtIndexPayload {
 }
 
 // 4. Create the Slice with Refactored Reducers
-const messagesSlice = createSlice({
+export const messagesSlice = createSlice({
   name: 'newMessages',
   initialState,
   reducers: {
@@ -145,7 +148,7 @@ const messagesSlice = createSlice({
             }
           }
         } else {
-          console.warn(`[updateMessage] Message ${messageId} not found in entities.`)
+          logger.warn(`[updateMessage] Message ${messageId} not found in entities.`)
         }
       } else {
         messagesAdapter.updateOne(state, { id: messageId, changes: otherUpdates })
@@ -199,7 +202,7 @@ const messagesSlice = createSlice({
 
       const messageToUpdate = state.entities[messageId]
       if (!messageToUpdate) {
-        console.error(`[upsertBlockReference] Message ${messageId} not found.`)
+        logger.error(`[upsertBlockReference] Message ${messageId} not found.`)
         return
       }
 

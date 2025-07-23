@@ -1,11 +1,13 @@
+import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'
-import Logger from 'electron-log'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
 import { windowService } from './WindowService'
+
+const logger = loggerService.withContext('ShortcutService')
 
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
@@ -55,7 +57,8 @@ function formatShortcutKey(shortcut: string[]): string {
   return shortcut.join('+')
 }
 
-// convert the shortcut recorded by keyboard event key value to electron global shortcut format
+// convert the shortcut recorded by JS keyboard event key value to electron global shortcut format
+// see: https://www.electronjs.org/zh/docs/latest/api/accelerator
 const convertShortcutFormat = (shortcut: string | string[]): string => {
   const accelerator = (() => {
     if (Array.isArray(shortcut)) {
@@ -68,12 +71,34 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
   return accelerator
     .map((key) => {
       switch (key) {
+        // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+        // case 'Command':
+        //   return 'CommandOrControl'
+        // case 'Control':
+        //   return 'Control'
+        // case 'Ctrl':
+        //   return 'Control'
+
+        // NEW WAY FOR MODIFIER KEYS
+        // you can see all the modifier keys in the same
+        case 'CommandOrControl':
+          return 'CommandOrControl'
+        case 'Ctrl':
+          return 'Ctrl'
+        case 'Alt':
+          return 'Alt' // Use `Alt` instead of `Option`. The `Option` key only exists on macOS, whereas the `Alt` key is available on all platforms.
+        case 'Meta':
+          return 'Meta' // `Meta` key is mapped to the Windows key on Windows and Linux, `Cmd` on macOS.
+        case 'Shift':
+          return 'Shift'
+
+        // For backward compatibility with old data
         case 'Command':
+        case 'Cmd':
           return 'CommandOrControl'
         case 'Control':
-          return 'Control'
-        case 'Ctrl':
-          return 'Control'
+          return 'Ctrl'
+
         case 'ArrowUp':
           return 'Up'
         case 'ArrowDown':
@@ -83,7 +108,7 @@ const convertShortcutFormat = (shortcut: string | string[]): string => {
         case 'ArrowRight':
           return 'Right'
         case 'AltGraph':
-          return 'Alt'
+          return 'AltGr'
         case 'Slash':
           return '/'
         case 'Semicolon':
@@ -199,7 +224,7 @@ export function registerShortcuts(window: BrowserWindow) {
 
         globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
-        Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
+        logger.warn(`Failed to register shortcut ${shortcut.key}`)
       }
     })
   }
@@ -234,7 +259,7 @@ export function registerShortcuts(window: BrowserWindow) {
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
     } catch (error) {
-      Logger.error('[ShortcutService] Failed to unregister shortcuts')
+      logger.warn('Failed to unregister shortcuts')
     }
   }
 
@@ -267,6 +292,6 @@ export function unregisterAllShortcuts() {
     windowOnHandlers.clear()
     globalShortcut.unregisterAll()
   } catch (error) {
-    Logger.error('[ShortcutService] Failed to unregister all shortcuts')
+    logger.warn('Failed to unregister all shortcuts')
   }
 }

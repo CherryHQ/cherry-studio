@@ -1,10 +1,12 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { ChunkType, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
+
+const logger = loggerService.withContext('ThinkChunkMiddleware')
 
 /**
  * 处理思考内容的中间件
@@ -62,6 +64,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
                 // 更新思考时间并传递
                 const enhancedChunk: ThinkingDeltaChunk = {
                   ...thinkingChunk,
+                  text: accumulatedThinkingContent,
                   thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                 }
                 controller.enqueue(enhancedChunk)
@@ -93,7 +96,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
           stream: processedStream
         }
       } else {
-        Logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+        logger.warn(`No generic chunk stream to process or not a ReadableStream.`)
       }
     }
 

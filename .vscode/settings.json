@@ -4,6 +4,7 @@
     "source.fixAll.eslint": "explicit",
     "source.organizeImports": "never"
   },
+  "files.eol": "\n",
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true

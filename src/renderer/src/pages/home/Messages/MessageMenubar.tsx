@@ -1,18 +1,20 @@
 import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Language, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
@@ -85,6 +87,7 @@ const MessageMenubar: FC<Props> = (props) => {
   } = useMessageOperations(topic)
 
   const { isBubbleStyle } = useMessageStyle()
+  const { enableDeveloperMode } = useEnableDeveloperMode()
 
   const loading = useTopicLoading(topic)
 
@@ -176,27 +179,29 @@ const MessageMenubar: FC<Props> = (props) => {
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
 
+  const handleTraceUserMessage = useCallback(async () => {
+    if (message.traceId) {
+      window.api.trace.openWindow(
+        message.topicId,
+        message.traceId,
+        true,
+        message.role === 'user' ? undefined : message.model?.name
+      )
+    }
+  }, [message])
+
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
 
   const dropdownItems = useMemo(
     () => [
-      {
-        label: t('chat.save'),
-        key: 'save',
-        icon: <Save size={16} />,
-        onClick: () => {
-          const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-          window.api.file.save(fileName, mainTextContent)
-        }
-      },
       ...(isEditable
         ? [
             {
               label: t('common.edit'),
               key: 'edit',
-              icon: <FilePenLine size={16} />,
+              icon: <FilePenLine size={15} />,
               onClick: onEdit
             }
           ]
@@ -204,21 +209,43 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
-        icon: <Split size={16} />,
+        icon: <Split size={15} />,
         onClick: onNewBranch
       },
       {
         label: t('chat.multiple.select'),
         key: 'multi-select',
-        icon: <ListChecks size={16} />,
+        icon: <ListChecks size={15} />,
         onClick: () => {
           toggleMultiSelectMode(true)
         }
       },
       {
+        label: t('chat.save'),
+        key: 'save',
+        icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        children: [
+          {
+            label: t('chat.save.file.title'),
+            key: 'file',
+            onClick: () => {
+              const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
+              window.api.file.save(fileName, mainTextContent)
+            }
+          },
+          {
+            label: t('chat.save.knowledge.title'),
+            key: 'knowledge',
+            onClick: () => {
+              SaveToKnowledgePopup.show({ message })
+            }
+          }
+        ]
+      },
+      {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Share size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
           exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
@@ -399,13 +426,14 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-
-  const showMessageTokens = isBubbleStyle ? isAssistantMessage : true
+  const showMessageTokens = !isBubbleStyle
+  const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
   return (
     <>
       {showMessageTokens && <MessageTokens message={message} />}
-      <MenusBar className={classNames({ menubar: true, show: isLastMessage })}>
+      <MenusBar
+        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
         {message.role === 'user' && (
           <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
             <ActionButton
@@ -425,7 +453,7 @@ const MessageMenubar: FC<Props> = (props) => {
         )}
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
-            {!copied && <Copy size={16} />}
+            {!copied && <Copy size={15} />}
             {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
           </ActionButton>
         </Tooltip>
@@ -442,7 +470,7 @@ const MessageMenubar: FC<Props> = (props) => {
               open={showRegenerateTooltip}
               onOpenChange={setShowRegenerateTooltip}>
               <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-                <RefreshCw size={16} />
+                <RefreshCw size={15} />
               </ActionButton>
             </Tooltip>
           </Popconfirm>
@@ -450,7 +478,7 @@ const MessageMenubar: FC<Props> = (props) => {
         {isAssistantMessage && (
           <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
-              <AtSign size={16} />
+              <AtSign size={15} />
             </ActionButton>
           </Tooltip>
         )}
@@ -524,7 +552,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
                 $softHoverBg={softHoverBg}>
-                <Languages size={16} />
+                <Languages size={15} />
               </ActionButton>
             </Tooltip>
           </Dropdown>
@@ -535,7 +563,7 @@ const MessageMenubar: FC<Props> = (props) => {
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
               ) : (
-                <ThumbsUp size={16} />
+                <ThumbsUp size={15} />
               )}
             </ActionButton>
           </Tooltip>
@@ -545,7 +573,7 @@ const MessageMenubar: FC<Props> = (props) => {
           okButtonProps={{ danger: true }}
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id)}>
+          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
@@ -555,10 +583,17 @@ const MessageMenubar: FC<Props> = (props) => {
               mouseEnterDelay={1}
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
-              <Trash size={16} />
+              <Trash size={15} />
             </Tooltip>
           </ActionButton>
         </Popconfirm>
+        {enableDeveloperMode && message.traceId && (
+          <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+              <TraceIcon size={16} className={'lucide lucide-trash'} />
+            </ActionButton>
+          </Tooltip>
+        )}
         {!isUserMessage && (
           <Dropdown
             menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
@@ -583,7 +618,10 @@ const MenusBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  margin-top: 5px;
+
+  &.user-bubble-style {
+    margin-top: 5px;
+  }
 `
 
 const ActionButton = styled.div<{ $softHoverBg?: boolean }>`

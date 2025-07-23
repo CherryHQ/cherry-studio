@@ -1,6 +1,7 @@
+import { InfoCircleOutlined } from '@ant-design/icons'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
@@ -16,7 +17,7 @@ import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch } from 'antd'
+import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -41,6 +42,7 @@ const GeneralSettings: FC = () => {
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
+  const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -92,7 +94,6 @@ const GeneralSettings: FC = () => {
     }
 
     dispatch(_setProxyUrl(proxyUrl))
-    window.api.setProxy(proxyUrl)
   }
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -104,10 +105,8 @@ const GeneralSettings: FC = () => {
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
-      window.api.setProxy('system')
       dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
-      window.api.setProxy(undefined)
       dispatch(_setProxyUrl(undefined))
     }
   }
@@ -239,7 +238,7 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.title')}</SettingRowTitle>
+              <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
               <Input
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
@@ -261,7 +260,12 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.notification.assistant')}</SettingRowTitle>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.notification.assistant')}</span>
+            <Tooltip title={t('notification.tip')} placement="right">
+              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingRowTitle>
           <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
         </SettingRow>
         <SettingDivider />
@@ -313,6 +317,14 @@ const GeneralSettings: FC = () => {
               window.api.config.set('enableDataCollection', v)
             }}
           />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.developer.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+          <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

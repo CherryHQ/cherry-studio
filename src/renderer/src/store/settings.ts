@@ -112,6 +112,7 @@ export interface SettingsState {
   webdavSyncInterval: number
   webdavMaxBackups: number
   webdavSkipBackupFile: boolean
+  webdavDisableStream: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -197,6 +198,8 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
+  // Developer mode
+  enableDeveloperMode: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -273,6 +276,7 @@ export const initialState: SettingsState = {
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
   webdavSkipBackupFile: false,
+  webdavDisableStream: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -362,7 +366,9 @@ export const initialState: SettingsState = {
     syncInterval: 0,
     maxBackups: 0,
     skipBackupFile: false
-  }
+  },
+  // Developer mode
+  enableDeveloperMode: false
 }
 
 const settingsSlice = createSlice({
@@ -500,6 +506,9 @@ const settingsSlice = createSlice({
     },
     setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.webdavSkipBackupFile = action.payload
+    },
+    setWebdavDisableStream: (state, action: PayloadAction<boolean>) => {
+      state.webdavDisableStream = action.payload
     },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
@@ -751,6 +760,9 @@ const settingsSlice = createSlice({
     },
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
+    },
+    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+      state.enableDeveloperMode = action.payload
     }
   }
 })
@@ -801,6 +813,7 @@ export const {
   setWebdavSyncInterval,
   setWebdavMaxBackups,
   setWebdavSkipBackupFile,
+  setWebdavDisableStream,
   setCodeExecution,
   setCodeEditor,
   setCodePreview,
@@ -868,7 +881,8 @@ export const {
   setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider,
   setS3,
-  setS3Partial
+  setS3Partial,
+  setEnableDeveloperMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

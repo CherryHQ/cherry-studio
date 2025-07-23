@@ -2,6 +2,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
+import * as z from 'zod/v4'
 
 export * from './file'
 import type { FileMetadata } from './file'
@@ -23,11 +24,14 @@ export type Assistant = {
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
+  // enableUrlContext 是 Gemini 的特有功能
+  enableUrlContext?: boolean
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -120,6 +124,8 @@ export type LegacyMessage = {
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
+  // OpenRouter specific fields
+  cost?: number
 }
 
 export type Metrics = {
@@ -295,6 +301,7 @@ export interface DmxapiPainting extends PaintingParams {
   style_type?: string
   autoCreate?: boolean
   generationMode?: generationModeType
+  priceModel?: string
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -353,6 +360,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {
@@ -379,7 +387,7 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
 
 export type KnowledgeItem = {
   id: string
@@ -421,20 +429,21 @@ export interface KnowledgeBase {
   }
 }
 
-export type KnowledgeBaseParams = {
-  id: string
+export type ApiClient = {
   model: string
   provider: string
-  dimensions?: number
   apiKey: string
   apiVersion?: string
   baseURL: string
+}
+
+export type KnowledgeBaseParams = {
+  id: string
+  dimensions?: number
   chunkSize?: number
   chunkOverlap?: number
-  rerankApiKey?: string
-  rerankBaseURL?: string
-  rerankModel?: string
-  rerankModelProvider?: string
+  embedApiClient: ApiClient
+  rerankApiClient?: ApiClient
   documentCount?: number
   // preprocessing?: boolean
   preprocessOrOcrProvider?: {
@@ -527,6 +536,7 @@ export type ExternalToolResult = {
   toolUse?: MCPToolResponse[]
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
+  memories?: MemoryItem[]
 }
 
 export type WebSearchProvider = {
@@ -539,6 +549,9 @@ export type WebSearchProvider = {
   basicAuthUsername?: string
   basicAuthPassword?: string
   usingBrowser?: boolean
+  topicId?: string
+  parentSpanId?: string
+  modelName?: string
 }
 
 export type WebSearchProviderResult = {
@@ -624,6 +637,7 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
@@ -632,6 +646,8 @@ export interface MCPServer {
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
+  dxtVersion?: string // Version of the DXT package
+  dxtPath?: string // Path where the DXT package was extracted
 }
 
 export interface MCPToolInputSchema {
@@ -642,6 +658,12 @@ export interface MCPToolInputSchema {
   properties: Record<string, object>
 }
 
+export const MCPToolOutputSchema = z.object({
+  type: z.literal('object'),
+  properties: z.record(z.string(), z.unknown()),
+  required: z.array(z.string())
+})
+
 export interface MCPTool {
   id: string
   serverId: string
@@ -649,6 +671,7 @@ export interface MCPTool {
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+  outputSchema?: z.infer<typeof MCPToolOutputSchema>
   isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
 }
 
@@ -790,3 +813,81 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+
+// Memory Service Types
+// ========================================================================
+export interface MemoryConfig {
+  /**
+   * @deprecated use embedderApiClient instead
+   */
+  embedderModel?: Model
+  embedderDimensions?: number
+  /**
+   * @deprecated use llmApiClient instead
+   */
+  llmModel?: Model
+  embedderApiClient?: ApiClient
+  llmApiClient?: ApiClient
+  customFactExtractionPrompt?: string
+  customUpdateMemoryPrompt?: string
+  /** Indicates whether embedding dimensions are automatically detected */
+  isAutoDimensions?: boolean
+}
+
+export interface MemoryItem {
+  id: string
+  memory: string
+  hash?: string
+  createdAt?: string
+  updatedAt?: string
+  score?: number
+  metadata?: Record<string, any>
+}
+
+export interface MemorySearchResult {
+  results: MemoryItem[]
+  relations?: any[]
+}
+
+export interface MemoryEntity {
+  userId?: string
+  agentId?: string
+  runId?: string
+}
+
+export interface MemorySearchFilters {
+  userId?: string
+  agentId?: string
+  runId?: string
+  [key: string]: any
+}
+
+export interface AddMemoryOptions extends MemoryEntity {
+  metadata?: Record<string, any>
+  filters?: MemorySearchFilters
+  infer?: boolean
+}
+
+export interface MemorySearchOptions extends MemoryEntity {
+  limit?: number
+  filters?: MemorySearchFilters
+}
+
+export interface MemoryHistoryItem {
+  id: number
+  memoryId: string
+  previousValue?: string
+  newValue: string
+  action: 'ADD' | 'UPDATE' | 'DELETE'
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
+
+export interface MemoryListOptions extends MemoryEntity {
+  limit?: number
+  offset?: number
+}
+
+export interface MemoryDeleteAllOptions extends MemoryEntity {}
+// ========================================================================
