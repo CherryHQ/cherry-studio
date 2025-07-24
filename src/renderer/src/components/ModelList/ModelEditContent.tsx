@@ -32,19 +32,19 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
-  const [tempModelTypes, setTempModelTypes] = useState(model.capabilities || [])
+  const [modelCapabilities, setModelCapabilities] = useState(model.capabilities || [])
 
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
 
   const onFinish = (values: any) => {
     const finalCurrencySymbol = isCustomCurrency ? values.customCurrencySymbol : values.currencySymbol
-    const updatedModel = {
+    const updatedModel: Model = {
       ...model,
       id: values.id || model.id,
       name: values.name || model.name,
       group: values.group || model.group,
       endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
-      newCapability: tempModelTypes,
+      capabilities: modelCapabilities,
       pricing: {
         input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
         output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
@@ -58,7 +58,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
   const handleClose = () => {
     setShowMoreSettings(false)
-    setTempModelTypes(model.capabilities || [])
+    setModelCapabilities(model.capabilities || [])
     onClose()
   }
 
@@ -191,10 +191,10 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
               // 合并现有选择和默认类型用于前端展示
               const selectedTypes = getUnion(
-                tempModelTypes?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
+                modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
                 getDifference(
                   defaultTypes,
-                  tempModelTypes?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
+                  modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
                 )
               )
 
@@ -226,7 +226,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         }
                         return { type: t }
                       })
-                      setTempModelTypes(updatedTypes as ModelCapability[])
+                      setModelCapabilities(updatedTypes as ModelCapability[])
                     } else {
                       const updatedTypes = selectedTypes?.map((t) => {
                         if (
@@ -237,7 +237,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         }
                         return { type: t }
                       })
-                      setTempModelTypes([...(updatedTypes as ModelCapability[]), newCapability])
+                      setModelCapabilities([...(updatedTypes as ModelCapability[]), newCapability])
                     }
                   },
                   onCancel: () => {},
@@ -255,9 +255,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   })
                 } else {
                   const disabledTypes = getDifference(selectedTypes, types)
-                  const onUpdateType = tempModelTypes?.find((t) => t.type === disabledTypes[0])
+                  const onUpdateType = modelCapabilities?.find((t) => t.type === disabledTypes[0])
                   if (onUpdateType) {
-                    const updatedTypes = tempModelTypes?.map((t) => {
+                    const updatedTypes = modelCapabilities?.map((t) => {
                       if (t.type === disabledTypes[0]) {
                         return { ...t, isUserSelected: false }
                       }
@@ -269,9 +269,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                       }
                       return t
                     })
-                    setTempModelTypes(updatedTypes || [])
+                    setModelCapabilities(updatedTypes || [])
                   } else {
-                    const updatedTypes = tempModelTypes?.map((t) => {
+                    const updatedTypes = modelCapabilities?.map((t) => {
                       if (
                         (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
                         (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
@@ -280,7 +280,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                       }
                       return t
                     })
-                    setTempModelTypes([
+                    setModelCapabilities([
                       ...(updatedTypes ?? []),
                       { type: disabledTypes[0] as ModelType, isUserSelected: false }
                     ])
@@ -289,7 +289,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               }
 
               const handleResetTypes = () => {
-                setTempModelTypes([])
+                setModelCapabilities([])
               }
 
               return (
