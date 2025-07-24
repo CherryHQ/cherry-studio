@@ -130,6 +130,7 @@ const main = async () => {
       console.error(`写入 ${filename} 出错。${error}`)
     }
   }
+  bar.stop()
 }
 
 main()
