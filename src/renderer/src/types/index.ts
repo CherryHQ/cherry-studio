@@ -192,7 +192,7 @@ export type ModelPricing = {
   currencySymbol?: string
 }
 
-export type NewModelType = {
+export type ModelCapability = {
   type: ModelType
   /**
    * 是否为用户手动选择，如果为true，则表示用户手动选择了该类型，否则表示用户手动禁止了该模型；如果为undefined，则表示使用默认值
@@ -208,7 +208,7 @@ export type Model = {
   group: string
   owned_by?: string
   description?: string
-  newType?: NewModelType[]
+  capabilities?: ModelCapability[]
   /**
    * @deprecated
    */

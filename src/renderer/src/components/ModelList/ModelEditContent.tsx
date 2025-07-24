@@ -9,7 +9,7 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { Model, ModelType, NewModelType, Provider } from '@renderer/types'
+import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -32,7 +32,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
-  const [tempModelTypes, setTempModelTypes] = useState(model.newType || [])
+  const [tempModelTypes, setTempModelTypes] = useState(model.capabilities || [])
 
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
 
@@ -44,7 +44,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       name: values.name || model.name,
       group: values.group || model.group,
       endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
-      newType: tempModelTypes,
+      newCapability: tempModelTypes,
       pricing: {
         input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
         output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
@@ -58,7 +58,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
   const handleClose = () => {
     setShowMoreSettings(false)
-    setTempModelTypes(model.newType || [])
+    setTempModelTypes(model.capabilities || [])
     onClose()
   }
 
@@ -204,8 +204,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               const isRerankDisabled = selectedTypes.includes('embedding')
               const isEmbeddingDisabled = selectedTypes.includes('rerank')
 
-              const showTypeConfirmModal = (newType: NewModelType) => {
-                const onUpdateType = selectedTypes?.find((t) => t === newType.type)
+              const showTypeConfirmModal = (newCapability: ModelCapability) => {
+                const onUpdateType = selectedTypes?.find((t) => t === newCapability.type)
                 window.modal.confirm({
                   title: t('settings.moresetting.warn'),
                   content: t('settings.moresetting.check.warn'),
@@ -216,7 +216,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   onOk: () => {
                     if (onUpdateType) {
                       const updatedTypes = selectedTypes?.map((t) => {
-                        if (t === newType.type) {
+                        if (t === newCapability.type) {
                           return { type: t, isUserSelected: true }
                         }
                         if (
@@ -227,18 +227,18 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         }
                         return { type: t }
                       })
-                      setTempModelTypes(updatedTypes as NewModelType[])
+                      setTempModelTypes(updatedTypes as ModelCapability[])
                     } else {
                       const updatedTypes = selectedTypes?.map((t) => {
                         if (
-                          (newType.type !== t && newType.type === 'rerank') ||
-                          (newType.type === 'embedding' && newType.type !== t)
+                          (newCapability.type !== t && newCapability.type === 'rerank') ||
+                          (newCapability.type === 'embedding' && newCapability.type !== t)
                         ) {
                           return { type: t, isUserSelected: false }
                         }
                         return { type: t }
                       })
-                      setTempModelTypes([...(updatedTypes as NewModelType[]), newType])
+                      setTempModelTypes([...(updatedTypes as ModelCapability[]), newCapability])
                     }
                   },
                   onCancel: () => {},
@@ -249,9 +249,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               const handleTypeChange = (types: string[]) => {
                 const diff = types.length > selectedTypes.length
                 if (diff) {
-                  const newType = getDifference(types, selectedTypes) // checkbox的特性，确保了newType只有一个元素
+                  const newCapability = getDifference(types, selectedTypes) // checkbox的特性，确保了newCapability只有一个元素
                   showTypeConfirmModal({
-                    type: newType[0] as ModelType,
+                    type: newCapability[0] as ModelType,
                     isUserSelected: true
                   })
                 } else {

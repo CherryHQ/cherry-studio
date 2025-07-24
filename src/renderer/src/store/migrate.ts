@@ -1850,7 +1850,7 @@ const migrateConfig = {
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
           if (model.type && Array.isArray(model.type)) {
-            model.newType = model.type.map((t) => ({
+            model.capabilities = model.type.map((t) => ({
               type: t,
               isUserSelected: true
             }))

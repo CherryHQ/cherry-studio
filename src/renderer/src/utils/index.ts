@@ -234,7 +234,7 @@ export function isOpenAIProvider(provider: Provider): boolean {
  * @returns {boolean} 是否为用户手动选择
  */
 export function isUserSelectedModelType(model: Model, type: ModelType): boolean | undefined {
-  const t = model.newType?.find((t) => t.type === type)
+  const t = model.capabilities?.find((t) => t.type === type)
   return t ? t.isUserSelected : undefined
 }
 
