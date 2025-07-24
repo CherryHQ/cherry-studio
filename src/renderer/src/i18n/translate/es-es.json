@@ -362,7 +362,6 @@
       "file": {
         "title": "Guardar en archivo local"
       },
-      "label": "Guardar",
       "knowledge": {
         "content": {
           "citation": {
@@ -418,7 +417,8 @@
           }
         },
         "title": "Guardar en la base de conocimientos"
-      }
+      },
+      "label": "Guardar"
     },
     "settings": {
       "code": {

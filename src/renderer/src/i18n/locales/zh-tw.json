@@ -362,7 +362,6 @@
       "file": {
         "title": "儲存到本機檔案"
       },
-      "label": "儲存",
       "knowledge": {
         "content": {
           "citation": {
@@ -418,7 +417,8 @@
           }
         },
         "title": "儲存到知識庫"
-      }
+      },
+      "label": "儲存"
     },
     "settings": {
       "code": {

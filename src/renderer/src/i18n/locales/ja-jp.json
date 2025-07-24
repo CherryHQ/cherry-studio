@@ -362,7 +362,6 @@
       "file": {
         "title": "ローカルファイルに保存"
       },
-      "label": "保存",
       "knowledge": {
         "content": {
           "citation": {
@@ -418,7 +417,8 @@
           }
         },
         "title": "ナレッジベースに保存"
-      }
+      },
+      "label": "保存"
     },
     "settings": {
       "code": {
