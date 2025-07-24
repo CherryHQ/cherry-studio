@@ -10,6 +10,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { Allotment } from 'allotment'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useState } from 'react'
@@ -20,6 +21,7 @@ import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
+import { useSidebarResize } from './useSidebarResize'
 
 const logger = loggerService.withContext('Chat')
 
@@ -101,6 +103,7 @@ const Chat: FC<Props> = (props) => {
     setTimeout(() => (firstUpdateCompleted = true), 300)
     firstUpdateOrNoFirstUpdateHandler()
   }
+  const { sizes, handleSidebarResize } = useSidebarResize()
 
   const mainHeight = isTopNavbar
     ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
@@ -118,6 +121,8 @@ const Chat: FC<Props> = (props) => {
         />
       )}
       <HStack>
+        <Allotment onChange={handleSidebarResize}>
+          <Allotment.Pane minSize={406}>
         <Main
           ref={mainRef}
           id="chat-main"
@@ -145,7 +150,9 @@ const Chat: FC<Props> = (props) => {
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>
+          </Allotment.Pane>
         {topicPosition === 'right' && showTopics && (
+          <Allotment.Pane preferredSize={275} minSize={180}>
           <Tabs
             activeAssistant={assistant}
             activeTopic={props.activeTopic}
@@ -153,7 +160,9 @@ const Chat: FC<Props> = (props) => {
             setActiveTopic={props.setActiveTopic}
             position="right"
           />
+          </Allotment.Pane>
         )}
+        </Allotment>
       </HStack>
     </Container>
   )

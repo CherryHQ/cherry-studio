@@ -1,3 +1,5 @@
+import 'allotment/dist/style.css'
+
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
@@ -5,6 +7,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
+import { Allotment } from 'allotment'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -13,6 +16,7 @@ import styled from 'styled-components'
 import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
+import { useSidebarResize } from './useSidebarResize'
 
 let _activeAssistant: Assistant
 
@@ -28,6 +32,7 @@ const HomePage: FC = () => {
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
   const dispatch = useDispatch()
+  const { sizes, handleSidebarResize } = useSidebarResize()
 
   _activeAssistant = activeAssistant
 
@@ -98,7 +103,9 @@ const HomePage: FC = () => {
         />
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
+        <Allotment onChange={handleSidebarResize}>
         {showAssistants && (
+          <Allotment.Pane preferredSize={275} minSize={240}>
           <HomeTabs
             activeAssistant={activeAssistant}
             activeTopic={activeTopic}
@@ -106,13 +113,17 @@ const HomePage: FC = () => {
             setActiveTopic={setActiveTopic}
             position="left"
           />
+          </Allotment.Pane>
         )}
+          <Allotment.Pane minSize={566}>
         <Chat
           assistant={activeAssistant}
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
           setActiveAssistant={setActiveAssistant}
         />
+          </Allotment.Pane>
+        </Allotment>
       </ContentContainer>
     </Container>
   )
