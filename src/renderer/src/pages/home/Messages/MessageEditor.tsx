@@ -390,7 +390,7 @@ const EditorContainer = styled(Space)`
     background-color: var(--color-background-opacity);
     border: 0.5px solid var(--color-border);
     border-radius: 15px;
-    padding: 0.5em 1em;
+    padding: 1em 1em;
     flex: 1;
     font-family: Ubuntu;
     resize: none !important;
