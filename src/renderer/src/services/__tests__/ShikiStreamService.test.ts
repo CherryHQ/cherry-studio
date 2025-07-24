@@ -241,7 +241,7 @@ describe('ShikiStreamService', () => {
       // Don't spy on highlighter.dispose() since it's managed by AsyncInitializer now
       const tokenizerCache = (shikiStreamService as any).tokenizerCache
       const tokenizerClearSpies: any[] = []
-      for (const tokenizer of tokenizerCache.values()) {
+      for (const tokenizer of tokenizerCache.values) {
         tokenizerClearSpies.push(vi.spyOn(tokenizer, 'clear'))
       }
 
