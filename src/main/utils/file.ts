@@ -38,9 +38,8 @@ export function untildify(pathWithTilde: string) {
 
 export async function hasWritePermission(dir: string) {
   try {
-    const resolvedDir = path.resolve(untildify(dir))
-    logger.info(`Checking write permission for ${resolvedDir}`)
-    await fs.promises.access(resolvedDir, fs.constants.W_OK)
+    logger.info(`Checking write permission for ${dir}`)
+    await fs.promises.access(dir, fs.constants.W_OK)
     return true
   } catch (error) {
     return false

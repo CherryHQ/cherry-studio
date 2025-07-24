@@ -76,22 +76,24 @@ const LocalBackupSettings: React.FC = () => {
       return false
     }
 
+    const resolvedDir = await window.api.resolvePath(dir)
+
     // check new local backup dir is not in app data path
     // if is in app data path, show error
-    if (dir.startsWith(appInfo!.appDataPath)) {
+    if (resolvedDir.startsWith(appInfo!.appDataPath)) {
       window.message.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
-    if (dir.startsWith(appInfo!.installPath)) {
+    if (resolvedDir.startsWith(appInfo!.installPath)) {
       window.message.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
 
     // check new app data path has write permission
-    const hasWritePermission = await window.api.hasWritePermission(dir)
+    const hasWritePermission = await window.api.hasWritePermission(resolvedDir)
     if (!hasWritePermission) {
       window.message.error(t('settings.data.local.directory.select_error_write_permission'))
       return false
