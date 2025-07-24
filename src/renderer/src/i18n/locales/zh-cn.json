@@ -2170,6 +2170,7 @@
       "models.empty": "没有模型",
       "models.enable_topic_naming": "话题自动重命名",
       "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.add_listed.confirm": "确定要添加所有模型到列表吗？",
       "models.manage.add_whole_group": "添加整个分组",
       "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.remove_model": "移除模型",

@@ -2170,6 +2170,7 @@
       "models.empty": "Модели не найдены",
       "models.enable_topic_naming": "Автоматическое переименование топика",
       "models.manage.add_listed": "Добавить в список",
+      "models.manage.add_listed.confirm": "Вы уверены, что хотите добавить все модели в список?",
       "models.manage.add_whole_group": "Добавить всю группу",
       "models.manage.remove_listed": "Удалить из списка",
       "models.manage.remove_model": "Удалить модель",

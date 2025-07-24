@@ -2170,6 +2170,7 @@
       "models.empty": "モデルが見つかりません",
       "models.enable_topic_naming": "トピックの自動命名",
       "models.manage.add_listed": "リストにモデルを追加",
+      "models.manage.add_listed.confirm": "すべてのモデルをリストに追加しますか？",
       "models.manage.add_whole_group": "グループ全体を追加",
       "models.manage.remove_listed": "リストからモデルを削除",
       "models.manage.remove_model": "モデルを削除",

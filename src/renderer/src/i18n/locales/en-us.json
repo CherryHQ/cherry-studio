@@ -2170,6 +2170,7 @@
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
       "models.manage.add_listed": "Add models to the list",
+      "models.manage.add_listed.confirm": "Are you sure you want to add all models to the list?",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_listed": "Remove models from the list",
       "models.manage.remove_model": "Remove model",
