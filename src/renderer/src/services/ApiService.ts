@@ -488,13 +488,13 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false
   }
 
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
     await processConversationMemory(messages, assistant)
   }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 /**

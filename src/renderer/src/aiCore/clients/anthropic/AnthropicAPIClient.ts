@@ -675,7 +675,7 @@ export class AnthropicAPIClient extends BaseApiClient<
               const toolCall = toolCalls[rawChunk.index]
               if (toolCall) {
                 try {
-                  toolCall.input = JSON.parse(accumulatedJson)
+                  toolCall.input = accumulatedJson ? JSON.parse(accumulatedJson) : {}
                   logger.debug(`Tool call id: ${toolCall.id}, accumulated json: ${accumulatedJson}`)
                   controller.enqueue({
                     type: ChunkType.MCP_TOOL_CREATED,
