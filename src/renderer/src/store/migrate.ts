@@ -1858,6 +1858,12 @@ const migrateConfig = {
           }
         })
       })
+
+      const lanyunProvider = state.llm.providers.find((provider) => provider.id === 'lanyun')
+      if (lanyunProvider && lanyunProvider.models.length === 0) {
+        updateProvider(state, 'lanyun', { models: SYSTEM_MODELS.lanyun })
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 123 error', error as Error)

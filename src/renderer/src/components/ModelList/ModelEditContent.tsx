@@ -73,7 +73,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       open={open}
       onCancel={handleClose}
       footer={null}
-      maskClosable={false}
       transitionName="animation-move-down"
       centered
       afterOpenChange={(visible) => {
