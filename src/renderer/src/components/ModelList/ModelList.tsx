@@ -112,12 +112,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <CollapsibleSearchBar onSearch={setSearchText} />
           </HStack>
           <HStack>
-            <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking} />
-            </Tooltip>
-            <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
-            </Tooltip>
             <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
               <Button
                 type="text"
@@ -142,26 +136,36 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             onRemoveGroup={() => modelGroups[group].forEach((model) => removeModel(model))}
           />
         ))}
-        {docsWebsite || modelsWebsite ? (
-          <SettingHelpTextRow>
-            <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-            {docsWebsite && (
-              <SettingHelpLink target="_blank" href={docsWebsite}>
-                {t(`provider.${provider.id}`) + ' '}
-                {t('common.docs')}
-              </SettingHelpLink>
-            )}
-            {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
-            {modelsWebsite && (
-              <SettingHelpLink target="_blank" href={modelsWebsite}>
-                {t('common.models')}
-              </SettingHelpLink>
-            )}
-            <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-          </SettingHelpTextRow>
-        ) : (
-          <div style={{ height: 5 }} />
-        )}
+        <Flex justify="space-between">
+          {docsWebsite || modelsWebsite ? (
+            <SettingHelpTextRow>
+              <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
+              {docsWebsite && (
+                <SettingHelpLink target="_blank" href={docsWebsite}>
+                  {t(`provider.${provider.id}`) + ' '}
+                  {t('common.docs')}
+                </SettingHelpLink>
+              )}
+              {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
+              {modelsWebsite && (
+                <SettingHelpLink target="_blank" href={modelsWebsite}>
+                  {t('common.models')}
+                </SettingHelpLink>
+              )}
+              <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
+            </SettingHelpTextRow>
+          ) : (
+            <div style={{ height: 5 }} />
+          )}
+          <Flex gap={10}>
+            <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+              {t('button.manage')}
+            </Button>
+            <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+              {t('button.add')}
+            </Button>
+          </Flex>
+        </Flex>
       </Flex>
       {models.map((model) => (
         <ModelEditContent
