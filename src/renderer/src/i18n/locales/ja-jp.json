@@ -2324,6 +2324,7 @@
         "search_placeholder": "モデルIDまたは名前を検索",
         "title": "モデルプロバイダー",
         "vertex_ai": {
+          "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",
           "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
           "learn_more": "詳細を確認",
           "location": "場所",

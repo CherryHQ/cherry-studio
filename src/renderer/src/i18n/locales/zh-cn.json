@@ -2324,6 +2324,7 @@
         "search_placeholder": "搜索模型 ID 或名称",
         "title": "模型服务",
         "vertex_ai": {
+          "api_host_help": "Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
           "documentation": "查看官方文档了解更多配置详情：",
           "learn_more": "了解更多",
           "location": "地区",

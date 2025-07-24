@@ -31,6 +31,9 @@ vi.mock('../AihubmixAPIClient', () => ({
 vi.mock('../anthropic/AnthropicAPIClient', () => ({
   AnthropicAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
+vi.mock('../anthropic/AnthropicVertexClient', () => ({
+  AnthropicVertexClient: vi.fn().mockImplementation(() => ({}))
+}))
 vi.mock('../gemini/GeminiAPIClient', () => ({
   GeminiAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
