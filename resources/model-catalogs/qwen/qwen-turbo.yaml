@@ -1,0 +1,37 @@
+id: qwen/qwen-turbo
+canonical_slug: qwen/qwen-turbo-2024-11-01
+hugging_face_id: ''
+name: 'Qwen: Qwen-Turbo'
+type: chat
+created: 1738410974
+description: Qwen-Turbo, based on Qwen2.5, is a 1M context model that provides fast speed and low cost, suitable for simple tasks.
+context_length: 1000000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.00000005'
+  completion: '0.0000002'
+  input_cache_read: '0.00000002'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - seed
+  - response_format
+  - presence_penalty
+model_provider: qwen

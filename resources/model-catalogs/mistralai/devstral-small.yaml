@@ -1,0 +1,46 @@
+id: mistralai/devstral-small
+canonical_slug: mistralai/devstral-small-2505
+hugging_face_id: mistralai/Devstral-Small-2505
+name: 'Mistral: Devstral Small'
+type: chat
+created: 1747837379
+description: |-
+  Devstral-Small-2505 is a 24B parameter agentic LLM fine-tuned from Mistral-Small-3.1, jointly developed by Mistral AI and All Hands AI for advanced software engineering tasks. It is optimized for codebase exploration, multi-file editing, and integration into coding agents, achieving state-of-the-art results on SWE-Bench Verified (46.8%).
+
+  Devstral supports a 128k context window and uses a custom Tekken tokenizer. It is text-only, with the vision encoder removed, and is suitable for local deployment on high-end consumer hardware (e.g., RTX 4090, 32GB RAM Macs). Devstral is best used in agentic workflows via the OpenHands scaffold and is compatible with inference frameworks like vLLM, Transformers, and Ollama. It is released under the Apache 2.0 license.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00000006'
+  completion: '0.00000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - response_format
+  - top_k
+  - seed
+  - min_p
+  - tools
+  - tool_choice
+  - structured_outputs
+model_provider: mistralai

@@ -1,0 +1,51 @@
+id: deepseek/deepseek-r1-0528
+canonical_slug: deepseek/deepseek-r1-0528
+hugging_face_id: deepseek-ai/DeepSeek-R1-0528
+name: 'DeepSeek: R1 0528'
+type: chat
+created: 1748455170
+description: |-
+  May 28th update to the [original DeepSeek R1](/deepseek/deepseek-r1) Performance on par with [OpenAI o1](/openai/o1), but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active in an inference pass.
+
+  Fully open-source model.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: DeepSeek
+  instruct_type: deepseek-r1
+pricing:
+  prompt: '0.0000005'
+  completion: '0.00000215'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - logprobs
+  - top_logprobs
+  - tools
+  - tool_choice
+  - seed
+  - structured_outputs
+model_provider: deepseek

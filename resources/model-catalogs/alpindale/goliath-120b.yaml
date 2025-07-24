@@ -1,0 +1,48 @@
+id: alpindale/goliath-120b
+canonical_slug: alpindale/goliath-120b
+hugging_face_id: alpindale/goliath-120b
+name: Goliath 120B
+type: chat
+created: 1699574400
+description: |-
+  A large LLM created by combining two fine-tuned Llama 70B models into one 120B model. Combines Xwin and Euryale.
+
+  Credits to
+  - [@chargoddard](https://huggingface.co/chargoddard) for developing the framework used to merge the model - [mergekit](https://github.com/cg123/mergekit).
+  - [@Undi95](https://huggingface.co/Undi95) for helping with the merge ratios.
+
+  #merge
+context_length: 6144
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: airoboros
+pricing:
+  prompt: '0.00001'
+  completion: '0.0000125'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - logit_bias
+  - top_k
+  - min_p
+  - seed
+  - top_a
+model_provider: alpindale

@@ -1,0 +1,45 @@
+id: mistralai/pixtral-large-2411
+canonical_slug: mistralai/pixtral-large-2411
+hugging_face_id: ''
+name: 'Mistral: Pixtral Large 2411'
+type: chat
+created: 1731977388
+description: |+
+  Pixtral Large is a 124B parameter, open-weight, multimodal model built on top of [Mistral Large 2](/mistralai/mistral-large-2411). The model is able to understand documents, charts and natural images.
+
+  The model is available under the Mistral Research License (MRL) for research and educational use, and the Mistral Commercial License for experimentation, testing, and production for commercial purposes.
+
+context_length: 32768
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.000002'
+  completion: '0.000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.002888'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - structured_outputs
+  - seed
+model_provider: mistralai

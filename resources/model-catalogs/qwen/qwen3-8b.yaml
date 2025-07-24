@@ -1,0 +1,42 @@
+id: qwen/qwen3-8b
+canonical_slug: qwen/qwen3-8b-04-28
+hugging_face_id: Qwen/Qwen3-8B
+name: 'Qwen: Qwen3 8B'
+type: chat
+created: 1745876632
+description: Qwen3-8B is a dense 8.2B parameter causal language model from the Qwen3 series, designed for both reasoning-heavy tasks and efficient dialogue. It supports seamless switching between "thinking" mode for math, coding, and logical inference, and "non-thinking" mode for general conversation. The model is fine-tuned for instruction-following, agent integration, creative writing, and multilingual use across 100+ languages and dialects. It natively supports a 32K token context window and can extend to 131K tokens with YaRN scaling.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen3
+  instruct_type: qwen3
+pricing:
+  prompt: '0.000000035'
+  completion: '0.000000138'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+model_provider: qwen

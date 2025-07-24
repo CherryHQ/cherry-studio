@@ -1,0 +1,49 @@
+id: openai/gpt-4.5-preview
+canonical_slug: openai/gpt-4.5-preview-2025-02-27
+hugging_face_id: ''
+name: 'OpenAI: GPT-4.5 (Preview)'
+type: chat
+created: 1740687810
+description: |-
+  GPT-4.5 (Preview) is a research preview of OpenAI’s latest language model, designed to advance capabilities in reasoning, creativity, and multi-turn conversation. It builds on previous iterations with improvements in world knowledge, contextual coherence, and the ability to follow user intent more effectively.
+
+  The model demonstrates enhanced performance in tasks that require open-ended thinking, problem-solving, and communication. Early testing suggests it is better at generating nuanced responses, maintaining long-context coherence, and reducing hallucinations compared to earlier versions.
+
+  This research preview is intended to help evaluate GPT-4.5’s strengths and limitations in real-world use cases as OpenAI continues to refine and develop future models. Read more at the [blog post here.](https://openai.com/index/introducing-gpt-4-5/)
+context_length: 128000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000075'
+  completion: '0.00015'
+  input_cache_read: '0.0000375'
+  input_cache_write: ''
+  request: '0'
+  image: '0.108375'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

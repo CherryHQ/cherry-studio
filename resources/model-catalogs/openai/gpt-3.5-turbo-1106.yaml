@@ -1,0 +1,43 @@
+id: openai/gpt-3.5-turbo-1106
+canonical_slug: openai/gpt-3.5-turbo-1106
+hugging_face_id: ''
+name: 'OpenAI: GPT-3.5 Turbo 16k (older v1106)'
+type: chat
+created: 1699228800
+description: 'An older GPT-3.5 Turbo model with improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more. Training data: up to Sep 2021.'
+context_length: 16385
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.000001'
+  completion: '0.000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+  - structured_outputs
+model_provider: openai

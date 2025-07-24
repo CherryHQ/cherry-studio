@@ -1,0 +1,37 @@
+id: qwen/qwen-vl-plus
+canonical_slug: qwen/qwen-vl-plus
+hugging_face_id: ''
+name: 'Qwen: Qwen VL Plus'
+type: chat
+created: 1738731255
+description: |
+  Qwen's Enhanced Large Visual Language Model. Significantly upgraded for detailed recognition capabilities and text recognition abilities, supporting ultra-high pixel resolutions up to millions of pixels and extreme aspect ratios for image input. It delivers significant performance across a broad range of visual tasks.
+context_length: 7500
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.00000021'
+  completion: '0.00000063'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0002688'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - seed
+  - response_format
+  - presence_penalty
+model_provider: qwen

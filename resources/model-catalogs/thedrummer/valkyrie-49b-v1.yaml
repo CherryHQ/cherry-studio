@@ -1,0 +1,38 @@
+id: thedrummer/valkyrie-49b-v1
+canonical_slug: thedrummer/valkyrie-49b-v1
+hugging_face_id: TheDrummer/Valkyrie-49B-v1
+name: 'TheDrummer: Valkyrie 49B V1'
+type: chat
+created: 1748022670
+description: Built on top of NVIDIA's Llama 3.3 Nemotron Super 49B, Valkyrie is TheDrummer's newest model drop for creative writing.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.0000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - presence_penalty
+  - frequency_penalty
+  - repetition_penalty
+  - top_k
+model_provider: thedrummer

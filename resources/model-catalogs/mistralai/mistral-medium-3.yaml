@@ -1,0 +1,44 @@
+id: mistralai/mistral-medium-3
+canonical_slug: mistralai/mistral-medium-3
+hugging_face_id: ''
+name: 'Mistral: Mistral Medium 3'
+type: chat
+created: 1746627341
+description: |-
+  Mistral Medium 3 is a high-performance enterprise-grade language model designed to deliver frontier-level capabilities at significantly reduced operational cost. It balances state-of-the-art reasoning and multimodal performance with 8× lower cost compared to traditional large models, making it suitable for scalable deployments across professional and industrial use cases.
+
+  The model excels in domains such as coding, STEM reasoning, and enterprise adaptation. It supports hybrid, on-prem, and in-VPC deployments and is optimized for integration into custom workflows. Mistral Medium 3 offers competitive accuracy relative to larger models like Claude Sonnet 3.5/3.7, Llama 4 Maverick, and Command R+, while maintaining broad compatibility across cloud environments.
+context_length: 32768
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.0000004'
+  completion: '0.000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - structured_outputs
+  - seed
+model_provider: mistralai

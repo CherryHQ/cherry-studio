@@ -1,0 +1,47 @@
+id: meta-llama/llama-guard-4-12b
+canonical_slug: meta-llama/llama-guard-4-12b
+hugging_face_id: meta-llama/Llama-Guard-4-12B
+name: 'Meta: Llama Guard 4 12B'
+type: chat
+created: 1745975193
+description: |-
+  Llama Guard 4 is a Llama 4 Scout-derived multimodal pretrained model, fine-tuned for content safety classification. Similar to previous versions, it can be used to classify content in both LLM inputs (prompt classification) and in LLM responses (response classification). It acts as an LLM—generating text in its output that indicates whether a given prompt or response is safe or unsafe, and if unsafe, it also lists the content categories violated.
+
+  Llama Guard 4 was aligned to safeguard against the standardized MLCommons hazards taxonomy and designed to support multimodal Llama 4 capabilities. Specifically, it combines features from previous Llama Guard models, providing content moderation for English and multiple supported languages, along with enhanced capabilities to handle mixed text-and-image prompts, including multiple images. Additionally, Llama Guard 4 is integrated into the Llama Moderations API, extending robust safety classification to text and images.
+context_length: 163840
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - image
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00000005'
+  completion: '0.00000005'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - seed
+  - top_logprobs
+  - logprobs
+model_provider: meta-llama

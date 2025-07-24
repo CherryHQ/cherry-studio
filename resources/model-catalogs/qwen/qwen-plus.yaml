@@ -1,0 +1,37 @@
+id: qwen/qwen-plus
+canonical_slug: qwen/qwen-plus-2025-01-25
+hugging_face_id: ''
+name: 'Qwen: Qwen-Plus'
+type: chat
+created: 1738409840
+description: Qwen-Plus, based on the Qwen2.5 foundation model, is a 131K context model with a balanced performance, speed, and cost combination.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.0000004'
+  completion: '0.0000012'
+  input_cache_read: '0.00000016'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - seed
+  - response_format
+  - presence_penalty
+model_provider: qwen

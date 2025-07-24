@@ -1,0 +1,40 @@
+id: thudm/glm-4-32b
+canonical_slug: thudm/glm-4-32b-0414
+hugging_face_id: THUDM/GLM-4-32B-0414
+name: 'THUDM: GLM 4 32B'
+type: chat
+created: 1744920915
+description: GLM-4-32B-0414 is a 32B bilingual (Chinese-English) open-weight language model optimized for code generation, function calling, and agent-style tasks. Pretrained on 15T of high-quality and reasoning-heavy data, it was further refined using human preference alignment, rejection sampling, and reinforcement learning. The model excels in complex reasoning, artifact generation, and structured output tasks, achieving performance comparable to GPT-4o and DeepSeek-V3-0324 across several benchmarks.
+context_length: 32000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.00000024'
+  completion: '0.00000024'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+model_provider: thudm

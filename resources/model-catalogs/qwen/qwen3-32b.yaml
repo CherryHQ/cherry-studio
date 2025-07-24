@@ -1,0 +1,48 @@
+id: qwen/qwen3-32b
+canonical_slug: qwen/qwen3-32b-04-28
+hugging_face_id: Qwen/Qwen3-32B
+name: 'Qwen: Qwen3 32B'
+type: chat
+created: 1745875945
+description: 'Qwen3-32B is a dense 32.8B parameter causal language model from the Qwen3 series, optimized for both complex reasoning and efficient dialogue. It supports seamless switching between a "thinking" mode for tasks like math, coding, and logical inference, and a "non-thinking" mode for faster, general-purpose conversation. The model demonstrates strong performance in instruction-following, agent tool use, creative writing, and multilingual tasks across 100+ languages and dialects. It natively handles 32K token contexts and can extend to 131K tokens using YaRN-based scaling. '
+context_length: 40960
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen3
+  instruct_type: qwen3
+pricing:
+  prompt: '0.0000001'
+  completion: '0.0000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - response_format
+  - top_logprobs
+  - logprobs
+  - logit_bias
+  - seed
+  - tools
+  - tool_choice
+  - repetition_penalty
+  - top_k
+  - min_p
+  - structured_outputs
+model_provider: qwen

@@ -1,0 +1,35 @@
+id: amazon/nova-micro-v1
+canonical_slug: amazon/nova-micro-v1
+hugging_face_id: ''
+name: 'Amazon: Nova Micro 1.0'
+type: chat
+created: 1733437237
+description: Amazon Nova Micro 1.0 is a text-only model that delivers the lowest latency responses in the Amazon Nova family of models at a very low cost. With a context length of 128K tokens and optimized for speed and cost, Amazon Nova Micro excels at tasks such as text summarization, translation, content classification, interactive chat, and brainstorming. It has  simple mathematical reasoning and coding abilities.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Nova
+  instruct_type: null
+pricing:
+  prompt: '0.000000035'
+  completion: '0.00000014'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: amazon
