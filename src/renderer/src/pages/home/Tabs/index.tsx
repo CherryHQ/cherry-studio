@@ -4,7 +4,7 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { classNames, uuid } from '@renderer/utils'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -99,7 +99,9 @@ const HomeTabs: FC<Props> = ({
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container style={{ ...border, ...style }} className="home-tabs">
+    <Container
+      style={{ ...border, ...style }}
+      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
       {position === 'left' && topicPosition === 'left' && (
         <CustomTabs>
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
@@ -153,11 +155,17 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
+  &.right {
+    height: calc(100vh - var(--navbar-height));
+  }
   [navbar-position='left'] & {
     background-color: var(--color-background);
   }
   [navbar-position='top'] & {
-    min-height: calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px);
+    height: calc(100vh - var(--navbar-height) - 12px);
+    &.right {
+      height: calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px);
+    }
   }
   overflow: hidden;
   .collapsed {
@@ -180,6 +188,7 @@ const CustomTabs = styled.div`
   padding: 6px 0;
   border-bottom: 1px solid var(--color-border);
   background: transparent;
+  -webkit-app-region: no-drag;
   [navbar-position='top'] & {
     padding-top: 2px;
   }

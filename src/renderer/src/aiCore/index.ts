@@ -79,12 +79,6 @@ export default class AiProvider {
     } else {
       // Existing logic for other models
       logger.silly('Builder Params', params)
-      if (!params.enableReasoning) {
-        // 这里注释掉不会影响正常的关闭思考,可忽略不计的性能下降
-        // builder.remove(ThinkingTagExtractionMiddlewareName)
-        builder.remove(ThinkChunkMiddlewareName)
-        logger.silly('ThinkChunkMiddleware is removed')
-      }
       // 使用兼容性类型检查，避免typescript类型收窄和装饰器模式的问题
       const clientTypes = client.getClientCompatibilityType(model)
       const isOpenAICompatible =

@@ -6,6 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
@@ -14,6 +15,7 @@ import { UpgradeChannel } from '@shared/config/constant'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
+import { BadgeQuestionMark } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -170,6 +172,13 @@ const AboutSettings: FC = () => {
     setAutoCheckUpdate(autoCheckUpdate)
   }, [autoCheckUpdate, setAutoCheckUpdate])
 
+  const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
+    window.api.openWebsite(
+      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
+    )
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -275,6 +284,14 @@ const AboutSettings: FC = () => {
         </SettingGroup>
       )}
       <SettingGroup theme={theme}>
+        <SettingRow>
+          <SettingRowTitle>
+            <BadgeQuestionMark size={18} />
+            {t('docs.title')}
+          </SettingRowTitle>
+          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
             <Rss size={18} />

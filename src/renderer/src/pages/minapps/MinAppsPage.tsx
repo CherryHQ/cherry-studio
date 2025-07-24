@@ -148,8 +148,11 @@ const AppsContainerWrapper = styled(Scrollbar)`
   flex: 1;
   flex-direction: row;
   justify-content: center;
-  padding: 20px 0;
+  padding: 50px 0;
   width: 100%;
+  [navbar-position='top'] & {
+    padding: 20px 0;
+  }
 `
 
 const AppsContainer = styled.div`

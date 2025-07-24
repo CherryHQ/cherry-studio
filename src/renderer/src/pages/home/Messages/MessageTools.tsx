@@ -280,22 +280,37 @@ const MessageTools: FC<Props> = ({ block }) => {
     if (!content) return null
 
     try {
+      logger.debug(`renderPreview: ${content}`)
       const parsedResult = JSON.parse(content)
       switch (parsedResult.content[0]?.type) {
         case 'text':
-          return (
-            <CollapsedContent
-              isExpanded={true}
-              resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
-            />
-          )
+          try {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
+              />
+            )
+          } catch (e) {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(parsedResult.content[0].text, null, 2)}
+              />
+            )
+          }
 
         default:
           return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
       logger.error('failed to render the preview of mcp results:', e as Error)
-      return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
+      return (
+        <CollapsedContent
+          isExpanded={true}
+          resultString={e instanceof Error ? e.message : JSON.stringify(e, null, 2)}
+        />
+      )
     }
   }
 
