@@ -28,7 +28,7 @@ The plugin has already been configured in the project — simply install it to g
 
 ### **Avoid Flat Structure at All Costs**
 
-Never use flat structures like `"add_button_tip": "Add"`. Instead, adopt a clear nested structure:
+Never use flat structures like `"add.button.tip": "Add"`. Instead, adopt a clear nested structure:
 
 ```json
 // Wrong - Flat structure
