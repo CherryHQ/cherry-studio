@@ -188,6 +188,7 @@ const CustomTabs = styled.div`
   padding: 6px 0;
   border-bottom: 1px solid var(--color-border);
   background: transparent;
+  -webkit-app-region: no-drag;
   [navbar-position='top'] & {
     padding-top: 2px;
   }

@@ -41,6 +41,7 @@ stats.html
 # ENV
 .env
 .env.*
+!.env.example
 
 # Local
 local
