@@ -160,7 +160,7 @@ export const syncTokenLanYunServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing LanYun server:', err)
+        logger.error('Error processing LanYun server:', err as Error)
       }
     }
 
@@ -170,7 +170,7 @@ export const syncTokenLanYunServers = async (
       addedServers
     }
   } catch (error) {
-    logger.error('TokenLanyun sync error:', error)
+    logger.error('TokenLanyun sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

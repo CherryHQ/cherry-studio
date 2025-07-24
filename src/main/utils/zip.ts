@@ -19,7 +19,7 @@ export async function compress(str: string): Promise<Buffer> {
     const buffer = Buffer.from(str, 'utf-8')
     return await gzipPromise(buffer)
   } catch (error) {
-    logger.error('Compression failed:', error)
+    logger.error('Compression failed:', error as Error)
     throw error
   }
 }
@@ -34,7 +34,7 @@ export async function decompress(compressedBuffer: Buffer): Promise<string> {
     const buffer = await gunzipPromise(compressedBuffer)
     return buffer.toString('utf-8')
   } catch (error) {
-    logger.error('Decompression failed:', error)
+    logger.error('Decompression failed:', error as Error)
     throw error
   }
 }

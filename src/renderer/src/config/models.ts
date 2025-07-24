@@ -2531,7 +2531,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
-    isSupportedThinkingTokenDoubaoModel(model)
+    isSupportedThinkingTokenDoubaoModel(model) ||
+    isSupportedThinkingTokenHunyuanModel(model)
   )
 }
 
@@ -2616,6 +2617,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
+  if (baseName.includes('coder')) {
+    return false
+  }
+
   return (
     baseName.startsWith('qwen3') ||
     [
@@ -2623,10 +2628,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-plus-latest',
       'qwen-plus-0428',
       'qwen-plus-2025-04-28',
+      'qwen-plus-0714',
+      'qwen-plus-2025-07-14',
       'qwen-turbo',
       'qwen-turbo-latest',
       'qwen-turbo-0428',
-      'qwen-turbo-2025-04-28'
+      'qwen-turbo-2025-04-28',
+      'qwen-turbo-0715',
+      'qwen-turbo-2025-07-15'
     ].includes(baseName)
   )
 }
@@ -2653,12 +2662,27 @@ export function isClaudeReasoningModel(model?: Model): boolean {
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
+export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('hunyuan-a13b')
+}
+
+export const isHunyuanReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenHunyuanModel(model) || model.id.toLowerCase().includes('hunyuan-t1')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
-  if (isEmbeddingModel(model)) {
+  if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -2678,8 +2702,10 @@ export function isReasoningModel(model?: Model): boolean {
     isGeminiReasoningModel(model) ||
     isQwenReasoningModel(model) ||
     isGrokReasoningModel(model) ||
-    model.id.includes('glm-z1') ||
-    model.id.includes('magistral')
+    isHunyuanReasoningModel(model) ||
+    model.id.toLowerCase().includes('glm-z1') ||
+    model.id.toLowerCase().includes('magistral') ||
+    model.id.toLowerCase().includes('minimax-m1')
   ) {
     return true
   }

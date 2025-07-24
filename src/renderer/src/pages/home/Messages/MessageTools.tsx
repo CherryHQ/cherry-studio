@@ -44,7 +44,7 @@ const MessageTools: FC<Props> = ({ block }) => {
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
-        logger.debug('countdown', countdown)
+        logger.debug(`countdown: ${countdown}`)
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
@@ -121,7 +121,7 @@ const MessageTools: FC<Props> = ({ block }) => {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
       } catch (error) {
-        logger.error('Failed to abort tool:', error)
+        logger.error('Failed to abort tool:', error as Error)
         message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
@@ -294,7 +294,7 @@ const MessageTools: FC<Props> = ({ block }) => {
           return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
-      logger.error('failed to render the preview of mcp results:', e)
+      logger.error('failed to render the preview of mcp results:', e as Error)
       return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
     }
   }

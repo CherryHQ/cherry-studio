@@ -17,7 +17,7 @@ export class QuickPhraseService {
       await db.open()
       QuickPhraseService._isInitialized = true
     } catch (error) {
-      logger.error('Failed to open Dexie database:', error)
+      logger.error('Failed to open Dexie database:', error as Error)
     }
   }
 

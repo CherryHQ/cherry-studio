@@ -118,7 +118,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
       setApiValid(valid)
     } catch (err) {
-      logger.error('Check search error:', err)
+      logger.error('Check search error:', err as Error)
       setApiValid(false)
       window.message.error({
         key: 'check-search-error',

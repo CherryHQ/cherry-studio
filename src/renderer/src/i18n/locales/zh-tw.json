@@ -149,6 +149,7 @@
     },
     "chat": {
       "add.assistant.title": "新增助手",
+      "add.topic.title": "新增話題",
       "artifacts.button.download": "下載",
       "artifacts.button.openExternal": "外部瀏覽器開啟",
       "artifacts.button.preview": "預覽",
@@ -655,6 +656,10 @@
       "urdu": "烏爾都文",
       "vietnamese": "越南文"
     },
+    "launchpad": {
+      "apps": "應用",
+      "minapps": "小程序"
+    },
     "lmstudio": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
       "keep_alive_time.placeholder": "分鐘",
@@ -885,6 +890,8 @@
       }
     },
     "minapp": {
+      "add_to_launchpad": "添加到启动台",
+      "add_to_sidebar": "添加到侧边栏",
       "popup": {
         "close": "關閉小工具",
         "devtools": "開發者工具",
@@ -897,10 +904,9 @@
         "refresh": "重新整理",
         "rightclick_copyurl": "右鍵複製 URL"
       },
+      "remove_from_launchpad": "从启动台移除",
+      "remove_from_sidebar": "从侧边栏移除",
       "sidebar": {
-        "add": {
-          "title": "添加到側邊欄"
-        },
         "close": {
           "title": "關閉"
         },
@@ -909,9 +915,6 @@
         },
         "hide": {
           "title": "隱藏"
-        },
-        "remove": {
-          "title": "從側邊欄移除"
         },
         "remove_custom": {
           "title": "刪除自定義應用"
@@ -1810,6 +1813,10 @@
       "display.custom.css": "自訂 CSS",
       "display.custom.css.cherrycss": "從 cherrycss.com 取得",
       "display.custom.css.placeholder": "/* 這裡寫自訂 CSS */",
+      "display.navbar.position": "導航欄位置",
+      "display.navbar.position.left": "左側",
+      "display.navbar.position.top": "頂部",
+      "display.navbar.title": "導航欄設定",
       "display.sidebar.chat.hiddenMessage": "助手是基礎功能，不支援隱藏",
       "display.sidebar.disabled": "隱藏的圖示",
       "display.sidebar.empty": "把要隱藏的功能從左側拖拽到這裡",
@@ -2508,6 +2515,19 @@
         "reset": "重置",
         "title": "縮放"
       }
+    },
+    "title": {
+      "agents": "智能體",
+      "apps": "小程序",
+      "files": "文件",
+      "home": "主頁",
+      "knowledge": "知識庫",
+      "launchpad": "啟動台",
+      "mcp-servers": "MCP 伺服器",
+      "memories": "記憶",
+      "paintings": "繪畫",
+      "settings": "設定",
+      "translate": "翻譯"
     },
     "trace": {
       "backList": "返回清單",

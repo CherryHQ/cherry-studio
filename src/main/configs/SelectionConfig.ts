@@ -46,7 +46,7 @@ export const SELECTION_PREDEFINED_BLACKLIST: IFilterList = {
     // Remote Desktop
     'mstsc.exe'
   ],
-  MAC: []
+  MAC: ['com.apple.finder']
 }
 
 export const SELECTION_FINETUNED_LIST: IFinetunedList = {

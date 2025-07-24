@@ -12,8 +12,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import type { MenuProps } from 'antd'
-import { Avatar, Dropdown, Tooltip } from 'antd'
+import { Avatar, Tooltip } from 'antd'
 import {
   CircleHelp,
   FileSearch,
@@ -28,14 +27,13 @@ import {
   Sun,
   SunMoon
 } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { DraggableList } from '../DraggableList'
-import MinAppIcon from '../Icons/MinAppIcon'
 import UserPopup from '../Popups/UserPopup'
+import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup, openMinapp } = useMinappPopup()
@@ -95,7 +93,7 @@ const Sidebar: FC = () => {
           <AppsContainer>
             <Divider />
             <Menus>
-              <PinnedApps />
+              <SidebarPinnedApps />
             </Menus>
           </AppsContainer>
         )}
@@ -187,137 +185,6 @@ const MainMenus: FC = () => {
       </Tooltip>
     )
   })
-}
-
-/** Tabs of opened minapps in sidebar */
-const SidebarOpenedMinappTabs: FC = () => {
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
-  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
-  const { theme } = useTheme()
-  const { t } = useTranslation()
-
-  const handleOnClick = (app) => {
-    if (minappShow && currentMinappId === app.id) {
-      hideMinappPopup()
-    } else {
-      openMinappKeepAlive(app)
-    }
-  }
-
-  // animation for minapp switch indicator
-  useEffect(() => {
-    //hacky way to get the height of the icon
-    const iconDefaultHeight = 40
-    const iconDefaultOffset = 17
-    const container = document.querySelector('.TabsContainer') as HTMLElement
-    const activeIcon = document.querySelector('.TabsContainer .opened-active') as HTMLElement
-
-    let indicatorTop = 0,
-      indicatorRight = 0
-    if (minappShow && activeIcon && container) {
-      indicatorTop = activeIcon.offsetTop + activeIcon.offsetHeight / 2 - 4 // 4 is half of the indicator's height (8px)
-      indicatorRight = 0
-    } else {
-      indicatorTop =
-        ((openedKeepAliveMinapps.length > 0 ? openedKeepAliveMinapps.length : 1) / 2) * iconDefaultHeight +
-        iconDefaultOffset -
-        4
-      indicatorRight = -50
-    }
-    container.style.setProperty('--indicator-top', `${indicatorTop}px`)
-    container.style.setProperty('--indicator-right', `${indicatorRight}px`)
-  }, [currentMinappId, openedKeepAliveMinapps, minappShow])
-
-  // 检查是否需要显示已打开小程序组件
-  const isShowOpened = showOpenedMinappsInSidebar && openedKeepAliveMinapps.length > 0
-
-  // 如果不需要显示，返回空容器保持动画效果但不显示内容
-  if (!isShowOpened) return <TabsContainer className="TabsContainer" />
-
-  return (
-    <TabsContainer className="TabsContainer">
-      <Divider />
-      <TabsWrapper>
-        <Menus>
-          {openedKeepAliveMinapps.map((app) => {
-            const menuItems: MenuProps['items'] = [
-              {
-                key: 'closeApp',
-                label: t('minapp.sidebar.close.title'),
-                onClick: () => {
-                  closeMinapp(app.id)
-                }
-              },
-              {
-                key: 'closeAllApp',
-                label: t('minapp.sidebar.closeall.title'),
-                onClick: () => {
-                  closeAllMinapps()
-                }
-              }
-            ]
-            const isActive = minappShow && currentMinappId === app.id
-
-            return (
-              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
-                <StyledLink>
-                  <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                    <Icon
-                      theme={theme}
-                      onClick={() => handleOnClick(app)}
-                      className={`${isActive ? 'opened-active' : ''}`}>
-                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                    </Icon>
-                  </Dropdown>
-                </StyledLink>
-              </Tooltip>
-            )
-          })}
-        </Menus>
-      </TabsWrapper>
-    </TabsContainer>
-  )
-}
-
-const PinnedApps: FC = () => {
-  const { pinned, updatePinnedMinapps } = useMinapps()
-  const { t } = useTranslation()
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { theme } = useTheme()
-  const { openMinappKeepAlive } = useMinappPopup()
-
-  return (
-    <DraggableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
-      {(app) => {
-        const menuItems: MenuProps['items'] = [
-          {
-            key: 'togglePin',
-            label: t('minapp.sidebar.remove.title'),
-            onClick: () => {
-              const newPinned = pinned.filter((item) => item.id !== app.id)
-              updatePinnedMinapps(newPinned)
-            }
-          }
-        ]
-        const isActive = minappShow && currentMinappId === app.id
-        return (
-          <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
-            <StyledLink>
-              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                <Icon
-                  theme={theme}
-                  onClick={() => openMinappKeepAlive(app)}
-                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                </Icon>
-              </Dropdown>
-            </StyledLink>
-          </Tooltip>
-        )
-      }}
-    </DraggableList>
-  )
 }
 
 const Container = styled.div<{ $isFullscreen: boolean }>`
@@ -443,39 +310,6 @@ const Divider = styled.div`
   width: 50%;
   margin: 8px 0;
   border-bottom: 0.5px solid var(--color-border);
-`
-
-const TabsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  -webkit-app-region: none;
-  position: relative;
-  width: 100%;
-
-  &::after {
-    content: '';
-    position: absolute;
-    right: var(--indicator-right, 0);
-    top: var(--indicator-top, 0);
-    width: 4px;
-    height: 8px;
-    background-color: var(--color-primary);
-    transition:
-      top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-      right 0.3s ease-in-out;
-    border-radius: 2px;
-  }
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const TabsWrapper = styled.div`
-  background-color: rgba(128, 128, 128, 0.1);
-  border-radius: 20px;
-  overflow: hidden;
 `
 
 export default Sidebar

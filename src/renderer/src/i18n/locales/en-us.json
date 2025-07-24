@@ -149,6 +149,7 @@
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
+      "add.topic.title": "New Topic",
       "artifacts.button.download": "Download",
       "artifacts.button.openExternal": "Open in external browser",
       "artifacts.button.preview": "Preview",
@@ -655,6 +656,10 @@
       "urdu": "Urdu",
       "vietnamese": "Vietnamese"
     },
+    "launchpad": {
+      "apps": "Apps",
+      "minapps": "Minapps"
+    },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
@@ -885,6 +890,8 @@
       }
     },
     "minapp": {
+      "add_to_launchpad": "Add to Launchpad",
+      "add_to_sidebar": "Add to Sidebar",
       "popup": {
         "close": "Close MinApp",
         "devtools": "Developer Tools",
@@ -897,10 +904,9 @@
         "refresh": "Refresh",
         "rightclick_copyurl": "Right-click to copy URL"
       },
+      "remove_from_launchpad": "Remove from Launchpad",
+      "remove_from_sidebar": "Remove from Sidebar",
       "sidebar": {
-        "add": {
-          "title": "Add to Sidebar"
-        },
         "close": {
           "title": "Close"
         },
@@ -909,9 +915,6 @@
         },
         "hide": {
           "title": "Hide"
-        },
-        "remove": {
-          "title": "Remove from Sidebar"
         },
         "remove_custom": {
           "title": "Delete Custom App"
@@ -1810,6 +1813,10 @@
       "display.custom.css": "Custom CSS",
       "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
+      "display.navbar.position": "Navbar Position",
+      "display.navbar.position.left": "Left",
+      "display.navbar.position.top": "Top",
+      "display.navbar.title": "Navbar Settings",
       "display.sidebar.chat.hiddenMessage": "Assistants are basic functions, not supported for hiding",
       "display.sidebar.disabled": "Hide icons",
       "display.sidebar.empty": "Drag the hidden feature from the left side here",
@@ -2508,6 +2515,19 @@
         "reset": "Reset",
         "title": "Page Zoom"
       }
+    },
+    "title": {
+      "agents": "Agents",
+      "apps": "Apps",
+      "files": "Files",
+      "home": "Home",
+      "knowledge": "Knowledge Base",
+      "launchpad": "Launchpad",
+      "mcp-servers": "MCP Servers",
+      "memories": "Memories",
+      "paintings": "Paintings",
+      "settings": "Settings",
+      "translate": "Translate"
     },
     "trace": {
       "backList": "Back To List",

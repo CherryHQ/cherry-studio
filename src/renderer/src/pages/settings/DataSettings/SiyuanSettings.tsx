@@ -78,7 +78,7 @@ const SiyuanSettings: FC = () => {
 
       window.message.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
-      logger.error('Check Siyuan connection failed:', error)
+      logger.error('Check Siyuan connection failed:', error as Error)
       window.message.error(t('settings.data.siyuan.check.error'))
     }
   }

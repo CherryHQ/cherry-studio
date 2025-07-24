@@ -33,7 +33,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             setLogo(logoData)
           }
         } catch (error) {
-          logger.error('Failed to load logo', error)
+          logger.error('Failed to load logo', error as Error)
         }
       }
       loadLogo()

@@ -63,7 +63,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       updateMinapps([...minapps, newApp])
     } catch (error) {
       window.message.error(t('settings.miniapps.custom.save_error'))
-      logger.error('Failed to save custom mini app:', error)
+      logger.error('Failed to save custom mini app:', error as Error)
     }
   }
 
@@ -83,7 +83,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
         }
         reader.readAsDataURL(file)
       } catch (error) {
-        logger.error('Failed to read file:', error)
+        logger.error('Failed to read file:', error as Error)
         window.message.error(t('settings.miniapps.custom.logo_upload_error'))
       }
     }

@@ -116,7 +116,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          logger.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error as Error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -550,7 +550,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }

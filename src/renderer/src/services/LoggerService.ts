@@ -1,4 +1,5 @@
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+/* eslint-disable no-restricted-syntax */
+import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 
 // check if the current process is a worker
@@ -38,7 +39,7 @@ class LoggerService {
         Object.values(LEVEL).includes(window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel)
       ) {
         this.envLevel = window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel
-        // eslint-disable-next-line no-restricted-syntax
+
         console.log(
           `%c[LoggerService] env CSLOGGER_RENDERER_LEVEL loaded: ${this.envLevel}`,
           'color: blue; font-weight: bold'
@@ -51,7 +52,7 @@ class LoggerService {
           .filter((module) => module !== '')
         if (showModules.length > 0) {
           this.envShowModules = showModules
-          // eslint-disable-next-line no-restricted-syntax
+
           console.log(
             `%c[LoggerService] env CSLOGGER_RENDERER_SHOW_MODULES loaded: ${this.envShowModules.join(' ')}`,
             'color: blue; font-weight: bold'
@@ -78,7 +79,6 @@ class LoggerService {
    */
   public initWindowSource(window: string): LoggerService {
     if (this.window) {
-      // eslint-disable-next-line no-restricted-syntax
       console.warn(
         '[LoggerService] window source already initialized, current: %s, want to set: %s',
         this.window,
@@ -114,7 +114,6 @@ class LoggerService {
    */
   private processLog(level: LogLevel, message: string, data: any[]): void {
     if (!this.window) {
-      // eslint-disable-next-line no-restricted-syntax
       console.error('[LoggerService] window source not initialized, please initialize window source first')
       return
     }
@@ -140,28 +139,22 @@ class LoggerService {
 
     switch (level) {
       case LEVEL.ERROR:
-        // eslint-disable-next-line no-restricted-syntax
-        console.error(logMessage, ...data)
+        console.error('%c<error>', 'color: red; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.WARN:
-        // eslint-disable-next-line no-restricted-syntax
-        console.warn(logMessage, ...data)
+        console.warn('%c<warn>', 'color: #FFA500; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.INFO:
-        // eslint-disable-next-line no-restricted-syntax
-        console.info(logMessage, ...data)
+        console.info('%c<info>', 'color: #32CD32; font-weight: bold', logMessage, ...data)
         break
       case LEVEL.VERBOSE:
-        // eslint-disable-next-line no-restricted-syntax
-        console.log(logMessage, ...data)
+        console.debug('%c<verbose>', 'color: #808080', logMessage, ...data)
         break
       case LEVEL.DEBUG:
-        // eslint-disable-next-line no-restricted-syntax
-        console.debug(logMessage, ...data)
+        console.debug('%c<debug>', 'color: #7B68EE', logMessage, ...data)
         break
       case LEVEL.SILLY:
-        // eslint-disable-next-line no-restricted-syntax
-        console.log(logMessage, ...data)
+        console.debug('%c<silly>', 'color: #808080', logMessage, ...data)
         break
     }
 
@@ -196,42 +189,42 @@ class LoggerService {
   /**
    * Log error message
    */
-  public error(message: string, ...data: any[]): void {
+  public error(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.ERROR, message, data)
   }
 
   /**
    * Log warning message
    */
-  public warn(message: string, ...data: any[]): void {
+  public warn(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.WARN, message, data)
   }
 
   /**
    * Log info message
    */
-  public info(message: string, ...data: any[]): void {
+  public info(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.INFO, message, data)
   }
 
   /**
    * Log verbose message
    */
-  public verbose(message: string, ...data: any[]): void {
+  public verbose(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.VERBOSE, message, data)
   }
 
   /**
    * Log debug message
    */
-  public debug(message: string, ...data: any[]): void {
+  public debug(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.DEBUG, message, data)
   }
 
   /**
    * Log silly level message
    */
-  public silly(message: string, ...data: any[]): void {
+  public silly(message: string, ...data: LogContextData): void {
     this.processLog(LEVEL.SILLY, message, data)
   }
 

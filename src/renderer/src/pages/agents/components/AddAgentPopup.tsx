@@ -143,7 +143,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setOriginalPrompt(content)
       setHasUnsavedChanges(true)
     } catch (error) {
-      logger.error('Error fetching data:', error)
+      logger.error('Error fetching data:', error as Error)
     }
 
     setLoading(false)

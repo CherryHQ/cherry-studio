@@ -23,7 +23,13 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
+import {
+  filterModelsByKeywords,
+  getDefaultGroupName,
+  getFancyProviderName,
+  isFreeModel,
+  runAsyncFunction
+} from '@renderer/utils'
 import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -86,34 +92,30 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const systemModels = SYSTEM_MODELS[_provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
 
-  const list = allModels.filter((model) => {
-    if (
-      filterSearchText &&
-      !model.id.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase()) &&
-      !model.name?.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase())
-    ) {
-      return false
-    }
-
-    switch (actualFilterType) {
-      case 'reasoning':
-        return isReasoningModel(model)
-      case 'vision':
-        return isVisionModel(model)
-      case 'websearch':
-        return isWebSearchModel(model)
-      case 'free':
-        return isFreeModel(model)
-      case 'embedding':
-        return isEmbeddingModel(model)
-      case 'function_calling':
-        return isFunctionCallingModel(model)
-      case 'rerank':
-        return isRerankModel(model)
-      default:
-        return true
-    }
-  })
+  const list = useMemo(
+    () =>
+      filterModelsByKeywords(filterSearchText, allModels).filter((model) => {
+        switch (actualFilterType) {
+          case 'reasoning':
+            return isReasoningModel(model)
+          case 'vision':
+            return isVisionModel(model)
+          case 'websearch':
+            return isWebSearchModel(model)
+          case 'free':
+            return isFreeModel(model)
+          case 'embedding':
+            return isEmbeddingModel(model)
+          case 'function_calling':
+            return isFunctionCallingModel(model)
+          case 'rerank':
+            return isRerankModel(model)
+          default:
+            return true
+        }
+      }),
+    [filterSearchText, actualFilterType, allModels]
+  )
 
   const modelGroups = useMemo(
     () =>
@@ -182,7 +184,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             .filter((model) => !isEmpty(model.name))
         )
       } catch (error) {
-        logger.error('Failed to fetch models', error)
+        logger.error('Failed to fetch models', error as Error)
       } finally {
         setTimeout(() => setLoading(false), 300)
       }
@@ -202,7 +204,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     return (
       <Flex>
         <ModelHeaderTitle>
-          {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
+          {getFancyProviderName(provider)}
           {i18n.language.startsWith('zh') ? '' : ' '}
           {t('common.models')}
         </ModelHeaderTitle>

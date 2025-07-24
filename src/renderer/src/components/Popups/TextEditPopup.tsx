@@ -121,7 +121,7 @@ const PopupContainer: React.FC<Props> = ({
         setTextValue(translatedText)
       }
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

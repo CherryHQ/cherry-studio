@@ -15,7 +15,7 @@ import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { Tooltip } from 'antd'
+import { Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -96,22 +96,24 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     }
   }, [couldAddImageFile, couldAddTextFile])
 
-  const resizeTextArea = useCallback(() => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
-  }, [])
-
   useEffect(() => {
     setTimeout(() => {
-      resizeTextArea()
       if (textareaRef.current) {
         textareaRef.current.focus({ cursor: 'end' })
       }
     }, 0)
-  }, [resizeTextArea])
+  }, [])
+
+  // 仅在打开时执行一次
+  useEffect(() => {
+    if (textareaRef.current) {
+      const realTextarea = textareaRef.current.resizableTextArea?.textArea
+      if (realTextarea) {
+        realTextarea.scrollTo({ top: realTextarea.scrollHeight })
+      }
+      textareaRef.current.focus({ cursor: 'end' })
+    }
+  }, [])
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
@@ -123,11 +125,11 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         false, // 不需要 pasteLongTextAsFile
         pasteLongTextThreshold,
         undefined, // 不需要text
-        resizeTextArea,
+        undefined, // 不需要 resizeTextArea
         t
       )
     },
-    [extensions, pasteLongTextThreshold, resizeTextArea, t]
+    [extensions, pasteLongTextThreshold, t]
   )
 
   // 添加全局粘贴事件处理
@@ -149,7 +151,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (mainTextBlock) {
       handleTextChange(mainTextBlock.id, translatedText)
     }
-    setTimeout(() => resizeTextArea(), 0)
   }
 
   // 处理文件删除
@@ -246,7 +247,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
             // set cursor position in the next render cycle
             setTimeout(() => {
               textArea.selectionStart = textArea.selectionEnd = start + 1
-              resizeTextArea() // trigger resizeTextArea
             }, 0)
           }
         }
@@ -256,11 +256,17 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
   return (
     <>
-      <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+      <EditorContainer
+        className="message-editor"
+        direction="vertical"
+        size="small"
+        style={{ display: 'flex' }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}>
         {editedBlocks
           .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
           .map((block) => (
-            <Textarea
+            <TextArea
               className={classNames('editing-message', isFileDragging && 'file-dragging')}
               key={block.id}
               ref={textareaRef}
@@ -268,7 +274,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               value={block.content}
               onChange={(e) => {
                 handleTextChange(block.id, e.target.value)
-                resizeTextArea()
               }}
               onKeyDown={(e) => handleKeyDown(e, block.id)}
               autoFocus
@@ -282,12 +287,12 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                 // 阻止事件冒泡，避免触发全局的 Electron contextMenu
                 e.stopPropagation()
               }}
+              autoSize={{ minRows: 3, maxRows: 15 }}
               style={{
-                fontSize,
-                padding: '0px 15px 8px 15px'
+                fontSize
               }}>
               <TranslateButton onTranslated={onTranslated} />
-            </Textarea>
+            </TextArea>
           ))}
         {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
           files.length > 0) && (
@@ -359,14 +364,9 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   )
 }
 
-const EditorContainer = styled.div`
-  padding: 18px 0;
-  padding-bottom: 5px;
-  border: 0.5px solid var(--color-border);
+const EditorContainer = styled(Space)`
+  margin: 15px 0 5px 0;
   transition: all 0.2s ease;
-  border-radius: 15px;
-  margin-top: 18px;
-  background-color: var(--color-background-opacity);
   width: 100%;
 
   &.file-dragging {
@@ -385,6 +385,22 @@ const EditorContainer = styled.div`
       pointer-events: none;
     }
   }
+
+  .editing-message {
+    background-color: var(--color-background-opacity);
+    border: 0.5px solid var(--color-border);
+    border-radius: 15px;
+    padding: 0.5em 1em;
+    flex: 1;
+    font-family: Ubuntu;
+    resize: none !important;
+    overflow: auto;
+    width: 100%;
+    box-sizing: border-box;
+    &.ant-input {
+      line-height: 1.4;
+    }
+  }
 `
 
 const FileBlocksContainer = styled.div`
@@ -395,21 +411,6 @@ const FileBlocksContainer = styled.div`
   margin: 8px 0;
   background: transparent;
   border-radius: 4px;
-`
-
-const Textarea = styled(TextArea)`
-  padding: 0;
-  border-radius: 0;
-  display: flex;
-  flex: 1;
-  font-family: Ubuntu;
-  resize: none !important;
-  overflow: auto;
-  width: 100%;
-  box-sizing: border-box;
-  &.ant-input {
-    line-height: 1.4;
-  }
 `
 
 const ActionBar = styled.div`

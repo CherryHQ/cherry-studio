@@ -5,13 +5,15 @@ import 'katex/dist/contrib/mhchem'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, memo, useCallback, useMemo } from 'react'
+import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -35,11 +37,55 @@ const DISALLOWED_ELEMENTS = ['iframe']
 interface Props {
   // message: Message & { content: string }
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
+  postProcess?: (text: string) => string
 }
 
-const Markdown: FC<Props> = ({ block }) => {
+const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
   const { mathEngine } = useSettings()
+
+  const isTrulyDone = 'status' in block && block.status === 'success'
+  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
+  const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
+
+  const prevContentRef = useRef(block.content)
+  const prevBlockIdRef = useRef(block.id)
+
+  const { addChunk, reset } = useSmoothStream({
+    onUpdate: (rawText) => {
+      // 如果提供了后处理函数就调用，否则直接使用原始文本
+      const finalText = postProcess ? postProcess(rawText) : rawText
+      setDisplayedContent(finalText)
+    },
+    streamDone: isStreamDone,
+    initialText: block.content
+  })
+
+  useEffect(() => {
+    const newContent = block.content || ''
+    const oldContent = prevContentRef.current || ''
+
+    const isDifferentBlock = block.id !== prevBlockIdRef.current
+
+    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
+
+    if (isDifferentBlock || isContentReset) {
+      reset(newContent)
+    } else {
+      const delta = newContent.substring(oldContent.length)
+      if (delta) {
+        addChunk(delta)
+      }
+    }
+
+    prevContentRef.current = newContent
+    prevBlockIdRef.current = block.id
+
+    // 更新 stream 状态
+    const isStreaming = block.status === 'streaming'
+    setIsStreamDone(!isStreaming)
+  }, [block.content, block.id, block.status, addChunk, reset])
 
   const remarkPlugins = useMemo(() => {
     const plugins = [
@@ -54,11 +100,11 @@ const Markdown: FC<Props> = ({ block }) => {
   }, [mathEngine])
 
   const messageContent = useMemo(() => {
-    const empty = isEmpty(block.content)
-    const paused = block.status === 'paused'
-    const content = empty && paused ? t('message.chat.completion.paused') : block.content
-    return removeSvgEmptyLines(processLatexBrackets(content))
-  }, [block, t])
+    if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
+      return t('message.chat.completion.paused')
+    }
+    return removeSvgEmptyLines(processLatexBrackets(displayedContent))
+  }, [block, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []

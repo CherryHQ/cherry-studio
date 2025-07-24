@@ -34,7 +34,7 @@ const MessageImage: FC<Props> = ({ block }) => {
       document.body.removeChild(link)
       window.message.success(t('message.download.success'))
     } catch (error) {
-      logger.error('下载图片失败:', error)
+      logger.error('下载图片失败:', error as Error)
       window.message.error(t('message.download.failed'))
     }
   }
@@ -86,7 +86,7 @@ const MessageImage: FC<Props> = ({ block }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('复制图片失败:', error)
+      logger.error('复制图片失败:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }

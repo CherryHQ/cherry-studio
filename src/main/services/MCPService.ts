@@ -206,7 +206,7 @@ class McpService {
                           headers['Authorization'] = `Bearer ${tokens.access_token}`
                         }
                       } catch (error) {
-                        logger.error('Failed to fetch tokens:', error)
+                        logger.error('Failed to fetch tokens:', error as Error)
                       }
                     }
 
@@ -348,7 +348,7 @@ class McpService {
 
             logger.debug(`Successfully authenticated with server: ${server.name}`)
           } catch (oauthError) {
-            logger.error(`OAuth authentication failed for server ${server.name}:`, oauthError)
+            logger.error(`OAuth authentication failed for server ${server.name}:`, oauthError as Error)
             throw new Error(
               `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
             )
@@ -454,7 +454,7 @@ class McpService {
 
       logger.debug(`Set up notification handlers for server: ${server.name}`)
     } catch (error) {
-      logger.error(`Failed to set up notification handlers for server ${server.name}:`, error)
+      logger.error(`Failed to set up notification handlers for server ${server.name}:`, error as Error)
     }
   }
 
@@ -510,7 +510,7 @@ class McpService {
           logger.debug(`Cleaned up DXT server directory for: ${server.name}`)
         }
       } catch (error) {
-        logger.error(`Failed to cleanup DXT server: ${server.name}`, error)
+        logger.error(`Failed to cleanup DXT server: ${server.name}`, error as Error)
       }
     }
   }
@@ -552,7 +552,7 @@ class McpService {
       logger.debug(`Connectivity check successful for server: ${server.name}`)
       return true
     } catch (error) {
-      logger.error(`Connectivity check failed for server: ${server.name}`, error)
+      logger.error(`Connectivity check failed for server: ${server.name}`, error as Error)
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)
@@ -614,7 +614,7 @@ class McpService {
 
     const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
       try {
-        logger.debug('Calling:', server.name, name, args, 'callId:', toolCallId)
+        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`)
         if (typeof args === 'string') {
           try {
             args = JSON.parse(args)
@@ -633,7 +633,7 @@ class McpService {
         })
         return result as MCPCallToolResponse
       } catch (error) {
-        logger.error(`Error calling tool ${name} on ${server.name}:`, error)
+        logger.error(`Error calling tool ${name} on ${server.name}:`, error as Error)
         throw error
       } finally {
         this.activeToolCalls.delete(toolCallId)
@@ -820,7 +820,7 @@ class McpService {
       logger.debug('Successfully fetched login shell environment variables:')
       return loginEnv
     } catch (error) {
-      logger.error('Failed to fetch login shell environment variables:', error)
+      logger.error('Failed to fetch login shell environment variables:', error as Error)
       return {}
     }
   })

@@ -1,3 +1,4 @@
+import { loggerService } from '@renderer/services/LoggerService'
 import { defaultLanguage } from '@shared/config/constant'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
@@ -13,6 +14,8 @@ import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
 import ptPT from './translate/pt-pt.json'
+
+const logger = loggerService.withContext('I18N')
 
 const resources = {
   'el-GR': elGR,
@@ -40,6 +43,10 @@ i18n.use(initReactI18next).init({
   fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false
+  },
+  saveMissing: true,
+  missingKeyHandler: (_1, _2, key) => {
+    logger.error(`Missing key: ${key}`)
   }
 })
 

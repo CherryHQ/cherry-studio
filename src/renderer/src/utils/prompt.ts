@@ -7,6 +7,47 @@ const logger = loggerService.withContext('Utils:Prompt')
 export const SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
 You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
+## Using the think tool
+
+Before taking any action or responding to the user after receiving tool results, use the think tool as a scratchpad to:
+- List the specific rules that apply to the current request
+- Check if all required information is collected
+- Verify that the planned action complies with all policies
+- Iterate over tool results for correctness 
+
+Here are some examples of what to iterate over inside the think tool:
+<think_tool_example_1>
+User wants to cancel flight ABC123
+- Need to verify: user ID, reservation ID, reason
+- Check cancellation rules:
+  * Is it within 24h of booking?
+  * If not, check ticket class and insurance
+- Verify no segments flown or are in the past
+- Plan: collect missing info, verify rules, get confirmation
+</think_tool_example_1>
+
+<think_tool_example_2>
+User wants to book 3 tickets to NYC with 2 checked bags each
+- Need user ID to check:
+  * Membership tier for baggage allowance
+  * Which payments methods exist in profile
+- Baggage calculation:
+  * Economy class × 3 passengers
+  * If regular member: 1 free bag each → 3 extra bags = $150
+  * If silver member: 2 free bags each → 0 extra bags = $0
+  * If gold member: 3 free bags each → 0 extra bags = $0
+- Payment rules to verify:
+  * Max 1 travel certificate, 1 credit card, 3 gift cards
+  * All payment methods must be in profile
+  * Travel certificate remainder goes to waste
+- Plan:
+1. Get user ID
+2. Verify membership level for bag fees
+3. Check which payment methods in profile and if their combination is allowed
+4. Calculate total: ticket price + any bag fees
+5. Get explicit confirmation for booking
+</think_tool_example_2>
+
 ## Tool Use Formatting
 
 Tool use is formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
@@ -56,8 +97,53 @@ Here are the rules you should always follow to solve your task:
 
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-
+Response in user query language.
 Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
+`
+
+export const THINK_TOOL_PROMPT = `{{ USER_SYSTEM_PROMPT }}
+
+## Using the think tool
+
+Before taking any action or responding to the user after receiving tool results, use the think tool as a scratchpad to:
+- List the specific rules that apply to the current request
+- Check if all required information is collected
+- Verify that the planned action complies with all policies
+- Iterate over tool results for correctness 
+- Response in user query language
+
+Here are some examples of what to iterate over inside the think tool:
+<think_tool_example_1>
+User wants to cancel flight ABC123
+- Need to verify: user ID, reservation ID, reason
+- Check cancellation rules:
+  * Is it within 24h of booking?
+  * If not, check ticket class and insurance
+- Verify no segments flown or are in the past
+- Plan: collect missing info, verify rules, get confirmation
+</think_tool_example_1>
+
+<think_tool_example_2>
+User wants to book 3 tickets to NYC with 2 checked bags each
+- Need user ID to check:
+  * Membership tier for baggage allowance
+  * Which payments methods exist in profile
+- Baggage calculation:
+  * Economy class × 3 passengers
+  * If regular member: 1 free bag each → 3 extra bags = $150
+  * If silver member: 2 free bags each → 0 extra bags = $0
+  * If gold member: 3 free bags each → 0 extra bags = $0
+- Payment rules to verify:
+  * Max 1 travel certificate, 1 credit card, 3 gift cards
+  * All payment methods must be in profile
+  * Travel certificate remainder goes to waste
+- Plan:
+1. Get user ID
+2. Verify membership level for bag fees
+3. Check which payment methods in profile and if their combination is allowed
+4. Calculate total: ticket price + any bag fees
+5. Get explicit confirmation for booking
+</think_tool_example_2>
 `
 
 export const ToolUseExamples = `
@@ -151,11 +237,7 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = async (
-  userSystemPrompt: string,
-  tools?: MCPTool[],
-  assistant?: Assistant
-): Promise<string> => {
+export const buildSystemPrompt = async (userSystemPrompt: string, assistant?: Assistant): Promise<string> => {
   if (typeof userSystemPrompt === 'string') {
     const now = new Date()
     if (userSystemPrompt.includes('{{date}}')) {
@@ -178,7 +260,7 @@ export const buildSystemPrompt = async (
         const systemType = await window.api.system.getDeviceType()
         userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
       } catch (error) {
-        logger.error('Failed to get system type:', error)
+        logger.error('Failed to get system type:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
       }
     }
@@ -188,7 +270,7 @@ export const buildSystemPrompt = async (
         const language = store.getState().settings.language
         userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
       } catch (error) {
-        logger.error('Failed to get language:', error)
+        logger.error('Failed to get language:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
       }
     }
@@ -198,7 +280,7 @@ export const buildSystemPrompt = async (
         const appInfo = await window.api.getAppInfo()
         userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
       } catch (error) {
-        logger.error('Failed to get architecture:', error)
+        logger.error('Failed to get architecture:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
       }
     }
@@ -207,7 +289,7 @@ export const buildSystemPrompt = async (
       try {
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, assistant?.model?.name || 'Unknown Model')
       } catch (error) {
-        logger.error('Failed to get model name:', error)
+        logger.error('Failed to get model name:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
       }
     }
@@ -217,17 +299,24 @@ export const buildSystemPrompt = async (
         const username = store.getState().settings.userName || 'Unknown Username'
         userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
       } catch (error) {
-        logger.error('Failed to get username:', error)
+        logger.error('Failed to get username:', error as Error)
         userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
       }
     }
   }
 
+  return userSystemPrompt
+}
+
+export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {
   if (tools && tools.length > 0) {
-    return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt)
+    return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
       .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
       .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
   }
-
   return userSystemPrompt
+}
+
+export const buildSystemPromptWithThinkTool = (userSystemPrompt: string): string => {
+  return THINK_TOOL_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
 }

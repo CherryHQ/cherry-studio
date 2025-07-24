@@ -5,6 +5,10 @@ export type LogSourceWithContext = {
   context?: Record<string, any>
 }
 
+type NullableObject = object | undefined | null
+
+export type LogContextData = [] | [Error | NullableObject] | [Error | NullableObject, ...NullableObject[]]
+
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose' | 'silly' | 'none'
 
 export const LEVEL = {

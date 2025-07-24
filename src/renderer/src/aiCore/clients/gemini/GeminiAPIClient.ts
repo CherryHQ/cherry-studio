@@ -59,7 +59,6 @@ import {
   mcpToolsToGeminiTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { defaultTimeout, MB } from '@shared/config/constant'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -142,7 +141,7 @@ export class GeminiAPIClient extends BaseApiClient<
       //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
       return images
     } catch (error) {
-      logger.error('[generateImage] error:', error)
+      logger.error('[generateImage] error:', error as Error)
       throw error
     }
   }
@@ -448,7 +447,7 @@ export class GeminiAPIClient extends BaseApiClient<
       }> => {
         const { messages, mcpTools, maxTokens, enableWebSearch, enableUrlContext, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
-        let systemInstruction = assistant.prompt
+        const systemInstruction = assistant.prompt
 
         // 2. 设置工具
         const { tools } = this.setupToolsConfig({
@@ -456,10 +455,6 @@ export class GeminiAPIClient extends BaseApiClient<
           model,
           enableToolUse: isEnabledToolUse(assistant)
         })
-
-        if (this.useSystemPromptForTools) {
-          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
-        }
 
         let messageContents: Content = { role: 'user', parts: [] } // Initialize messageContents
         const history: Content[] = []

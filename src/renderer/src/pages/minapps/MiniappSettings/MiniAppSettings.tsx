@@ -12,7 +12,6 @@ import {
 import { Button, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import MiniAppIconsManager from './MiniAppIconsManager'
@@ -25,7 +24,6 @@ const MiniAppSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
-  const navigate = useNavigate()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
@@ -80,9 +78,7 @@ const MiniAppSettings: FC = () => {
   return (
     <Container>
       {contextHolder} {/* 添加消息上下文 */}
-      <SettingTitle
-        style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>{t('settings.miniapps.display_title')}</span>
+      <SettingTitle style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
         <ButtonWrapper>
           <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
           <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
@@ -146,10 +142,6 @@ const MiniAppSettings: FC = () => {
           onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
         />
       </SettingRow>
-      <SettingDivider />
-      <SettingRow style={{ justifyContent: 'flex-end' }}>
-        <Button onClick={() => navigate('/apps')}>{t('common.close')}</Button>
-      </SettingRow>
     </Container>
   )
 }
@@ -158,6 +150,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  padding-top: 10px;
 `
 
 // 修改和新增样式
