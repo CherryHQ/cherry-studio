@@ -74,7 +74,8 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
-    description: '自动安装 MCP 服务（测试版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
+    description: '自动安装 MCP 服务（测试版',
+    reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -86,7 +87,8 @@ export const builtinMCPServers: MCPServer[] = [
     name: '@cherry/memory',
     type: 'inMemory',
     description:
-      '基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
+      '基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。',
+    reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     isActive: true,
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
