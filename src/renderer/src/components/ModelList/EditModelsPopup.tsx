@@ -222,7 +222,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     const onAddAll = () => {
       const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
       window.modal.confirm({
-        title: t('settings.models.manage.add_listed'),
+        title: t('settings.models.manage.add_listed.key'),
         content: t('settings.models.manage.add_listed.confirm'),
         centered: true,
         onOk: () => {

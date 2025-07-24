@@ -2875,7 +2875,10 @@
       "empty": "モデルが見つかりません",
       "enable_topic_naming": "トピックの自動命名",
       "manage": {
-        "add_listed": "リストにモデルを追加",
+        "add_listed": {
+          "confirm": "すべてのモデルをリストに追加しますか？",
+          "key": "リストにモデルを追加"
+        },
         "add_whole_group": "グループ全体を追加",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",

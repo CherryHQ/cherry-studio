@@ -2875,7 +2875,10 @@
       "empty": "Aucun modèle",
       "enable_topic_naming": "Renommage automatique des sujets",
       "manage": {
-        "add_listed": "Ajouter un modèle depuis la liste",
+        "add_listed": {
+          "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
+          "key": "Ajouter le modèle dans la liste"
+        },
         "add_whole_group": "Ajouter tout le groupe",
         "remove_listed": "Supprimer un modèle de la liste",
         "remove_model": "Supprimer le modèle",

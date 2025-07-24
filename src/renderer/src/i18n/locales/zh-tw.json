@@ -2875,7 +2875,10 @@
       "empty": "找不到模型",
       "enable_topic_naming": "話題自動重新命名",
       "manage": {
-        "add_listed": "添加列表中的模型",
+        "add_listed": {
+          "confirm": "確定要新增所有模型到列表嗎？",
+          "key": "新增列表中的模型"
+        },
         "add_whole_group": "新增整個分組",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",

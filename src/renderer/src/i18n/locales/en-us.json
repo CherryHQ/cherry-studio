@@ -2875,7 +2875,10 @@
       "empty": "No models found",
       "enable_topic_naming": "Topic Auto Naming",
       "manage": {
-        "add_listed": "Add models to the list",
+        "add_listed": {
+          "confirm": "Are you sure you want to add all models to the list?",
+          "key": "Add models to the list"
+        },
         "add_whole_group": "Add the whole group",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",

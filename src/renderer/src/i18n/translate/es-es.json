@@ -2875,7 +2875,10 @@
       "empty": "Sin modelos",
       "enable_topic_naming": "Renombrar temas automáticamente",
       "manage": {
-        "add_listed": "Agregar modelo de la lista",
+        "add_listed": {
+          "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
+          "key": "Agregar modelo en la lista"
+        },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
         "remove_model": "Eliminar modelo",
