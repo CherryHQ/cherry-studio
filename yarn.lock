@@ -7292,6 +7292,7 @@ __metadata:
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     google-auth-library: "npm:^9.15.1"
+    graceful-fs: "npm:^4.2.11"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
@@ -12248,7 +12249,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"graceful-fs@npm:^4.1.10, graceful-fs@npm:^4.1.6, graceful-fs@npm:^4.2.0, graceful-fs@npm:^4.2.6":
+"graceful-fs@npm:^4.1.10, graceful-fs@npm:^4.1.6, graceful-fs@npm:^4.2.0, graceful-fs@npm:^4.2.11, graceful-fs@npm:^4.2.6":
   version: 4.2.11
   resolution: "graceful-fs@npm:4.2.11"
   checksum: 10c0/386d011a553e02bc594ac2ca0bd6d9e4c22d7fa8cfbfc448a6d148c59ea881b092db9dbe3547ae4b88e55f1b01f7c4a2ecc53b310c042793e63aa44cf6c257f2
