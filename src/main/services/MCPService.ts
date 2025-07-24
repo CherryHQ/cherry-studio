@@ -628,7 +628,8 @@ class McpService {
             logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
             window.api.mcp.setProgress(process.progress / (process.total || 1))
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
+          resetTimeoutOnProgress: server.longRunning,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
         return result as MCPCallToolResponse

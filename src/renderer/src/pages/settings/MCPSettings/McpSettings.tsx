@@ -31,6 +31,7 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  longRunning?: boolean
   timeout?: number
 
   provider?: string
@@ -102,6 +103,8 @@ const McpSettings: React.FC = () => {
 
   const navigate = useNavigate()
 
+  const isLongRunning = Form.useWatch('longRunning', form)
+
   // Initialize form values whenever the server changes
   useEffect(() => {
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
@@ -156,6 +159,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      longRunning: server.longRunning,
       timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
@@ -271,7 +275,8 @@ const McpSettings: React.FC = () => {
         isActive: values.isActive,
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
-        timeout: values.timeout || server.timeout,
+        timeout: values.longRunning ? undefined : values.timeout || server.timeout,
+        longRunning: values.longRunning,
         // Preserve existing advanced properties if not set in the form
         provider: values.provider || server.provider,
         providerUrl: values.providerUrl || server.providerUrl,
@@ -631,6 +636,9 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
+          <Form.Item name="longRunning" label={t('settings.mcp.longRunning', 'Long Running')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
           <Form.Item
             name="timeout"
             label={t('settings.mcp.timeout', 'Timeout')}
@@ -638,7 +646,7 @@ const McpSettings: React.FC = () => {
               'settings.mcp.timeoutTooltip',
               'Timeout in seconds for requests to this server, default is 60 seconds'
             )}>
-            <Input type="number" min={1} placeholder="60" addonAfter="s" />
+            <Input disabled={isLongRunning} type="number" min={1} placeholder="60" addonAfter="s" />
           </Form.Item>
 
           <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>

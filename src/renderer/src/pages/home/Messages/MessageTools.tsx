@@ -1,5 +1,6 @@
 import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import ProgressBar from '@renderer/components/ProgressBar/ProgressBar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -324,6 +325,7 @@ const MessageTools: FC<Props> = ({ block }) => {
             }
           }
         }}>
+        <ProgressBar />
         <ToolContainer>
           <ToolContentWrapper className={status}>
             <CollapseContainer
