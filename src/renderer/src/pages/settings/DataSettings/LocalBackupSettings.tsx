@@ -36,6 +36,7 @@ const LocalBackupSettings: React.FC = () => {
   } = useSettings()
 
   const [localBackupDir, setLocalBackupDir] = useState<string | undefined>(localBackupDirSetting)
+  const [localBackupDirInput, setLocalBackupDirInput] = useState<string>(localBackupDirSetting || '')
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = useState<boolean>(localBackupSkipBackupFileSetting)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
@@ -47,6 +48,10 @@ const LocalBackupSettings: React.FC = () => {
   useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
   }, [])
+
+  useEffect(() => {
+    setLocalBackupDirInput(localBackupDirSetting || '')
+  }, [localBackupDirSetting])
 
   const { theme } = useTheme()
 
@@ -98,6 +103,7 @@ const LocalBackupSettings: React.FC = () => {
   const handleLocalBackupDirChange = async (value: string) => {
     if (await checkLocalBackupDirValid(value)) {
       setLocalBackupDir(value)
+      setLocalBackupDirInput(value)
       dispatch(_setLocalBackupDir(value))
       // Create directory if it doesn't exist and set it in the backend
       await window.api.backup.setLocalBackupDir(value)
@@ -108,6 +114,7 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     setLocalBackupDir('')
+    setLocalBackupDirInput('')
     dispatch(_setLocalBackupDir(''))
     dispatch(setLocalBackupAutoSync(false))
     stopAutoSync('local')
@@ -142,6 +149,7 @@ const LocalBackupSettings: React.FC = () => {
 
   const handleClearDirectory = () => {
     setLocalBackupDir('')
+    setLocalBackupDirInput('')
     dispatch(_setLocalBackupDir(''))
     dispatch(setLocalBackupAutoSync(false))
     stopAutoSync('local')
@@ -190,8 +198,9 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.data.local.directory')}</SettingRowTitle>
         <HStack gap="5px">
           <Input
-            value={localBackupDir}
-            readOnly
+            value={localBackupDirInput}
+            onChange={(e) => setLocalBackupDirInput(e.target.value)}
+            onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />

@@ -286,7 +286,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
-    return hasWritePermission(filePath)
+    const hasPermission = await hasWritePermission(filePath)
+    return hasPermission
   })
 
   // Set app data path
