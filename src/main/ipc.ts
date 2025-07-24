@@ -223,10 +223,22 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         })
       )
       await fileManager.clearTemp()
-      // do not clear logs for now
-      // TODO clear logs
-      // await fs.writeFileSync(log.transports.file.getFile().path, '')
-      return { success: true }
+
+      // Clear logs (keep last 7 days and current session)
+      const logResult = await logger.clearLogs({
+        keepDays: 7,
+        keepCurrent: true
+      })
+
+      if (!logResult.success) {
+        logger.warn('Failed to clear some logs:', { error: logResult.error })
+      }
+
+      return {
+        success: true,
+        logsCleared: logResult.deletedCount,
+        spaceFreed: logResult.freedSpace
+      }
     } catch (error: any) {
       logger.error('Failed to clear cache:', error)
       return { success: false, error: error.message }

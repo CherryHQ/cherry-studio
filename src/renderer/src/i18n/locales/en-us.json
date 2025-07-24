@@ -1499,7 +1499,7 @@
         "backup.skip_file_data_title": "Slim Backup",
         "clear_cache": {
           "button": "Clear Cache",
-          "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+          "confirm": "Clearing the cache will delete application cache data, including minapp data. Log files from the last 7 days will be retained. This action is irreversible, continue?",
           "error": "Error clearing cache",
           "success": "Cache cleared",
           "title": "Clear Cache"

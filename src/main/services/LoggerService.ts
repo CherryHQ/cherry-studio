@@ -376,6 +376,96 @@ class LoggerService {
   }
 
   /**
+   * Clear log files with options
+   * @param options - Options for clearing logs
+   * @returns Result of the clear operation
+   */
+  public async clearLogs(options?: {
+    keepDays?: number // Keep logs from the last N days, default 0 (clear all)
+    keepCurrent?: boolean // Keep current session logs, default true
+  }): Promise<{
+    success: boolean
+    deletedCount: number
+    freedSpace: number
+    error?: string
+  }> {
+    const { keepDays = 0, keepCurrent = true } = options || {}
+
+    let deletedCount = 0
+    let freedSpace = 0
+
+    try {
+      const fs = await import('fs')
+      const path = await import('path')
+
+      // Get all log files
+      const files = await fs.promises.readdir(this.logsDir)
+      const logFiles = files.filter((f) => f.endsWith('.log'))
+
+      // Current date for comparison
+      const today = new Date().toISOString().split('T')[0]
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - keepDays)
+
+      // Process each log file
+      for (const file of logFiles) {
+        const filePath = path.join(this.logsDir, file)
+
+        // Check if file should be deleted
+        let shouldDelete = false
+
+        if (keepCurrent && file.includes(today)) {
+          // Keep today's logs
+          continue
+        }
+
+        if (keepDays > 0) {
+          // Extract date from filename (app.2024-01-01.log or app-error.2024-01-01.log)
+          const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/)
+          if (dateMatch) {
+            const fileDate = new Date(dateMatch[1])
+            shouldDelete = fileDate < cutoffDate
+          }
+        } else {
+          // keepDays = 0, delete all (except current if keepCurrent is true)
+          shouldDelete = true
+        }
+
+        if (shouldDelete) {
+          try {
+            const stats = await fs.promises.stat(filePath)
+            freedSpace += stats.size
+            await fs.promises.unlink(filePath)
+            deletedCount++
+          } catch (err) {
+            // Ignore single file deletion failure, continue with others
+            console.warn(`Failed to delete ${file}:`, err)
+          }
+        }
+      }
+
+      // Log the clearing operation
+      this.info(`Cleared ${deletedCount} log files, freed ${(freedSpace / 1024 / 1024).toFixed(2)} MB`, {
+        logToMain: true
+      })
+
+      return {
+        success: true,
+        deletedCount,
+        freedSpace
+      }
+    } catch (error: any) {
+      this.error('Failed to clear logs:', error)
+      return {
+        success: false,
+        deletedCount: 0,
+        freedSpace: 0,
+        error: error.message
+      }
+    }
+  }
+
+  /**
    * Register IPC handler for renderer process logging
    */
   private registerIpcHandler(): void {
