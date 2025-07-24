@@ -1,312 +1,127 @@
+import { languages } from './languages'
+
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
-const textExtsByCategory = new Map([
+
+/**
+ * A flat array of all file extensions known by the linguist database.
+ * This is the primary source for identifying code files.
+ */
+const linguistExtSet = new Set<string>()
+for (const lang of Object.values(languages)) {
+  if (lang.extensions) {
+    for (const ext of lang.extensions) {
+      linguistExtSet.add(ext)
+    }
+  }
+}
+export const codeLangExts = Array.from(linguistExtSet)
+
+/**
+ * A categorized map of custom text-based file extensions that are NOT included
+ * in the linguist database. This is for special cases or project-specific files.
+ */
+export const customTextExts = new Map([
   [
     'language',
     [
-      '.js',
-      '.mjs',
-      '.cjs',
-      '.ts',
-      '.jsx',
-      '.tsx', // JavaScript/TypeScript
-      '.py', // Python
-      '.java', // Java
-      '.cs', // C#
-      '.cpp',
-      '.c',
-      '.h',
-      '.hpp',
-      '.cc',
-      '.cxx',
-      '.cppm',
-      '.ipp',
-      '.ixx', // C/C++
-      '.php', // PHP
-      '.rb', // Ruby
-      '.pl', // Perl
-      '.go', // Go
-      '.rs', // Rust
-      '.swift', // Swift
-      '.kt',
-      '.kts', // Kotlin
-      '.scala', // Scala
-      '.lua', // Lua
-      '.groovy', // Groovy
-      '.dart', // Dart
-      '.hs', // Haskell
-      '.clj',
-      '.cljs', // Clojure
-      '.elm', // Elm
-      '.erl', // Erlang
-      '.ex',
-      '.exs', // Elixir
-      '.ml',
-      '.mli', // OCaml
-      '.fs', // F#
-      '.r',
       '.R', // R
-      '.sol', // Solidity
-      '.awk', // AWK
-      '.cob', // COBOL
-      '.asm',
-      '.s', // Assembly
-      '.lisp',
-      '.lsp', // Lisp
-      '.coffee', // CoffeeScript
-      '.ino', // Arduino
-      '.jl', // Julia
-      '.nim', // Nim
-      '.zig', // Zig
-      '.d', // D语言
-      '.pas', // Pascal
-      '.vb', // Visual Basic
-      '.rkt', // Racket
-      '.scm', // Scheme
-      '.hx', // Haxe
-      '.as', // ActionScript
-      '.pde', // Processing
-      '.f90',
-      '.f',
-      '.f03',
-      '.for',
-      '.f95', // Fortran
-      '.adb',
-      '.ads', // Ada
-      '.pro', // Prolog
-      '.m',
-      '.mm', // Objective-C/MATLAB
-      '.rpy', // Ren'Py
       '.ets', // OpenHarmony,
       '.uniswap', // DeFi
-      '.vy', // Vyper
-      '.shader',
-      '.glsl',
-      '.frag',
-      '.vert',
-      '.gd' // Godot
-    ]
-  ],
-  [
-    'script',
-    [
-      '.sh', // Shell
-      '.bat',
-      '.cmd', // Windows批处理
-      '.ps1', // PowerShell
-      '.tcl',
-      '.do', // Tcl
-      '.ahk', // AutoHotkey
-      '.zsh', // Zsh
-      '.fish', // Fish shell
-      '.csh', // C shell
-      '.vbs', // VBScript
-      '.applescript', // AppleScript
-      '.au3', // AutoIt
-      '.bash',
-      '.nu'
-    ]
-  ],
-  [
-    'style',
-    [
-      '.css', // CSS
-      '.less', // Less
-      '.scss',
-      '.sass', // Sass
-      '.styl', // Stylus
-      '.pcss', // PostCSS
-      '.postcss' // PostCSS
+      '.usf', // Unreal shader format
+      '.ush' // Unreal shader header
     ]
   ],
   [
     'template',
     [
-      '.vue', // Vue.js
-      '.pug',
-      '.jade', // Pug/Jade
-      '.haml', // Haml
-      '.slim', // Slim
-      '.tpl', // 通用模板
-      '.ejs', // EJS
-      '.hbs', // Handlebars
-      '.mustache', // Mustache
-      '.twig', // Twig
-      '.blade', // Blade (Laravel)
-      '.liquid', // Liquid
-      '.jinja',
-      '.jinja2',
-      '.j2', // Jinja
-      '.erb', // ERB
-      '.vm', // Velocity
-      '.ftl', // FreeMarker
-      '.svelte', // Svelte
-      '.astro' // Astro
+      '.vm' // Velocity
     ]
   ],
   [
     'config',
     [
-      '.ini', // INI配置
+      '.babelrc', // Babel
+      '.bashrc',
+      '.browserslistrc',
       '.conf',
       '.config', // 通用配置
-      '.env', // 环境变量
-      '.toml', // TOML
-      '.cfg', // 通用配置
-      '.properties', // Java属性
-      '.desktop', // Linux桌面文件
-      '.service', // systemd服务
-      '.rc',
-      '.bashrc',
-      '.zshrc', // Shell配置
-      '.fishrc', // Fish shell配置
-      '.vimrc', // Vim配置
-      '.htaccess', // Apache配置
-      '.robots', // robots.txt
-      '.editorconfig', // EditorConfig
-      '.eslintrc', // ESLint
-      '.prettierrc', // Prettier
-      '.babelrc', // Babel
-      '.npmrc', // npm
       '.dockerignore', // Docker ignore
-      '.npmignore',
-      '.yarnrc',
-      '.prettierignore',
       '.eslintignore',
-      '.browserslistrc',
-      '.json5',
-      '.tfvars'
+      '.eslintrc', // ESLint
+      '.fishrc', // Fish shell配置
+      '.htaccess', // Apache配置
+      '.npmignore',
+      '.npmrc', // npm
+      '.prettierignore',
+      '.prettierrc', // Prettier
+      '.rc',
+      '.robots', // robots.txt
+      '.yarnrc',
+      '.zshrc'
     ]
   ],
   [
     'document',
     [
-      '.txt',
-      '.text', // 纯文本
-      '.md',
-      '.mdx', // Markdown
-      '.html',
-      '.htm',
-      '.xhtml', // HTML
-      '.xml', // XML
-      '.fxml', // JavaFX XML
-      '.org', // Org-mode
-      '.wiki', // Wiki
-      '.tex',
-      '.bib', // LaTeX
-      '.rst', // reStructuredText
-      '.rtf', // 富文本
-      '.nfo', // 信息文件
-      '.adoc',
-      '.asciidoc', // AsciiDoc
-      '.pod', // Perl文档
-      '.1',
-      '.2',
-      '.3',
-      '.4',
-      '.5',
-      '.6',
-      '.7',
-      '.8',
-      '.9', // man页面
-      '.man', // man页面
-      '.texi',
-      '.texinfo', // Texinfo
-      '.readme',
-      '.me', // README
+      '.authors', // 作者文件
       '.changelog', // 变更日志
       '.license', // 许可证
-      '.authors', // 作者文件
-      '.po',
-      '.pot'
+      '.nfo', // 信息文件
+      '.readme',
+      '.text' // 纯文本
     ]
   ],
   [
     'data',
     [
-      '.json', // JSON
-      '.jsonc', // JSON with comments
-      '.yaml',
-      '.yml', // YAML
-      '.csv',
-      '.tsv', // 分隔值文件
-      '.edn', // Clojure数据
-      '.jsonl',
-      '.ndjson', // 换行分隔JSON
-      '.geojson', // GeoJSON
-      '.gpx', // GPS Exchange
-      '.kml', // Keyhole Markup
-      '.rss',
       '.atom', // Feed格式
-      '.vcf', // vCard
-      '.ics', // iCalendar
-      '.ldif', // LDAP数据交换
-      '.pbtxt',
-      '.map'
+      '.ldif',
+      '.map',
+      '.ndjson' // 换行分隔JSON
     ]
   ],
   [
     'build',
     [
-      '.gradle', // Gradle
-      '.make',
-      '.mk', // Make
-      '.cmake', // CMake
-      '.sbt', // SBT
-      '.rake', // Rake
-      '.spec', // RPM spec
-      '.pom',
+      '.bazel', // Bazel
       '.build', // Meson
-      '.bazel' // Bazel
+      '.pom'
     ]
   ],
   [
     'database',
     [
-      '.sql', // SQL
-      '.ddl',
       '.dml', // DDL/DML
-      '.plsql', // PL/SQL
-      '.psql', // PostgreSQL
-      '.cypher', // Cypher
-      '.sparql' // SPARQL
+      '.psql' // PostgreSQL
     ]
   ],
   [
     'web',
     [
-      '.graphql',
-      '.gql', // GraphQL
-      '.proto', // Protocol Buffers
-      '.thrift', // Thrift
-      '.wsdl', // WSDL
-      '.raml', // RAML
-      '.swagger',
-      '.openapi' // API文档
+      '.openapi', // API文档
+      '.swagger'
     ]
   ],
   [
     'version',
     [
-      '.gitignore', // Git ignore
-      '.gitattributes', // Git attributes
-      '.gitconfig', // Git config
-      '.hgignore', // Mercurial ignore
       '.bzrignore', // Bazaar ignore
-      '.svnignore', // SVN ignore
-      '.githistory' // Git history
+      '.gitattributes', // Git attributes
+      '.githistory', // Git history
+      '.hgignore', // Mercurial ignore
+      '.svnignore' // SVN ignore
     ]
   ],
   [
     'subtitle',
     [
-      '.srt',
-      '.sub',
-      '.ass' // 字幕格式
+      '.ass', // 字幕格式
+      '.sub'
     ]
   ],
   [
@@ -319,55 +134,26 @@ const textExtsByCategory = new Map([
   [
     'eda',
     [
-      '.v',
-      '.sv',
-      '.svh', // Verilog/SystemVerilog
-      '.vhd',
-      '.vhdl', // VHDL
-      '.lef',
+      '.cir',
       '.def', // LEF/DEF
       '.edif', // EDIF
-      '.sdf', // SDF
-      '.sdc',
-      '.xdc', // 约束文件
-      '.sp',
-      '.spi',
-      '.cir',
-      '.net', // SPICE
-      '.scs', // Spectre
-      '.asc', // LTspice
-      '.tf', // Technology File
       '.il',
-      '.ils' // SKILL
-    ]
-  ],
-  [
-    'game',
-    [
-      '.mtl', // Material Template Library
-      '.x3d', // X3D文件
-      '.gltf', // glTF JSON
-      '.prefab', // Unity预制体 (YAML格式)
-      '.meta', // Unity元数据文件 (YAML格式)
-      '.tscn' // Godot场景文件
-    ]
-  ],
-  [
-    'other',
-    [
-      '.mcfunction', // Minecraft函数
-      '.jsp', // JSP
-      '.aspx', // ASP.NET
-      '.ipynb', // Jupyter Notebook
-      '.cake',
-      '.ctp', // CakePHP
-      '.cfm',
-      '.cfc' // ColdFusion
+      '.ils', // SKILL
+      '.lef',
+      '.net',
+      '.scs', // Spectre
+      '.sdf', // SDF
+      '.spi'
     ]
   ]
 ])
 
-export const textExts = Array.from(textExtsByCategory.values()).flat()
+/**
+ * A comprehensive list of all text-based file extensions, combining the
+ * extensive list from the linguist database with our custom additions.
+ * The Set ensures there are no duplicates.
+ */
+export const textExts = [...new Set([...Array.from(customTextExts.values()).flat(), ...codeLangExts])]
 
 export const ZOOM_LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5]
 
