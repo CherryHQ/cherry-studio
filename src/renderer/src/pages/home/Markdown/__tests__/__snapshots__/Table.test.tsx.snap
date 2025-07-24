@@ -72,6 +72,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
         role="button"
       >
         <svg
+          aria-hidden="true"
           class="lucide lucide-copy"
           data-testid="copy-icon"
           fill="none"
