@@ -40,6 +40,7 @@ export const getLanguageCode = () => {
 i18n.use(initReactI18next).init({
   resources,
   lng: getLanguage(),
+  fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false
   },

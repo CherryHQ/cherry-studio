@@ -7255,7 +7255,7 @@ __metadata:
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
-    lucide-react: "npm:^0.487.0"
+    lucide-react: "npm:^0.525.0"
     macos-release: "npm:^3.4.0"
     markdown-it: "npm:^14.1.0"
     mermaid: "npm:^11.7.0"
@@ -13975,12 +13975,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^0.487.0":
-  version: 0.487.0
-  resolution: "lucide-react@npm:0.487.0"
+"lucide-react@npm:^0.525.0":
+  version: 0.525.0
+  resolution: "lucide-react@npm:0.525.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/7177778c584b8e9545957bef28e95841c4be1b3bf473f9e2e64454c3e183d7ed0bc977c9f7b5446088023c7000151b7a3b27398d4f70025bf343782192f653ca
+  checksum: 10c0/81c4438e2cf1c86ea2ebe0a97b378201512450894283cccce766a89bc6a4e47c8df1d9115d845d98f582bb0a10be31c454aa232520fea35018dac1cd8466ea9b
   languageName: node
   linkType: hard
 
