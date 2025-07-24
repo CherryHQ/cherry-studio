@@ -26,6 +26,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import process from 'node:process'
 
 const logger = loggerService.withContext('MainEntry')
 
