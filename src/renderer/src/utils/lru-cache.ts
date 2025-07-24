@@ -1,15 +1,13 @@
 class LinkNode<K, V> {
   key: K
   value: V
-  prev: LinkNode<K, V> | null
-  next: LinkNode<K, V> | null
+  prev: LinkNode<K, V> | null = null
+  next: LinkNode<K, V> | null = null
   accessTime: number
 
   constructor(key: K, value: V) {
     this.key = key
     this.value = value
-    this.prev = null
-    this.next = null
     this.accessTime = Date.now()
   }
 }
@@ -18,60 +16,38 @@ interface LRUCacheOptions<K, V> {
   max?: number
   ttl?: number
   dispose?: (value: V, key: K) => void
-  disposeAfter?: () => void
   onInsert?: () => void
   updateAgeOnGet?: boolean
+  updateAgeOnHas?: boolean
 }
 
-/**
- * LRU 缓存
- * @param {LRUCacheOptions} options - 缓存选项
- * @param {number} options.capacity - 缓存的最大容量
- * @param {number} options.ttl - 过期时间（毫秒）
- */
 export class LRUCache<K, V> {
-  public capacity: number
-  private cache: Map<K, LinkNode<K, V>>
-  private ttl?: number
-  private updateAgeOnGet: boolean
+  public readonly capacity: number
+  private readonly cache = new Map<K, LinkNode<K, V>>()
+  private readonly ttl?: number
+  private readonly updateAgeOnGet: boolean
+  private readonly updateAgeOnHas: boolean
 
-  // 回调函数
-  private disposeCallback?: (value: V, key: K) => void
-  private disposeAfter?: () => void
-  private onInsert?: () => void
+  private readonly dispose?: (value: V, key: K) => void
+  private readonly onInsert?: () => void
 
-  // 双向链表的头尾节点
-  // head.next 是最新使用的节点，tail.prev 是最久未使用的节点
-  private head: LinkNode<K, V>
-  private tail: LinkNode<K, V>
+  private readonly head: LinkNode<K, V>
+  private readonly tail: LinkNode<K, V>
 
-  // TTL 清理定时器
-  private cleanupTimer?: ReturnType<typeof setTimeout>
+  private cleanupTimer?: NodeJS.Timeout
 
   constructor(options: LRUCacheOptions<K, V> = {}) {
-    const capacity = options.max ?? 0
-    if (capacity <= 0) {
-      throw new Error('Capacity must be a positive number')
-    }
-
-    this.capacity = capacity
-    this.cache = new Map<K, LinkNode<K, V>>()
+    this.capacity = this.validateCapacity(options.max ?? 0)
     this.ttl = options.ttl
-    this.updateAgeOnGet = options.updateAgeOnGet ?? true
-
-    // 可选的回调函数
-    this.disposeAfter = options.disposeAfter
-    this.disposeCallback = options.dispose
+    this.updateAgeOnGet = options.updateAgeOnGet ?? false
+    this.updateAgeOnHas = options.updateAgeOnHas ?? false
+    this.dispose = options.dispose
     this.onInsert = options.onInsert
 
-    // 初始化头尾节点
     this.head = new LinkNode<K, V>(null as any, null as any)
     this.tail = new LinkNode<K, V>(null as any, null as any)
-    // 构建双向链表
-    this.head.next = this.tail
-    this.tail.prev = this.head
+    this.initializeLinkedList()
 
-    // 如果设置了 TTL，启动定期清理
     if (this.ttl) {
       this.startCleanupTimer()
     }
@@ -79,66 +55,41 @@ export class LRUCache<K, V> {
 
   get(key: K): V | undefined {
     const node = this.cache.get(key)
-    if (!node) return undefined
-
-    // 检查 TTL 过期
-    if (this.ttl && Date.now() - node.accessTime > this.ttl) {
-      this.delete(key)
+    if (!node || this.isExpired(node)) {
+      this.handleExpiredNode(key, node)
       return undefined
     }
 
-    // 更新访问时间
     if (this.updateAgeOnGet) {
       node.accessTime = Date.now()
     }
 
-    // 将节点移动到链表的头部（最新使用）
     this.moveToFront(node)
-
     return node.value
   }
 
   set(key: K, value: V): this {
-    let node = this.cache.get(key)
-    if (node) {
-      node.value = value
-      node.accessTime = Date.now()
-      this.moveToFront(node)
+    const existingNode = this.cache.get(key)
+
+    if (existingNode) {
+      this.updateExistingNode(existingNode, value)
     } else {
-      node = new LinkNode(key, value)
-      this.cache.set(key, node)
-      this.addToFront(node)
-
-      // 触发 onInsert 回调
-      if (this.onInsert) {
-        this.onInsert()
-      }
-
-      // 如果超出容量，移除最久未使用的节点
-      if (this.cache.size > this.capacity) {
-        const lruNode = this.tail.prev!
-        this.removeNode(lruNode)
-        this.cache.delete(lruNode.key)
-
-        // 触发 dispose 回调
-        if (this.disposeCallback) {
-          this.disposeCallback(lruNode.value, lruNode.key)
-        }
-      }
+      this.insertNewNode(key, value)
     }
+
     return this
   }
 
   has(key: K): boolean {
     const node = this.cache.get(key)
-    if (!node) return false
-
-    // 检查 TTL 过期
-    if (this.ttl && Date.now() - node.accessTime > this.ttl) {
-      this.delete(key)
+    if (!node || this.isExpired(node)) {
+      this.handleExpiredNode(key, node)
       return false
     }
-
+    if (this.updateAgeOnHas) {
+      node.accessTime = Date.now()
+    }
+    this.moveToFront(node)
     return true
   }
 
@@ -146,110 +97,169 @@ export class LRUCache<K, V> {
     const node = this.cache.get(key)
     if (!node) return false
 
-    this.removeNode(node)
-    this.cache.delete(key)
-
-    // 触发 dispose 回调
-    if (this.disposeCallback) {
-      this.disposeCallback(node.value, node.key)
-    }
-
-    // 触发 disposeAfter 回调
-    if (this.disposeAfter) {
-      this.disposeAfter()
-    }
-
+    this.removeNodeFromCache(node)
     return true
   }
 
   clear(): void {
-    // 触发所有节点的 dispose 回调
-    if (this.disposeCallback) {
-      for (const [key, node] of this.cache) {
-        this.disposeCallback(node.value, key)
-      }
-    }
-
+    this.disposeAllNodes()
     this.cache.clear()
+    this.initializeLinkedList()
+    this.stopCleanupTimer()
+  }
+
+  keys(): IterableIterator<K> {
+    this.cleanupExpiredNodes()
+    return this.cache.keys()
+  }
+
+  get size(): number {
+    this.cleanupExpiredNodes()
+    return this.cache.size
+  }
+
+  get values(): V[] {
+    this.cleanupExpiredNodes()
+    return this.collectLinkedListValues()
+  }
+
+  get entries(): [K, V][] {
+    this.cleanupExpiredNodes()
+    return this.collectLinkedListEntries()
+  }
+
+  // 初始化和验证方法
+  private validateCapacity(capacity: number): number {
+    if (capacity <= 0) {
+      throw new Error('Capacity must be a positive number')
+    }
+    return capacity
+  }
+
+  private initializeLinkedList(): void {
     this.head.next = this.tail
     this.tail.prev = this.head
+  }
 
-    // 清理定时器
+  private updateExistingNode(node: LinkNode<K, V>, value: V): void {
+    node.value = value
+    node.accessTime = Date.now()
+    this.moveToFront(node)
+  }
+
+  private insertNewNode(key: K, value: V): void {
+    const newNode = new LinkNode(key, value)
+    this.cache.set(key, newNode)
+    this.addToFront(newNode)
+
+    this.onInsert?.()
+    this.evictIfNecessary()
+  }
+
+  private evictIfNecessary(): void {
+    if (this.cache.size > this.capacity) {
+      const lruNode = this.tail.prev!
+      this.removeNodeFromCache(lruNode)
+    }
+  }
+
+  private removeNodeFromCache(node: LinkNode<K, V>): void {
+    this.removeFromLinkedList(node)
+    this.cache.delete(node.key)
+    this.dispose?.(node.value, node.key)
+  }
+
+  // 链表操作方法
+  private moveToFront(node: LinkNode<K, V>): void {
+    this.removeFromLinkedList(node)
+    this.addToFront(node)
+  }
+
+  private addToFront(node: LinkNode<K, V>): void {
+    const nextNode = this.head.next!
+    node.next = nextNode
+    node.prev = this.head
+    nextNode.prev = node
+    this.head.next = node
+  }
+
+  private removeFromLinkedList(node: LinkNode<K, V>): void {
+    node.prev!.next = node.next
+    node.next!.prev = node.prev
+  }
+
+  // TTL 相关方法
+  private isExpired(node: LinkNode<K, V>): boolean {
+    return this.ttl !== undefined && Date.now() - node.accessTime > this.ttl
+  }
+
+  private handleExpiredNode(key: K, node?: LinkNode<K, V>): void {
+    if (node) {
+      this.delete(key)
+    }
+  }
+
+  private startCleanupTimer(): void {
+    if (!this.ttl) return
+
+    const interval = Math.max(1000, this.ttl / 4)
+    this.cleanupTimer = setTimeout(() => {
+      this.cleanupExpiredNodes()
+      this.startCleanupTimer()
+    }, interval)
+  }
+
+  private stopCleanupTimer(): void {
     if (this.cleanupTimer) {
       clearTimeout(this.cleanupTimer)
       this.cleanupTimer = undefined
     }
   }
 
-  // 兼容 lru-cache 的 keys() 方法
-  keys(): IterableIterator<K> {
-    this.cleanupExpired()
-    return this.cache.keys()
-  }
-
-  private moveToFront(node: LinkNode<K, V>) {
-    this.removeNode(node)
-    this.addToFront(node)
-  }
-
-  private addToFront(node: LinkNode<K, V>): void {
-    node.next = this.head.next
-    node.prev = this.head
-    this.head.next!.prev = node
-    this.head.next = node
-  }
-
-  private removeNode(node: LinkNode<K, V>): void {
-    node.prev!.next = node.next
-    node.next!.prev = node.prev
-  }
-
-  private startCleanupTimer(): void {
-    if (!this.ttl) return
-
-    // 每 TTL/4 的时间清理一次过期项，最少 1 秒
-    const interval = Math.max(1000, this.ttl / 4)
-
-    this.cleanupTimer = setTimeout(() => {
-      this.cleanupExpired()
-      this.startCleanupTimer() // 递归设置下一次清理
-    }, interval)
-  }
-
-  private cleanupExpired(): void {
+  private cleanupExpiredNodes(): void {
     if (!this.ttl) return
 
     const now = Date.now()
-    const keysToDelete: K[] = []
+    const expiredKeys: K[] = []
 
     for (const [key, node] of this.cache) {
       if (now - node.accessTime > this.ttl) {
-        keysToDelete.push(key)
+        expiredKeys.push(key)
       }
     }
 
-    for (const key of keysToDelete) {
-      this.delete(key)
+    expiredKeys.forEach((key) => this.delete(key))
+  }
+
+  private collectLinkedListValues(): V[] {
+    const values: V[] = []
+    let current = this.head.next
+
+    while (current && current !== this.tail) {
+      values.push(current.value)
+      current = current.next
     }
+
+    return values
   }
 
-  get size(): number {
-    this.cleanupExpired()
-    return this.cache.size
+  private collectLinkedListEntries(): [K, V][] {
+    const entries: [K, V][] = []
+    let current = this.head.next
+
+    while (current && current !== this.tail) {
+      entries.push([current.key, current.value])
+      current = current.next
+    }
+
+    return entries
   }
 
-  get values(): V[] {
-    this.cleanupExpired()
-    return Array.from(this.cache.values()).map((node) => node.value)
-  }
+  private disposeAllNodes(): void {
+    if (!this.dispose) return
 
-  get entries(): [K, V][] {
-    this.cleanupExpired()
-    return Array.from(this.cache.entries()).map(([key, node]) => [key, node.value])
-  }
-
-  // 销毁缓存，清理所有资源
-  dispose(): void {
-    this.clear()
+    for (const [key, node] of this.cache) {
+      this.dispose(node.value, key)
+    }
   }
 }

@@ -36,7 +36,7 @@ export const useMinappPopup = () => {
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({
       max: maxKeepAliveMinapps,
-      disposeAfter: () => {
+      dispose: () => {
         dispatch(setOpenedKeepAliveMinapps(minAppsCache.values))
       },
       onInsert: () => {
