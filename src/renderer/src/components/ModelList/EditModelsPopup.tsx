@@ -261,8 +261,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           destroyTooltipOnHide
           title={
             isAllInProvider
-              ? t(`settings.models.manage.remove_whole_group`)
-              : t(`settings.models.manage.add_whole_group`)
+              ? t('settings.models.manage.remove_whole_group')
+              : t('settings.models.manage.add_whole_group')
           }
           mouseLeaveDelay={0}
           placement="top">
