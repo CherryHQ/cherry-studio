@@ -187,7 +187,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.local.directory.key')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
         <HStack gap="5px">
           <Input
             value={localBackupDir}
@@ -217,7 +217,7 @@ const LocalBackupSettings: React.FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.local.autoSync.key')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
           value={syncInterval}
@@ -239,7 +239,7 @@ const LocalBackupSettings: React.FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.local.maxBackups.key')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
         <Selector
           size={14}
           value={maxBackups}

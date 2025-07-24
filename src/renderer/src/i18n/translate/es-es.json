@@ -3,15 +3,15 @@
     "add": {
       "button": "Agregar al asistente",
       "knowledge_base": {
-        "key": "Base de conocimiento",
+        "label": "Base de conocimiento",
         "placeholder": "Seleccionar base de conocimiento"
       },
       "name": {
-        "key": "Nombre",
+        "label": "Nombre",
         "placeholder": "Ingrese el nombre"
       },
       "prompt": {
-        "key": "Palabra clave",
+        "label": "Palabra clave",
         "placeholder": "Ingrese la palabra clave",
         "variables": {
           "tip": {
@@ -107,9 +107,9 @@
     "settings": {
       "default_model": "Modelo Predeterminado",
       "knowledge_base": {
-        "key": "Configuración de Base de Conocimientos",
+        "label": "Configuración de Base de Conocimientos",
         "recognition": {
-          "key": "Invocar base de conocimientos",
+          "label": "Invocar base de conocimientos",
           "off": "Búsqueda forzada",
           "on": "Reconocimiento de intención",
           "tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo"
@@ -118,7 +118,7 @@
       "mcp": {
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
-        "key": "Servidor MCP",
+        "label": "Servidor MCP",
         "noServersAvailable": "No hay servidores MCP disponibles. Agregue un servidor en la configuración",
         "title": "Configuración MCP"
       },
@@ -128,7 +128,7 @@
       "reasoning_effort": {
         "default": "Por defecto",
         "high": "Largo",
-        "key": "Longitud de Cadena de Razonamiento",
+        "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
         "medium": "Medio",
         "off": "Apagado"
@@ -147,7 +147,7 @@
       "title": "Configuración del Asistente",
       "tool_use_mode": {
         "function": "Función",
-        "key": "Modo de uso de herramientas",
+        "label": "Modo de uso de herramientas",
         "prompt": "Palabra de indicación"
       }
     },
@@ -175,7 +175,7 @@
   "backup": {
     "confirm": {
       "button": "Seleccionar ubicación de copia de seguridad",
-      "key": "¿Está seguro de que desea realizar una copia de seguridad de los datos?"
+      "label": "¿Está seguro de que desea realizar una copia de seguridad de los datos?"
     },
     "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
     "progress": {
@@ -252,7 +252,7 @@
       "auto_resize": "Ajuste automático de altura",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
-        "key": "Limpiar mensajes {{Command}}",
+        "label": "Limpiar mensajes {{Command}}",
         "title": "Limpiar mensajes"
       },
       "collapse": "Colapsar",
@@ -278,14 +278,14 @@
       "settings": "Configuración",
       "thinking": {
         "budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
-        "key": "Pensando",
+        "label": "Pensando",
         "mode": {
           "custom": {
-            "key": "Personalizado",
+            "label": "Personalizado",
             "tip": "Número máximo de tokens que puede procesar el modelo. Debe tenerse en cuenta el límite del contexto del modelo, de lo contrario se generará un error"
           },
           "default": {
-            "key": "Predeterminado",
+            "label": "Predeterminado",
             "tip": "El modelo determinará automáticamente la cantidad de tokens a pensar"
           },
           "tokens": {
@@ -304,7 +304,7 @@
       "translating": "Traduciendo...",
       "upload": {
         "document": "Subir documento (el modelo no admite imágenes)",
-        "key": "Subir imagen o documento",
+        "label": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
       "url_context": "Contexto de la página web",
@@ -312,17 +312,17 @@
         "builtin": {
           "disabled_content": "La búsqueda web no es compatible con este modelo actualmente",
           "enabled_content": "Usar la función de búsqueda web integrada en el modelo",
-          "key": "Integrada en el modelo"
+          "label": "Integrada en el modelo"
         },
         "button": {
           "ok": "Ir a configuración"
         },
         "enable": "Habilitar búsqueda web",
         "enable_content": "Primero verifica la conectividad de la búsqueda web en la configuración",
-        "key": "Habilitar búsqueda web",
+        "label": "Habilitar búsqueda web",
         "no_web_search": {
           "description": "No activar la función de búsqueda web",
-          "key": "Sin búsqueda web"
+          "label": "Sin búsqueda web"
         },
         "settings": "Configuración de búsqueda en red"
       }
@@ -331,7 +331,7 @@
       "new": {
         "branch": {
           "created": "Nueva rama creada",
-          "key": "Rama nueva"
+          "label": "Rama nueva"
         },
         "context": "Limpiar contexto"
       },
@@ -344,7 +344,7 @@
     "multiple": {
       "select": {
         "empty": "No se ha seleccionado ningún mensaje",
-        "key": "Selección múltiple"
+        "label": "Selección múltiple"
       }
     },
     "navigation": {
@@ -362,7 +362,7 @@
       "file": {
         "title": "Guardar en archivo local"
       },
-      "key": "Guardar",
+      "label": "Guardar",
       "knowledge": {
         "content": {
           "citation": {
@@ -434,7 +434,7 @@
       },
       "code_execution": {
         "timeout_minutes": {
-          "key": "Tiempo de espera agotado",
+          "label": "Tiempo de espera agotado",
           "tip": "Tiempo de espera agotado para la ejecución del código (minutos)"
         },
         "tip": "En la barra de herramientas de bloques de código ejecutables se mostrará un botón de ejecución. ¡Tenga cuidado en no ejecutar código peligroso!",
@@ -442,29 +442,29 @@
       },
       "code_wrappable": "Bloques de código reemplazables",
       "context_count": {
-        "key": "Número de contextos",
+        "label": "Número de contextos",
         "tip": "Número de mensajes que se deben mantener en el contexto. Cuanto mayor sea el valor, más largo será el contexto y más tokens se consumirán. Para una conversación normal, se sugiere un valor entre 5-10"
       },
       "max": "Sin límite",
       "max_tokens": {
         "confirm": "Habilitar límite de longitud del mensaje",
         "confirm_content": "Al habilitar el límite de longitud del mensaje, se establece el número máximo de tokens por interacción, lo que afectará la longitud del resultado devuelto. Debe ajustarse según las limitaciones del contexto del modelo, de lo contrario se producirá un error",
-        "key": "Habilitar límite de longitud del mensaje",
+        "label": "Habilitar límite de longitud del mensaje",
         "tip": "Número máximo de tokens por interacción, lo que afectará la longitud del resultado devuelto. Debe ajustarse según las limitaciones del contexto del modelo, de lo contrario se producirá un error"
       },
       "reset": "Restablecer",
       "set_as_default": "Aplicar a asistente predeterminado",
       "show_line_numbers": "Mostrar números de línea",
       "temperature": {
-        "key": "Temperatura del modelo",
+        "label": "Temperatura del modelo",
         "tip": "Aleatoriedad en la generación de texto del modelo. Cuanto mayor sea el valor, más diversidad, creatividad y aleatoriedad tendrá la respuesta; si se establece en 0, responde basándose en hechos. Para una conversación diaria, se recomienda un valor de 0.7"
       },
       "thought_auto_collapse": {
-        "key": "Plegado automático del contenido de pensamiento",
+        "label": "Plegado automático del contenido de pensamiento",
         "tip": "El contenido de pensamiento se pliega automáticamente después de finalizar el pensamiento"
       },
       "top_p": {
-        "key": "Top-P",
+        "label": "Top-P",
         "tip": "Valor predeterminado es 1, cuanto menor sea el valor, el contenido generado por la IA será menos variado pero más fácil de entender; cuanto mayor sea el valor, el vocabulario y la variedad de la respuesta de la IA serán mayores"
       }
     },
@@ -494,7 +494,7 @@
         "image": "Exportar como imagen",
         "joplin": "Exportar a Joplin",
         "md": {
-          "key": "Exportar como Markdown",
+          "label": "Exportar como Markdown",
           "reason": "Exportar como Markdown (incluye el razonamiento)"
         },
         "notion": "Exportar a Notion",
@@ -545,7 +545,7 @@
         "edit": {
           "title": "Editar palabras clave del tema"
         },
-        "key": "Palabras clave del tema",
+        "label": "Palabras clave del tema",
         "tips": "Palabras clave del tema: proporcionar indicaciones adicionales para el tema actual"
       },
       "title": "Tema",
@@ -557,7 +557,7 @@
     "collapse": "Replegar",
     "copy": {
       "failed": "Error al copiar",
-      "key": "Copiar",
+      "label": "Copiar",
       "source": "Copiar código fuente",
       "success": "Copiado con éxito"
     },
@@ -565,19 +565,19 @@
       "failed": {
         "network": "Error en la descarga, verifique la conexión de red"
       },
-      "key": "Descargar",
+      "label": "Descargar",
       "png": "Descargar PNG",
       "source": "Descargar código fuente",
       "svg": "Descargar SVG"
     },
     "edit": {
-      "key": "Editar",
+      "label": "Editar",
       "save": {
         "failed": {
-          "key": "Error al guardar",
+          "label": "Error al guardar",
           "message_not_found": "Error al guardar, no se encontró el mensaje correspondiente"
         },
-        "key": "Guardar cambios",
+        "label": "Guardar cambios",
         "success": "Guardado"
       }
     },
@@ -587,14 +587,14 @@
       "copy": {
         "image": "Copiar como imagen"
       },
-      "key": "Vista previa",
+      "label": "Vista previa",
       "source": "Ver código fuente",
       "zoom_in": "Acercar",
       "zoom_out": "Alejar"
     },
     "run": "Ejecutar código",
     "split": {
-      "key": "Dividir vista",
+      "label": "Dividir vista",
       "restore": "Cancelar vista dividida"
     },
     "wrap": {
@@ -664,7 +664,7 @@
       "pinyin": {
         "asc": "Ordenar por pinyin ascendente",
         "desc": "Ordenar por pinyin descendente",
-        "key": "Ordenar por pinyin"
+        "label": "Ordenar por pinyin"
       }
     },
     "success": "Éxito",
@@ -734,7 +734,7 @@
     "delete": {
       "content": "Eliminar el archivo eliminará todas las referencias del archivo en todos los mensajes. ¿Estás seguro de que quieres eliminar este archivo?",
       "db_error": "Error al eliminar",
-      "key": "Eliminar",
+      "label": "Eliminar",
       "paintings": {
         "warning": "La imagen está incluida en un dibujo, por lo que temporalmente no se puede eliminar"
       },
@@ -1078,7 +1078,7 @@
       "enter": {
         "api": {
           "host": "Ingrese su dirección API",
-          "key": "Ingrese su clave API"
+          "label": "Ingrese su clave API"
         },
         "model": "Seleccione un modelo",
         "name": "Ingrese el nombre de la base de conocimiento"
@@ -1088,7 +1088,7 @@
       "invalid": {
         "api": {
           "host": "Dirección API inválida",
-          "key": "Clave API inválida"
+          "label": "Clave API inválida"
         },
         "enter": {
           "model": "Seleccione un modelo"
@@ -1154,16 +1154,16 @@
         "fold": {
           "compress": "Cambiar a disposición compacta",
           "expand": "Cambiar a disposición expandida",
-          "key": "Modo de etiquetas"
+          "label": "Modo de etiquetas"
         },
         "grid": "Diseño de tarjetas",
         "horizontal": "Disposición horizontal",
-        "key": "Estilo de respuesta multi-modelo",
+        "label": "Estilo de respuesta multi-modelo",
         "vertical": "Pila vertical"
       },
       "style": {
         "bubble": "Burbuja",
-        "key": "Estilo de mensaje",
+        "label": "Estilo de mensaje",
         "plain": "Simple"
       }
     },
@@ -1416,7 +1416,7 @@
       "delete": {
         "image": {
           "confirm": "¿Está seguro de que desea eliminar esta imagen?",
-          "key": "Eliminar imagen"
+          "label": "Eliminar imagen"
         }
       },
       "new": {
@@ -1622,7 +1622,7 @@
   "restore": {
     "confirm": {
       "button": "Seleccionar archivo de respaldo",
-      "key": "¿Está seguro de que desea restaurar los datos?"
+      "label": "¿Está seguro de que desea restaurar los datos?"
     },
     "content": "La operación de restauración sobrescribirá todos los datos actuales de la aplicación con los datos de respaldo. Tenga en cuenta que el proceso de restauración puede llevar algún tiempo, gracias por su paciencia.",
     "progress": {
@@ -1825,7 +1825,7 @@
     "about": {
       "checkUpdate": {
         "available": "Actualizar ahora",
-        "key": "Comprobar actualizaciones"
+        "label": "Comprobar actualizaciones"
       },
       "checkingUpdate": "Verificando actualizaciones...",
       "contact": {
@@ -1842,7 +1842,7 @@
         "button": "Enviar feedback",
         "title": "Enviar comentarios"
       },
-      "key": "Acerca de nosotros",
+      "label": "Acerca de nosotros",
       "license": {
         "button": "Ver",
         "title": "Licencia"
@@ -1871,12 +1871,12 @@
       "icon": {
         "type": {
           "emoji": "Emoji",
-          "key": "Tipo de ícono del modelo",
+          "label": "Tipo de ícono del modelo",
           "model": "Ícono del modelo",
           "none": "No mostrar"
         }
       },
-      "key": "Asistente predeterminado",
+      "label": "Asistente predeterminado",
       "model_params": "Parámetros del modelo",
       "title": "Asistente predeterminado"
     },
@@ -1888,7 +1888,7 @@
         "copy_time_notice": "La copia de datos tomará algún tiempo. No cierre la aplicación durante la copia",
         "copying": "Copiando datos a la nueva ubicación...",
         "copying_warning": "Copia de datos en curso. No cierre la aplicación forzosamente. La aplicación se reiniciará automáticamente al finalizar",
-        "key": "Datos de la aplicación",
+        "label": "Datos de la aplicación",
         "migration_title": "Migración de datos",
         "new_path": "Nueva ruta",
         "original_path": "Ruta original",
@@ -1911,14 +1911,14 @@
         "button": {
           "delete": "Eliminar archivo"
         },
-        "key": "Archivo de base de conocimientos",
+        "label": "Archivo de base de conocimientos",
         "remove_all": "Eliminar archivos de la base de conocimientos",
         "remove_all_confirm": "Eliminar los archivos de la base de conocimientos reducirá el uso del espacio de almacenamiento, pero no eliminará los datos vectorizados de la base de conocimientos. Después de la eliminación, no se podrán abrir los archivos originales. ¿Desea eliminarlos?",
         "remove_all_success": "Archivos eliminados con éxito"
       },
       "app_logs": {
         "button": "Abrir registros",
-        "key": "Registros de la aplicación"
+        "label": "Registros de la aplicación"
       },
       "backup": {
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
@@ -1976,7 +1976,7 @@
       },
       "local": {
         "autoSync": {
-          "key": "Copia de seguridad automática",
+          "label": "Copia de seguridad automática",
           "off": "Desactivar"
         },
         "backup": {
@@ -2026,7 +2026,7 @@
           }
         },
         "directory": {
-          "key": "Directorio de copia de seguridad",
+          "label": "Directorio de copia de seguridad",
           "placeholder": "Seleccione el directorio de copia de seguridad",
           "select_error_app_data_path": "La nueva ruta no puede ser la misma que la ruta de datos de la aplicación",
           "select_error_in_app_install_path": "La nueva ruta no puede ser la misma que la ruta de instalación de la aplicación",
@@ -2037,7 +2037,7 @@
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
         "maxBackups": {
-          "key": "Número máximo de copias de seguridad",
+          "label": "Número máximo de copias de seguridad",
           "unlimited": "Ilimitado"
         },
         "minute_interval_one": "{{count}} minuto",
@@ -2125,12 +2125,12 @@
           "button": {
             "cancel": "Cancelar",
             "confirm": "Aceptar",
-            "key": "Crear carpeta"
+            "label": "Crear carpeta"
           }
         },
         "notLogin": "No iniciado sesión",
         "path": {
-          "key": "Ruta de almacenamiento de Nutstore",
+          "label": "Ruta de almacenamiento de Nutstore",
           "placeholder": "Por favor ingrese la ruta de almacenamiento de Nutstore"
         },
         "pathSelector": {
@@ -2155,12 +2155,12 @@
       },
       "s3": {
         "accessKeyId": {
-          "key": "ID de clave de acceso",
+          "label": "ID de clave de acceso",
           "placeholder": "ID de clave de acceso"
         },
         "autoSync": {
           "hour": "Cada {{count}} horas",
-          "key": "Sincronización automática",
+          "label": "Sincronización automática",
           "minute": "Cada {{count}} minutos",
           "off": "Desactivado"
         },
@@ -2180,11 +2180,11 @@
           "success": "Copia de seguridad S3 exitosa"
         },
         "bucket": {
-          "key": "Bucket",
+          "label": "Bucket",
           "placeholder": "Bucket, por ejemplo: example"
         },
         "endpoint": {
-          "key": "Dirección API",
+          "label": "Dirección API",
           "placeholder": "https://s3.example.com"
         },
         "manager": {
@@ -2205,7 +2205,7 @@
               "title": "Confirmar eliminación"
             },
             "error": "Error al eliminar el archivo de respaldo: {{message}}",
-            "key": "Eliminar",
+            "label": "Eliminar",
             "selected": "Eliminar seleccionados ({{count}})",
             "success": {
               "multiple": "{{count}} archivos de respaldo eliminados correctamente",
@@ -2225,11 +2225,11 @@
           "title": "Gestión de archivos de respaldo S3"
         },
         "maxBackups": {
-          "key": "Número máximo de copias de seguridad",
+          "label": "Número máximo de copias de seguridad",
           "unlimited": "Ilimitado"
         },
         "region": {
-          "key": "Región",
+          "label": "Región",
           "placeholder": "Región, por ejemplo: us-east-1"
         },
         "restore": {
@@ -2255,26 +2255,26 @@
           "success": "Restauración de datos exitosa"
         },
         "root": {
-          "key": "Directorio de respaldo (opcional)",
+          "label": "Directorio de respaldo (opcional)",
           "placeholder": "Por ejemplo: /cherry-studio"
         },
         "secretAccessKey": {
-          "key": "Clave de acceso secreta",
+          "label": "Clave de acceso secreta",
           "placeholder": "Clave de acceso secreta"
         },
         "skipBackupFile": {
           "help": "Al activarlo, durante el respaldo se omitirán los datos de archivos, respaldando solo la configuración, lo que reduce significativamente el tamaño del archivo de respaldo",
-          "key": "Respaldo reducido"
+          "label": "Respaldo reducido"
         },
         "syncStatus": {
           "error": "Error de sincronización: {{message}}",
-          "key": "Estado de sincronización",
+          "label": "Estado de sincronización",
           "lastSync": "Última sincronización: {{time}}",
           "noSync": "No sincronizado"
         },
         "title": {
           "help": "Servicio de almacenamiento de objetos compatible con la API de AWS S3, por ejemplo AWS S3, Cloudflare R2, Alibaba Cloud OSS, Tencent Cloud COS, etc.",
-          "key": "Almacenamiento compatible con S3",
+          "label": "Almacenamiento compatible con S3",
           "tooltip": "Documentación de configuración de almacenamiento compatible con S3"
         }
       },
@@ -2296,14 +2296,14 @@
         "title": "Configuración de Siyuan Notas",
         "token": {
           "help": "Obtener en Siyuan Notas -> Configuración -> Acerca de",
-          "key": "Token API"
+          "label": "Token API"
         },
         "token_placeholder": "Por favor ingrese el token de Siyuan Notas"
       },
       "title": "Configuración de datos",
       "webdav": {
         "autoSync": {
-          "key": "Sincronización automática",
+          "label": "Sincronización automática",
           "off": "Desactivar"
         },
         "backup": {
@@ -2357,7 +2357,7 @@
           "title": "Deshabilitar carga por secuencias"
         },
         "host": {
-          "key": "Dirección WebDAV",
+          "label": "Dirección WebDAV",
           "placeholder": "http://localhost:8080"
         },
         "hour_interval_one": "{{count}} hora",
@@ -2369,7 +2369,7 @@
         "noSync": "Esperando la próxima copia de seguridad",
         "password": "Contraseña WebDAV",
         "path": {
-          "key": "Ruta WebDAV",
+          "label": "Ruta WebDAV",
           "placeholder": "/backup"
         },
         "restore": {
@@ -2413,13 +2413,13 @@
       "custom": {
         "css": {
           "cherrycss": "Obtener desde cherrycss.com",
-          "key": "CSS personalizado",
+          "label": "CSS personalizado",
           "placeholder": "/* Escribe tu CSS personalizado aquí */"
         }
       },
       "navbar": {
         "position": {
-          "key": "Posición de la barra de navegación",
+          "label": "Posición de la barra de navegación",
           "left": "Izquierda",
           "top": "Superior"
         },
@@ -2476,7 +2476,7 @@
       },
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
-      "key": "Configuración general",
+      "label": "Configuración general",
       "reset": {
         "button": "Restablecer",
         "title": "Restablecer datos"
@@ -2485,7 +2485,7 @@
         "button": "Restaurar"
       },
       "spell_check": {
-        "key": "Verificación ortográfica",
+        "label": "Verificación ortográfica",
         "languages": "Idiomas de verificación ortográfica"
       },
       "test_plan": {
@@ -2500,7 +2500,7 @@
       },
       "title": "Configuración general",
       "user_name": {
-        "key": "Nombre de usuario",
+        "label": "Nombre de usuario",
         "placeholder": "Ingresa un nombre de usuario"
       },
       "view_webdav_settings": "Ver configuración WebDAV"
@@ -2520,7 +2520,7 @@
         "chinese-traditional": "Chino tradicional",
         "english": "Inglés",
         "japanese": "Japonés",
-        "key": "Idioma objetivo",
+        "label": "Idioma objetivo",
         "russian": "Ruso"
       }
     },
@@ -2554,7 +2554,7 @@
           "selectDxtFile": "Seleccionar archivo DXT",
           "tooltip": "Copia el JSON de configuración desde la página de descripción de MCP Servers (prioriza configuraciones NPX o UVX) y pégalo en el campo de entrada"
         },
-        "key": "Agregar servidor"
+        "label": "Agregar servidor"
       },
       "addSuccess": "Servidor agregado exitosamente",
       "advancedSettings": "Configuración avanzada",
@@ -2574,7 +2574,7 @@
       "description": "Descripción",
       "disable": {
         "description": "No habilitar funciones del servicio MCP",
-        "key": "No utilizar servidor MCP"
+        "label": "No utilizar servidor MCP"
       },
       "duplicateName": "Ya existe un servidor con el mismo nombre",
       "editJson": "Editar JSON",
@@ -2693,7 +2693,7 @@
       "title": "Configuración del MCP",
       "tools": {
         "autoApprove": {
-          "key": "Aprobación automática",
+          "label": "Aprobación automática",
           "tooltip": {
             "confirm": "¿Permitir que esta herramienta MCP se ejecute?",
             "disabled": "Se requiere aprobación manual antes de ejecutar la herramienta",
@@ -2707,7 +2707,7 @@
           "enum": {
             "allowedValues": "Valores permitidos"
           },
-          "key": "Esquema de entrada"
+          "label": "Esquema de entrada"
         },
         "loadError": "Error al cargar las herramientas",
         "noToolsAvailable": "No hay herramientas disponibles",
@@ -2727,14 +2727,14 @@
     },
     "messages": {
       "divider": {
-        "key": "Separador de mensajes",
+        "label": "Separador de mensajes",
         "tooltip": "No aplicable para mensajes de estilo burbuja"
       },
       "grid_columns": "Número de columnas en la cuadrícula de mensajes",
       "grid_popover_trigger": {
         "click": "Mostrar al hacer clic",
         "hover": "Mostrar al pasar el ratón",
-        "key": "Desencadenante de detalles de cuadrícula"
+        "label": "Desencadenante de detalles de cuadrícula"
       },
       "input": {
         "enable_delete_model": "Habilitar la eliminación con la tecla de borrado para modelos/archivos adjuntos introducidos",
@@ -2747,7 +2747,7 @@
       },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
       "math_engine": {
-        "key": "Motor de fórmulas matemáticas",
+        "label": "Motor de fórmulas matemáticas",
         "none": "Ninguno"
       },
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
@@ -2757,7 +2757,7 @@
       "navigation": {
         "anchor": "Ancla de conversación",
         "buttons": "Botones arriba y abajo",
-        "key": "Botón de navegación de conversación",
+        "label": "Botón de navegación de conversación",
         "none": "No mostrar"
       },
       "prompt": "Palabra de indicación",
@@ -2821,18 +2821,18 @@
         "add_model": "Agregar modelo",
         "batch_add_models": "Agregar modelos por lotes",
         "endpoint_type": {
-          "key": "Tipo de punto final",
+          "label": "Tipo de punto final",
           "placeholder": "Seleccionar tipo de punto final",
           "required": "Seleccione el tipo de punto final",
           "tooltip": "Seleccione el formato del tipo de punto final de la API"
         },
         "group_name": {
-          "key": "Nombre del grupo",
+          "label": "Nombre del grupo",
           "placeholder": "Por ejemplo, ChatGPT",
           "tooltip": "Por ejemplo, ChatGPT"
         },
         "model_id": {
-          "key": "ID del modelo",
+          "label": "ID del modelo",
           "placeholder": "Obligatorio, por ejemplo, gpt-3.5-turbo",
           "select": {
             "placeholder": "Seleccionar modelo"
@@ -2840,7 +2840,7 @@
           "tooltip": "Por ejemplo, gpt-3.5-turbo"
         },
         "model_name": {
-          "key": "Nombre del modelo",
+          "label": "Nombre del modelo",
           "placeholder": "Por ejemplo, GPT-3.5",
           "tooltip": "Por ejemplo, GPT-4"
         }
@@ -2877,7 +2877,7 @@
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "key": "Agregar modelo en la lista"
+          "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
@@ -2915,7 +2915,7 @@
         "confirm": "Confirmar selección",
         "warn": "Ten cuidado al seleccionar esta opción, ¡una elección incorrecta puede causar que los modelos no funcionen correctamente!!!"
       },
-      "key": "Configuración adicional",
+      "label": "Configuración adicional",
       "warn": "Advertencia de riesgo"
     },
     "no_provider_selected": "No se ha seleccionado un proveedor",
@@ -2950,7 +2950,7 @@
     "provider": {
       "add": {
         "name": {
-          "key": "Nombre del proveedor",
+          "label": "Nombre del proveedor",
           "placeholder": "Por ejemplo, OpenAI"
         },
         "title": "Agregar proveedor",
@@ -2981,7 +2981,7 @@
       },
       "api_host": "Dirección API",
       "api_key": {
-        "key": "Clave API",
+        "label": "Clave API",
         "tip": "Separar múltiples claves con comas"
       },
       "api_version": "Versión API",
@@ -2991,14 +2991,14 @@
         }
       },
       "basic_auth": {
-        "key": "Autenticación HTTP",
+        "label": "Autenticación HTTP",
         "password": {
-          "key": "contraseña",
+          "label": "contraseña",
           "tip": "Introduzca la contraseña"
         },
         "tip": "Aplicable para instancias desplegadas a través del servidor (ver documento). Actualmente solo se admite el esquema Basic (RFC7617).",
         "user_name": {
-          "key": "Nombre de usuario",
+          "label": "Nombre de usuario",
           "tip": "Déjelo vacío para desactivar"
         }
       },
@@ -3145,7 +3145,7 @@
       "copy_last_message": "Copiar el último mensaje",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
-      "key": "Tecla",
+      "label": "Tecla",
       "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "press_shortcut": "Presionar atajo",
@@ -3215,7 +3215,7 @@
         "compression": {
           "cutoff": {
             "limit": {
-              "key": "Longitud de corte",
+              "label": "Longitud de corte",
               "placeholder": "Longitud de entrada",
               "tooltip": "Limita la longitud del contenido de los resultados de búsqueda; el contenido que exceda este límite será truncado (por ejemplo, 2000 caracteres)"
             },
@@ -3235,13 +3235,13 @@
           },
           "method": {
             "cutoff": "Corte",
-            "key": "Método de compresión",
+            "label": "Método de compresión",
             "none": "Sin compresión",
             "rag": "RAG"
           },
           "rag": {
             "document_count": {
-              "key": "Número de fragmentos de documento",
+              "label": "Número de fragmentos de documento",
               "tooltip": "Número esperado de fragmentos de documento extraídos de un único resultado de búsqueda; el número total extraído será este valor multiplicado por la cantidad de resultados de búsqueda"
             },
             "embedding_dimensions": {
@@ -3259,7 +3259,7 @@
         "overwrite": "Sobrescribir búsqueda del proveedor",
         "overwrite_tooltip": "Forzar el uso del proveedor de búsqueda en lugar del modelo de lenguaje grande",
         "search_max_result": {
-          "key": "Número de resultados de búsqueda",
+          "label": "Número de resultados de búsqueda",
           "tooltip": "Si la compresión de resultados no está activada, un número elevado puede consumir demasiados tokens"
         },
         "search_provider": "Proveedor de búsqueda",
@@ -3271,7 +3271,7 @@
         "subscribe_add_success": "¡Fuente de suscripción añadida con éxito!",
         "subscribe_delete": "Eliminar fuente de suscripción",
         "subscribe_name": {
-          "key": "Nombre alternativo",
+          "label": "Nombre alternativo",
           "placeholder": "Nombre alternativo utilizado cuando la fuente de suscripción descargada no tiene nombre"
         },
         "subscribe_update": "Actualizar ahora",
@@ -3280,7 +3280,7 @@
         "subscribe_url": "Dirección de la fuente de suscripción",
         "tavily": {
           "api_key": {
-            "key": "Clave API de Tavily",
+            "label": "Clave API de Tavily",
             "placeholder": "Por favor ingrese la clave API de Tavily"
           },
           "description": "Tavily es un motor de búsqueda diseñado especialmente para agentes de inteligencia artificial, que ofrece resultados precisos y en tiempo real, sugerencias inteligentes de consultas y capacidades avanzadas de investigación",
@@ -3294,7 +3294,7 @@
     "topic": {
       "pin_to_top": "Fijar tema en la parte superior",
       "position": {
-        "key": "Posición del tema",
+        "label": "Posición del tema",
         "left": "Izquierda",
         "right": "Derecha"
       },

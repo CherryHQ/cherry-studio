@@ -189,7 +189,7 @@ const SettingsTab: FC<Props> = (props) => {
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <SettingRowTitleSmall>{t('chat.settings.temperature.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('chat.settings.temperature.label')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
@@ -207,7 +207,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
           <Row align="middle">
-            <SettingRowTitleSmall>{t('chat.settings.context_count.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('chat.settings.context_count.label')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
@@ -239,7 +239,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <Row align="middle">
-              <SettingRowTitleSmall>{t('chat.settings.max_tokens.key')}</SettingRowTitleSmall>
+              <SettingRowTitleSmall>{t('chat.settings.max_tokens.label')}</SettingRowTitleSmall>
               <Tooltip title={t('chat.settings.max_tokens.tip')}>
                 <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
@@ -309,7 +309,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>
-              {t('chat.settings.thought_auto_collapse.key')}
+              {t('chat.settings.thought_auto_collapse.label')}
               <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
                 <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
@@ -322,7 +322,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.style.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
               onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
@@ -334,12 +334,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.multi_model_style.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Selector
               value={multiModelMessageStyle}
               onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
               options={[
-                { value: 'fold', label: t('message.message.multi_model_style.fold.key') },
+                { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
                 { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
                 { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
                 { value: 'grid', label: t('message.message.multi_model_style.grid') }
@@ -348,7 +348,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.navigation.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
               onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
@@ -361,7 +361,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.math_engine.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.messages.math_engine.label')}</SettingRowTitleSmall>
             <Selector
               value={mathEngine}
               onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
@@ -428,7 +428,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
                 <SettingRowTitleSmall>
-                  {t('chat.settings.code_execution.timeout_minutes.key')}
+                  {t('chat.settings.code_execution.timeout_minutes.label')}
                   <Tooltip title={t('chat.settings.code_execution.timeout_minutes.tip')}>
                     <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                   </Tooltip>
@@ -607,7 +607,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.input.target_language.key')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
             <Selector
               value={targetLanguage}
               onChange={(value) => setTargetLanguage(value)}

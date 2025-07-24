@@ -315,7 +315,7 @@ const ShortcutSettings: FC = () => {
       key: 'name'
     },
     {
-      // title: t('settings.shortcuts.key'),
+      // title: t('settings.shortcuts.label'),
       dataIndex: 'shortcut',
       key: 'shortcut',
       align: 'right',

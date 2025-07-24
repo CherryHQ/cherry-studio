@@ -174,7 +174,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     }))
 
     newList.push({
-      label: t('settings.mcp.addServer.key') + '...',
+      label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
       action: () => navigate('/settings/mcp')
     })

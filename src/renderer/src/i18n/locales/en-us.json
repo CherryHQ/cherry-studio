@@ -3,15 +3,15 @@
     "add": {
       "button": "Add to Assistant",
       "knowledge_base": {
-        "key": "Knowledge Base",
+        "label": "Knowledge Base",
         "placeholder": "Select Knowledge Base"
       },
       "name": {
-        "key": "Name",
+        "label": "Name",
         "placeholder": "Enter name"
       },
       "prompt": {
-        "key": "Prompt",
+        "label": "Prompt",
         "placeholder": "Enter prompt",
         "variables": {
           "tip": {
@@ -107,9 +107,9 @@
     "settings": {
       "default_model": "Default Model",
       "knowledge_base": {
-        "key": "Knowledge Base Settings",
+        "label": "Knowledge Base Settings",
         "recognition": {
-          "key": "Use Knowledge Base",
+          "label": "Use Knowledge Base",
           "off": "Force Search",
           "on": "Intent Recognition",
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
@@ -118,7 +118,7 @@
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
-        "key": "MCP Servers",
+        "label": "MCP Servers",
         "noServersAvailable": "No MCP servers available. Add servers in settings",
         "title": "MCP Settings"
       },
@@ -128,7 +128,7 @@
       "reasoning_effort": {
         "default": "Default",
         "high": "Think harder",
-        "key": "Reasoning effort",
+        "label": "Reasoning effort",
         "low": "Think less",
         "medium": "Think normally",
         "off": "Off"
@@ -147,7 +147,7 @@
       "title": "Assistant Settings",
       "tool_use_mode": {
         "function": "Function",
-        "key": "Tool Use Mode",
+        "label": "Tool Use Mode",
         "prompt": "Prompt"
       }
     },
@@ -175,7 +175,7 @@
   "backup": {
     "confirm": {
       "button": "Select Backup Location",
-      "key": "Are you sure you want to backup data?"
+      "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
     "progress": {
@@ -252,7 +252,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "key": "Clear {{Command}}",
+        "label": "Clear {{Command}}",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -278,14 +278,14 @@
       "settings": "Settings",
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
-        "key": "Thinking",
+        "label": "Thinking",
         "mode": {
           "custom": {
-            "key": "Custom",
+            "label": "Custom",
             "tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported"
           },
           "default": {
-            "key": "Default",
+            "label": "Default",
             "tip": "The model will automatically determine the number of tokens to think"
           },
           "tokens": {
@@ -304,7 +304,7 @@
       "translating": "Translating...",
       "upload": {
         "document": "Upload document file (model does not support images)",
-        "key": "Upload image or document file",
+        "label": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
       "url_context": "URL Context",
@@ -312,17 +312,17 @@
         "builtin": {
           "disabled_content": "The current model does not support web search",
           "enabled_content": "Use the built-in web search function of the model",
-          "key": "Model Built-in"
+          "label": "Model Built-in"
         },
         "button": {
           "ok": "Go to Settings"
         },
         "enable": "Enable web search",
         "enable_content": "Need to check web search connectivity in settings first",
-        "key": "Web Search",
+        "label": "Web Search",
         "no_web_search": {
           "description": "Do not enable web search",
-          "key": "Disable Web Search"
+          "label": "Disable Web Search"
         },
         "settings": "Web Search Settings"
       }
@@ -331,7 +331,7 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "key": "New Branch"
+          "label": "New Branch"
         },
         "context": "New Context"
       },
@@ -344,7 +344,7 @@
     "multiple": {
       "select": {
         "empty": "No Messages Selected",
-        "key": "Multiple Select"
+        "label": "Multiple Select"
       }
     },
     "navigation": {
@@ -362,7 +362,7 @@
       "file": {
         "title": "Save to Local File"
       },
-      "key": "Save",
+      "label": "Save",
       "knowledge": {
         "content": {
           "citation": {
@@ -434,7 +434,7 @@
       },
       "code_execution": {
         "timeout_minutes": {
-          "key": "Timeout",
+          "label": "Timeout",
           "tip": "The timeout time (minutes) of code execution"
         },
         "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
@@ -442,29 +442,29 @@
       },
       "code_wrappable": "Code block wrappable",
       "context_count": {
-        "key": "Context",
+        "label": "Context",
         "tip": "The number of previous messages to keep in the context."
       },
       "max": "Max",
       "max_tokens": {
         "confirm": "Set max tokens",
         "confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
-        "key": "Set max tokens",
+        "label": "Set max tokens",
         "tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported"
       },
       "reset": "Reset",
       "set_as_default": "Apply to default assistant",
       "show_line_numbers": "Show line numbers in code",
       "temperature": {
-        "key": "Temperature",
+        "label": "Temperature",
         "tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise."
       },
       "thought_auto_collapse": {
-        "key": "Collapse Thought Content",
+        "label": "Collapse Thought Content",
         "tip": "Automatically collapse thought content after thinking ends"
       },
       "top_p": {
-        "key": "Top-P",
+        "label": "Top-P",
         "tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse"
       }
     },
@@ -494,7 +494,7 @@
         "image": "Export as image",
         "joplin": "Export to Joplin",
         "md": {
-          "key": "Export as markdown",
+          "label": "Export as markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
         "notion": "Export to Notion",
@@ -545,7 +545,7 @@
         "edit": {
           "title": "Edit Topic Prompts"
         },
-        "key": "Topic Prompts",
+        "label": "Topic Prompts",
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
       },
       "title": "Topics",
@@ -557,7 +557,7 @@
     "collapse": "Collapse",
     "copy": {
       "failed": "Copy failed",
-      "key": "Copy",
+      "label": "Copy",
       "source": "Copy Source Code",
       "success": "Copied"
     },
@@ -565,19 +565,19 @@
       "failed": {
         "network": "Download failed, please check the network"
       },
-      "key": "Download",
+      "label": "Download",
       "png": "Download PNG",
       "source": "Download Source Code",
       "svg": "Download SVG"
     },
     "edit": {
-      "key": "Edit",
+      "label": "Edit",
       "save": {
         "failed": {
-          "key": "Save failed",
+          "label": "Save failed",
           "message_not_found": "Save failed, message not found"
         },
-        "key": "Save Changes",
+        "label": "Save Changes",
         "success": "Saved"
       }
     },
@@ -587,14 +587,14 @@
       "copy": {
         "image": "Copy as image"
       },
-      "key": "Preview",
+      "label": "Preview",
       "source": "View Source Code",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out"
     },
     "run": "Run",
     "split": {
-      "key": "Split View",
+      "label": "Split View",
       "restore": "Restore Split View"
     },
     "wrap": {
@@ -664,7 +664,7 @@
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",
         "desc": "Sort by Pinyin (Z-A)",
-        "key": "Sort by Pinyin"
+        "label": "Sort by Pinyin"
       }
     },
     "success": "Success",
@@ -734,7 +734,7 @@
     "delete": {
       "content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
       "db_error": "Deletion failed",
-      "key": "Delete",
+      "label": "Delete",
       "paintings": {
         "warning": "Image contains this file, deletion is not possible"
       },
@@ -1078,7 +1078,7 @@
       "enter": {
         "api": {
           "host": "Please enter your API host first",
-          "key": "Please enter your API key first"
+          "label": "Please enter your API key first"
         },
         "model": "Please select a model first",
         "name": "Please enter the name of the knowledge base"
@@ -1088,7 +1088,7 @@
       "invalid": {
         "api": {
           "host": "Invalid API Host",
-          "key": "Invalid API Key"
+          "label": "Invalid API Key"
         },
         "enter": {
           "model": "Please select a model"
@@ -1154,16 +1154,16 @@
         "fold": {
           "compress": "Switch to compact layout",
           "expand": "Switch to expanded layout",
-          "key": "Fold view"
+          "label": "Fold view"
         },
         "grid": "Grid layout",
         "horizontal": "Side by side",
-        "key": "Group style",
+        "label": "Group style",
         "vertical": "Stacked view"
       },
       "style": {
         "bubble": "Bubble",
-        "key": "Message style",
+        "label": "Message style",
         "plain": "Plain"
       }
     },
@@ -1416,7 +1416,7 @@
       "delete": {
         "image": {
           "confirm": "Are you sure you want to delete this image?",
-          "key": "Delete Image"
+          "label": "Delete Image"
         }
       },
       "new": {
@@ -1622,7 +1622,7 @@
   "restore": {
     "confirm": {
       "button": "Select Backup File",
-      "key": "Are you sure you want to restore data?"
+      "label": "Are you sure you want to restore data?"
     },
     "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
     "progress": {
@@ -1825,7 +1825,7 @@
     "about": {
       "checkUpdate": {
         "available": "Update",
-        "key": "Check Update"
+        "label": "Check Update"
       },
       "checkingUpdate": "Checking for updates...",
       "contact": {
@@ -1842,7 +1842,7 @@
         "button": "Feedback",
         "title": "Feedback"
       },
-      "key": "About & Feedback",
+      "label": "About & Feedback",
       "license": {
         "button": "License",
         "title": "License"
@@ -1871,12 +1871,12 @@
       "icon": {
         "type": {
           "emoji": "Emoji Icon",
-          "key": "Model Icon Type",
+          "label": "Model Icon Type",
           "model": "Model Icon",
           "none": "Hide"
         }
       },
-      "key": "Default Assistant",
+      "label": "Default Assistant",
       "model_params": "Model Parameters",
       "title": "Default Assistant"
     },
@@ -1888,7 +1888,7 @@
         "copy_time_notice": "Copying data may take a while, do not force quit app",
         "copying": "Copying data to new location...",
         "copying_warning": "Data copying, do not force quit app, the app will restart after copied",
-        "key": "App Data",
+        "label": "App Data",
         "migration_title": "Data Migration",
         "new_path": "New Path",
         "original_path": "Original Path",
@@ -1911,14 +1911,14 @@
         "button": {
           "delete": "Delete File"
         },
-        "key": "Knowledge Base Files",
+        "label": "Knowledge Base Files",
         "remove_all": "Remove Knowledge Base Files",
         "remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
         "remove_all_success": "Files removed successfully"
       },
       "app_logs": {
         "button": "Open Logs",
-        "key": "App Logs"
+        "label": "App Logs"
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
@@ -1976,7 +1976,7 @@
       },
       "local": {
         "autoSync": {
-          "key": "Auto Backup",
+          "label": "Auto Backup",
           "off": "Off"
         },
         "backup": {
@@ -2026,7 +2026,7 @@
           }
         },
         "directory": {
-          "key": "Local Backup Directory",
+          "label": "Local Backup Directory",
           "placeholder": "Select a directory for local backups",
           "select_error_app_data_path": "New path cannot be the same as the application data path",
           "select_error_in_app_install_path": "New path cannot be the same as the application installation path",
@@ -2037,7 +2037,7 @@
         "hour_interval_other": "{{count}} hours",
         "lastSync": "Last Backup",
         "maxBackups": {
-          "key": "Maximum backups",
+          "label": "Maximum backups",
           "unlimited": "Unlimited"
         },
         "minute_interval_one": "{{count}} minute",
@@ -2125,12 +2125,12 @@
           "button": {
             "cancel": "Cancel",
             "confirm": "Confirm",
-            "key": "New Folder"
+            "label": "New Folder"
           }
         },
         "notLogin": "Not logged in",
         "path": {
-          "key": "Nutstore Storage Path",
+          "label": "Nutstore Storage Path",
           "placeholder": "Enter Nutstore storage path"
         },
         "pathSelector": {
@@ -2155,12 +2155,12 @@
       },
       "s3": {
         "accessKeyId": {
-          "key": "Access Key ID",
+          "label": "Access Key ID",
           "placeholder": "Access Key ID"
         },
         "autoSync": {
           "hour": "Every {{count}} hour",
-          "key": "Auto Sync",
+          "label": "Auto Sync",
           "minute": "Every {{count}} minute",
           "off": "Off"
         },
@@ -2180,11 +2180,11 @@
           "success": "S3 backup successful"
         },
         "bucket": {
-          "key": "Bucket",
+          "label": "Bucket",
           "placeholder": "Bucket, e.g: example"
         },
         "endpoint": {
-          "key": "API Endpoint",
+          "label": "API Endpoint",
           "placeholder": "https://s3.example.com"
         },
         "manager": {
@@ -2205,7 +2205,7 @@
               "title": "Confirm Delete"
             },
             "error": "Failed to delete backup file: {{message}}",
-            "key": "Delete",
+            "label": "Delete",
             "selected": "Delete Selected ({{count}})",
             "success": {
               "multiple": "Successfully deleted {{count}} backup files",
@@ -2225,11 +2225,11 @@
           "title": "S3 Backup File Manager"
         },
         "maxBackups": {
-          "key": "Maximum Backups",
+          "label": "Maximum Backups",
           "unlimited": "Unlimited"
         },
         "region": {
-          "key": "Region",
+          "label": "Region",
           "placeholder": "Region, e.g: us-east-1"
         },
         "restore": {
@@ -2255,26 +2255,26 @@
           "success": "Data restore successful"
         },
         "root": {
-          "key": "Backup Directory (Optional)",
+          "label": "Backup Directory (Optional)",
           "placeholder": "e.g: /cherry-studio"
         },
         "secretAccessKey": {
-          "key": "Secret Access Key",
+          "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
         },
         "skipBackupFile": {
           "help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
-          "key": "Lightweight Backup"
+          "label": "Lightweight Backup"
         },
         "syncStatus": {
           "error": "Sync error: {{message}}",
-          "key": "Sync Status",
+          "label": "Sync Status",
           "lastSync": "Last sync: {{time}}",
           "noSync": "Not synced"
         },
         "title": {
           "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
-          "key": "S3 Compatible Storage",
+          "label": "S3 Compatible Storage",
           "tooltip": "S3 Compatible Storage Configuration Document"
         }
       },
@@ -2296,14 +2296,14 @@
         "title": "Siyuan Note Configuration",
         "token": {
           "help": "Get Siyuan Note Token",
-          "key": "Siyuan Note Token"
+          "label": "Siyuan Note Token"
         },
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data Settings",
       "webdav": {
         "autoSync": {
-          "key": "Auto Backup",
+          "label": "Auto Backup",
           "off": "Off"
         },
         "backup": {
@@ -2357,7 +2357,7 @@
           "title": "Disable Stream Upload"
         },
         "host": {
-          "key": "WebDAV Host",
+          "label": "WebDAV Host",
           "placeholder": "http://localhost:8080"
         },
         "hour_interval_one": "{{count}} hour",
@@ -2369,7 +2369,7 @@
         "noSync": "Waiting for next backup",
         "password": "WebDAV Password",
         "path": {
-          "key": "WebDAV Path",
+          "label": "WebDAV Path",
           "placeholder": "/backup"
         },
         "restore": {
@@ -2413,13 +2413,13 @@
       "custom": {
         "css": {
           "cherrycss": "Get from cherrycss.com",
-          "key": "Custom CSS",
+          "label": "Custom CSS",
           "placeholder": "/* Put custom CSS here */"
         }
       },
       "navbar": {
         "position": {
-          "key": "Navbar Position",
+          "label": "Navbar Position",
           "left": "Left",
           "top": "Top"
         },
@@ -2476,7 +2476,7 @@
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
-      "key": "General Settings",
+      "label": "General Settings",
       "reset": {
         "button": "Reset",
         "title": "Data Reset"
@@ -2485,7 +2485,7 @@
         "button": "Restore"
       },
       "spell_check": {
-        "key": "Spell Check",
+        "label": "Spell Check",
         "languages": "Use spell check for"
       },
       "test_plan": {
@@ -2500,7 +2500,7 @@
       },
       "title": "General Settings",
       "user_name": {
-        "key": "User Name",
+        "label": "User Name",
         "placeholder": "Enter your name"
       },
       "view_webdav_settings": "View WebDAV settings"
@@ -2520,7 +2520,7 @@
         "chinese-traditional": "Traditional Chinese",
         "english": "English",
         "japanese": "Japanese",
-        "key": "Target language",
+        "label": "Target language",
         "russian": "Russian"
       }
     },
@@ -2554,7 +2554,7 @@
           "selectDxtFile": "Select DXT File",
           "tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
         },
-        "key": "Add Server"
+        "label": "Add Server"
       },
       "addSuccess": "Server added successfully",
       "advancedSettings": "Advanced Settings",
@@ -2574,7 +2574,7 @@
       "description": "Description",
       "disable": {
         "description": "Do not enable MCP server functionality",
-        "key": "Disable MCP Server"
+        "label": "Disable MCP Server"
       },
       "duplicateName": "A server with this name already exists",
       "editJson": "Edit JSON",
@@ -2693,7 +2693,7 @@
       "title": "MCP Settings",
       "tools": {
         "autoApprove": {
-          "key": "Auto Approve",
+          "label": "Auto Approve",
           "tooltip": {
             "confirm": "Are you sure you want to run this MCP tool?",
             "disabled": "Tool will require manual approval before running",
@@ -2707,7 +2707,7 @@
           "enum": {
             "allowedValues": "Allowed Values"
           },
-          "key": "Input Schema"
+          "label": "Input Schema"
         },
         "loadError": "Get tools Error",
         "noToolsAvailable": "No tools available",
@@ -2727,14 +2727,14 @@
     },
     "messages": {
       "divider": {
-        "key": "Show divider between messages",
+        "label": "Show divider between messages",
         "tooltip": "Not applicable to bubble-style message"
       },
       "grid_columns": "Message grid display columns",
       "grid_popover_trigger": {
         "click": "Click to display",
         "hover": "Hover to display",
-        "key": "Grid detail trigger"
+        "label": "Grid detail trigger"
       },
       "input": {
         "enable_delete_model": "Enable the backspace key to delete models/attachments.",
@@ -2747,7 +2747,7 @@
       },
       "markdown_rendering_input_message": "Markdown render input message",
       "math_engine": {
-        "key": "Math engine",
+        "label": "Math engine",
         "none": "None"
       },
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
@@ -2757,7 +2757,7 @@
       "navigation": {
         "anchor": "Message Anchor",
         "buttons": "Navigation Buttons",
-        "key": "Navigation bar",
+        "label": "Navigation bar",
         "none": "None"
       },
       "prompt": "Show prompt",
@@ -2821,18 +2821,18 @@
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
         "endpoint_type": {
-          "key": "Endpoint Type",
+          "label": "Endpoint Type",
           "placeholder": "Select endpoint type",
           "required": "Please select an endpoint type",
           "tooltip": "Select the API endpoint type format"
         },
         "group_name": {
-          "key": "Group Name",
+          "label": "Group Name",
           "placeholder": "Optional e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
         },
         "model_id": {
-          "key": "Model ID",
+          "label": "Model ID",
           "placeholder": "Required e.g. gpt-3.5-turbo",
           "select": {
             "placeholder": "Select Model"
@@ -2840,7 +2840,7 @@
           "tooltip": "Example: gpt-3.5-turbo"
         },
         "model_name": {
-          "key": "Model Name",
+          "label": "Model Name",
           "placeholder": "Optional e.g. GPT-4",
           "tooltip": "Optional e.g. GPT-4"
         }
@@ -2877,7 +2877,7 @@
       "manage": {
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
-          "key": "Add models to the list"
+          "label": "Add models to the list"
         },
         "add_whole_group": "Add the whole group",
         "remove_listed": "Remove models from the list",
@@ -2915,7 +2915,7 @@
         "confirm": "Confirm Selection",
         "warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!"
       },
-      "key": "More Settings",
+      "label": "More Settings",
       "warn": "Risk Warning"
     },
     "no_provider_selected": "Provider not selected",
@@ -2950,7 +2950,7 @@
     "provider": {
       "add": {
         "name": {
-          "key": "Provider Name",
+          "label": "Provider Name",
           "placeholder": "Example: OpenAI"
         },
         "title": "Add Provider",
@@ -2981,7 +2981,7 @@
       },
       "api_host": "API Host",
       "api_key": {
-        "key": "API Key",
+        "label": "API Key",
         "tip": "Multiple keys separated by commas or spaces"
       },
       "api_version": "API Version",
@@ -2991,14 +2991,14 @@
         }
       },
       "basic_auth": {
-        "key": "HTTP authentication",
+        "label": "HTTP authentication",
         "password": {
-          "key": "Password",
+          "label": "Password",
           "tip": ""
         },
         "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
         "user_name": {
-          "key": "Username",
+          "label": "Username",
           "tip": "Left empty to disable"
         }
       },
@@ -3145,7 +3145,7 @@
       "copy_last_message": "Copy Last Message",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
-      "key": "Key",
+      "label": "Key",
       "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
       "press_shortcut": "Press Shortcut",
@@ -3215,7 +3215,7 @@
         "compression": {
           "cutoff": {
             "limit": {
-              "key": "Cutoff Limit",
+              "label": "Cutoff Limit",
               "placeholder": "Enter length",
               "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)"
             },
@@ -3235,13 +3235,13 @@
           },
           "method": {
             "cutoff": "Cutoff",
-            "key": "Compression Method",
+            "label": "Compression Method",
             "none": "None",
             "rag": "RAG"
           },
           "rag": {
             "document_count": {
-              "key": "Document Chunks Count",
+              "label": "Document Chunks Count",
               "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
             },
             "embedding_dimensions": {
@@ -3259,7 +3259,7 @@
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
         "search_max_result": {
-          "key": "Number of search results",
+          "label": "Number of search results",
           "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
         },
         "search_provider": "Search service provider",
@@ -3271,7 +3271,7 @@
         "subscribe_add_success": "Subscription feed added successfully!",
         "subscribe_delete": "Delete",
         "subscribe_name": {
-          "key": "Alternative name",
+          "label": "Alternative name",
           "placeholder": "Alternative name used when the downloaded subscription feed has no name."
         },
         "subscribe_update": "Update",
@@ -3280,7 +3280,7 @@
         "subscribe_url": "Subscription Url",
         "tavily": {
           "api_key": {
-            "key": "Tavily API Key",
+            "label": "Tavily API Key",
             "placeholder": "Enter Tavily API Key"
           },
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
@@ -3294,7 +3294,7 @@
     "topic": {
       "pin_to_top": "Pin Topics to Top",
       "position": {
-        "key": "Topic position",
+        "label": "Topic position",
         "left": "Left",
         "right": "Right"
       },

@@ -3,15 +3,15 @@
     "add": {
       "button": "アシスタントに追加",
       "knowledge_base": {
-        "key": "ナレッジベース",
+        "label": "ナレッジベース",
         "placeholder": "ナレッジベースを選択"
       },
       "name": {
-        "key": "名前",
+        "label": "名前",
         "placeholder": "名前を入力"
       },
       "prompt": {
-        "key": "プロンプト",
+        "label": "プロンプト",
         "placeholder": "プロンプトを入力",
         "variables": {
           "tip": {
@@ -107,9 +107,9 @@
     "settings": {
       "default_model": "デフォルトモデル",
       "knowledge_base": {
-        "key": "ナレッジベース設定",
+        "label": "ナレッジベース設定",
         "recognition": {
-          "key": "ナレッジベースの呼び出し",
+          "label": "ナレッジベースの呼び出し",
           "off": "強制検索",
           "on": "意図認識",
           "tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します"
@@ -118,7 +118,7 @@
       "mcp": {
         "description": "デフォルトで有効な MCP サーバー",
         "enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
-        "key": "MCP サーバー",
+        "label": "MCP サーバー",
         "noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
         "title": "MCP 設定"
       },
@@ -128,7 +128,7 @@
       "reasoning_effort": {
         "default": "デフォルト",
         "high": "最大限の思考",
-        "key": "思考連鎖の長さ",
+        "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "medium": "普通の思考",
         "off": "オフ"
@@ -147,7 +147,7 @@
       "title": "アシスタント設定",
       "tool_use_mode": {
         "function": "関数",
-        "key": "工具調用方式",
+        "label": "工具調用方式",
         "prompt": "提示詞"
       }
     },
@@ -175,7 +175,7 @@
   "backup": {
     "confirm": {
       "button": "バックアップ位置を選択",
-      "key": "データをバックアップしますか？"
+      "label": "データをバックアップしますか？"
     },
     "content": "バックアップ操作はすべてのアプリデータを含むため、時間がかかる場合があります。",
     "progress": {
@@ -252,7 +252,7 @@
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
-        "key": "クリア {{Command}}",
+        "label": "クリア {{Command}}",
         "title": "すべてのメッセージをクリアしますか？"
       },
       "collapse": "折りたたむ",
@@ -278,14 +278,14 @@
       "settings": "設定",
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
-        "key": "思考",
+        "label": "思考",
         "mode": {
           "custom": {
-            "key": "カスタム",
+            "label": "カスタム",
             "tip": "モデルが最大で思考できるトークン数。モデルのコンテキスト制限を考慮する必要があります。そうしないとエラーが発生します"
           },
           "default": {
-            "key": "デフォルト",
+            "label": "デフォルト",
             "tip": "モデルが自動的に思考のトークン数を決定します"
           },
           "tokens": {
@@ -304,7 +304,7 @@
       "translating": "翻訳中...",
       "upload": {
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-        "key": "画像またはドキュメントをアップロード",
+        "label": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
       "url_context": "URLコンテキスト",
@@ -312,17 +312,17 @@
         "builtin": {
           "disabled_content": "現在のモデルはウェブ検索をサポートしていません",
           "enabled_content": "モデル内蔵のウェブ検索機能を使用",
-          "key": "モデル内蔵"
+          "label": "モデル内蔵"
         },
         "button": {
           "ok": "設定に移動"
         },
         "enable": "ウェブ検索を有効にする",
         "enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
-        "key": "ウェブ検索",
+        "label": "ウェブ検索",
         "no_web_search": {
           "description": "ウェブ検索を無効にする",
-          "key": "ウェブ検索を無効にする"
+          "label": "ウェブ検索を無効にする"
         },
         "settings": "ウェブ検索設定"
       }
@@ -331,7 +331,7 @@
       "new": {
         "branch": {
           "created": "新しいブランチが作成されました",
-          "key": "新しいブランチ"
+          "label": "新しいブランチ"
         },
         "context": "新しいコンテキスト"
       },
@@ -344,7 +344,7 @@
     "multiple": {
       "select": {
         "empty": "メッセージが選択されていません",
-        "key": "選択"
+        "label": "選択"
       }
     },
     "navigation": {
@@ -362,7 +362,7 @@
       "file": {
         "title": "ローカルファイルに保存"
       },
-      "key": "保存",
+      "label": "保存",
       "knowledge": {
         "content": {
           "citation": {
@@ -434,7 +434,7 @@
       },
       "code_execution": {
         "timeout_minutes": {
-          "key": "タイムアウト時間",
+          "label": "タイムアウト時間",
           "tip": "コード実行のタイムアウト時間（分）"
         },
         "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
@@ -442,29 +442,29 @@
       },
       "code_wrappable": "コードブロック折り返し",
       "context_count": {
-        "key": "コンテキスト",
+        "label": "コンテキスト",
         "tip": "コンテキストに保持する以前のメッセージの数"
       },
       "max": "最大",
       "max_tokens": {
         "confirm": "最大トークン数",
         "confirm_content": "最大トークン数を設定すると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
-        "key": "最大トークン数",
+        "label": "最大トークン数",
         "tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します"
       },
       "reset": "リセット",
       "set_as_default": "デフォルトのアシスタントに適用",
       "show_line_numbers": "コードに行番号を表示",
       "temperature": {
-        "key": "温度",
+        "label": "温度",
         "tip": "低い値はモデルをより創造的で予測不可能にし、高い値はより決定論的で正確にします"
       },
       "thought_auto_collapse": {
-        "key": "思考内容を自動的に折りたたむ",
+        "label": "思考内容を自動的に折りたたむ",
         "tip": "思考が終了したら思考内容を自動的に折りたたみます"
       },
       "top_p": {
-        "key": "Top-P",
+        "label": "Top-P",
         "tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します"
       }
     },
@@ -494,7 +494,7 @@
         "image": "画像としてエクスポート",
         "joplin": "Joplin にエクスポート",
         "md": {
-          "key": "Markdownとしてエクスポート",
+          "label": "Markdownとしてエクスポート",
           "reason": "Markdown としてエクスポート (思考内容を含む)"
         },
         "notion": "Notion にエクスポート",
@@ -545,7 +545,7 @@
         "edit": {
           "title": "トピック提示語を編集する"
         },
-        "key": "トピック提示語",
+        "label": "トピック提示語",
         "tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供"
       },
       "title": "トピック",
@@ -557,7 +557,7 @@
     "collapse": "折りたたむ",
     "copy": {
       "failed": "コピーに失敗しました",
-      "key": "コピー",
+      "label": "コピー",
       "source": "コピー源コード",
       "success": "コピーしました"
     },
@@ -565,19 +565,19 @@
       "failed": {
         "network": "ダウンロードに失敗しました。ネットワークを確認してください"
       },
-      "key": "ダウンロード",
+      "label": "ダウンロード",
       "png": "PNGとしてダウンロード",
       "source": "ダウンロード源コード",
       "svg": "SVGとしてダウンロード"
     },
     "edit": {
-      "key": "編集",
+      "label": "編集",
       "save": {
         "failed": {
-          "key": "保存に失敗しました",
+          "label": "保存に失敗しました",
           "message_not_found": "保存に失敗しました。対応するメッセージが見つかりませんでした"
         },
-        "key": "保存する",
+        "label": "保存する",
         "success": "保存しました"
       }
     },
@@ -587,14 +587,14 @@
       "copy": {
         "image": "画像としてコピー"
       },
-      "key": "プレビュー",
+      "label": "プレビュー",
       "source": "ソースコードを表示",
       "zoom_in": "拡大",
       "zoom_out": "縮小"
     },
     "run": "コードを実行",
     "split": {
-      "key": "分割視圖",
+      "label": "分割視圖",
       "restore": "分割視圖を解除"
     },
     "wrap": {
@@ -664,7 +664,7 @@
       "pinyin": {
         "asc": "ピンインで昇順ソート",
         "desc": "ピンインで降順ソート",
-        "key": "ピンインでソート"
+        "label": "ピンインでソート"
       }
     },
     "success": "成功",
@@ -734,7 +734,7 @@
     "delete": {
       "content": "ファイルを削除すると、ファイルがすべてのメッセージで参照されることを削除します。このファイルを削除してもよろしいですか？",
       "db_error": "削除に失敗しました",
-      "key": "削除",
+      "label": "削除",
       "paintings": {
         "warning": "画像に含まれているため、削除できません"
       },
@@ -1078,7 +1078,7 @@
       "enter": {
         "api": {
           "host": "APIホストを入力してください",
-          "key": "APIキーを入力してください"
+          "label": "APIキーを入力してください"
         },
         "model": "モデルを選択してください",
         "name": "ナレッジベース名を入力してください"
@@ -1088,7 +1088,7 @@
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
-          "key": "無効なAPIキーです"
+          "label": "無効なAPIキーです"
         },
         "enter": {
           "model": "モデルを選択してください"
@@ -1154,16 +1154,16 @@
         "fold": {
           "compress": "緊湊配置に切り替える",
           "expand": "展開配置に切り替える",
-          "key": "タブ表示"
+          "label": "タブ表示"
         },
         "grid": "カード表示",
         "horizontal": "横並び",
-        "key": "複数モデル回答スタイル",
+        "label": "複数モデル回答スタイル",
         "vertical": "縦積み"
       },
       "style": {
         "bubble": "バブル",
-        "key": "メッセージスタイル",
+        "label": "メッセージスタイル",
         "plain": "プレーン"
       }
     },
@@ -1416,7 +1416,7 @@
       "delete": {
         "image": {
           "confirm": "この画像を削除してもよろしいですか？",
-          "key": "画像を削除"
+          "label": "画像を削除"
         }
       },
       "new": {
@@ -1622,7 +1622,7 @@
   "restore": {
     "confirm": {
       "button": "バックアップファイルを選択",
-      "key": "データを復元しますか？"
+      "label": "データを復元しますか？"
     },
     "content": "復元操作は現在のアプリデータをバックアップデータで上書きします。復元処理には時間がかかる場合があります。",
     "progress": {
@@ -1825,7 +1825,7 @@
     "about": {
       "checkUpdate": {
         "available": "今すぐ更新",
-        "key": "更新を確認"
+        "label": "更新を確認"
       },
       "checkingUpdate": "更新を確認中...",
       "contact": {
@@ -1842,7 +1842,7 @@
         "button": "フィードバック",
         "title": "フィードバック"
       },
-      "key": "について",
+      "label": "について",
       "license": {
         "button": "ライセンス",
         "title": "ライセンス"
@@ -1871,12 +1871,12 @@
       "icon": {
         "type": {
           "emoji": "Emoji アイコン",
-          "key": "モデルアイコンタイプ",
+          "label": "モデルアイコンタイプ",
           "model": "モデルアイコン",
           "none": "表示しない"
         }
       },
-      "key": "デフォルトアシスタント",
+      "label": "デフォルトアシスタント",
       "model_params": "モデルパラメータ",
       "title": "デフォルトアシスタント"
     },
@@ -1888,7 +1888,7 @@
         "copy_time_notice": "データコピーには時間がかかります。アプリを強制終了しないでください。",
         "copying": "新しい場所にデータをコピーしています...",
         "copying_warning": "データコピー中、アプリを強制終了しないでください。コピーが完了すると、アプリが自動的に再起動します。",
-        "key": "アプリデータ",
+        "label": "アプリデータ",
         "migration_title": "データ移行",
         "new_path": "新しいパス",
         "original_path": "元のパス",
@@ -1911,14 +1911,14 @@
         "button": {
           "delete": "ファイルを削除"
         },
-        "key": "知識ベースファイル",
+        "label": "知識ベースファイル",
         "remove_all": "ナレッジベースファイルを削除",
         "remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
         "remove_all_success": "ファイル削除成功"
       },
       "app_logs": {
         "button": "ログを開く",
-        "key": "アプリログ"
+        "label": "アプリログ"
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
@@ -1976,7 +1976,7 @@
       },
       "local": {
         "autoSync": {
-          "key": "自動バックアップ",
+          "label": "自動バックアップ",
           "off": "オフ"
         },
         "backup": {
@@ -2026,7 +2026,7 @@
           }
         },
         "directory": {
-          "key": "バックアップディレクトリ",
+          "label": "バックアップディレクトリ",
           "placeholder": "バックアップディレクトリを選択してください",
           "select_error_app_data_path": "新パスはアプリデータパスと同じです。別のパスを選択してください",
           "select_error_in_app_install_path": "新パスはアプリインストールパスと同じです。別のパスを選択してください",
@@ -2037,7 +2037,7 @@
         "hour_interval_other": "{{count}} 時間",
         "lastSync": "最終バックアップ",
         "maxBackups": {
-          "key": "最大バックアップ数",
+          "label": "最大バックアップ数",
           "unlimited": "無制限"
         },
         "minute_interval_one": "{{count}} 分",
@@ -2125,12 +2125,12 @@
           "button": {
             "cancel": "キャンセル",
             "confirm": "確認",
-            "key": "新しいフォルダー"
+            "label": "新しいフォルダー"
           }
         },
         "notLogin": "未ログイン",
         "path": {
-          "key": "Nutstoreストレージパス",
+          "label": "Nutstoreストレージパス",
           "placeholder": "Nutstoreストレージパスを入力"
         },
         "pathSelector": {
@@ -2155,12 +2155,12 @@
       },
       "s3": {
         "accessKeyId": {
-          "key": "Access Key ID",
+          "label": "Access Key ID",
           "placeholder": "Access Key ID"
         },
         "autoSync": {
           "hour": "{{count}}時間毎",
-          "key": "自動同期",
+          "label": "自動同期",
           "minute": "{{count}}分毎",
           "off": "オフ"
         },
@@ -2180,11 +2180,11 @@
           "success": "S3バックアップ成功"
         },
         "bucket": {
-          "key": "バケット",
+          "label": "バケット",
           "placeholder": "Bucket、例: example"
         },
         "endpoint": {
-          "key": "APIエンドポイント",
+          "label": "APIエンドポイント",
           "placeholder": "https://s3.example.com"
         },
         "manager": {
@@ -2205,7 +2205,7 @@
               "title": "削除の確認"
             },
             "error": "バックアップファイルの削除に失敗しました: {{message}}",
-            "key": "削除",
+            "label": "削除",
             "selected": "選択項目を削除 ({{count}})",
             "success": {
               "multiple": "{{count}}個のバックアップファイルを正常に削除しました",
@@ -2225,11 +2225,11 @@
           "title": "S3バックアップファイルマネージャー"
         },
         "maxBackups": {
-          "key": "最大バックアップ数",
+          "label": "最大バックアップ数",
           "unlimited": "無制限"
         },
         "region": {
-          "key": "リージョン",
+          "label": "リージョン",
           "placeholder": "Region、例: us-east-1"
         },
         "restore": {
@@ -2255,26 +2255,26 @@
           "success": "データの復元に成功しました"
         },
         "root": {
-          "key": "バックアップディレクトリ（オプション）",
+          "label": "バックアップディレクトリ（オプション）",
           "placeholder": "例：/cherry-studio"
         },
         "secretAccessKey": {
-          "key": "Secret Access Key",
+          "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
         },
         "skipBackupFile": {
           "help": "有効にすると、バックアップ時にファイルデータがスキップされ、設定情報のみがバックアップされ、バックアップファイルのサイズが大幅に削減されます。",
-          "key": "軽量バックアップ"
+          "label": "軽量バックアップ"
         },
         "syncStatus": {
           "error": "同期エラー: {{message}}",
-          "key": "同期ステータス",
+          "label": "同期ステータス",
           "lastSync": "最終同期: {{time}}",
           "noSync": "未同期"
         },
         "title": {
           "help": "AWS S3 APIと互換性のあるオブジェクトストレージサービス（例：AWS S3、Cloudflare R2、Alibaba Cloud OSS、Tencent Cloud COSなど）",
-          "key": "S3互換ストレージ",
+          "label": "S3互換ストレージ",
           "tooltip": "S3互換ストレージ設定ガイド"
         }
       },
@@ -2296,14 +2296,14 @@
         "title": "思源ノート設定",
         "token": {
           "help": "思源ノート->設定->について で取得",
-          "key": "APIトークン"
+          "label": "APIトークン"
         },
         "token_placeholder": "思源ノートトークンを入力してください"
       },
       "title": "データ設定",
       "webdav": {
         "autoSync": {
-          "key": "自動バックアップ",
+          "label": "自動バックアップ",
           "off": "オフ"
         },
         "backup": {
@@ -2357,7 +2357,7 @@
           "title": "ストリーミングアップロードを無効にする"
         },
         "host": {
-          "key": "WebDAVホスト",
+          "label": "WebDAVホスト",
           "placeholder": "http://localhost:8080"
         },
         "hour_interval_one": "{{count}} 時間",
@@ -2369,7 +2369,7 @@
         "noSync": "次回のバックアップを待機中",
         "password": "WebDAVパスワード",
         "path": {
-          "key": "WebDAVパス",
+          "label": "WebDAVパス",
           "placeholder": "/backup"
         },
         "restore": {
@@ -2413,13 +2413,13 @@
       "custom": {
         "css": {
           "cherrycss": "cherrycss.comから取得",
-          "key": "カスタムCSS",
+          "label": "カスタムCSS",
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }
       },
       "navbar": {
         "position": {
-          "key": "ナビゲーションバー位置",
+          "label": "ナビゲーションバー位置",
           "left": "左",
           "top": "上"
         },
@@ -2476,7 +2476,7 @@
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
-      "key": "一般設定",
+      "label": "一般設定",
       "reset": {
         "button": "リセット",
         "title": "データをリセット"
@@ -2485,7 +2485,7 @@
         "button": "復元"
       },
       "spell_check": {
-        "key": "スペルチェック",
+        "label": "スペルチェック",
         "languages": "スペルチェック言語"
       },
       "test_plan": {
@@ -2500,7 +2500,7 @@
       },
       "title": "一般設定",
       "user_name": {
-        "key": "ユーザー名",
+        "label": "ユーザー名",
         "placeholder": "ユーザー名を入力"
       },
       "view_webdav_settings": "WebDAV設定を表示"
@@ -2520,7 +2520,7 @@
         "chinese-traditional": "繁体字中国語",
         "english": "英語",
         "japanese": "日本語",
-        "key": "目標言語",
+        "label": "目標言語",
         "russian": "ロシア語"
       }
     },
@@ -2554,7 +2554,7 @@
           "selectDxtFile": "DXT ファイルを選択してください",
           "tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。"
         },
-        "key": "サーバーを追加"
+        "label": "サーバーを追加"
       },
       "addSuccess": "サーバーが正常に追加されました",
       "advancedSettings": "詳細設定",
@@ -2574,7 +2574,7 @@
       "description": "説明",
       "disable": {
         "description": "MCP機能を有効にしない",
-        "key": "MCPサーバーを無効にする"
+        "label": "MCPサーバーを無効にする"
       },
       "duplicateName": "同じ名前のサーバーが既に存在します",
       "editJson": "JSONを編集",
@@ -2693,7 +2693,7 @@
       "title": "MCP 設定",
       "tools": {
         "autoApprove": {
-          "key": "自動承認",
+          "label": "自動承認",
           "tooltip": {
             "confirm": "このMCPツールを実行してもよろしいですか？",
             "disabled": "ツールは実行前に手動承認が必要です",
@@ -2707,7 +2707,7 @@
           "enum": {
             "allowedValues": "許可された値"
           },
-          "key": "入力スキーマ"
+          "label": "入力スキーマ"
         },
         "loadError": "ツール取得エラー",
         "noToolsAvailable": "利用可能なツールなし",
@@ -2727,14 +2727,14 @@
     },
     "messages": {
       "divider": {
-        "key": "メッセージ間に区切り線を表示",
+        "label": "メッセージ間に区切り線を表示",
         "tooltip": "バブルスタイルのメッセージには適用されません"
       },
       "grid_columns": "メッセージグリッドの表示列数",
       "grid_popover_trigger": {
         "click": "クリックで表示",
         "hover": "ホバーで表示",
-        "key": "グリッド詳細トリガー"
+        "label": "グリッド詳細トリガー"
       },
       "input": {
         "enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
@@ -2747,7 +2747,7 @@
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "math_engine": {
-        "key": "数式エンジン",
+        "label": "数式エンジン",
         "none": "なし"
       },
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
@@ -2757,7 +2757,7 @@
       "navigation": {
         "anchor": "会話アンカー",
         "buttons": "上下ボタン",
-        "key": "メッセージナビゲーション",
+        "label": "メッセージナビゲーション",
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
@@ -2821,18 +2821,18 @@
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
         "endpoint_type": {
-          "key": "エンドポイントタイプ",
+          "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",
           "required": "エンドポイントタイプを選択してください",
           "tooltip": "APIエンドポイントタイプフォーマットを選択"
         },
         "group_name": {
-          "key": "グループ名",
+          "label": "グループ名",
           "placeholder": "例：ChatGPT",
           "tooltip": "例：ChatGPT"
         },
         "model_id": {
-          "key": "モデルID",
+          "label": "モデルID",
           "placeholder": "必須 例：gpt-3.5-turbo",
           "select": {
             "placeholder": "モデルを選択"
@@ -2840,7 +2840,7 @@
           "tooltip": "例：gpt-3.5-turbo"
         },
         "model_name": {
-          "key": "モデル名",
+          "label": "モデル名",
           "placeholder": "例：GPT-4",
           "tooltip": "例：GPT-4"
         }
@@ -2877,7 +2877,7 @@
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
-          "key": "リストにモデルを追加"
+          "label": "リストにモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
         "remove_listed": "リストからモデルを削除",
@@ -2915,7 +2915,7 @@
         "confirm": "選択を確認",
         "warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！"
       },
-      "key": "詳細設定",
+      "label": "詳細設定",
       "warn": "リスク警告"
     },
     "no_provider_selected": "未選択のプロバイダー",
@@ -2950,7 +2950,7 @@
     "provider": {
       "add": {
         "name": {
-          "key": "プロバイダー名",
+          "label": "プロバイダー名",
           "placeholder": "例：OpenAI"
         },
         "title": "プロバイダーを追加",
@@ -2981,7 +2981,7 @@
       },
       "api_host": "APIホスト",
       "api_key": {
-        "key": "APIキー",
+        "label": "APIキー",
         "tip": "複数のキーはカンマまたはスペースで区切ります"
       },
       "api_version": "APIバージョン",
@@ -2991,14 +2991,14 @@
         }
       },
       "basic_auth": {
-        "key": "HTTP 認証",
+        "label": "HTTP 認証",
         "password": {
-          "key": "パスワード",
+          "label": "パスワード",
           "tip": ""
         },
         "tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
         "user_name": {
-          "key": "ユーザー名",
+          "label": "ユーザー名",
           "tip": "空欄で無効化"
         }
       },
@@ -3145,7 +3145,7 @@
       "copy_last_message": "最後のメッセージをコピー",
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
-      "key": "キー",
+      "label": "キー",
       "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
       "press_shortcut": "ショートカットを押す",
@@ -3215,7 +3215,7 @@
         "compression": {
           "cutoff": {
             "limit": {
-              "key": "切り捨て長",
+              "label": "切り捨て長",
               "placeholder": "長さを入力",
               "tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）"
             },
@@ -3235,13 +3235,13 @@
           },
           "method": {
             "cutoff": "切り捨て",
-            "key": "圧縮方法",
+            "label": "圧縮方法",
             "none": "圧縮しない",
             "rag": "RAG"
           },
           "rag": {
             "document_count": {
-              "key": "文書チャンク数",
+              "label": "文書チャンク数",
               "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
             },
             "embedding_dimensions": {
@@ -3259,7 +3259,7 @@
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
         "search_max_result": {
-          "key": "検索結果の数",
+          "label": "検索結果の数",
           "tooltip": "検索結果の圧縮が無効な場合、結果の数が多すぎるとトークンが不足する可能性があります"
         },
         "search_provider": "検索サービスプロバイダー",
@@ -3271,7 +3271,7 @@
         "subscribe_add_success": "購読フィードが正常に追加されました!",
         "subscribe_delete": "削除",
         "subscribe_name": {
-          "key": "代替名",
+          "label": "代替名",
           "placeholder": "ダウンロードした購読フィードに名前がない場合に使用される代替名。"
         },
         "subscribe_update": "更新",
@@ -3280,7 +3280,7 @@
         "subscribe_url": "購読URL",
         "tavily": {
           "api_key": {
-            "key": "Tavily API キー",
+            "label": "Tavily API キー",
             "placeholder": "Tavily API キーを入力してください"
           },
           "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
@@ -3294,7 +3294,7 @@
     "topic": {
       "pin_to_top": "固定トピックを上部に表示",
       "position": {
-        "key": "トピックの位置",
+        "label": "トピックの位置",
         "left": "左",
         "right": "右"
       },

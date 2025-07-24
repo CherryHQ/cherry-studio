@@ -185,7 +185,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
                 {t('chat.artifacts.button.openExternal')}
               </Button>
               <Button icon={<Download size={16} />} onClick={handleDownload} type="text" disabled={!hasContent}>
-                {t('code_block.download.key')}
+                {t('code_block.download.label')}
               </Button>
             </ButtonContainer>
           )}

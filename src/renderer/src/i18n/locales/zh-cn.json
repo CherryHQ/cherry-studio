@@ -3,15 +3,15 @@
     "add": {
       "button": "添加到助手",
       "knowledge_base": {
-        "key": "知识库",
+        "label": "知识库",
         "placeholder": "选择知识库"
       },
       "name": {
-        "key": "名称",
+        "label": "名称",
         "placeholder": "输入名称"
       },
       "prompt": {
-        "key": "提示词",
+        "label": "提示词",
         "placeholder": "输入提示词",
         "variables": {
           "tip": {
@@ -107,9 +107,9 @@
     "settings": {
       "default_model": "默认模型",
       "knowledge_base": {
-        "key": "知识库设置",
+        "label": "知识库设置",
         "recognition": {
-          "key": "调用知识库",
+          "label": "调用知识库",
           "off": "强制检索",
           "on": "意图识别",
           "tip": "智能体将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
@@ -118,7 +118,7 @@
       "mcp": {
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
-        "key": "MCP 服务器",
+        "label": "MCP 服务器",
         "noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
         "title": "MCP 设置"
       },
@@ -128,7 +128,7 @@
       "reasoning_effort": {
         "default": "默认",
         "high": "沉思",
-        "key": "思维链长度",
+        "label": "思维链长度",
         "low": "浮想",
         "medium": "斟酌",
         "off": "关闭"
@@ -147,7 +147,7 @@
       "title": "助手设置",
       "tool_use_mode": {
         "function": "函数",
-        "key": "工具调用方式",
+        "label": "工具调用方式",
         "prompt": "提示词"
       }
     },
@@ -175,7 +175,7 @@
   "backup": {
     "confirm": {
       "button": "选择备份位置",
-      "key": "确定要备份数据吗？"
+      "label": "确定要备份数据吗？"
     },
     "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
     "progress": {
@@ -252,7 +252,7 @@
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
-        "key": "清空消息 {{Command}}",
+        "label": "清空消息 {{Command}}",
         "title": "清空消息"
       },
       "collapse": "收起",
@@ -278,14 +278,14 @@
       "settings": "设置",
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
-        "key": "思考",
+        "label": "思考",
         "mode": {
           "custom": {
-            "key": "自定义",
+            "label": "自定义",
             "tip": "模型最多可以思考的 Token 数。需要考虑模型的上下文限制，否则会报错"
           },
           "default": {
-            "key": "默认",
+            "label": "默认",
             "tip": "模型会自动确定思考的 Token 数"
           },
           "tokens": {
@@ -304,7 +304,7 @@
       "translating": "翻译中...",
       "upload": {
         "document": "上传文档（模型不支持图片）",
-        "key": "上传图片或文档",
+        "label": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
       "url_context": "网页上下文",
@@ -312,17 +312,17 @@
         "builtin": {
           "disabled_content": "当前模型不支持网络搜索功能",
           "enabled_content": "使用模型内置的网络搜索功能",
-          "key": "模型内置"
+          "label": "模型内置"
         },
         "button": {
           "ok": "去设置"
         },
         "enable": "开启网络搜索",
         "enable_content": "需要先在设置中检查网络搜索连通性",
-        "key": "网络搜索",
+        "label": "网络搜索",
         "no_web_search": {
           "description": "不启用网络搜索功能",
-          "key": "不使用网络"
+          "label": "不使用网络"
         },
         "settings": "网络搜索设置"
       }
@@ -331,7 +331,7 @@
       "new": {
         "branch": {
           "created": "新分支已创建",
-          "key": "分支"
+          "label": "分支"
         },
         "context": "清除上下文"
       },
@@ -344,7 +344,7 @@
     "multiple": {
       "select": {
         "empty": "未选中任何消息",
-        "key": "多选"
+        "label": "多选"
       }
     },
     "navigation": {
@@ -362,7 +362,6 @@
       "file": {
         "title": "保存到本地文件"
       },
-      "key": "保存",
       "knowledge": {
         "content": {
           "citation": {
@@ -418,7 +417,8 @@
           }
         },
         "title": "保存到知识库"
-      }
+      },
+      "label": "保存"
     },
     "settings": {
       "code": {
@@ -434,7 +434,7 @@
       },
       "code_execution": {
         "timeout_minutes": {
-          "key": "超时时间",
+          "label": "超时时间",
           "tip": "代码执行超时时间（分钟）"
         },
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
@@ -442,29 +442,29 @@
       },
       "code_wrappable": "代码块可换行",
       "context_count": {
-        "key": "上下文数",
+        "label": "上下文数",
         "tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 Token 越多。普通聊天建议 5-10"
       },
       "max": "不限",
       "max_tokens": {
         "confirm": "最大 Token 数",
         "confirm_content": "设置单次交互所用的最大 Token 数，会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
-        "key": "最大 Token 数",
+        "label": "最大 Token 数",
         "tip": "单次交互所用的最大 Token 数，会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错"
       },
       "reset": "重置",
       "set_as_default": "应用到默认助手",
       "show_line_numbers": "代码显示行号",
       "temperature": {
-        "key": "模型温度",
+        "label": "模型温度",
         "tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
       },
       "thought_auto_collapse": {
-        "key": "思考内容自动折叠",
+        "label": "思考内容自动折叠",
         "tip": "思考结束后思考内容自动折叠"
       },
       "top_p": {
-        "key": "Top-P",
+        "label": "Top-P",
         "tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化"
       }
     },
@@ -494,7 +494,7 @@
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "md": {
-          "key": "导出为 Markdown",
+          "label": "导出为 Markdown",
           "reason": "导出为 Markdown (包含思考)"
         },
         "notion": "导出到 Notion",
@@ -545,7 +545,7 @@
         "edit": {
           "title": "编辑话题提示词"
         },
-        "key": "话题提示词",
+        "label": "话题提示词",
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
       },
       "title": "话题",
@@ -557,7 +557,7 @@
     "collapse": "收起",
     "copy": {
       "failed": "复制失败",
-      "key": "复制",
+      "label": "复制",
       "source": "复制源代码",
       "success": "复制成功"
     },
@@ -565,19 +565,19 @@
       "failed": {
         "network": "下载失败，请检查网络"
       },
-      "key": "下载",
+      "label": "下载",
       "png": "下载 PNG",
       "source": "下载源代码",
       "svg": "下载 SVG"
     },
     "edit": {
-      "key": "编辑",
+      "label": "编辑",
       "save": {
         "failed": {
-          "key": "保存失败",
+          "label": "保存失败",
           "message_not_found": "保存失败，没有找到对应的消息"
         },
-        "key": "保存修改",
+        "label": "保存修改",
         "success": "已保存"
       }
     },
@@ -587,14 +587,14 @@
       "copy": {
         "image": "复制为图片"
       },
-      "key": "预览",
+      "label": "预览",
       "source": "查看源代码",
       "zoom_in": "放大",
       "zoom_out": "缩小"
     },
     "run": "运行代码",
     "split": {
-      "key": "分割视图",
+      "label": "分割视图",
       "restore": "取消分割视图"
     },
     "wrap": {
@@ -664,7 +664,7 @@
       "pinyin": {
         "asc": "按拼音升序",
         "desc": "按拼音降序",
-        "key": "按拼音排序"
+        "label": "按拼音排序"
       }
     },
     "success": "成功",
@@ -734,7 +734,7 @@
     "delete": {
       "content": "删除文件会删除文件在所有消息中的引用，确定要删除此文件吗？",
       "db_error": "删除失败",
-      "key": "删除",
+      "label": "删除",
       "paintings": {
         "warning": "绘图中包含该图片，暂时无法删除"
       },
@@ -1078,7 +1078,7 @@
       "enter": {
         "api": {
           "host": "请输入您的 API 地址",
-          "key": "请输入您的 API 密钥"
+          "label": "请输入您的 API 密钥"
         },
         "model": "请选择一个模型",
         "name": "请输入知识库名称"
@@ -1088,7 +1088,7 @@
       "invalid": {
         "api": {
           "host": "无效的 API 地址",
-          "key": "无效的 API 密钥"
+          "label": "无效的 API 密钥"
         },
         "enter": {
           "model": "请选择一个模型"
@@ -1154,16 +1154,16 @@
         "fold": {
           "compress": "切换到紧凑排列",
           "expand": "切换到展开排列",
-          "key": "标签模式"
+          "label": "标签模式"
         },
         "grid": "卡片布局",
         "horizontal": "横向排列",
-        "key": "多模型回答样式",
+        "label": "多模型回答样式",
         "vertical": "纵向堆叠"
       },
       "style": {
         "bubble": "气泡",
-        "key": "消息样式",
+        "label": "消息样式",
         "plain": "简洁"
       }
     },
@@ -1416,7 +1416,7 @@
       "delete": {
         "image": {
           "confirm": "确定要删除此图片吗？",
-          "key": "删除图片"
+          "label": "删除图片"
         }
       },
       "new": {
@@ -1622,7 +1622,7 @@
   "restore": {
     "confirm": {
       "button": "选择备份文件",
-      "key": "确定要恢复数据吗？"
+      "label": "确定要恢复数据吗？"
     },
     "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待",
     "progress": {
@@ -1825,7 +1825,7 @@
     "about": {
       "checkUpdate": {
         "available": "立即更新",
-        "key": "检查更新"
+        "label": "检查更新"
       },
       "checkingUpdate": "正在检查更新...",
       "contact": {
@@ -1842,7 +1842,7 @@
         "button": "反馈",
         "title": "意见反馈"
       },
-      "key": "关于我们",
+      "label": "关于我们",
       "license": {
         "button": "查看",
         "title": "许可证"
@@ -1871,12 +1871,12 @@
       "icon": {
         "type": {
           "emoji": "Emoji 表情",
-          "key": "模型图标类型",
+          "label": "模型图标类型",
           "model": "模型图标",
           "none": "不显示"
         }
       },
-      "key": "默认助手",
+      "label": "默认助手",
       "model_params": "模型参数",
       "title": "默认助手"
     },
@@ -1888,7 +1888,7 @@
         "copy_time_notice": "复制数据将需要一些时间，复制期间不要关闭应用",
         "copying": "正在将数据复制到新位置...",
         "copying_warning": "数据复制中，不要强制退出 app, 复制完成后会自动重启应用",
-        "key": "应用数据",
+        "label": "应用数据",
         "migration_title": "数据迁移",
         "new_path": "新路径",
         "original_path": "原始路径",
@@ -1911,14 +1911,14 @@
         "button": {
           "delete": "删除文件"
         },
-        "key": "知识库文件",
+        "label": "知识库文件",
         "remove_all": "删除知识库文件",
         "remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "remove_all_success": "文件删除成功"
       },
       "app_logs": {
         "button": "打开日志",
-        "key": "应用日志"
+        "label": "应用日志"
       },
       "backup": {
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
@@ -1976,7 +1976,7 @@
       },
       "local": {
         "autoSync": {
-          "key": "自动备份",
+          "label": "自动备份",
           "off": "关闭"
         },
         "backup": {
@@ -2026,7 +2026,7 @@
           }
         },
         "directory": {
-          "key": "备份目录",
+          "label": "备份目录",
           "placeholder": "请选择备份目录",
           "select_error_app_data_path": "新路径不能与应用数据路径相同",
           "select_error_in_app_install_path": "新路径不能与应用安装路径相同",
@@ -2037,7 +2037,7 @@
         "hour_interval_other": "{{count}} 小时",
         "lastSync": "上次备份",
         "maxBackups": {
-          "key": "最大备份数",
+          "label": "最大备份数",
           "unlimited": "无限制"
         },
         "minute_interval_one": "{{count}} 分钟",
@@ -2125,12 +2125,12 @@
           "button": {
             "cancel": "取消",
             "confirm": "确定",
-            "key": "新建文件夹"
+            "label": "新建文件夹"
           }
         },
         "notLogin": "未登录",
         "path": {
-          "key": "坚果云存储路径",
+          "label": "坚果云存储路径",
           "placeholder": "请输入坚果云的存储路径"
         },
         "pathSelector": {
@@ -2155,12 +2155,12 @@
       },
       "s3": {
         "accessKeyId": {
-          "key": "Access Key ID",
+          "label": "Access Key ID",
           "placeholder": "Access Key ID"
         },
         "autoSync": {
           "hour": "每 {{count}} 小时",
-          "key": "自动同步",
+          "label": "自动同步",
           "minute": "每 {{count}} 分钟",
           "off": "关闭"
         },
@@ -2180,11 +2180,11 @@
           "success": "S3 备份成功"
         },
         "bucket": {
-          "key": "存储桶",
+          "label": "存储桶",
           "placeholder": "Bucket, 例如: example"
         },
         "endpoint": {
-          "key": "API 地址",
+          "label": "API 地址",
           "placeholder": "https://s3.example.com"
         },
         "manager": {
@@ -2205,7 +2205,7 @@
               "title": "确认删除"
             },
             "error": "删除备份文件失败: {{message}}",
-            "key": "删除",
+            "label": "删除",
             "selected": "删除选中 ({{count}})",
             "success": {
               "multiple": "成功删除 {{count}} 个备份文件",
@@ -2225,11 +2225,11 @@
           "title": "S3 备份文件管理"
         },
         "maxBackups": {
-          "key": "最大备份数",
+          "label": "最大备份数",
           "unlimited": "不限"
         },
         "region": {
-          "key": "区域",
+          "label": "区域",
           "placeholder": "Region, 例如: us-east-1"
         },
         "restore": {
@@ -2255,26 +2255,26 @@
           "success": "数据恢复成功"
         },
         "root": {
-          "key": "备份目录（可选）",
+          "label": "备份目录（可选）",
           "placeholder": "例如：/cherry-studio"
         },
         "secretAccessKey": {
-          "key": "Secret Access Key",
+          "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
         },
         "skipBackupFile": {
           "help": "开启后备份时将跳过文件数据，仅备份配置信息，显著减小备份文件体积",
-          "key": "精简备份"
+          "label": "精简备份"
         },
         "syncStatus": {
           "error": "同步错误: {{message}}",
-          "key": "同步状态",
+          "label": "同步状态",
           "lastSync": "上次同步: {{time}}",
           "noSync": "未同步"
         },
         "title": {
           "help": "与AWS S3 API兼容的对象存储服务, 例如AWS S3, Cloudflare R2, 阿里云OSS, 腾讯云COS等",
-          "key": "S3 兼容存储",
+          "label": "S3 兼容存储",
           "tooltip": "S3 兼容存储配置文档"
         }
       },
@@ -2296,14 +2296,14 @@
         "title": "思源笔记配置",
         "token": {
           "help": "在思源笔记 -> 设置 -> 关于中获取",
-          "key": "API 令牌"
+          "label": "API 令牌"
         },
         "token_placeholder": "请输入思源笔记令牌"
       },
       "title": "数据设置",
       "webdav": {
         "autoSync": {
-          "key": "自动备份",
+          "label": "自动备份",
           "off": "关闭"
         },
         "backup": {
@@ -2357,7 +2357,7 @@
           "title": "禁用流式上传"
         },
         "host": {
-          "key": "WebDAV 地址",
+          "label": "WebDAV 地址",
           "placeholder": "http://localhost:8080"
         },
         "hour_interval_one": "{{count}} 小时",
@@ -2369,7 +2369,7 @@
         "noSync": "等待下次备份",
         "password": "WebDAV 密码",
         "path": {
-          "key": "WebDAV 路径",
+          "label": "WebDAV 路径",
           "placeholder": "/backup"
         },
         "restore": {
@@ -2413,13 +2413,13 @@
       "custom": {
         "css": {
           "cherrycss": "从 cherrycss.com 获取",
-          "key": "自定义 CSS",
+          "label": "自定义 CSS",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
       "navbar": {
         "position": {
-          "key": "导航栏位置",
+          "label": "导航栏位置",
           "left": "左侧",
           "top": "顶部"
         },
@@ -2476,7 +2476,7 @@
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
-      "key": "常规设置",
+      "label": "常规设置",
       "reset": {
         "button": "重置",
         "title": "重置数据"
@@ -2485,7 +2485,7 @@
         "button": "恢复"
       },
       "spell_check": {
-        "key": "拼写检查",
+        "label": "拼写检查",
         "languages": "拼写检查语言"
       },
       "test_plan": {
@@ -2500,7 +2500,7 @@
       },
       "title": "常规设置",
       "user_name": {
-        "key": "用户名",
+        "label": "用户名",
         "placeholder": "输入您的姓名"
       },
       "view_webdav_settings": "查看 WebDAV 设置"
@@ -2520,7 +2520,7 @@
         "chinese-traditional": "繁体中文",
         "english": "英文",
         "japanese": "日文",
-        "key": "目标语言",
+        "label": "目标语言",
         "russian": "俄文"
       }
     },
@@ -2554,7 +2554,7 @@
           "selectDxtFile": "选择 DXT 文件",
           "tooltip": "请从 MCP Servers 的介绍页面复制配置 JSON（优先使用\n NPX 或 UVX 配置），并粘贴到输入框中"
         },
-        "key": "添加服务器"
+        "label": "添加服务器"
       },
       "addSuccess": "服务器添加成功",
       "advancedSettings": "高级设置",
@@ -2574,7 +2574,7 @@
       "description": "描述",
       "disable": {
         "description": "不启用 MCP 服务功能",
-        "key": "不使用 MCP 服务器"
+        "label": "不使用 MCP 服务器"
       },
       "duplicateName": "已存在同名服务器",
       "editJson": "编辑 JSON",
@@ -2693,7 +2693,7 @@
       "title": "MCP 设置",
       "tools": {
         "autoApprove": {
-          "key": "自动批准",
+          "label": "自动批准",
           "tooltip": {
             "confirm": "是否运行该MCP工具？",
             "disabled": "工具运行前需要手动批准",
@@ -2707,7 +2707,7 @@
           "enum": {
             "allowedValues": "允许的值"
           },
-          "key": "输入模式"
+          "label": "输入模式"
         },
         "loadError": "获取工具失败",
         "noToolsAvailable": "无可用工具",
@@ -2727,14 +2727,14 @@
     },
     "messages": {
       "divider": {
-        "key": "消息分割线",
+        "label": "消息分割线",
         "tooltip": "不适用于气泡样式消息"
       },
       "grid_columns": "消息网格展示列数",
       "grid_popover_trigger": {
         "click": "点击显示",
         "hover": "悬停显示",
-        "key": "网格详情触发"
+        "label": "网格详情触发"
       },
       "input": {
         "enable_delete_model": "启用删除键删除输入的模型 / 附件",
@@ -2747,7 +2747,7 @@
       },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
       "math_engine": {
-        "key": "数学公式引擎",
+        "label": "数学公式引擎",
         "none": "无"
       },
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
@@ -2757,7 +2757,7 @@
       "navigation": {
         "anchor": "对话锚点",
         "buttons": "上下按钮",
-        "key": "对话导航按钮",
+        "label": "对话导航按钮",
         "none": "不显示"
       },
       "prompt": "显示提示词",
@@ -2821,18 +2821,18 @@
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
         "endpoint_type": {
-          "key": "端点类型",
+          "label": "端点类型",
           "placeholder": "选择端点类型",
           "required": "请选择端点类型",
           "tooltip": "选择 API 的端点类型格式"
         },
         "group_name": {
-          "key": "分组名称",
+          "label": "分组名称",
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
         },
         "model_id": {
-          "key": "模型 ID",
+          "label": "模型 ID",
           "placeholder": "必填 例如 gpt-3.5-turbo",
           "select": {
             "placeholder": "选择模型"
@@ -2840,7 +2840,7 @@
           "tooltip": "例如 gpt-3.5-turbo"
         },
         "model_name": {
-          "key": "模型名称",
+          "label": "模型名称",
           "placeholder": "例如 GPT-4",
           "tooltip": "例如 GPT-4"
         }
@@ -2877,7 +2877,7 @@
       "manage": {
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
-          "key": "添加列表中的模型"
+          "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
         "remove_listed": "移除列表中的模型",
@@ -2915,7 +2915,7 @@
         "confirm": "确认勾选",
         "warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！"
       },
-      "key": "更多设置",
+      "label": "更多设置",
       "warn": "风险警告"
     },
     "no_provider_selected": "未选择提供商",
@@ -2950,7 +2950,7 @@
     "provider": {
       "add": {
         "name": {
-          "key": "提供商名称",
+          "label": "提供商名称",
           "placeholder": "例如 OpenAI"
         },
         "title": "添加提供商",
@@ -2981,7 +2981,7 @@
       },
       "api_host": "API 地址",
       "api_key": {
-        "key": "API 密钥",
+        "label": "API 密钥",
         "tip": "多个密钥使用逗号或空格分隔"
       },
       "api_version": "API 版本",
@@ -2991,14 +2991,14 @@
         }
       },
       "basic_auth": {
-        "key": "HTTP 认证",
+        "label": "HTTP 认证",
         "password": {
-          "key": "密码",
+          "label": "密码",
           "tip": "输入密码"
         },
         "tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）",
         "user_name": {
-          "key": "用户名",
+          "label": "用户名",
           "tip": "留空以禁用"
         }
       },
@@ -3145,7 +3145,7 @@
       "copy_last_message": "复制上一条消息",
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
-      "key": "按键",
+      "label": "按键",
       "mini_window": "快捷助手",
       "new_topic": "新建话题",
       "press_shortcut": "按下快捷键",
@@ -3215,7 +3215,7 @@
         "compression": {
           "cutoff": {
             "limit": {
-              "key": "截断长度",
+              "label": "截断长度",
               "placeholder": "输入长度",
               "tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断（例如 2000 字符）"
             },
@@ -3235,13 +3235,13 @@
           },
           "method": {
             "cutoff": "截断",
-            "key": "压缩方法",
+            "label": "压缩方法",
             "none": "不压缩",
             "rag": "RAG"
           },
           "rag": {
             "document_count": {
-              "key": "文档片段数量",
+              "label": "文档片段数量",
               "tooltip": "预期从单个搜索结果中提取的文档片段数量，实际提取的总数量是这个值乘以搜索结果数量。"
             },
             "embedding_dimensions": {
@@ -3259,7 +3259,7 @@
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
         "search_max_result": {
-          "key": "搜索结果个数",
+          "label": "搜索结果个数",
           "tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens"
         },
         "search_provider": "搜索服务商",
@@ -3271,7 +3271,7 @@
         "subscribe_add_success": "订阅源添加成功!",
         "subscribe_delete": "删除订阅源",
         "subscribe_name": {
-          "key": "替代名字",
+          "label": "替代名字",
           "placeholder": "当下载的订阅源没有名称时所使用的替代名称"
         },
         "subscribe_update": "立即更新",
@@ -3280,7 +3280,7 @@
         "subscribe_url": "订阅源地址",
         "tavily": {
           "api_key": {
-            "key": "Tavily API 密钥",
+            "label": "Tavily API 密钥",
             "placeholder": "请输入 Tavily API 密钥"
           },
           "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
@@ -3294,7 +3294,7 @@
     "topic": {
       "pin_to_top": "固定话题置顶",
       "position": {
-        "key": "话题位置",
+        "label": "话题位置",
         "left": "左侧",
         "right": "右侧"
       },

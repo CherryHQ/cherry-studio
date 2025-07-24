@@ -55,7 +55,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   }
 
   const multiModelMessageStyleTextByLayout = {
-    fold: t('message.message.multi_model_style.fold.key'),
+    fold: t('message.message.multi_model_style.fold.label'),
     vertical: t('message.message.multi_model_style.vertical'),
     horizontal: t('message.message.multi_model_style.horizontal'),
     grid: t('message.message.multi_model_style.grid')
@@ -69,7 +69,7 @@ const MessageGroupMenuBar: FC<Props> = ({
             <Tooltip
               mouseEnterDelay={0.5}
               key={layout}
-              title={t('message.message.multi_model_style.key') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
+              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
                 onClick={() => setMultiModelMessageStyle(layout)}>
