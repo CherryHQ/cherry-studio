@@ -6,7 +6,7 @@ vi.mock('@renderer/i18n', () => ({
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
         'message.download.failed': '下载失败',
-        'message.download.failed.network': '下载失败，请检查网络'
+        'chat.download.failed.network': '下载失败，请检查网络'
       }
       return translations[key] || key
     })
