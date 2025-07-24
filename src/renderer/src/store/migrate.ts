@@ -1844,6 +1844,25 @@ const migrateConfig = {
       logger.error('migrate 122 error', error as Error)
       return state
     }
+  },
+  '123': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          if (model.type && Array.isArray(model.type)) {
+            model.capabilities = model.type.map((t) => ({
+              type: t,
+              isUserSelected: true
+            }))
+            delete model.type
+          }
+        })
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 123 error', error as Error)
+      return state
+    }
   }
 }
 
