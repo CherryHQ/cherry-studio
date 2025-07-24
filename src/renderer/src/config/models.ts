@@ -145,7 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -265,16 +265,12 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 )
 
 export function isFunctionCallingModel(model?: Model): boolean {
-  if (!model) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
     return false
   }
 
-  if (model.type?.includes('function_calling')) {
-    return true
-  }
-
-  if (isEmbeddingModel(model)) {
-    return false
+  if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
+    return isUserSelectedModelType(model, 'function_calling')!
   }
 
   if (model.provider === 'qiniu') {
@@ -2395,8 +2391,12 @@ export function isTextToImageModel(model: Model): boolean {
 }
 
 export function isEmbeddingModel(model: Model): boolean {
-  if (!model) {
+  if (!model || isRerankModel(model)) {
     return false
+  }
+
+  if (isUserSelectedModelType(model, 'embedding') !== undefined) {
+    return isUserSelectedModelType(model, 'embedding')!
   }
 
   if (['anthropic'].includes(model?.provider)) {
@@ -2407,31 +2407,33 @@ export function isEmbeddingModel(model: Model): boolean {
     return EMBEDDING_REGEX.test(model.name)
   }
 
-  if (isRerankModel(model)) {
-    return false
-  }
-
-  return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
+  return EMBEDDING_REGEX.test(model.id) || false
 }
 
 export function isRerankModel(model: Model): boolean {
+  if (isUserSelectedModelType(model, 'rerank') !== undefined) {
+    return isUserSelectedModelType(model, 'rerank')!
+  }
   return model ? RERANKING_REGEX.test(model.id) || false : false
 }
 
 export function isVisionModel(model: Model): boolean {
-  if (!model) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
     return false
   }
   // 新添字段 copilot-vision-request 后可使用 vision
   // if (model.provider === 'copilot') {
   //   return false
   // }
-
-  if (model.provider === 'doubao' || model.id.includes('doubao')) {
-    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
+  if (isUserSelectedModelType(model, 'vision') !== undefined) {
+    return isUserSelectedModelType(model, 'vision')!
   }
 
-  return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || false
+  }
+
+  return VISION_REGEX.test(model.id) || false
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
@@ -2599,7 +2601,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
-  if (baseName.includes('coder')) {
+  if (baseName.includes('coder') || baseName.includes('qwen3-235b-a22b-instruct')) {
     return false
   }
 
@@ -2660,19 +2662,18 @@ export const isHunyuanReasoningModel = (model?: Model): boolean => {
 }
 
 export function isReasoningModel(model?: Model): boolean {
-  if (!model) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
-  if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
-    return false
+  if (isUserSelectedModelType(model, 'reasoning') !== undefined) {
+    return isUserSelectedModelType(model, 'reasoning')!
   }
 
   if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return (
       REASONING_REGEX.test(model.id) ||
       REASONING_REGEX.test(model.name) ||
-      model.type?.includes('reasoning') ||
       isSupportedThinkingTokenDoubaoModel(model) ||
       false
     )
@@ -2692,7 +2693,7 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
-  return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
+  return REASONING_REGEX.test(model.id) || false
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -2716,14 +2717,12 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
 }
 
 export function isWebSearchModel(model: Model): boolean {
-  if (!model) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
     return false
   }
 
-  if (model.type) {
-    if (model.type.includes('web_search')) {
-      return true
-    }
+  if (isUserSelectedModelType(model, 'web_search') !== undefined) {
+    return isUserSelectedModelType(model, 'web_search')!
   }
 
   const provider = getProviderByModel(model)
