@@ -16,316 +16,316 @@ type LanguageData = {
 }
 
 export const languages: Record<string, LanguageData> = {
-  '1c enterprise': {
+  '1C Enterprise': {
     type: 'programming',
     extensions: ['.bsl', '.os']
   },
-  '2-dimensional array': {
+  '2-Dimensional Array': {
     type: 'data',
     extensions: ['.2da']
   },
-  '4d': {
+  '4D': {
     type: 'programming',
     extensions: ['.4dm']
   },
-  abap: {
+  ABAP: {
     type: 'programming',
     extensions: ['.abap']
   },
-  'abap cds': {
+  'ABAP CDS': {
     type: 'programming',
     extensions: ['.asddls']
   },
-  abnf: {
+  ABNF: {
     type: 'data',
     extensions: ['.abnf']
   },
-  actionscript: {
+  ActionScript: {
     type: 'programming',
     extensions: ['.as'],
     aliases: ['actionscript 3', 'actionscript3', 'as3']
   },
-  ada: {
+  Ada: {
     type: 'programming',
     extensions: ['.adb', '.ada', '.ads'],
     aliases: ['ada95', 'ada2005']
   },
-  'adblock filter list': {
+  'Adblock Filter List': {
     type: 'data',
     extensions: ['.txt'],
     aliases: ['ad block filters', 'ad block', 'adb', 'adblock']
   },
-  'adobe font metrics': {
+  'Adobe Font Metrics': {
     type: 'data',
     extensions: ['.afm'],
     aliases: ['acfm', 'adobe composite font metrics', 'adobe multiple font metrics', 'amfm']
   },
-  agda: {
+  Agda: {
     type: 'programming',
     extensions: ['.agda']
   },
-  'ags script': {
+  'AGS Script': {
     type: 'programming',
     extensions: ['.asc', '.ash'],
     aliases: ['ags']
   },
-  aidl: {
+  AIDL: {
     type: 'programming',
     extensions: ['.aidl']
   },
-  aiken: {
+  Aiken: {
     type: 'programming',
     extensions: ['.ak']
   },
-  al: {
+  AL: {
     type: 'programming',
     extensions: ['.al']
   },
-  alloy: {
+  Alloy: {
     type: 'programming',
     extensions: ['.als']
   },
-  'alpine abuild': {
+  'Alpine Abuild': {
     type: 'programming',
     aliases: ['abuild', 'apkbuild']
   },
-  'altium designer': {
+  'Altium Designer': {
     type: 'data',
     extensions: ['.OutJob', '.PcbDoc', '.PrjPCB', '.SchDoc'],
     aliases: ['altium']
   },
-  ampl: {
+  AMPL: {
     type: 'programming',
     extensions: ['.ampl', '.mod']
   },
-  angelscript: {
+  AngelScript: {
     type: 'programming',
     extensions: ['.as', '.angelscript']
   },
-  'answer set programming': {
+  'Answer Set Programming': {
     type: 'programming',
     extensions: ['.lp']
   },
-  antlers: {
+  Antlers: {
     type: 'markup',
     extensions: ['.antlers.html', '.antlers.php', '.antlers.xml']
   },
-  antlr: {
+  ANTLR: {
     type: 'programming',
     extensions: ['.g4']
   },
-  apacheconf: {
+  ApacheConf: {
     type: 'data',
     extensions: ['.apacheconf', '.vhost'],
     aliases: ['aconf', 'apache']
   },
-  apex: {
+  Apex: {
     type: 'programming',
     extensions: ['.cls', '.apex', '.trigger']
   },
-  'api blueprint': {
+  'API Blueprint': {
     type: 'markup',
     extensions: ['.apib']
   },
-  apl: {
+  APL: {
     type: 'programming',
     extensions: ['.apl', '.dyalog']
   },
-  'apollo guidance computer': {
+  'Apollo Guidance Computer': {
     type: 'programming',
     extensions: ['.agc']
   },
-  applescript: {
+  AppleScript: {
     type: 'programming',
     extensions: ['.applescript', '.scpt'],
     aliases: ['osascript']
   },
-  arc: {
+  Arc: {
     type: 'programming',
     extensions: ['.arc']
   },
-  asciidoc: {
+  AsciiDoc: {
     type: 'prose',
     extensions: ['.asciidoc', '.adoc', '.asc']
   },
-  asl: {
+  ASL: {
     type: 'programming',
     extensions: ['.asl', '.dsl']
   },
-  'asn.1': {
+  'ASN.1': {
     type: 'data',
     extensions: ['.asn', '.asn1']
   },
-  'asp.net': {
+  'ASP.NET': {
     type: 'programming',
     extensions: ['.asax', '.ascx', '.ashx', '.asmx', '.aspx', '.axd'],
     aliases: ['aspx', 'aspx-vb']
   },
-  aspectj: {
+  AspectJ: {
     type: 'programming',
     extensions: ['.aj']
   },
-  assembly: {
+  Assembly: {
     type: 'programming',
     extensions: ['.asm', '.a51', '.i', '.inc', '.nas', '.nasm', '.s'],
     aliases: ['asm', 'nasm']
   },
-  astro: {
+  Astro: {
     type: 'markup',
     extensions: ['.astro']
   },
-  asymptote: {
+  Asymptote: {
     type: 'programming',
     extensions: ['.asy']
   },
-  ats: {
+  ATS: {
     type: 'programming',
     extensions: ['.dats', '.hats', '.sats'],
     aliases: ['ats2']
   },
-  augeas: {
+  Augeas: {
     type: 'programming',
     extensions: ['.aug']
   },
-  autohotkey: {
+  AutoHotkey: {
     type: 'programming',
     extensions: ['.ahk', '.ahkl'],
     aliases: ['ahk']
   },
-  autoit: {
+  AutoIt: {
     type: 'programming',
     extensions: ['.au3'],
     aliases: ['au3', 'AutoIt3', 'AutoItScript']
   },
-  'avro idl': {
+  'Avro IDL': {
     type: 'data',
     extensions: ['.avdl']
   },
-  awk: {
+  Awk: {
     type: 'programming',
     extensions: ['.awk', '.auk', '.gawk', '.mawk', '.nawk']
   },
-  b4x: {
+  B4X: {
     type: 'programming',
     extensions: ['.bas'],
     aliases: ['basic for android']
   },
-  ballerina: {
+  Ballerina: {
     type: 'programming',
     extensions: ['.bal']
   },
-  basic: {
+  BASIC: {
     type: 'programming',
     extensions: ['.bas']
   },
-  batchfile: {
+  Batchfile: {
     type: 'programming',
     extensions: ['.bat', '.cmd'],
     aliases: ['bat', 'batch', 'dosbatch', 'winbatch']
   },
-  beef: {
+  Beef: {
     type: 'programming',
     extensions: ['.bf']
   },
-  befunge: {
+  Befunge: {
     type: 'programming',
     extensions: ['.befunge', '.bf']
   },
-  berry: {
+  Berry: {
     type: 'programming',
     extensions: ['.be'],
     aliases: ['be']
   },
-  bibtex: {
+  BibTeX: {
     type: 'markup',
     extensions: ['.bib', '.bibtex']
   },
-  'bibtex style': {
+  'BibTeX Style': {
     type: 'programming',
     extensions: ['.bst']
   },
-  bicep: {
+  Bicep: {
     type: 'programming',
     extensions: ['.bicep', '.bicepparam']
   },
-  bikeshed: {
+  Bikeshed: {
     type: 'markup',
     extensions: ['.bs']
   },
-  bison: {
+  Bison: {
     type: 'programming',
     extensions: ['.bison']
   },
-  bitbake: {
+  BitBake: {
     type: 'programming',
     extensions: ['.bb', '.bbappend', '.bbclass', '.inc']
   },
-  blade: {
+  Blade: {
     type: 'markup',
     extensions: ['.blade', '.blade.php']
   },
-  blitzbasic: {
+  BlitzBasic: {
     type: 'programming',
     extensions: ['.bb', '.decls'],
     aliases: ['b3d', 'blitz3d', 'blitzplus', 'bplus']
   },
-  blitzmax: {
+  BlitzMax: {
     type: 'programming',
     extensions: ['.bmx'],
     aliases: ['bmax']
   },
-  bluespec: {
+  Bluespec: {
     type: 'programming',
     extensions: ['.bsv'],
     aliases: ['bluespec bsv', 'bsv']
   },
-  'bluespec bh': {
+  'Bluespec BH': {
     type: 'programming',
     extensions: ['.bs'],
     aliases: ['bh', 'bluespec classic']
   },
-  boo: {
+  Boo: {
     type: 'programming',
     extensions: ['.boo']
   },
-  boogie: {
+  Boogie: {
     type: 'programming',
     extensions: ['.bpl']
   },
-  bqn: {
+  BQN: {
     type: 'programming',
     extensions: ['.bqn']
   },
-  brainfuck: {
+  Brainfuck: {
     type: 'programming',
     extensions: ['.b', '.bf']
   },
-  brighterscript: {
+  BrighterScript: {
     type: 'programming',
     extensions: ['.bs']
   },
-  brightscript: {
+  Brightscript: {
     type: 'programming',
     extensions: ['.brs']
   },
-  buildstream: {
+  BuildStream: {
     type: 'data',
     extensions: ['.bst']
   },
-  c: {
+  C: {
     type: 'programming',
     extensions: ['.c', '.cats', '.h', '.h.in', '.idc']
   },
-  'c-objdump': {
+  'C-ObjDump': {
     type: 'data',
     extensions: ['.c-objdump']
   },
-  'c#': {
+  'C#': {
     type: 'programming',
     extensions: ['.cs', '.cake', '.cs.pp', '.csx', '.linq'],
     aliases: ['csharp', 'cake', 'cakescript']
   },
-  'c++': {
+  'C++': {
     type: 'programming',
     extensions: [
       '.cpp',
@@ -351,69 +351,69 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['cpp']
   },
-  'c2hs haskell': {
+  'C2hs Haskell': {
     type: 'programming',
     extensions: ['.chs'],
     aliases: ['c2hs']
   },
-  'cabal config': {
+  'Cabal Config': {
     type: 'data',
     extensions: ['.cabal'],
     aliases: ['Cabal']
   },
-  caddyfile: {
+  Caddyfile: {
     type: 'data',
     extensions: ['.caddyfile'],
     aliases: ['Caddy']
   },
-  cadence: {
+  Cadence: {
     type: 'programming',
     extensions: ['.cdc']
   },
-  cairo: {
+  Cairo: {
     type: 'programming',
     extensions: ['.cairo']
   },
-  'cairo zero': {
+  'Cairo Zero': {
     type: 'programming',
     extensions: ['.cairo']
   },
-  cameligo: {
+  CameLIGO: {
     type: 'programming',
     extensions: ['.mligo']
   },
-  'cap cds': {
+  'CAP CDS': {
     type: 'programming',
     extensions: ['.cds'],
     aliases: ['cds']
   },
-  "cap'n proto": {
+  "Cap'n Proto": {
     type: 'programming',
     extensions: ['.capnp']
   },
-  carbon: {
+  Carbon: {
     type: 'programming',
     extensions: ['.carbon']
   },
-  cartocss: {
+  CartoCSS: {
     type: 'programming',
     extensions: ['.mss'],
     aliases: ['Carto']
   },
-  ceylon: {
+  Ceylon: {
     type: 'programming',
     extensions: ['.ceylon']
   },
-  chapel: {
+  Chapel: {
     type: 'programming',
     extensions: ['.chpl'],
     aliases: ['chpl']
   },
-  charity: {
+  Charity: {
     type: 'programming',
     extensions: ['.ch']
   },
-  checksums: {
+  Checksums: {
     type: 'data',
     extensions: [
       '.crc32',
@@ -431,121 +431,121 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['checksum', 'hash', 'hashes', 'sum', 'sums']
   },
-  chuck: {
+  ChucK: {
     type: 'programming',
     extensions: ['.ck']
   },
-  cil: {
+  CIL: {
     type: 'data',
     extensions: ['.cil']
   },
-  circom: {
+  Circom: {
     type: 'programming',
     extensions: ['.circom']
   },
-  cirru: {
+  Cirru: {
     type: 'programming',
     extensions: ['.cirru']
   },
-  clarion: {
+  Clarion: {
     type: 'programming',
     extensions: ['.clw']
   },
-  clarity: {
+  Clarity: {
     type: 'programming',
     extensions: ['.clar']
   },
-  'classic asp': {
+  'Classic ASP': {
     type: 'programming',
     extensions: ['.asp'],
     aliases: ['asp']
   },
-  clean: {
+  Clean: {
     type: 'programming',
     extensions: ['.icl', '.dcl']
   },
-  click: {
+  Click: {
     type: 'programming',
     extensions: ['.click']
   },
-  clips: {
+  CLIPS: {
     type: 'programming',
     extensions: ['.clp']
   },
-  clojure: {
+  Clojure: {
     type: 'programming',
     extensions: ['.clj', '.bb', '.boot', '.cl2', '.cljc', '.cljs', '.cljs.hl', '.cljscm', '.cljx', '.hic']
   },
-  'closure templates': {
+  'Closure Templates': {
     type: 'markup',
     extensions: ['.soy'],
     aliases: ['soy']
   },
-  clue: {
+  Clue: {
     type: 'programming',
     extensions: ['.clue']
   },
-  cmake: {
+  CMake: {
     type: 'programming',
     extensions: ['.cmake', '.cmake.in']
   },
-  cobol: {
+  COBOL: {
     type: 'programming',
     extensions: ['.cob', '.cbl', '.ccp', '.cobol', '.cpy']
   },
-  codeql: {
+  CodeQL: {
     type: 'programming',
     extensions: ['.ql', '.qll'],
     aliases: ['ql']
   },
-  coffeescript: {
+  CoffeeScript: {
     type: 'programming',
     extensions: ['.coffee', '._coffee', '.cake', '.cjsx', '.iced'],
     aliases: ['coffee', 'coffee-script']
   },
-  coldfusion: {
+  ColdFusion: {
     type: 'programming',
     extensions: ['.cfm', '.cfml'],
     aliases: ['cfm', 'cfml', 'coldfusion html']
   },
-  'coldfusion cfc': {
+  'ColdFusion CFC': {
     type: 'programming',
     extensions: ['.cfc'],
     aliases: ['cfc']
   },
-  collada: {
+  COLLADA: {
     type: 'data',
     extensions: ['.dae']
   },
-  'common lisp': {
+  'Common Lisp': {
     type: 'programming',
     extensions: ['.lisp', '.asd', '.cl', '.l', '.lsp', '.ny', '.podsl', '.sexp'],
     aliases: ['lisp']
   },
-  'common workflow language': {
+  'Common Workflow Language': {
     type: 'programming',
     extensions: ['.cwl'],
     aliases: ['cwl']
   },
-  'component pascal': {
+  'Component Pascal': {
     type: 'programming',
     extensions: ['.cp', '.cps']
   },
-  'conll-u': {
+  'CoNLL-U': {
     type: 'data',
     extensions: ['.conllu', '.conll'],
     aliases: ['CoNLL', 'CoNLL-X']
   },
-  cool: {
+  Cool: {
     type: 'programming',
     extensions: ['.cl']
   },
-  'cpp-objdump': {
+  'Cpp-ObjDump': {
     type: 'data',
     extensions: ['.cppobjdump', '.c++-objdump', '.c++objdump', '.cpp-objdump', '.cxx-objdump'],
     aliases: ['c++-objdump']
   },
-  creole: {
+  Creole: {
     type: 'prose',
     extensions: ['.creole']
   },
@@ -553,118 +553,118 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     aliases: ['cron', 'cron table']
   },
-  crystal: {
+  Crystal: {
     type: 'programming',
     extensions: ['.cr']
   },
-  cson: {
+  CSON: {
     type: 'data',
     extensions: ['.cson']
   },
-  csound: {
+  Csound: {
     type: 'programming',
     extensions: ['.orc', '.udo'],
     aliases: ['csound-orc']
   },
-  'csound document': {
+  'Csound Document': {
     type: 'programming',
     extensions: ['.csd'],
     aliases: ['csound-csd']
   },
-  'csound score': {
+  'Csound Score': {
     type: 'programming',
     extensions: ['.sco'],
     aliases: ['csound-sco']
   },
-  css: {
+  CSS: {
     type: 'markup',
     extensions: ['.css']
   },
-  csv: {
+  CSV: {
     type: 'data',
     extensions: ['.csv']
   },
-  cuda: {
+  Cuda: {
     type: 'programming',
     extensions: ['.cu', '.cuh']
   },
-  cue: {
+  CUE: {
     type: 'programming',
     extensions: ['.cue']
   },
-  'cue sheet': {
+  'Cue Sheet': {
     type: 'data',
     extensions: ['.cue']
   },
-  'curl config': {
+  'cURL Config': {
     type: 'data',
     aliases: ['curlrc']
   },
-  curry: {
+  Curry: {
     type: 'programming',
     extensions: ['.curry']
   },
-  cweb: {
+  CWeb: {
     type: 'programming',
     extensions: ['.w']
   },
-  cycript: {
+  Cycript: {
     type: 'programming',
     extensions: ['.cy']
   },
-  cylc: {
+  Cylc: {
     type: 'data',
     extensions: ['.cylc']
   },
-  cypher: {
+  Cypher: {
     type: 'programming',
     extensions: ['.cyp', '.cypher']
   },
-  cython: {
+  Cython: {
     type: 'programming',
     extensions: ['.pyx', '.pxd', '.pxi'],
     aliases: ['pyrex']
   },
-  d: {
+  D: {
     type: 'programming',
     extensions: ['.d', '.di'],
     aliases: ['Dlang']
   },
-  'd-objdump': {
+  'D-ObjDump': {
     type: 'data',
     extensions: ['.d-objdump']
   },
-  d2: {
+  D2: {
     type: 'markup',
     extensions: ['.d2'],
     aliases: ['d2lang']
   },
-  dafny: {
+  Dafny: {
     type: 'programming',
     extensions: ['.dfy']
   },
-  'darcs patch': {
+  'Darcs Patch': {
     type: 'data',
     extensions: ['.darcspatch', '.dpatch'],
     aliases: ['dpatch']
   },
-  dart: {
+  Dart: {
     type: 'programming',
     extensions: ['.dart']
   },
-  daslang: {
+  Daslang: {
     type: 'programming',
     extensions: ['.das']
   },
-  dataweave: {
+  DataWeave: {
     type: 'programming',
     extensions: ['.dwl']
   },
-  'debian package control file': {
+  'Debian Package Control File': {
     type: 'data',
     extensions: ['.dsc']
   },
-  denizenscript: {
+  DenizenScript: {
     type: 'programming',
     extensions: ['.dsc']
   },
@@ -672,16 +672,16 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     extensions: ['.desktop', '.desktop.in', '.service']
   },
-  dhall: {
+  Dhall: {
     type: 'programming',
     extensions: ['.dhall']
   },
-  diff: {
+  Diff: {
     type: 'data',
     extensions: ['.diff', '.patch'],
     aliases: ['udiff']
   },
-  'digital command language': {
+  'DIGITAL Command Language': {
     type: 'programming',
     extensions: ['.com'],
     aliases: ['dcl']
@@ -690,102 +690,102 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     extensions: ['.dircolors']
   },
-  'directx 3d file': {
+  'DirectX 3D File': {
     type: 'data',
     extensions: ['.x']
   },
-  dm: {
+  DM: {
     type: 'programming',
     extensions: ['.dm'],
     aliases: ['byond']
   },
-  'dns zone': {
+  'DNS Zone': {
     type: 'data',
     extensions: ['.zone', '.arpa']
   },
-  dockerfile: {
+  Dockerfile: {
     type: 'programming',
     extensions: ['.dockerfile', '.containerfile'],
     aliases: ['Containerfile']
   },
-  dogescript: {
+  Dogescript: {
     type: 'programming',
     extensions: ['.djs']
   },
-  dotenv: {
+  Dotenv: {
     type: 'data',
     extensions: ['.env']
   },
-  dtrace: {
+  DTrace: {
     type: 'programming',
     extensions: ['.d'],
     aliases: ['dtrace-script']
   },
-  dylan: {
+  Dylan: {
     type: 'programming',
     extensions: ['.dylan', '.dyl', '.intr', '.lid']
   },
-  e: {
+  E: {
     type: 'programming',
     extensions: ['.e']
   },
-  'e-mail': {
+  'E-mail': {
     type: 'data',
     extensions: ['.eml', '.mbox'],
     aliases: ['email', 'eml', 'mail', 'mbox']
   },
-  eagle: {
+  Eagle: {
     type: 'data',
     extensions: ['.sch', '.brd']
   },
-  earthly: {
+  Earthly: {
     type: 'programming',
     aliases: ['Earthfile']
   },
-  easybuild: {
+  Easybuild: {
     type: 'data',
     extensions: ['.eb']
   },
-  ebnf: {
+  EBNF: {
     type: 'data',
     extensions: ['.ebnf']
   },
-  ec: {
+  eC: {
     type: 'programming',
     extensions: ['.ec', '.eh']
   },
-  'ecere projects': {
+  'Ecere Projects': {
     type: 'data',
     extensions: ['.epj']
   },
-  ecl: {
+  ECL: {
     type: 'programming',
     extensions: ['.ecl', '.eclxml']
   },
-  eclipse: {
+  ECLiPSe: {
     type: 'programming',
     extensions: ['.ecl']
   },
-  ecmarkup: {
+  Ecmarkup: {
     type: 'markup',
     extensions: ['.html'],
     aliases: ['ecmarkdown']
   },
-  edge: {
+  Edge: {
     type: 'markup',
     extensions: ['.edge']
   },
-  edgeql: {
+  EdgeQL: {
     type: 'programming',
     extensions: ['.edgeql', '.esdl'],
     aliases: ['esdl']
   },
-  editorconfig: {
+  EditorConfig: {
     type: 'data',
     extensions: ['.editorconfig'],
     aliases: ['editor-config']
   },
-  'edje data collection': {
+  'Edje Data Collection': {
     type: 'data',
     extensions: ['.edc']
   },
@@ -793,91 +793,91 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     extensions: ['.edn']
   },
-  eiffel: {
+  Eiffel: {
     type: 'programming',
     extensions: ['.e']
   },
-  ejs: {
+  EJS: {
     type: 'markup',
     extensions: ['.ejs', '.ect', '.ejs.t', '.jst']
   },
-  elixir: {
+  Elixir: {
     type: 'programming',
     extensions: ['.ex', '.exs']
   },
-  elm: {
+  Elm: {
     type: 'programming',
     extensions: ['.elm']
   },
-  elvish: {
+  Elvish: {
     type: 'programming',
     extensions: ['.elv']
   },
-  'emacs lisp': {
+  'Emacs Lisp': {
     type: 'programming',
     extensions: ['.el', '.emacs', '.emacs.desktop'],
     aliases: ['elisp', 'emacs']
   },
-  emberscript: {
+  EmberScript: {
     type: 'programming',
     extensions: ['.em', '.emberscript']
   },
-  eq: {
+  EQ: {
     type: 'programming',
     extensions: ['.eq']
   },
-  erlang: {
+  Erlang: {
     type: 'programming',
     extensions: ['.erl', '.app', '.app.src', '.es', '.escript', '.hrl', '.xrl', '.yrl']
   },
-  euphoria: {
+  Euphoria: {
     type: 'programming',
     extensions: ['.e', '.ex']
   },
-  'f*': {
+  'F*': {
     type: 'programming',
     extensions: ['.fst', '.fsti'],
     aliases: ['fstar']
   },
-  'f#': {
+  'F#': {
     type: 'programming',
     extensions: ['.fs', '.fsi', '.fsx'],
     aliases: ['fsharp']
   },
-  factor: {
+  Factor: {
     type: 'programming',
     extensions: ['.factor']
   },
-  fancy: {
+  Fancy: {
     type: 'programming',
     extensions: ['.fy', '.fancypack']
   },
-  fantom: {
+  Fantom: {
     type: 'programming',
     extensions: ['.fan']
   },
-  faust: {
+  Faust: {
     type: 'programming',
     extensions: ['.dsp']
   },
-  fennel: {
+  Fennel: {
     type: 'programming',
     extensions: ['.fnl']
   },
-  'figlet font': {
+  'FIGlet Font': {
     type: 'data',
     extensions: ['.flf'],
     aliases: ['FIGfont']
   },
-  'filebench wml': {
+  'Filebench WML': {
     type: 'programming',
     extensions: ['.f']
   },
-  filterscript: {
+  Filterscript: {
     type: 'programming',
     extensions: ['.fs']
   },
-  firrtl: {
+  FIRRTL: {
     type: 'programming',
     extensions: ['.fir']
   },
@@ -885,119 +885,119 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.fish']
   },
-  fluent: {
+  Fluent: {
     type: 'programming',
     extensions: ['.ftl']
   },
-  flux: {
+  FLUX: {
     type: 'programming',
     extensions: ['.fx', '.flux']
   },
-  formatted: {
+  Formatted: {
     type: 'data',
     extensions: ['.for', '.eam.fs']
   },
-  forth: {
+  Forth: {
     type: 'programming',
     extensions: ['.fth', '.4th', '.f', '.for', '.forth', '.fr', '.frt', '.fs']
   },
-  fortran: {
+  Fortran: {
     type: 'programming',
     extensions: ['.f', '.f77', '.for', '.fpp']
   },
-  'fortran free form': {
+  'Fortran Free Form': {
     type: 'programming',
     extensions: ['.f90', '.f03', '.f08', '.f95']
   },
-  freebasic: {
+  FreeBASIC: {
     type: 'programming',
     extensions: ['.bi', '.bas'],
     aliases: ['fb']
   },
-  freemarker: {
+  FreeMarker: {
     type: 'programming',
     extensions: ['.ftl'],
     aliases: ['ftl']
   },
-  frege: {
+  Frege: {
     type: 'programming',
     extensions: ['.fr']
   },
-  futhark: {
+  Futhark: {
     type: 'programming',
     extensions: ['.fut']
   },
-  'g-code': {
+  'G-code': {
     type: 'programming',
     extensions: ['.g', '.cnc', '.gco', '.gcode']
   },
-  'game maker language': {
+  'Game Maker Language': {
     type: 'programming',
     extensions: ['.gml']
   },
-  gaml: {
+  GAML: {
     type: 'programming',
     extensions: ['.gaml']
   },
-  gams: {
+  GAMS: {
     type: 'programming',
     extensions: ['.gms']
   },
-  gap: {
+  GAP: {
     type: 'programming',
     extensions: ['.g', '.gap', '.gd', '.gi', '.tst']
   },
-  'gcc machine description': {
+  'GCC Machine Description': {
     type: 'programming',
     extensions: ['.md']
   },
-  gdb: {
+  GDB: {
     type: 'programming',
     extensions: ['.gdb', '.gdbinit']
   },
-  gdscript: {
+  GDScript: {
     type: 'programming',
     extensions: ['.gd']
   },
-  gdshader: {
+  GDShader: {
     type: 'programming',
     extensions: ['.gdshader', '.gdshaderinc']
   },
-  gedcom: {
+  GEDCOM: {
     type: 'data',
     extensions: ['.ged']
   },
-  gemini: {
+  Gemini: {
     type: 'prose',
     extensions: ['.gmi'],
     aliases: ['gemtext']
   },
-  'genero 4gl': {
+  'Genero 4gl': {
     type: 'programming',
     extensions: ['.4gl']
   },
-  'genero per': {
+  'Genero per': {
     type: 'markup',
     extensions: ['.per']
   },
-  genie: {
+  Genie: {
     type: 'programming',
     extensions: ['.gs']
   },
-  genshi: {
+  Genshi: {
     type: 'programming',
     extensions: ['.kid'],
     aliases: ['xml+genshi', 'xml+kid']
   },
-  'gentoo ebuild': {
+  'Gentoo Ebuild': {
     type: 'programming',
     extensions: ['.ebuild']
   },
-  'gentoo eclass': {
+  'Gentoo Eclass': {
     type: 'programming',
     extensions: ['.eclass']
   },
-  'gerber image': {
+  'Gerber Image': {
     type: 'data',
     extensions: [
       '.gbr',
@@ -1019,42 +1019,42 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['rs-274x']
   },
-  'gettext catalog': {
+  'Gettext Catalog': {
     type: 'prose',
     extensions: ['.po', '.pot'],
     aliases: ['pot']
   },
-  gherkin: {
+  Gherkin: {
     type: 'programming',
     extensions: ['.feature', '.story'],
     aliases: ['cucumber']
   },
-  'git attributes': {
+  'Git Attributes': {
     type: 'data',
     aliases: ['gitattributes']
   },
-  'git config': {
+  'Git Config': {
     type: 'data',
     extensions: ['.gitconfig'],
     aliases: ['gitconfig', 'gitmodules']
   },
-  'git revision list': {
+  'Git Revision List': {
     type: 'data',
     aliases: ['Git Blame Ignore Revs']
   },
-  gleam: {
+  Gleam: {
     type: 'programming',
     extensions: ['.gleam']
   },
-  'glimmer js': {
+  'Glimmer JS': {
     type: 'programming',
     extensions: ['.gjs']
   },
-  'glimmer ts': {
+  'Glimmer TS': {
     type: 'programming',
     extensions: ['.gts']
   },
-  glsl: {
+  GLSL: {
     type: 'programming',
     extensions: [
       '.glsl',
@@ -1082,148 +1082,148 @@ export const languages: Record<string, LanguageData> = {
       '.vshader'
     ]
   },
-  glyph: {
+  Glyph: {
     type: 'programming',
     extensions: ['.glf']
   },
-  'glyph bitmap distribution format': {
+  'Glyph Bitmap Distribution Format': {
     type: 'data',
     extensions: ['.bdf']
   },
-  gn: {
+  GN: {
     type: 'data',
     extensions: ['.gn', '.gni']
   },
-  gnuplot: {
+  Gnuplot: {
     type: 'programming',
     extensions: ['.gp', '.gnu', '.gnuplot', '.p', '.plot', '.plt']
   },
-  go: {
+  Go: {
     type: 'programming',
     extensions: ['.go'],
     aliases: ['golang']
   },
-  'go checksums': {
+  'Go Checksums': {
     type: 'data',
     aliases: ['go.sum', 'go sum', 'go.work.sum', 'go work sum']
   },
-  'go module': {
+  'Go Module': {
     type: 'data',
     aliases: ['go.mod', 'go mod']
   },
-  'go workspace': {
+  'Go Workspace': {
     type: 'data',
     aliases: ['go.work', 'go work']
   },
-  'godot resource': {
+  'Godot Resource': {
     type: 'data',
     extensions: ['.gdnlib', '.gdns', '.tres', '.tscn']
   },
-  golo: {
+  Golo: {
     type: 'programming',
     extensions: ['.golo']
   },
-  gosu: {
+  Gosu: {
     type: 'programming',
     extensions: ['.gs', '.gst', '.gsx', '.vark']
   },
-  grace: {
+  Grace: {
     type: 'programming',
     extensions: ['.grace']
   },
-  gradle: {
+  Gradle: {
     type: 'data',
     extensions: ['.gradle']
   },
-  'gradle kotlin dsl': {
+  'Gradle Kotlin DSL': {
     type: 'data',
     extensions: ['.gradle.kts']
   },
-  'grammatical framework': {
+  'Grammatical Framework': {
     type: 'programming',
     extensions: ['.gf'],
     aliases: ['gf']
   },
-  'graph modeling language': {
+  'Graph Modeling Language': {
     type: 'data',
     extensions: ['.gml']
   },
-  graphql: {
+  GraphQL: {
     type: 'data',
     extensions: ['.graphql', '.gql', '.graphqls']
   },
-  'graphviz (dot)': {
+  'Graphviz (DOT)': {
     type: 'data',
     extensions: ['.dot', '.gv']
   },
-  groovy: {
+  Groovy: {
     type: 'programming',
     extensions: ['.groovy', '.grt', '.gtpl', '.gvy']
   },
-  'groovy server pages': {
+  'Groovy Server Pages': {
     type: 'programming',
     extensions: ['.gsp'],
     aliases: ['gsp', 'java server page']
   },
-  gsc: {
+  GSC: {
     type: 'programming',
     extensions: ['.gsc', '.csc', '.gsh']
   },
-  hack: {
+  Hack: {
     type: 'programming',
     extensions: ['.hack', '.hh', '.hhi', '.php']
   },
-  haml: {
+  Haml: {
     type: 'markup',
     extensions: ['.haml', '.haml.deface']
   },
-  handlebars: {
+  Handlebars: {
     type: 'markup',
     extensions: ['.handlebars', '.hbs'],
     aliases: ['hbs', 'htmlbars']
   },
-  haproxy: {
+  HAProxy: {
     type: 'data',
     extensions: ['.cfg']
   },
-  harbour: {
+  Harbour: {
     type: 'programming',
     extensions: ['.hb']
   },
-  hare: {
+  Hare: {
     type: 'programming',
     extensions: ['.ha']
   },
-  haskell: {
+  Haskell: {
     type: 'programming',
     extensions: ['.hs', '.hs-boot', '.hsc']
   },
-  haxe: {
+  Haxe: {
     type: 'programming',
     extensions: ['.hx', '.hxsl']
   },
-  hcl: {
+  HCL: {
     type: 'programming',
     extensions: ['.hcl', '.nomad', '.tf', '.tfvars', '.workflow'],
     aliases: ['HashiCorp Configuration Language', 'terraform']
   },
-  hip: {
+  HIP: {
     type: 'programming',
     extensions: ['.hip']
   },
-  hiveql: {
+  HiveQL: {
     type: 'programming',
     extensions: ['.q', '.hql']
   },
-  hlsl: {
+  HLSL: {
     type: 'programming',
     extensions: ['.hlsl', '.cginc', '.fx', '.fxh', '.hlsli']
   },
-  hocon: {
+  HOCON: {
     type: 'data',
     extensions: ['.hocon']
   },
-  holyc: {
+  HolyC: {
     type: 'programming',
     extensions: ['.hc']
   },
@@ -1231,162 +1231,162 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.hoon']
   },
-  'hosts file': {
+  'Hosts File': {
     type: 'data',
     aliases: ['hosts']
   },
-  html: {
+  HTML: {
     type: 'markup',
     extensions: ['.html', '.hta', '.htm', '.html.hl', '.inc', '.xht', '.xhtml'],
     aliases: ['xhtml']
   },
-  'html+ecr': {
+  'HTML+ECR': {
     type: 'markup',
     extensions: ['.ecr'],
     aliases: ['ecr']
   },
-  'html+eex': {
+  'HTML+EEX': {
     type: 'markup',
     extensions: ['.html.eex', '.heex', '.leex'],
     aliases: ['eex', 'heex', 'leex']
   },
-  'html+erb': {
+  'HTML+ERB': {
     type: 'markup',
     extensions: ['.erb', '.erb.deface', '.rhtml'],
     aliases: ['erb', 'rhtml', 'html+ruby']
   },
-  'html+php': {
+  'HTML+PHP': {
     type: 'markup',
     extensions: ['.phtml']
   },
-  'html+razor': {
+  'HTML+Razor': {
     type: 'markup',
     extensions: ['.cshtml', '.razor'],
     aliases: ['razor']
   },
-  http: {
+  HTTP: {
     type: 'data',
     extensions: ['.http']
   },
-  hxml: {
+  HXML: {
     type: 'data',
     extensions: ['.hxml']
   },
-  hy: {
+  Hy: {
     type: 'programming',
     extensions: ['.hy'],
     aliases: ['hylang']
   },
-  hyphy: {
+  HyPhy: {
     type: 'programming',
     extensions: ['.bf']
   },
-  icalendar: {
+  iCalendar: {
     type: 'data',
     extensions: ['.ics', '.ical'],
     aliases: ['iCal']
   },
-  idl: {
+  IDL: {
     type: 'programming',
     extensions: ['.pro', '.dlm']
   },
-  idris: {
+  Idris: {
     type: 'programming',
     extensions: ['.idr', '.lidr']
   },
-  'ignore list': {
+  'Ignore List': {
     type: 'data',
     extensions: ['.gitignore'],
     aliases: ['ignore', 'gitignore', 'git-ignore']
   },
-  'igor pro': {
+  'IGOR Pro': {
     type: 'programming',
     extensions: ['.ipf'],
     aliases: ['igor', 'igorpro']
   },
-  'imagej macro': {
+  'ImageJ Macro': {
     type: 'programming',
     extensions: ['.ijm'],
     aliases: ['ijm']
   },
-  imba: {
+  Imba: {
     type: 'programming',
     extensions: ['.imba']
   },
-  'inform 7': {
+  'Inform 7': {
     type: 'programming',
     extensions: ['.ni', '.i7x'],
     aliases: ['i7', 'inform7']
   },
-  ini: {
+  INI: {
     type: 'data',
     extensions: ['.ini', '.cfg', '.cnf', '.dof', '.frm', '.lektorproject', '.prefs', '.pro', '.properties', '.url'],
     aliases: ['dosini']
   },
-  ink: {
+  Ink: {
     type: 'programming',
     extensions: ['.ink']
   },
-  'inno setup': {
+  'Inno Setup': {
     type: 'programming',
     extensions: ['.iss', '.isl']
   },
-  io: {
+  Io: {
     type: 'programming',
     extensions: ['.io']
   },
-  ioke: {
+  Ioke: {
     type: 'programming',
     extensions: ['.ik']
   },
-  'irc log': {
+  'IRC log': {
     type: 'data',
     extensions: ['.irclog', '.weechatlog'],
     aliases: ['irc', 'irc logs']
   },
-  isabelle: {
+  Isabelle: {
     type: 'programming',
     extensions: ['.thy']
   },
-  ispc: {
+  ISPC: {
     type: 'programming',
     extensions: ['.ispc']
   },
-  j: {
+  J: {
     type: 'programming',
     extensions: ['.ijs']
   },
-  jai: {
+  Jai: {
     type: 'programming',
     extensions: ['.jai']
   },
-  janet: {
+  Janet: {
     type: 'programming',
     extensions: ['.janet']
   },
-  jasmin: {
+  Jasmin: {
     type: 'programming',
     extensions: ['.j']
   },
-  java: {
+  Java: {
     type: 'programming',
     extensions: ['.java', '.jav', '.jsh']
   },
-  'java properties': {
+  'Java Properties': {
     type: 'data',
     extensions: ['.properties']
   },
-  'java server pages': {
+  'Java Server Pages': {
     type: 'programming',
     extensions: ['.jsp', '.tag'],
     aliases: ['jsp']
   },
-  'java template engine': {
+  'Java Template Engine': {
     type: 'programming',
     extensions: ['.jte'],
     aliases: ['jte']
   },
-  javascript: {
+  JavaScript: {
     type: 'programming',
     extensions: [
       '.js',
@@ -1417,41 +1417,41 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['js', 'node']
   },
-  'javascript+erb': {
+  'JavaScript+ERB': {
     type: 'programming',
     extensions: ['.js.erb']
   },
-  jcl: {
+  JCL: {
     type: 'programming',
     extensions: ['.jcl']
   },
-  'jest snapshot': {
+  'Jest Snapshot': {
     type: 'data',
     extensions: ['.snap']
   },
-  'jetbrains mps': {
+  'JetBrains MPS': {
     type: 'programming',
     extensions: ['.mps', '.mpl', '.msd'],
     aliases: ['mps']
   },
-  jflex: {
+  JFlex: {
     type: 'programming',
     extensions: ['.flex', '.jflex']
   },
-  jinja: {
+  Jinja: {
     type: 'markup',
     extensions: ['.jinja', '.j2', '.jinja2'],
     aliases: ['django', 'html+django', 'html+jinja', 'htmldjango']
   },
-  jison: {
+  Jison: {
     type: 'programming',
     extensions: ['.jison']
   },
-  'jison lex': {
+  'Jison Lex': {
     type: 'programming',
     extensions: ['.jisonlex']
   },
-  jolie: {
+  Jolie: {
     type: 'programming',
     extensions: ['.ol', '.iol']
   },
@@ -1459,7 +1459,7 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.jq']
   },
-  json: {
+  JSON: {
     type: 'data',
     extensions: [
       '.json',
@@ -1486,7 +1486,7 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['geojson', 'jsonl', 'sarif', 'topojson']
   },
-  'json with comments': {
+  'JSON with Comments': {
     type: 'data',
     extensions: [
       '.jsonc',
@@ -1509,89 +1509,89 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['jsonc']
   },
-  json5: {
+  JSON5: {
     type: 'data',
     extensions: ['.json5']
   },
-  jsoniq: {
+  JSONiq: {
     type: 'programming',
     extensions: ['.jq']
   },
-  jsonld: {
+  JSONLD: {
     type: 'data',
     extensions: ['.jsonld']
   },
-  jsonnet: {
+  Jsonnet: {
     type: 'programming',
     extensions: ['.jsonnet', '.libsonnet']
   },
-  julia: {
+  Julia: {
     type: 'programming',
     extensions: ['.jl']
   },
-  'jupyter notebook': {
+  'Jupyter Notebook': {
     type: 'markup',
     extensions: ['.ipynb'],
     aliases: ['IPython Notebook']
   },
-  just: {
+  Just: {
     type: 'programming',
     extensions: ['.just'],
     aliases: ['Justfile']
   },
-  'kaitai struct': {
+  'Kaitai Struct': {
     type: 'programming',
     extensions: ['.ksy'],
     aliases: ['ksy']
   },
-  kakounescript: {
+  KakouneScript: {
     type: 'programming',
     extensions: ['.kak'],
     aliases: ['kak', 'kakscript']
   },
-  kdl: {
+  KDL: {
     type: 'data',
     extensions: ['.kdl']
   },
-  kerboscript: {
+  KerboScript: {
     type: 'programming',
     extensions: ['.ks']
   },
-  'kicad layout': {
+  'KiCad Layout': {
     type: 'data',
     extensions: ['.kicad_pcb', '.kicad_mod', '.kicad_wks'],
     aliases: ['pcbnew']
   },
-  'kicad legacy layout': {
+  'KiCad Legacy Layout': {
     type: 'data',
     extensions: ['.brd']
   },
-  'kicad schematic': {
+  'KiCad Schematic': {
     type: 'data',
     extensions: ['.kicad_sch', '.kicad_sym', '.sch'],
     aliases: ['eeschema schematic']
   },
-  kickstart: {
+  Kickstart: {
     type: 'data',
     extensions: ['.ks']
   },
-  kit: {
+  Kit: {
     type: 'markup',
     extensions: ['.kit']
   },
-  koka: {
+  Koka: {
     type: 'programming',
     extensions: ['.kk']
   },
-  kotlin: {
+  Kotlin: {
     type: 'programming',
     extensions: ['.kt', '.ktm', '.kts']
   },
-  krl: {
+  KRL: {
     type: 'programming',
     extensions: ['.krl']
   },
-  kusto: {
+  Kusto: {
     type: 'data',
     extensions: ['.csl', '.kql']
   },
@@ -1599,174 +1599,174 @@ export const languages: Record<string, LanguageData> = {
     type: 'markup',
     extensions: ['.kv']
   },
-  labview: {
+  LabVIEW: {
     type: 'programming',
     extensions: ['.lvproj', '.lvclass', '.lvlib']
   },
-  lark: {
+  Lark: {
     type: 'data',
     extensions: ['.lark']
   },
-  lasso: {
+  Lasso: {
     type: 'programming',
     extensions: ['.lasso', '.las', '.lasso8', '.lasso9'],
     aliases: ['lassoscript']
   },
-  latte: {
+  Latte: {
     type: 'markup',
     extensions: ['.latte']
   },
-  lean: {
+  Lean: {
     type: 'programming',
     extensions: ['.lean', '.hlean']
   },
-  'lean 4': {
+  'Lean 4': {
     type: 'programming',
     extensions: ['.lean']
   },
-  leo: {
+  Leo: {
     type: 'programming',
     extensions: ['.leo']
   },
-  less: {
+  Less: {
     type: 'markup',
     extensions: ['.less'],
     aliases: ['less-css']
   },
-  lex: {
+  Lex: {
     type: 'programming',
     extensions: ['.l', '.lex'],
     aliases: ['flex']
   },
-  lfe: {
+  LFE: {
     type: 'programming',
     extensions: ['.lfe']
   },
-  ligolang: {
+  LigoLANG: {
     type: 'programming',
     extensions: ['.ligo']
   },
-  lilypond: {
+  LilyPond: {
     type: 'programming',
     extensions: ['.ly', '.ily']
   },
-  limbo: {
+  Limbo: {
     type: 'programming',
     extensions: ['.b', '.m']
   },
-  'linear programming': {
+  'Linear Programming': {
     type: 'programming',
     extensions: ['.lp']
   },
-  'linker script': {
+  'Linker Script': {
     type: 'programming',
     extensions: ['.ld', '.lds', '.x']
   },
-  'linux kernel module': {
+  'Linux Kernel Module': {
     type: 'data',
     extensions: ['.mod']
   },
-  liquid: {
+  Liquid: {
     type: 'markup',
     extensions: ['.liquid']
   },
-  'literate agda': {
+  'Literate Agda': {
     type: 'programming',
     extensions: ['.lagda']
   },
-  'literate coffeescript': {
+  'Literate CoffeeScript': {
     type: 'programming',
     extensions: ['.litcoffee', '.coffee.md'],
     aliases: ['litcoffee']
   },
-  'literate haskell': {
+  'Literate Haskell': {
     type: 'programming',
     extensions: ['.lhs'],
     aliases: ['lhaskell', 'lhs']
   },
-  'livecode script': {
+  'LiveCode Script': {
     type: 'programming',
     extensions: ['.livecodescript']
   },
-  livescript: {
+  LiveScript: {
     type: 'programming',
     extensions: ['.ls', '._ls'],
     aliases: ['live-script', 'ls']
   },
-  llvm: {
+  LLVM: {
     type: 'programming',
     extensions: ['.ll']
   },
-  logos: {
+  Logos: {
     type: 'programming',
     extensions: ['.xm', '.x', '.xi']
   },
-  logtalk: {
+  Logtalk: {
     type: 'programming',
     extensions: ['.lgt', '.logtalk']
   },
-  lolcode: {
+  LOLCODE: {
     type: 'programming',
     extensions: ['.lol']
   },
-  lookml: {
+  LookML: {
     type: 'programming',
     extensions: ['.lkml', '.lookml']
   },
-  loomscript: {
+  LoomScript: {
     type: 'programming',
     extensions: ['.ls']
   },
-  lsl: {
+  LSL: {
     type: 'programming',
     extensions: ['.lsl', '.lslp']
   },
-  'ltspice symbol': {
+  'LTspice Symbol': {
     type: 'data',
     extensions: ['.asy']
   },
-  lua: {
+  Lua: {
     type: 'programming',
     extensions: ['.lua', '.fcgi', '.nse', '.p8', '.pd_lua', '.rbxs', '.rockspec', '.wlua']
   },
-  luau: {
+  Luau: {
     type: 'programming',
     extensions: ['.luau']
   },
-  m: {
+  M: {
     type: 'programming',
     extensions: ['.mumps', '.m'],
     aliases: ['mumps']
   },
-  m3u: {
+  M3U: {
     type: 'data',
     extensions: ['.m3u', '.m3u8'],
     aliases: ['hls playlist', 'm3u playlist']
   },
-  m4: {
+  M4: {
     type: 'programming',
     extensions: ['.m4', '.mc']
   },
-  m4sugar: {
+  M4Sugar: {
     type: 'programming',
     extensions: ['.m4'],
     aliases: ['autoconf']
   },
-  macaulay2: {
+  Macaulay2: {
     type: 'programming',
     extensions: ['.m2'],
     aliases: ['m2']
   },
-  makefile: {
+  Makefile: {
     type: 'programming',
     extensions: ['.mak', '.d', '.make', '.makefile', '.mk', '.mkfile'],
     aliases: ['bsdmake', 'make', 'mf']
   },
-  mako: {
+  Mako: {
     type: 'programming',
     extensions: ['.mako', '.mao']
   },
-  markdown: {
+  Markdown: {
     type: 'prose',
     extensions: [
       '.md',
@@ -1783,31 +1783,31 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['md', 'pandoc']
   },
-  marko: {
+  Marko: {
     type: 'markup',
     extensions: ['.marko'],
     aliases: ['markojs']
   },
-  mask: {
+  Mask: {
     type: 'markup',
     extensions: ['.mask']
   },
-  mathematica: {
+  Mathematica: {
     type: 'programming',
     extensions: ['.mathematica', '.cdf', '.m', '.ma', '.mt', '.nb', '.nbp', '.wl', '.wlt'],
     aliases: ['mma', 'wolfram', 'wolfram language', 'wolfram lang', 'wl']
   },
-  matlab: {
+  MATLAB: {
     type: 'programming',
     extensions: ['.matlab', '.m'],
     aliases: ['octave']
   },
-  max: {
+  Max: {
     type: 'programming',
     extensions: ['.maxpat', '.maxhelp', '.maxproj', '.mxt', '.pat'],
     aliases: ['max/msp', 'maxmsp']
   },
-  maxscript: {
+  MAXScript: {
     type: 'programming',
     extensions: ['.ms', '.mcr']
   },
@@ -1819,129 +1819,129 @@ export const languages: Record<string, LanguageData> = {
     type: 'markup',
     extensions: ['.svx']
   },
-  mdx: {
+  MDX: {
     type: 'markup',
     extensions: ['.mdx']
   },
-  mercury: {
+  Mercury: {
     type: 'programming',
     extensions: ['.m', '.moo']
   },
-  mermaid: {
+  Mermaid: {
     type: 'markup',
     extensions: ['.mmd', '.mermaid'],
     aliases: ['mermaid example']
   },
-  metal: {
+  Metal: {
     type: 'programming',
     extensions: ['.metal']
   },
-  'microsoft developer studio project': {
+  'Microsoft Developer Studio Project': {
     type: 'data',
     extensions: ['.dsp']
   },
-  'microsoft visual studio solution': {
+  'Microsoft Visual Studio Solution': {
     type: 'data',
     extensions: ['.sln']
   },
-  minid: {
+  MiniD: {
     type: 'programming',
     extensions: ['.minid']
   },
-  miniyaml: {
+  MiniYAML: {
     type: 'data',
     extensions: ['.yaml', '.yml']
   },
-  minizinc: {
+  MiniZinc: {
     type: 'programming',
     extensions: ['.mzn']
   },
-  'minizinc data': {
+  'MiniZinc Data': {
     type: 'data',
     extensions: ['.dzn']
   },
-  mint: {
+  Mint: {
     type: 'programming',
     extensions: ['.mint']
   },
-  mirah: {
+  Mirah: {
     type: 'programming',
     extensions: ['.druby', '.duby', '.mirah']
   },
-  'mirc script': {
+  'mIRC Script': {
     type: 'programming',
     extensions: ['.mrc']
   },
-  mlir: {
+  MLIR: {
     type: 'programming',
     extensions: ['.mlir']
   },
-  modelica: {
+  Modelica: {
     type: 'programming',
     extensions: ['.mo']
   },
-  'modula-2': {
+  'Modula-2': {
     type: 'programming',
     extensions: ['.mod']
   },
-  'modula-3': {
+  'Modula-3': {
     type: 'programming',
     extensions: ['.i3', '.ig', '.m3', '.mg']
   },
-  'module management system': {
+  'Module Management System': {
     type: 'programming',
     extensions: ['.mms', '.mmk']
   },
-  mojo: {
+  Mojo: {
     type: 'programming',
     extensions: ['.mojo']
   },
-  monkey: {
+  Monkey: {
     type: 'programming',
     extensions: ['.monkey', '.monkey2']
   },
-  'monkey c': {
+  'Monkey C': {
     type: 'programming',
     extensions: ['.mc']
   },
-  moocode: {
+  Moocode: {
     type: 'programming',
     extensions: ['.moo']
   },
-  moonbit: {
+  MoonBit: {
     type: 'programming',
     extensions: ['.mbt']
   },
-  moonscript: {
+  MoonScript: {
     type: 'programming',
     extensions: ['.moon']
   },
-  motoko: {
+  Motoko: {
     type: 'programming',
     extensions: ['.mo']
   },
-  'motorola 68k assembly': {
+  'Motorola 68K Assembly': {
     type: 'programming',
     extensions: ['.asm', '.i', '.inc', '.s', '.x68'],
     aliases: ['m68k']
   },
-  move: {
+  Move: {
     type: 'programming',
     extensions: ['.move']
   },
-  mql4: {
+  MQL4: {
     type: 'programming',
     extensions: ['.mq4', '.mqh']
   },
-  mql5: {
+  MQL5: {
     type: 'programming',
     extensions: ['.mq5', '.mqh']
   },
-  mtml: {
+  MTML: {
     type: 'markup',
     extensions: ['.mtml']
   },
-  muf: {
+  MUF: {
     type: 'programming',
     extensions: ['.muf', '.m']
   },
@@ -1949,16 +1949,16 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.mu']
   },
-  muse: {
+  Muse: {
     type: 'prose',
     extensions: ['.muse'],
     aliases: ['amusewiki', 'emacs muse']
   },
-  mustache: {
+  Mustache: {
     type: 'markup',
     extensions: ['.mustache']
   },
-  myghty: {
+  Myghty: {
     type: 'programming',
     extensions: ['.myt']
   },
@@ -1966,187 +1966,187 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     extensions: ['.nanorc']
   },
-  nasal: {
+  Nasal: {
     type: 'programming',
     extensions: ['.nas']
   },
-  nasl: {
+  NASL: {
     type: 'programming',
     extensions: ['.nasl', '.inc']
   },
-  ncl: {
+  NCL: {
     type: 'programming',
     extensions: ['.ncl']
   },
-  nearley: {
+  Nearley: {
     type: 'programming',
     extensions: ['.ne', '.nearley']
   },
-  nemerle: {
+  Nemerle: {
     type: 'programming',
     extensions: ['.n']
   },
-  neon: {
+  NEON: {
     type: 'data',
     extensions: ['.neon'],
     aliases: ['nette object notation', 'ne-on']
   },
-  nesc: {
+  nesC: {
     type: 'programming',
     extensions: ['.nc']
   },
-  netlinx: {
+  NetLinx: {
     type: 'programming',
     extensions: ['.axs', '.axi']
   },
-  'netlinx+erb': {
+  'NetLinx+ERB': {
     type: 'programming',
     extensions: ['.axs.erb', '.axi.erb']
   },
-  netlogo: {
+  NetLogo: {
     type: 'programming',
     extensions: ['.nlogo']
   },
-  newlisp: {
+  NewLisp: {
     type: 'programming',
     extensions: ['.nl', '.lisp', '.lsp']
   },
-  nextflow: {
+  Nextflow: {
     type: 'programming',
     extensions: ['.nf']
   },
-  nginx: {
+  Nginx: {
     type: 'data',
     extensions: ['.nginx', '.nginxconf', '.vhost'],
     aliases: ['nginx configuration file']
   },
-  nim: {
+  Nim: {
     type: 'programming',
     extensions: ['.nim', '.nim.cfg', '.nimble', '.nimrod', '.nims']
   },
-  ninja: {
+  Ninja: {
     type: 'data',
     extensions: ['.ninja']
   },
-  nit: {
+  Nit: {
     type: 'programming',
     extensions: ['.nit']
   },
-  nix: {
+  Nix: {
     type: 'programming',
     extensions: ['.nix'],
     aliases: ['nixos']
   },
-  nl: {
+  NL: {
     type: 'data',
     extensions: ['.nl']
   },
-  nmodl: {
+  NMODL: {
     type: 'programming',
     extensions: ['.mod']
   },
-  noir: {
+  Noir: {
     type: 'programming',
     extensions: ['.nr'],
     aliases: ['nargo']
   },
-  'npm config': {
+  'NPM Config': {
     type: 'data',
     aliases: ['npmrc']
   },
-  nsis: {
+  NSIS: {
     type: 'programming',
     extensions: ['.nsi', '.nsh']
   },
-  nu: {
+  Nu: {
     type: 'programming',
     extensions: ['.nu'],
     aliases: ['nush']
   },
-  numpy: {
+  NumPy: {
     type: 'programming',
     extensions: ['.numpy', '.numpyw', '.numsc']
   },
-  nunjucks: {
+  Nunjucks: {
     type: 'markup',
     extensions: ['.njk'],
     aliases: ['njk']
   },
-  nushell: {
+  Nushell: {
     type: 'programming',
     extensions: ['.nu'],
     aliases: ['nu-script', 'nushell-script']
   },
-  nwscript: {
+  NWScript: {
     type: 'programming',
     extensions: ['.nss']
   },
-  'oasv2-json': {
+  'OASv2-json': {
     type: 'data',
     extensions: ['.json']
   },
-  'oasv2-yaml': {
+  'OASv2-yaml': {
     type: 'data',
     extensions: ['.yaml', '.yml']
   },
-  'oasv3-json': {
+  'OASv3-json': {
     type: 'data',
     extensions: ['.json']
   },
-  'oasv3-yaml': {
+  'OASv3-yaml': {
     type: 'data',
     extensions: ['.yaml', '.yml']
   },
-  oberon: {
+  Oberon: {
     type: 'programming',
     extensions: ['.ob2']
   },
-  objdump: {
+  ObjDump: {
     type: 'data',
     extensions: ['.objdump']
   },
-  'object data instance notation': {
+  'Object Data Instance Notation': {
     type: 'data',
     extensions: ['.odin']
   },
-  'objective-c': {
+  'Objective-C': {
     type: 'programming',
     extensions: ['.m', '.h'],
     aliases: ['obj-c', 'objc', 'objectivec']
   },
-  'objective-c++': {
+  'Objective-C++': {
     type: 'programming',
     extensions: ['.mm'],
     aliases: ['obj-c++', 'objc++', 'objectivec++']
   },
-  'objective-j': {
+  'Objective-J': {
     type: 'programming',
     extensions: ['.j', '.sj'],
     aliases: ['obj-j', 'objectivej', 'objj']
   },
-  objectscript: {
+  ObjectScript: {
     type: 'programming',
     extensions: ['.cls']
   },
-  ocaml: {
+  OCaml: {
     type: 'programming',
     extensions: ['.ml', '.eliom', '.eliomi', '.ml4', '.mli', '.mll', '.mly']
   },
-  odin: {
+  Odin: {
     type: 'programming',
     extensions: ['.odin'],
     aliases: ['odinlang', 'odin-lang']
   },
-  omgrofl: {
+  Omgrofl: {
     type: 'programming',
     extensions: ['.omgrofl']
   },
-  'omnet++ msg': {
+  'OMNeT++ MSG': {
     type: 'programming',
     extensions: ['.msg'],
     aliases: ['omnetpp-msg']
   },
-  'omnet++ ned': {
+  'OMNeT++ NED': {
     type: 'programming',
     extensions: ['.ned'],
     aliases: ['omnetpp-ned']
@@ -2155,175 +2155,175 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.ooc']
   },
-  opa: {
+  Opa: {
     type: 'programming',
     extensions: ['.opa']
   },
-  opal: {
+  Opal: {
     type: 'programming',
     extensions: ['.opal']
   },
-  'open policy agent': {
+  'Open Policy Agent': {
     type: 'programming',
     extensions: ['.rego']
   },
-  'openapi specification v2': {
+  'OpenAPI Specification v2': {
     type: 'data',
     aliases: ['oasv2']
   },
-  'openapi specification v3': {
+  'OpenAPI Specification v3': {
     type: 'data',
     aliases: ['oasv3']
   },
-  opencl: {
+  OpenCL: {
     type: 'programming',
     extensions: ['.cl', '.opencl']
   },
-  'openedge abl': {
+  'OpenEdge ABL': {
     type: 'programming',
     extensions: ['.p', '.cls', '.w'],
     aliases: ['progress', 'openedge', 'abl']
   },
-  openqasm: {
+  OpenQASM: {
     type: 'programming',
     extensions: ['.qasm']
   },
-  'openrc runscript': {
+  'OpenRC runscript': {
     type: 'programming',
     aliases: ['openrc']
   },
-  openscad: {
+  OpenSCAD: {
     type: 'programming',
     extensions: ['.scad']
   },
-  'openstep property list': {
+  'OpenStep Property List': {
     type: 'data',
     extensions: ['.plist', '.glyphs']
   },
-  'opentype feature file': {
+  'OpenType Feature File': {
     type: 'data',
     extensions: ['.fea'],
     aliases: ['AFDKO']
   },
-  'option list': {
+  'Option List': {
     type: 'data',
     aliases: ['opts', 'ackrc']
   },
-  org: {
+  Org: {
     type: 'prose',
     extensions: ['.org']
   },
-  overpassql: {
+  OverpassQL: {
     type: 'programming',
     extensions: ['.overpassql']
   },
-  ox: {
+  Ox: {
     type: 'programming',
     extensions: ['.ox', '.oxh', '.oxo']
   },
-  oxygene: {
+  Oxygene: {
     type: 'programming',
     extensions: ['.oxygene']
   },
-  oz: {
+  Oz: {
     type: 'programming',
     extensions: ['.oz']
   },
-  p4: {
+  P4: {
     type: 'programming',
     extensions: ['.p4']
   },
-  pact: {
+  Pact: {
     type: 'programming',
     extensions: ['.pact']
   },
-  pan: {
+  Pan: {
     type: 'programming',
     extensions: ['.pan']
   },
-  papyrus: {
+  Papyrus: {
     type: 'programming',
     extensions: ['.psc']
   },
-  parrot: {
+  Parrot: {
     type: 'programming',
     extensions: ['.parrot']
   },
-  'parrot assembly': {
+  'Parrot Assembly': {
     type: 'programming',
     extensions: ['.pasm'],
     aliases: ['pasm']
   },
-  'parrot internal representation': {
+  'Parrot Internal Representation': {
     type: 'programming',
     extensions: ['.pir'],
     aliases: ['pir']
   },
-  pascal: {
+  Pascal: {
     type: 'programming',
     extensions: ['.pas', '.dfm', '.dpr', '.inc', '.lpr', '.pascal', '.pp'],
     aliases: ['delphi', 'objectpascal']
   },
-  pawn: {
+  Pawn: {
     type: 'programming',
     extensions: ['.pwn', '.inc', '.sma']
   },
-  pddl: {
+  PDDL: {
     type: 'programming',
     extensions: ['.pddl']
   },
-  'peg.js': {
+  'PEG.js': {
     type: 'programming',
     extensions: ['.pegjs', '.peggy']
   },
-  pep8: {
+  Pep8: {
     type: 'programming',
     extensions: ['.pep']
   },
-  perl: {
+  Perl: {
     type: 'programming',
     extensions: ['.pl', '.al', '.cgi', '.fcgi', '.perl', '.ph', '.plx', '.pm', '.psgi', '.t'],
     aliases: ['cperl']
   },
-  php: {
+  PHP: {
     type: 'programming',
     extensions: ['.php', '.aw', '.ctp', '.fcgi', '.inc', '.php3', '.php4', '.php5', '.phps', '.phpt'],
     aliases: ['inc']
   },
-  pic: {
+  Pic: {
     type: 'markup',
     extensions: ['.pic', '.chem'],
     aliases: ['pikchr']
   },
-  pickle: {
+  Pickle: {
     type: 'data',
     extensions: ['.pkl']
   },
-  picolisp: {
+  PicoLisp: {
     type: 'programming',
     extensions: ['.l']
   },
-  piglatin: {
+  PigLatin: {
     type: 'programming',
     extensions: ['.pig']
   },
-  pike: {
+  Pike: {
     type: 'programming',
     extensions: ['.pike', '.pmod']
   },
-  pkl: {
+  Pkl: {
     type: 'programming',
     extensions: ['.pkl']
   },
-  plantuml: {
+  PlantUML: {
     type: 'data',
     extensions: ['.puml', '.iuml', '.plantuml']
   },
-  plpgsql: {
+  PLpgSQL: {
     type: 'programming',
     extensions: ['.pgsql', '.sql']
   },
-  plsql: {
+  PLSQL: {
     type: 'programming',
     extensions: [
       '.pls',
@@ -2344,120 +2344,120 @@ export const languages: Record<string, LanguageData> = {
       '.vw'
     ]
   },
-  pod: {
+  Pod: {
     type: 'prose',
     extensions: ['.pod']
   },
-  'pod 6': {
+  'Pod 6': {
     type: 'prose',
     extensions: ['.pod', '.pod6']
   },
-  pogoscript: {
+  PogoScript: {
     type: 'programming',
     extensions: ['.pogo']
   },
-  polar: {
+  Polar: {
     type: 'programming',
     extensions: ['.polar']
   },
-  pony: {
+  Pony: {
     type: 'programming',
     extensions: ['.pony']
   },
-  portugol: {
+  Portugol: {
     type: 'programming',
     extensions: ['.por']
   },
-  postcss: {
+  PostCSS: {
     type: 'markup',
     extensions: ['.pcss', '.postcss']
   },
-  postscript: {
+  PostScript: {
     type: 'markup',
     extensions: ['.ps', '.eps', '.epsi', '.pfa'],
     aliases: ['postscr']
   },
-  'pov-ray sdl': {
+  'POV-Ray SDL': {
     type: 'programming',
     extensions: ['.pov', '.inc'],
     aliases: ['pov-ray', 'povray']
   },
-  powerbuilder: {
+  PowerBuilder: {
     type: 'programming',
     extensions: ['.pbt', '.sra', '.sru', '.srw']
   },
-  powershell: {
+  PowerShell: {
     type: 'programming',
     extensions: ['.ps1', '.psd1', '.psm1'],
     aliases: ['posh', 'pwsh']
   },
-  praat: {
+  Praat: {
     type: 'programming',
     extensions: ['.praat']
   },
-  prisma: {
+  Prisma: {
     type: 'data',
     extensions: ['.prisma']
   },
-  processing: {
+  Processing: {
     type: 'programming',
     extensions: ['.pde']
   },
-  proguard: {
+  Proguard: {
     type: 'data',
     extensions: ['.pro']
   },
-  prolog: {
+  Prolog: {
     type: 'programming',
     extensions: ['.pl', '.plt', '.pro', '.prolog', '.yap']
   },
-  promela: {
+  Promela: {
     type: 'programming',
     extensions: ['.pml']
   },
-  'propeller spin': {
+  'Propeller Spin': {
     type: 'programming',
     extensions: ['.spin']
   },
-  'protocol buffer': {
+  'Protocol Buffer': {
     type: 'data',
     extensions: ['.proto'],
     aliases: ['proto', 'protobuf', 'Protocol Buffers']
   },
-  'protocol buffer text format': {
+  'Protocol Buffer Text Format': {
     type: 'data',
     extensions: ['.textproto', '.pbt', '.pbtxt'],
     aliases: ['text proto', 'protobuf text format']
   },
-  'public key': {
+  'Public Key': {
     type: 'data',
     extensions: ['.asc', '.pub']
   },
-  pug: {
+  Pug: {
     type: 'markup',
     extensions: ['.jade', '.pug']
   },
-  puppet: {
+  Puppet: {
     type: 'programming',
     extensions: ['.pp']
   },
-  'pure data': {
+  'Pure Data': {
     type: 'data',
     extensions: ['.pd']
   },
-  purebasic: {
+  PureBasic: {
     type: 'programming',
     extensions: ['.pb', '.pbi']
   },
-  purescript: {
+  PureScript: {
     type: 'programming',
     extensions: ['.purs']
   },
-  pyret: {
+  Pyret: {
     type: 'programming',
     extensions: ['.arr']
   },
-  python: {
+  Python: {
     type: 'programming',
     extensions: [
       '.py',
@@ -2480,11 +2480,11 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['python3', 'rusthon']
   },
-  'python console': {
+  'Python console': {
     type: 'programming',
     aliases: ['pycon']
   },
-  'python traceback': {
+  'Python traceback': {
     type: 'data',
     extensions: ['.pytb']
   },
@@ -2492,43 +2492,43 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.q']
   },
-  'q#': {
+  'Q#': {
     type: 'programming',
     extensions: ['.qs'],
     aliases: ['qsharp']
   },
-  qmake: {
+  QMake: {
     type: 'programming',
     extensions: ['.pro', '.pri']
   },
-  qml: {
+  QML: {
     type: 'programming',
     extensions: ['.qml', '.qbs']
   },
-  'qt script': {
+  'Qt Script': {
     type: 'programming',
     extensions: ['.qs']
   },
-  quickbasic: {
+  QuickBASIC: {
     type: 'programming',
     extensions: ['.bas'],
     aliases: ['qb', 'qbasic', 'qb64', 'classic qbasic', 'classic quickbasic']
   },
-  r: {
+  R: {
     type: 'programming',
     extensions: ['.r', '.rd', '.rsx'],
     aliases: ['Rscript', 'splus']
   },
-  racket: {
+  Racket: {
     type: 'programming',
     extensions: ['.rkt', '.rktd', '.rktl', '.scrbl']
   },
-  ragel: {
+  Ragel: {
     type: 'programming',
     extensions: ['.rl'],
     aliases: ['ragel-rb', 'ragel-ruby']
   },
-  raku: {
+  Raku: {
     type: 'programming',
     extensions: [
       '.6pl',
@@ -2547,109 +2547,109 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['perl6', 'perl-6']
   },
-  raml: {
+  RAML: {
     type: 'markup',
     extensions: ['.raml']
   },
-  rascal: {
+  Rascal: {
     type: 'programming',
     extensions: ['.rsc']
   },
-  'raw token data': {
+  'Raw token data': {
     type: 'data',
     extensions: ['.raw'],
     aliases: ['raw']
   },
-  rbs: {
+  RBS: {
     type: 'data',
     extensions: ['.rbs']
   },
-  rdoc: {
+  RDoc: {
     type: 'prose',
     extensions: ['.rdoc']
   },
-  'readline config': {
+  'Readline Config': {
     type: 'data',
     aliases: ['inputrc', 'readline']
   },
-  realbasic: {
+  REALbasic: {
     type: 'programming',
     extensions: ['.rbbas', '.rbfrm', '.rbmnu', '.rbres', '.rbtbar', '.rbuistate']
   },
-  reason: {
+  Reason: {
     type: 'programming',
     extensions: ['.re', '.rei']
   },
-  reasonligo: {
+  ReasonLIGO: {
     type: 'programming',
     extensions: ['.religo']
   },
-  rebol: {
+  Rebol: {
     type: 'programming',
     extensions: ['.reb', '.r', '.r2', '.r3', '.rebol']
   },
-  red: {
+  Red: {
     type: 'programming',
     extensions: ['.red', '.reds'],
     aliases: ['red/system']
   },
-  redcode: {
+  Redcode: {
     type: 'programming',
     extensions: ['.cw']
   },
-  'redirect rules': {
+  'Redirect Rules': {
     type: 'data',
     aliases: ['redirects']
   },
-  'regular expression': {
+  'Regular Expression': {
     type: 'data',
     extensions: ['.regexp', '.regex'],
     aliases: ['regexp', 'regex']
   },
-  "ren'py": {
+  "Ren'Py": {
     type: 'programming',
     extensions: ['.rpy'],
     aliases: ['renpy']
   },
-  renderscript: {
+  RenderScript: {
     type: 'programming',
     extensions: ['.rs', '.rsh']
   },
-  rescript: {
+  ReScript: {
     type: 'programming',
     extensions: ['.res', '.resi']
   },
-  restructuredtext: {
+  reStructuredText: {
     type: 'prose',
     extensions: ['.rst', '.rest', '.rest.txt', '.rst.txt'],
     aliases: ['rst']
   },
-  rexx: {
+  REXX: {
     type: 'programming',
     extensions: ['.rexx', '.pprx', '.rex'],
     aliases: ['arexx']
   },
-  rez: {
+  Rez: {
     type: 'programming',
     extensions: ['.r']
   },
-  'rich text format': {
+  'Rich Text Format': {
     type: 'markup',
     extensions: ['.rtf']
   },
-  ring: {
+  Ring: {
     type: 'programming',
     extensions: ['.ring']
   },
-  riot: {
+  Riot: {
     type: 'markup',
     extensions: ['.riot']
   },
-  rmarkdown: {
+  RMarkdown: {
     type: 'prose',
     extensions: ['.qmd', '.rmd']
   },
-  robotframework: {
+  RobotFramework: {
     type: 'programming',
     extensions: ['.robot', '.resource']
   },
@@ -2657,16 +2657,16 @@ export const languages: Record<string, LanguageData> = {
     type: 'data',
     aliases: ['robots', 'robots txt']
   },
-  roc: {
+  Roc: {
     type: 'programming',
     extensions: ['.roc']
   },
-  'rocq prover': {
+  'Rocq Prover': {
     type: 'programming',
     extensions: ['.v', '.coq'],
     aliases: ['coq', 'rocq']
   },
-  roff: {
+  Roff: {
     type: 'markup',
     extensions: [
       '.roff',
@@ -2700,7 +2700,7 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['groff', 'man', 'manpage', 'man page', 'man-page', 'mdoc', 'nroff', 'troff']
   },
-  'roff manpage': {
+  'Roff Manpage': {
     type: 'markup',
     extensions: [
       '.1',
@@ -2725,34 +2725,34 @@ export const languages: Record<string, LanguageData> = {
       '.mdoc'
     ]
   },
-  ron: {
+  RON: {
     type: 'data',
     extensions: ['.ron']
   },
-  rouge: {
+  Rouge: {
     type: 'programming',
     extensions: ['.rg']
   },
-  'routeros script': {
+  'RouterOS Script': {
     type: 'programming',
     extensions: ['.rsc']
   },
-  rpc: {
+  RPC: {
     type: 'programming',
     extensions: ['.x'],
     aliases: ['rpcgen', 'oncrpc', 'xdr']
   },
-  rpgle: {
+  RPGLE: {
     type: 'programming',
     extensions: ['.rpgle', '.sqlrpgle'],
     aliases: ['ile rpg', 'sqlrpgle']
   },
-  'rpm spec': {
+  'RPM Spec': {
     type: 'data',
     extensions: ['.spec'],
     aliases: ['specfile']
   },
-  ruby: {
+  Ruby: {
     type: 'programming',
     extensions: [
       '.rb',
@@ -2780,57 +2780,57 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['jruby', 'macruby', 'rake', 'rb', 'rbx']
   },
-  runoff: {
+  RUNOFF: {
     type: 'markup',
     extensions: ['.rnh', '.rno']
   },
-  rust: {
+  Rust: {
     type: 'programming',
     extensions: ['.rs', '.rs.in'],
     aliases: ['rs']
   },
-  sage: {
+  Sage: {
     type: 'programming',
     extensions: ['.sage', '.sagews']
   },
-  sail: {
+  Sail: {
     type: 'programming',
     extensions: ['.sail']
   },
-  saltstack: {
+  SaltStack: {
     type: 'programming',
     extensions: ['.sls'],
     aliases: ['saltstate', 'salt']
   },
-  sas: {
+  SAS: {
     type: 'programming',
     extensions: ['.sas']
   },
-  sass: {
+  Sass: {
     type: 'markup',
     extensions: ['.sass']
   },
-  scala: {
+  Scala: {
     type: 'programming',
     extensions: ['.scala', '.kojo', '.sbt', '.sc']
   },
-  scaml: {
+  Scaml: {
     type: 'markup',
     extensions: ['.scaml']
   },
-  scenic: {
+  Scenic: {
     type: 'programming',
     extensions: ['.scenic']
   },
-  scheme: {
+  Scheme: {
     type: 'programming',
     extensions: ['.scm', '.sch', '.sld', '.sls', '.sps', '.ss']
   },
-  scilab: {
+  Scilab: {
     type: 'programming',
     extensions: ['.sci', '.sce', '.tst']
   },
-  scss: {
+  SCSS: {
     type: 'markup',
     extensions: ['.scss']
   },
@@ -2838,20 +2838,20 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.sed']
   },
-  self: {
+  Self: {
     type: 'programming',
     extensions: ['.self']
   },
-  'selinux policy': {
+  'SELinux Policy': {
     type: 'data',
     extensions: ['.te'],
     aliases: ['SELinux Kernel Policy Language', 'sepolicy']
   },
-  shaderlab: {
+  ShaderLab: {
     type: 'programming',
     extensions: ['.shader']
   },
-  shell: {
+  Shell: {
     type: 'programming',
     extensions: [
       '.sh',
@@ -2870,221 +2870,221 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['sh', 'shell-script', 'bash', 'zsh', 'envrc']
   },
-  'shellcheck config': {
+  'ShellCheck Config': {
     type: 'data',
     aliases: ['shellcheckrc']
   },
-  shellsession: {
+  ShellSession: {
     type: 'programming',
     extensions: ['.sh-session'],
     aliases: ['bash session', 'console']
   },
-  shen: {
+  Shen: {
     type: 'programming',
     extensions: ['.shen']
   },
-  sieve: {
+  Sieve: {
     type: 'programming',
     extensions: ['.sieve']
   },
-  'simple file verification': {
+  'Simple File Verification': {
     type: 'data',
     extensions: ['.sfv'],
     aliases: ['sfv']
   },
-  slang: {
+  Slang: {
     type: 'programming',
     extensions: ['.slang']
   },
-  slash: {
+  Slash: {
     type: 'programming',
     extensions: ['.sl']
   },
-  slice: {
+  Slice: {
     type: 'programming',
     extensions: ['.ice']
   },
-  slim: {
+  Slim: {
     type: 'markup',
     extensions: ['.slim']
   },
-  slint: {
+  Slint: {
     type: 'markup',
     extensions: ['.slint']
   },
-  smali: {
+  Smali: {
     type: 'programming',
     extensions: ['.smali']
   },
-  smalltalk: {
+  Smalltalk: {
     type: 'programming',
     extensions: ['.st', '.cs'],
     aliases: ['squeak']
   },
-  smarty: {
+  Smarty: {
     type: 'programming',
     extensions: ['.tpl']
   },
-  smithy: {
+  Smithy: {
     type: 'programming',
     extensions: ['.smithy']
   },
-  smpl: {
+  SmPL: {
     type: 'programming',
     extensions: ['.cocci'],
     aliases: ['coccinelle']
   },
-  smt: {
+  SMT: {
     type: 'programming',
     extensions: ['.smt2', '.smt', '.z3']
   },
-  snakemake: {
+  Snakemake: {
     type: 'programming',
     extensions: ['.smk', '.snakefile'],
     aliases: ['snakefile']
   },
-  solidity: {
+  Solidity: {
     type: 'programming',
     extensions: ['.sol']
   },
-  sourcepawn: {
+  SourcePawn: {
     type: 'programming',
     extensions: ['.sp', '.inc'],
     aliases: ['sourcemod']
   },
-  sparql: {
+  SPARQL: {
     type: 'data',
     extensions: ['.sparql', '.rq']
   },
-  'spline font database': {
+  'Spline Font Database': {
     type: 'data',
     extensions: ['.sfd']
   },
-  sqf: {
+  SQF: {
     type: 'programming',
     extensions: ['.sqf', '.hqf']
   },
-  sql: {
+  SQL: {
     type: 'data',
     extensions: ['.sql', '.cql', '.ddl', '.inc', '.mysql', '.prc', '.tab', '.udf', '.viw']
   },
-  sqlpl: {
+  SQLPL: {
     type: 'programming',
     extensions: ['.sql', '.db2']
   },
-  squirrel: {
+  Squirrel: {
     type: 'programming',
     extensions: ['.nut']
   },
-  'srecode template': {
+  'SRecode Template': {
     type: 'markup',
     extensions: ['.srt']
   },
-  'ssh config': {
+  'SSH Config': {
     type: 'data',
     aliases: ['sshconfig', 'sshdconfig', 'ssh_config', 'sshd_config']
   },
-  stan: {
+  Stan: {
     type: 'programming',
     extensions: ['.stan']
   },
-  'standard ml': {
+  'Standard ML': {
     type: 'programming',
     extensions: ['.ml', '.fun', '.sig', '.sml'],
     aliases: ['sml']
   },
-  star: {
+  STAR: {
     type: 'data',
     extensions: ['.star']
   },
-  starlark: {
+  Starlark: {
     type: 'programming',
     extensions: ['.bzl', '.star'],
     aliases: ['bazel', 'bzl']
   },
-  stata: {
+  Stata: {
     type: 'programming',
     extensions: ['.do', '.ado', '.doh', '.ihlp', '.mata', '.matah', '.sthlp']
   },
-  stl: {
+  STL: {
     type: 'data',
     extensions: ['.stl'],
     aliases: ['ascii stl', 'stla']
   },
-  ston: {
+  STON: {
     type: 'data',
     extensions: ['.ston']
   },
-  stringtemplate: {
+  StringTemplate: {
     type: 'markup',
     extensions: ['.st']
   },
-  stylus: {
+  Stylus: {
     type: 'markup',
     extensions: ['.styl']
   },
-  'subrip text': {
+  'SubRip Text': {
     type: 'data',
     extensions: ['.srt']
   },
-  sugarss: {
+  SugarSS: {
     type: 'markup',
     extensions: ['.sss']
   },
-  supercollider: {
+  SuperCollider: {
     type: 'programming',
     extensions: ['.sc', '.scd']
   },
-  'survex data': {
+  'Survex data': {
     type: 'data',
     extensions: ['.svx']
   },
-  svelte: {
+  Svelte: {
     type: 'markup',
     extensions: ['.svelte']
   },
-  svg: {
+  SVG: {
     type: 'data',
     extensions: ['.svg']
   },
-  sway: {
+  Sway: {
     type: 'programming',
     extensions: ['.sw']
   },
-  sweave: {
+  Sweave: {
     type: 'prose',
     extensions: ['.rnw']
   },
-  swift: {
+  Swift: {
     type: 'programming',
     extensions: ['.swift']
   },
-  swig: {
+  SWIG: {
     type: 'programming',
     extensions: ['.i']
   },
-  systemverilog: {
+  SystemVerilog: {
     type: 'programming',
     extensions: ['.sv', '.svh', '.vh']
   },
-  tact: {
+  Tact: {
     type: 'programming',
     extensions: ['.tact']
   },
-  talon: {
+  Talon: {
     type: 'programming',
     extensions: ['.talon']
   },
-  tcl: {
+  Tcl: {
     type: 'programming',
     extensions: ['.tcl', '.adp', '.sdc', '.tcl.in', '.tm', '.xdc'],
     aliases: ['sdc', 'xdc']
   },
-  tcsh: {
+  Tcsh: {
     type: 'programming',
     extensions: ['.tcsh', '.csh']
   },
-  tea: {
+  Tea: {
     type: 'markup',
     extensions: ['.tea']
   },
@@ -3092,15 +3092,15 @@ export const languages: Record<string, LanguageData> = {
     type: 'markup',
     extensions: ['.templ']
   },
-  terra: {
+  Terra: {
     type: 'programming',
     extensions: ['.t']
   },
-  'terraform template': {
+  'Terraform Template': {
     type: 'markup',
     extensions: ['.tftpl']
   },
-  tex: {
+  TeX: {
     type: 'markup',
     extensions: [
       '.tex',
@@ -3120,288 +3120,288 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['latex']
   },
-  texinfo: {
+  Texinfo: {
     type: 'prose',
     extensions: ['.texinfo', '.texi', '.txi']
   },
-  text: {
+  Text: {
     type: 'prose',
     extensions: ['.txt', '.fr', '.nb', '.ncl', '.no'],
     aliases: ['fundamental', 'plain text']
   },
-  textgrid: {
+  TextGrid: {
     type: 'data',
     extensions: ['.TextGrid']
   },
-  textile: {
+  Textile: {
     type: 'prose',
     extensions: ['.textile']
   },
-  'textmate properties': {
+  'TextMate Properties': {
     type: 'data',
     aliases: ['tm-properties']
   },
-  thrift: {
+  Thrift: {
     type: 'programming',
     extensions: ['.thrift']
   },
-  'ti program': {
+  'TI Program': {
     type: 'programming',
     extensions: ['.8xp', '.8xp.txt']
   },
-  'tl-verilog': {
+  'TL-Verilog': {
     type: 'programming',
     extensions: ['.tlv']
   },
-  tla: {
+  TLA: {
     type: 'programming',
     extensions: ['.tla']
   },
-  toit: {
+  Toit: {
     type: 'programming',
     extensions: ['.toit']
   },
-  toml: {
+  TOML: {
     type: 'data',
     extensions: ['.toml']
   },
-  'tor config': {
+  'Tor Config': {
     type: 'data',
     aliases: ['torrc']
   },
-  'tree-sitter query': {
+  'Tree-sitter Query': {
     type: 'programming',
     extensions: ['.scm'],
     aliases: ['tsq']
   },
-  'tsplib data': {
+  'TSPLIB data': {
     type: 'data',
     extensions: ['.tsp'],
     aliases: ['travelling salesman problem', 'traveling salesman problem']
   },
-  tsql: {
+  TSQL: {
     type: 'programming',
     extensions: ['.sql']
   },
-  tsv: {
+  TSV: {
     type: 'data',
     extensions: ['.tsv', '.vcf'],
     aliases: ['tab-seperated values']
   },
-  tsx: {
+  TSX: {
     type: 'programming',
     extensions: ['.tsx']
   },
-  turing: {
+  Turing: {
     type: 'programming',
     extensions: ['.t', '.tu']
   },
-  turtle: {
+  Turtle: {
     type: 'data',
     extensions: ['.ttl']
   },
-  twig: {
+  Twig: {
     type: 'markup',
     extensions: ['.twig']
   },
-  txl: {
+  TXL: {
     type: 'programming',
     extensions: ['.txl']
   },
-  'type language': {
+  'Type Language': {
     type: 'data',
     extensions: ['.tl'],
     aliases: ['tl']
   },
-  typescript: {
+  TypeScript: {
     type: 'programming',
     extensions: ['.ts', '.cts', '.mts'],
     aliases: ['ts']
   },
-  typespec: {
+  TypeSpec: {
     type: 'programming',
     extensions: ['.tsp'],
     aliases: ['tsp']
   },
-  typst: {
+  Typst: {
     type: 'programming',
     extensions: ['.typ'],
     aliases: ['typ']
   },
-  'unified parallel c': {
+  'Unified Parallel C': {
     type: 'programming',
     extensions: ['.upc']
   },
-  'unity3d asset': {
+  'Unity3D Asset': {
     type: 'data',
     extensions: ['.anim', '.asset', '.mask', '.mat', '.meta', '.prefab', '.unity']
   },
-  'unix assembly': {
+  'Unix Assembly': {
     type: 'programming',
     extensions: ['.s', '.ms'],
     aliases: ['gas', 'gnu asm', 'unix asm']
   },
-  uno: {
+  Uno: {
     type: 'programming',
     extensions: ['.uno']
   },
-  unrealscript: {
+  UnrealScript: {
     type: 'programming',
     extensions: ['.uc']
   },
-  'untyped plutus core': {
+  'Untyped Plutus Core': {
     type: 'programming',
     extensions: ['.uplc']
   },
-  urweb: {
+  UrWeb: {
     type: 'programming',
     extensions: ['.ur', '.urs'],
     aliases: ['Ur/Web', 'Ur']
   },
-  v: {
+  V: {
     type: 'programming',
     extensions: ['.v'],
     aliases: ['vlang']
   },
-  vala: {
+  Vala: {
     type: 'programming',
     extensions: ['.vala', '.vapi']
   },
-  'valve data format': {
+  'Valve Data Format': {
     type: 'data',
     extensions: ['.vdf'],
     aliases: ['keyvalues', 'vdf']
   },
-  vba: {
+  VBA: {
     type: 'programming',
     extensions: ['.bas', '.cls', '.frm', '.vba'],
     aliases: ['visual basic for applications']
   },
-  vbscript: {
+  VBScript: {
     type: 'programming',
     extensions: ['.vbs']
   },
-  vcard: {
+  vCard: {
     type: 'data',
     extensions: ['.vcf'],
     aliases: ['virtual contact file', 'electronic business card']
   },
-  vcl: {
+  VCL: {
     type: 'programming',
     extensions: ['.vcl']
   },
-  'velocity template language': {
+  'Velocity Template Language': {
     type: 'markup',
     extensions: ['.vtl'],
     aliases: ['vtl', 'velocity']
   },
-  vento: {
+  Vento: {
     type: 'markup',
     extensions: ['.vto']
   },
-  verilog: {
+  Verilog: {
     type: 'programming',
     extensions: ['.v', '.veo']
   },
-  vhdl: {
+  VHDL: {
     type: 'programming',
     extensions: ['.vhdl', '.vhd', '.vhf', '.vhi', '.vho', '.vhs', '.vht', '.vhw']
   },
-  'vim help file': {
+  'Vim Help File': {
     type: 'prose',
     extensions: ['.txt'],
     aliases: ['help', 'vimhelp']
   },
-  'vim script': {
+  'Vim Script': {
     type: 'programming',
     extensions: ['.vim', '.vba', '.vimrc', '.vmb'],
     aliases: ['vim', 'viml', 'nvim', 'vimscript']
   },
-  'vim snippet': {
+  'Vim Snippet': {
     type: 'markup',
     extensions: ['.snip', '.snippet', '.snippets'],
     aliases: ['SnipMate', 'UltiSnip', 'UltiSnips', 'NeoSnippet']
   },
-  'visual basic .net': {
+  'Visual Basic .NET': {
     type: 'programming',
     extensions: ['.vb', '.vbhtml'],
     aliases: ['visual basic', 'vbnet', 'vb .net', 'vb.net']
   },
-  'visual basic 6.0': {
+  'Visual Basic 6.0': {
     type: 'programming',
     extensions: ['.bas', '.cls', '.ctl', '.Dsr', '.frm'],
     aliases: ['vb6', 'vb 6', 'visual basic 6', 'visual basic classic', 'classic visual basic']
   },
-  volt: {
+  Volt: {
     type: 'programming',
     extensions: ['.volt']
   },
-  vue: {
+  Vue: {
     type: 'markup',
     extensions: ['.vue']
   },
-  vyper: {
+  Vyper: {
     type: 'programming',
     extensions: ['.vy']
   },
-  'wavefront material': {
+  'Wavefront Material': {
     type: 'data',
     extensions: ['.mtl']
   },
-  'wavefront object': {
+  'Wavefront Object': {
     type: 'data',
     extensions: ['.obj']
   },
-  wdl: {
+  WDL: {
     type: 'programming',
     extensions: ['.wdl'],
     aliases: ['Workflow Description Language']
   },
-  'web ontology language': {
+  'Web Ontology Language': {
     type: 'data',
     extensions: ['.owl']
   },
-  webassembly: {
+  WebAssembly: {
     type: 'programming',
     extensions: ['.wast', '.wat'],
     aliases: ['wast', 'wasm']
   },
-  'webassembly interface type': {
+  'WebAssembly Interface Type': {
     type: 'data',
     extensions: ['.wit'],
     aliases: ['wit']
   },
-  webidl: {
+  WebIDL: {
     type: 'programming',
     extensions: ['.webidl']
   },
-  webvtt: {
+  WebVTT: {
     type: 'data',
     extensions: ['.vtt'],
     aliases: ['vtt']
   },
-  'wget config': {
+  'Wget Config': {
     type: 'data',
     aliases: ['wgetrc']
   },
-  wgsl: {
+  WGSL: {
     type: 'programming',
     extensions: ['.wgsl']
   },
-  whiley: {
+  Whiley: {
     type: 'programming',
     extensions: ['.whiley']
   },
-  wikitext: {
+  Wikitext: {
     type: 'prose',
     extensions: ['.mediawiki', '.wiki', '.wikitext'],
     aliases: ['mediawiki', 'wiki']
   },
-  'win32 message file': {
+  'Win32 Message File': {
     type: 'data',
     extensions: ['.mc']
   },
-  'windows registry entries': {
+  'Windows Registry Entries': {
     type: 'data',
     extensions: ['.reg']
   },
@@ -3409,48 +3409,48 @@ export const languages: Record<string, LanguageData> = {
     type: 'programming',
     extensions: ['.wisp']
   },
-  'witcher script': {
+  'Witcher Script': {
     type: 'programming',
     extensions: ['.ws']
   },
-  wollok: {
+  Wollok: {
     type: 'programming',
     extensions: ['.wlk']
   },
-  'world of warcraft addon data': {
+  'World of Warcraft Addon Data': {
     type: 'data',
     extensions: ['.toc']
   },
-  wren: {
+  Wren: {
     type: 'programming',
     extensions: ['.wren'],
     aliases: ['wrenlang']
   },
-  'x bitmap': {
+  'X BitMap': {
     type: 'data',
     extensions: ['.xbm'],
     aliases: ['xbm']
   },
-  'x pixmap': {
+  'X PixMap': {
     type: 'data',
     extensions: ['.xpm', '.pm'],
     aliases: ['xpm']
   },
-  x10: {
+  X10: {
     type: 'programming',
     extensions: ['.x10'],
     aliases: ['xten']
   },
-  xbase: {
+  xBase: {
     type: 'programming',
     extensions: ['.prg', '.ch', '.prw'],
     aliases: ['advpl', 'clipper', 'foxpro']
   },
-  xc: {
+  XC: {
     type: 'programming',
     extensions: ['.xc']
   },
-  xml: {
+  XML: {
     type: 'data',
     extensions: [
       '.xml',
@@ -3564,48 +3564,48 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['rss', 'xsd', 'wsdl']
   },
-  'xml property list': {
+  'XML Property List': {
     type: 'data',
     extensions: ['.plist', '.stTheme', '.tmCommand', '.tmLanguage', '.tmPreferences', '.tmSnippet', '.tmTheme']
   },
-  xojo: {
+  Xojo: {
     type: 'programming',
     extensions: ['.xojo_code', '.xojo_menu', '.xojo_report', '.xojo_script', '.xojo_toolbar', '.xojo_window']
   },
-  xonsh: {
+  Xonsh: {
     type: 'programming',
     extensions: ['.xsh']
   },
-  xpages: {
+  XPages: {
     type: 'data',
     extensions: ['.xsp-config', '.xsp.metadata']
   },
-  xproc: {
+  XProc: {
     type: 'programming',
     extensions: ['.xpl', '.xproc']
   },
-  xquery: {
+  XQuery: {
     type: 'programming',
     extensions: ['.xquery', '.xq', '.xql', '.xqm', '.xqy']
   },
-  xs: {
+  XS: {
     type: 'programming',
     extensions: ['.xs']
   },
-  xslt: {
+  XSLT: {
     type: 'programming',
     extensions: ['.xslt', '.xsl'],
     aliases: ['xsl']
   },
-  xtend: {
+  Xtend: {
     type: 'programming',
     extensions: ['.xtend']
   },
-  yacc: {
+  Yacc: {
     type: 'programming',
     extensions: ['.y', '.yacc', '.yy']
   },
-  yaml: {
+  YAML: {
     type: 'data',
     extensions: [
       '.yml',
@@ -3621,53 +3621,53 @@ export const languages: Record<string, LanguageData> = {
     ],
     aliases: ['yml']
   },
-  yang: {
+  YANG: {
     type: 'data',
     extensions: ['.yang']
   },
-  yara: {
+  YARA: {
     type: 'programming',
     extensions: ['.yar', '.yara']
   },
-  yasnippet: {
+  YASnippet: {
     type: 'markup',
     extensions: ['.yasnippet'],
     aliases: ['snippet', 'yas']
   },
-  yul: {
+  Yul: {
     type: 'programming',
     extensions: ['.yul']
   },
-  zap: {
+  ZAP: {
     type: 'programming',
     extensions: ['.zap', '.xzap']
   },
-  zeek: {
+  Zeek: {
     type: 'programming',
     extensions: ['.zeek', '.bro'],
     aliases: ['bro']
   },
-  zenscript: {
+  ZenScript: {
     type: 'programming',
     extensions: ['.zs']
   },
-  zephir: {
+  Zephir: {
     type: 'programming',
     extensions: ['.zep']
   },
-  zig: {
+  Zig: {
     type: 'programming',
     extensions: ['.zig', '.zig.zon']
   },
-  zil: {
+  ZIL: {
     type: 'programming',
     extensions: ['.zil', '.mud']
   },
-  zimpl: {
+  Zimpl: {
     type: 'programming',
     extensions: ['.zimpl', '.zmpl', '.zpl']
   },
-  zmodel: {
+  Zmodel: {
     type: 'data',
     extensions: ['.zmodel']
   }

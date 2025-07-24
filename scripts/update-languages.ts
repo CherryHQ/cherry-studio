@@ -26,7 +26,7 @@ function extractAllLanguageData(): Record<string, LanguageData> {
 
       // Only include languages with extensions or aliases
       if ((extensions && extensions.length > 0) || (aliases && aliases.length > 0)) {
-        acc[name.toLowerCase()] = {
+        acc[name] = {
           type: type || 'programming',
           ...(extensions && { extensions }),
           ...(aliases && { aliases })
