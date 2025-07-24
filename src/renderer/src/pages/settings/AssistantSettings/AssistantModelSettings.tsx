@@ -183,8 +183,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       if (selectedModel.name.includes('kimi-k2')) {
         setTemperature(0.6)
         setTimeout(() => updateAssistantSettings({ temperature: 0.6 }), 500)
-      }
-      else if (selectedModel.name.includes('moonshot')) {
+      } else if (selectedModel.name.includes('moonshot')) {
         setTemperature(0.3)
         setTimeout(() => updateAssistantSettings({ temperature: 0.3 }), 500)
       }
