@@ -770,7 +770,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={onSelectModel}
             style={{ width: '100%' }}
             loading={isLoadingModels}
-            placeholder={isLoadingModels ? t('common.loading') : t('common.select_model')}>
+            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
               if ((models as any[]).length === 0) return null
               return (

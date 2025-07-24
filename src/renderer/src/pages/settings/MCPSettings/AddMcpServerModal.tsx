@@ -270,7 +270,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   return (
     <Modal
       title={
-        importMethod === 'dxt' ? t('settings.mcp.addServer.importFrom.dxt') : t('settings.mcp.addServer.importFrom')
+        importMethod === 'dxt'
+          ? t('settings.mcp.addServer.importFrom.dxt')
+          : t('settings.mcp.addServer.importFrom.json')
       }
       open={visible}
       onOk={handleOk}
@@ -354,9 +356,9 @@ const parseAndExtractServer = (
     typeof parsedJson.mcpServers === 'object' &&
     Object.keys(parsedJson.mcpServers).length > 1
   ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   }
 
   if (

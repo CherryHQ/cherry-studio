@@ -207,13 +207,13 @@ const MessageMenubar: FC<Props> = (props) => {
           ]
         : []),
       {
-        label: t('chat.message.new.branch'),
+        label: t('chat.message.new.branch.key'),
         key: 'new-branch',
         icon: <Split size={15} />,
         onClick: onNewBranch
       },
       {
-        label: t('chat.multiple.select'),
+        label: t('chat.multiple.select.key'),
         key: 'multi-select',
         icon: <ListChecks size={15} />,
         onClick: () => {
@@ -221,7 +221,7 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       },
       {
-        label: t('chat.save'),
+        label: t('chat.save.key'),
         key: 'save',
         icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
@@ -275,7 +275,7 @@ const MessageMenubar: FC<Props> = (props) => {
             }
           },
           exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md'),
+            label: t('chat.topics.export.md.key'),
             key: 'markdown',
             onClick: () => exportMessageAsMarkdown(message)
           },

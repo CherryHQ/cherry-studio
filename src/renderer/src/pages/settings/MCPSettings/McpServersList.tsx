@@ -132,7 +132,7 @@ const McpServersList: FC = () => {
                 },
                 {
                   key: 'json',
-                  label: t('settings.mcp.addServer.importFrom'),
+                  label: t('settings.mcp.addServer.importFrom.json'),
                   onClick: () => {
                     setModalType('json')
                     setIsAddModalVisible(true)
@@ -150,7 +150,7 @@ const McpServersList: FC = () => {
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer')}
+              {t('settings.mcp.addServer.key')}
             </Button>
           </Dropdown>
           <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">

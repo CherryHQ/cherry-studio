@@ -62,7 +62,7 @@ const SettingsPage: FC = () => {
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <Settings2 size={18} />
-              {t('settings.general')}
+              {t('settings.general.key')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/display">
@@ -122,7 +122,7 @@ const SettingsPage: FC = () => {
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
               <Info size={18} />
-              {t('settings.about')}
+              {t('settings.about.key')}
             </MenuItem>
           </MenuItemLink>
         </SettingMenus>

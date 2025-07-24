@@ -221,7 +221,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.temperature')}
+            {t('chat.settings.temperature.key')}
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -262,7 +262,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.top_p')}
+            {t('chat.settings.top_p.key')}
             <Tooltip title={t('chat.settings.top_p.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -303,7 +303,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.context_count')}{' '}
+            {t('chat.settings.context_count.key')}{' '}
             <Tooltip title={t('chat.settings.context_count.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -343,7 +343,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
+          <Label>{t('chat.settings.max_tokens.key')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>
@@ -401,7 +401,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <Label>{t('assistants.settings.tool_use_mode')}</Label>
+        <Label>{t('assistants.settings.tool_use_mode.key')}</Label>
         <Selector
           value={toolUseMode}
           options={[

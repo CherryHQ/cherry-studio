@@ -137,7 +137,7 @@ const CodeEditor = ({
     registerTool({
       ...TOOL_SPECS.save,
       icon: <SaveIcon className="icon" />,
-      tooltip: t('code_block.edit.save'),
+      tooltip: t('code_block.edit.save.key'),
       onClick: handleSave
     })
 

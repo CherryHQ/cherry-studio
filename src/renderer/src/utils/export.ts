@@ -499,7 +499,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     let isMarkdownFile = false
 
     if (!obsidianVault) {
-      window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
+      window.message.error(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
     }
 

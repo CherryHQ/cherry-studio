@@ -249,7 +249,7 @@ const NutstoreSettings: FC = () => {
 
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>{t('settings.data.nutstore.path')}</SettingRowTitle>
+            <SettingRowTitle>{t('settings.data.nutstore.path.key')}</SettingRowTitle>
             <HStack gap="4px" justifyContent="space-between">
               <Input
                 placeholder={t('settings.data.nutstore.path.placeholder')}
@@ -279,7 +279,7 @@ const NutstoreSettings: FC = () => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
+            <SettingRowTitle>{t('settings.data.webdav.autoSync.key')}</SettingRowTitle>
             <Selector
               size={14}
               value={syncInterval}

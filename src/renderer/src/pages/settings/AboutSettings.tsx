@@ -217,7 +217,7 @@ const AboutSettings: FC = () => {
                 ? t('settings.about.downloading')
                 : update.available
                   ? t('settings.about.checkUpdate.available')
-                  : t('settings.about.checkUpdate')}
+                  : t('settings.about.checkUpdate.key')}
             </CheckUpdateButton>
           )}
         </AboutHeader>

@@ -280,7 +280,7 @@ const migrateConfig = {
           defaultAssistant: {
             ...state.assistants.defaultAssistant,
             name: ['Default Assistant', '默认助手'].includes(state.assistants.defaultAssistant.name)
-              ? i18n.t(`assistant.default.name`)
+              ? i18n.t(`settings.assistant.key`)
               : state.assistants.defaultAssistant.name
           }
         }
