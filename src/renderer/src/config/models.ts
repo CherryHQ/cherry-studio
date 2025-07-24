@@ -2601,7 +2601,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
-  if (baseName.includes('coder')) {
+  if (baseName.includes('coder') || baseName.includes('qwen3-235b-a22b-instruct')) {
     return false
   }
 
