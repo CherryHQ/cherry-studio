@@ -285,6 +285,10 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return true
   }
 
+  if (['kimi', 'moonshot'].includes(model.provider)) {
+    return true
+  }
+
   return FUNCTION_CALLING_REGEX.test(model.id)
 }
 
@@ -1267,7 +1271,21 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'moonshot-v1-auto',
       provider: 'moonshot',
       group: 'moonshot-v1',
-      owned_by: 'moonshot'
+      owned_by: 'moonshot',
+      type: ['text', 'function_calling']
+    },
+    {
+      id: 'kimi-k2-0711-preview',
+      name: 'kimi-k2-0711-preview',
+      provider: 'moonshot',
+      group: 'kimi-k2',
+      owned_by: 'moonshot',
+      type: ['text', 'function_calling'],
+      pricing: {
+        input_per_million_tokens: 0.6,
+        output_per_million_tokens: 2.5,
+        currencySymbol: 'USD'
+      }
     }
   ],
   baichuan: [
