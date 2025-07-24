@@ -112,12 +112,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <CollapsibleSearchBar onSearch={setSearchText} />
           </HStack>
           <HStack>
-            <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking} />
-            </Tooltip>
-            <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-              <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
-            </Tooltip>
             <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
               <Button
                 type="text"
@@ -162,6 +156,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         ) : (
           <div style={{ height: 5 }} />
         )}
+      </Flex>
+      <Flex gap={10} style={{ marginTop: 10 }}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+          {t('button.manage')}
+        </Button>
+        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          {t('button.add')}
+        </Button>
       </Flex>
       {models.map((model) => (
         <ModelEditContent
