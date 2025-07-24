@@ -91,7 +91,7 @@ class DifyKnowledgeServer {
           {
             name: 'search_knowledge',
             description: 'Search knowledge by id and query',
-            inputSchema: SearchKnowledgeArgsSchema
+            inputSchema: z.toJSONSchema(SearchKnowledgeArgsSchema)
           }
         ]
       }
