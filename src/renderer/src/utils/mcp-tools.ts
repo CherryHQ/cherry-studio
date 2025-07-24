@@ -417,7 +417,13 @@ export function geminiFunctionCallToMcpTool(
 ): MCPTool | undefined {
   if (!toolCall) return undefined
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolCall.name || tool.name === toolCall.name)
+  const tool = mcpTools.find(
+    (tool) =>
+      tool.id === toolCall.name ||
+      tool.name === toolCall.name ||
+      tool.id.includes(toolCall.name || '') ||
+      tool.name.includes(toolCall.name || '')
+  )
   if (!tool) {
     return undefined
   }
