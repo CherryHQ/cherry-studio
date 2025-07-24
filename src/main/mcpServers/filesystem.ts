@@ -340,7 +340,7 @@ class FileSystemServer {
               'Handles various text encodings and provides detailed error messages ' +
               'if the file cannot be read. Use this tool when you need to examine ' +
               'the contents of a single file. Only works within allowed directories.',
-            inputSchema: ReadFileArgsSchema
+            inputSchema: z.toJSONSchema(ReadFileArgsSchema)
           },
           {
             name: 'read_multiple_files',
@@ -350,7 +350,7 @@ class FileSystemServer {
               "or compare multiple files. Each file's content is returned with its " +
               "path as a reference. Failed reads for individual files won't stop " +
               'the entire operation. Only works within allowed directories.',
-            inputSchema: ReadMultipleFilesArgsSchema
+            inputSchema: z.toJSONSchema(ReadMultipleFilesArgsSchema)
           },
           {
             name: 'write_file',
@@ -358,7 +358,7 @@ class FileSystemServer {
               'Create a new file or completely overwrite an existing file with new content. ' +
               'Use with caution as it will overwrite existing files without warning. ' +
               'Handles text content with proper encoding. Only works within allowed directories.',
-            inputSchema: WriteFileArgsSchema
+            inputSchema: z.toJSONSchema(WriteFileArgsSchema)
           },
           {
             name: 'edit_file',
@@ -366,7 +366,7 @@ class FileSystemServer {
               'Make line-based edits to a text file. Each edit replaces exact line sequences ' +
               'with new content. Returns a git-style diff showing the changes made. ' +
               'Only works within allowed directories.',
-            inputSchema: EditFileArgsSchema
+            inputSchema: z.toJSONSchema(EditFileArgsSchema)
           },
           {
             name: 'create_directory',
@@ -375,7 +375,7 @@ class FileSystemServer {
               'nested directories in one operation. If the directory already exists, ' +
               'this operation will succeed silently. Perfect for setting up directory ' +
               'structures for projects or ensuring required paths exist. Only works within allowed directories.',
-            inputSchema: CreateDirectoryArgsSchema
+            inputSchema: z.toJSONSchema(CreateDirectoryArgsSchema)
           },
           {
             name: 'list_directory',
@@ -384,7 +384,7 @@ class FileSystemServer {
               'Results clearly distinguish between files and directories with [FILE] and [DIR] ' +
               'prefixes. This tool is essential for understanding directory structure and ' +
               'finding specific files within a directory. Only works within allowed directories.',
-            inputSchema: ListDirectoryArgsSchema
+            inputSchema: z.toJSONSchema(ListDirectoryArgsSchema)
           },
           {
             name: 'directory_tree',
@@ -393,7 +393,7 @@ class FileSystemServer {
               "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
               'Files have no children array, while directories always have a children array (which may be empty). ' +
               'The output is formatted with 2-space indentation for readability. Only works within allowed directories.',
-            inputSchema: DirectoryTreeArgsSchema
+            inputSchema: z.toJSONSchema(DirectoryTreeArgsSchema)
           },
           {
             name: 'move_file',
@@ -402,7 +402,7 @@ class FileSystemServer {
               'and rename them in a single operation. If the destination exists, the ' +
               'operation will fail. Works across different directories and can be used ' +
               'for simple renaming within the same directory. Both source and destination must be within allowed directories.',
-            inputSchema: MoveFileArgsSchema
+            inputSchema: z.toJSONSchema(MoveFileArgsSchema)
           },
           {
             name: 'search_files',
@@ -412,7 +412,7 @@ class FileSystemServer {
               'is case-insensitive and matches partial names. Returns full paths to all ' +
               "matching items. Great for finding files when you don't know their exact location. " +
               'Only searches within allowed directories.',
-            inputSchema: SearchFilesArgsSchema
+            inputSchema: z.toJSONSchema(SearchFilesArgsSchema)
           },
           {
             name: 'get_file_info',
@@ -421,7 +421,7 @@ class FileSystemServer {
               'information including size, creation time, last modified time, permissions, ' +
               'and type. This tool is perfect for understanding file characteristics ' +
               'without reading the actual content. Only works within allowed directories.',
-            inputSchema: GetFileInfoArgsSchema
+            inputSchema: z.toJSONSchema(GetFileInfoArgsSchema)
           },
           {
             name: 'list_allowed_directories',

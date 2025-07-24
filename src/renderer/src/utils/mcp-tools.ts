@@ -488,6 +488,9 @@ export function getMcpServerByTool(tool: MCPTool) {
 }
 
 export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  if (tool.isBuiltIn) {
+    return true
+  }
   const effectiveServer = server ?? getMcpServerByTool(tool)
   return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
 }
