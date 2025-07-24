@@ -112,6 +112,7 @@ export enum IpcChannel {
 
   // VertexAI
   VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',

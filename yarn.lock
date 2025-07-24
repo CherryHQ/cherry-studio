@@ -200,6 +200,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@anthropic-ai/sdk@npm:>=0.50.3 <1":
+  version: 0.56.0
+  resolution: "@anthropic-ai/sdk@npm:0.56.0"
+  bin:
+    anthropic-ai-sdk: bin/cli
+  checksum: 10c0/b8506daa740b3700c56cf7e7cd16c5f3c092b96ad0bca893530d3e12ed543bdae174ea5e34b270ba86958f193a8ac31559f17ed4a79ba9219771d3c457e15c06
+  languageName: node
+  linkType: hard
+
 "@anthropic-ai/sdk@npm:^0.41.0":
   version: 0.41.0
   resolution: "@anthropic-ai/sdk@npm:0.41.0"
@@ -212,6 +221,26 @@ __metadata:
     formdata-node: "npm:^4.3.2"
     node-fetch: "npm:^2.6.7"
   checksum: 10c0/b57df42df33f29f3baa682da663d7411624f511384f84c790a936b505c5074d9676749ce05d45b1caa9af7077a20013889efb65f3e25f979e7ab2fa245e2a444
+  languageName: node
+  linkType: hard
+
+"@anthropic-ai/vertex-sdk@npm:0.11.4":
+  version: 0.11.4
+  resolution: "@anthropic-ai/vertex-sdk@npm:0.11.4"
+  dependencies:
+    "@anthropic-ai/sdk": "npm:>=0.50.3 <1"
+    google-auth-library: "npm:^9.4.2"
+  checksum: 10c0/a13201d9e1a82a25071d824da0d68ef4f25c10f4e803ce1bd677f185d7970adeb845d847b8aa7120798a60db84981a54cfdeda1ec71ac9424b28e4311590c918
+  languageName: node
+  linkType: hard
+
+"@anthropic-ai/vertex-sdk@patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch":
+  version: 0.11.4
+  resolution: "@anthropic-ai/vertex-sdk@patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch::version=0.11.4&hash=4b385f"
+  dependencies:
+    "@anthropic-ai/sdk": "npm:>=0.50.3 <1"
+    google-auth-library: "npm:^9.4.2"
+  checksum: 10c0/bc52951fecddd6c110613c97152ba08bde0aaaa03d1892942e6a075d936908c46b9b8d0618c4cb1dcd95194be044281e4f76884191f06da1be9f82853af7e62a
   languageName: node
   linkType: hard
 
@@ -7131,6 +7160,7 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.41.0"
+    "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
     "@aws-sdk/client-s3": "npm:^3.840.0"
     "@cherrystudio/embedjs": "npm:^0.1.31"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
@@ -12082,7 +12112,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"google-auth-library@npm:^9.14.2, google-auth-library@npm:^9.15.1":
+"google-auth-library@npm:^9.14.2, google-auth-library@npm:^9.15.1, google-auth-library@npm:^9.4.2":
   version: 9.15.1
   resolution: "google-auth-library@npm:9.15.1"
   dependencies:

@@ -2324,6 +2324,7 @@
         "search_placeholder": "Search model id or name",
         "title": "Model Provider",
         "vertex_ai": {
+          "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
           "documentation": "View official documentation for more configuration details:",
           "learn_more": "Learn More",
           "location": "Location",
