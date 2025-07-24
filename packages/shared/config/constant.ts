@@ -31,7 +31,9 @@ export const customTextExts = new Map([
     [
       '.R', // R
       '.ets', // OpenHarmony,
-      '.uniswap' // DeFi
+      '.uniswap', // DeFi
+      '.usf', // Unreal shader format
+      '.ush' // Unreal shader header
     ]
   ],
   [
