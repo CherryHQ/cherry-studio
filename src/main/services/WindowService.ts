@@ -74,7 +74,7 @@ export class WindowService {
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 12 },
+      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -343,7 +343,9 @@ export class WindowService {
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
-      event.preventDefault()
+      if (!mainWindow.isFullScreen()) {
+        event.preventDefault()
+      }
 
       mainWindow.hide()
 

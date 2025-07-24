@@ -12,7 +12,7 @@ function ParseData(data: string) {
 
     return JSON.stringify(result)
   } catch (error) {
-    logger.error('ParseData error:', error)
+    logger.error('ParseData error:', error as Error)
     return null
   }
 }

@@ -44,7 +44,7 @@ export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
-      logger.error('Error capturing div:', error)
+      logger.error('Error capturing div:', error as Error)
       return Promise.reject()
     }
   }
@@ -138,7 +138,7 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       return imageData
     } catch (error) {
-      logger.error('Error capturing scrollable div:', error)
+      logger.error('Error capturing scrollable div:', error as Error)
       throw error
     } finally {
       // Remove scrollbar hiding class

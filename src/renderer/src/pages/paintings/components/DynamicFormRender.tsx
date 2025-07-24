@@ -46,7 +46,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           }
         }
       } catch (error) {
-        logger.error('Error processing image:', error)
+        logger.error('Error processing image:', error as Error)
       }
     },
     []

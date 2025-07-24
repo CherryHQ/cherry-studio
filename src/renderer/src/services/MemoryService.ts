@@ -84,7 +84,7 @@ class MemoryService {
 
       // Handle error responses from main process
       if (result.error) {
-        logger.error('Memory service error:', result.error)
+        logger.error(`Memory service error: ${result.error}`)
         throw new Error(result.error)
       }
 
@@ -94,7 +94,7 @@ class MemoryService {
         relations: []
       }
     } catch (error) {
-      logger.error('Failed to list memories:', error)
+      logger.error('Failed to list memories:', error as Error)
       // Return empty result on error to prevent UI crashes
       return {
         results: [],
@@ -214,7 +214,7 @@ class MemoryService {
 
       return window.api.memory.setConfig(configWithProviders)
     } catch (error) {
-      logger.warn('Failed to update memory config:', error)
+      logger.warn('Failed to update memory config:', error as Error)
       return
     }
   }

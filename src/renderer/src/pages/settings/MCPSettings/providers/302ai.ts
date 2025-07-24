@@ -100,7 +100,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
 
         addedServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing 302ai server:', err)
+        logger.error('Error processing 302ai server:', err as Error)
       }
     }
 
@@ -110,7 +110,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       addedServers
     }
   } catch (error) {
-    logger.error('302ai sync error:', error)
+    logger.error('302ai sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

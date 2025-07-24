@@ -91,7 +91,7 @@ class DifyKnowledgeServer {
           {
             name: 'search_knowledge',
             description: 'Search knowledge by id and query',
-            inputSchema: SearchKnowledgeArgsSchema
+            inputSchema: z.toJSONSchema(SearchKnowledgeArgsSchema)
           }
         ]
       }
@@ -166,7 +166,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error fetching knowledge list:', error)
+      logger.error('Error fetching knowledge list:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 返回包含错误信息的 MCP 响应
       return {
@@ -245,7 +245,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error searching knowledge:', error)
+      logger.error('Error searching knowledge:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       return {
         content: [{ type: 'text', text: `Search Knowledge Error: ${errorMessage}` }],

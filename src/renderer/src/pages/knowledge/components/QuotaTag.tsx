@@ -37,7 +37,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
           })
           setQuota(response)
         } catch (error) {
-          logger.error('[KnowledgeContent] Error checking quota:', error)
+          logger.error('[KnowledgeContent] Error checking quota:', error as Error)
         }
       }
     }

@@ -60,7 +60,7 @@ export class PPIOAPIClient extends OpenAIAPIClient {
 
       return processedModels.filter(isSupportedModel)
     } catch (error) {
-      logger.error('Error listing PPIO models:', error)
+      logger.error('Error listing PPIO models:', error as Error)
       return []
     }
   }

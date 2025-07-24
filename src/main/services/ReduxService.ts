@@ -68,7 +68,7 @@ export class ReduxService extends EventEmitter {
       const selectorFn = new Function('state', `return ${selector}`)
       return selectorFn(this.stateCache)
     } catch (error) {
-      logger.error('Failed to select from cache:', error)
+      logger.error('Failed to select from cache:', error as Error)
       return undefined
     }
   }
@@ -97,7 +97,7 @@ export class ReduxService extends EventEmitter {
         })()
       `)
     } catch (error) {
-      logger.error('Failed to select store value:', error)
+      logger.error('Failed to select store value:', error as Error)
       throw error
     }
   }
@@ -114,7 +114,7 @@ export class ReduxService extends EventEmitter {
         window.store.dispatch(${JSON.stringify(action)})
       `)
     } catch (error) {
-      logger.error('Failed to dispatch action:', error)
+      logger.error('Failed to dispatch action:', error as Error)
       throw error
     }
   }
@@ -152,7 +152,7 @@ export class ReduxService extends EventEmitter {
         const newValue = await this.select(selector)
         callback(newValue)
       } catch (error) {
-        logger.error('Error in subscription handler:', error)
+        logger.error('Error in subscription handler:', error as Error)
       }
     }
 
@@ -174,7 +174,7 @@ export class ReduxService extends EventEmitter {
         window.store.getState()
       `)
     } catch (error) {
-      logger.error('Failed to get state:', error)
+      logger.error('Failed to get state:', error as Error)
       throw error
     }
   }

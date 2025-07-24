@@ -200,6 +200,8 @@ export interface SettingsState {
   s3: S3Config
   // Developer mode
   enableDeveloperMode: boolean
+  // UI
+  navbarPosition: 'left' | 'top'
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -291,7 +293,7 @@ export const initialState: SettingsState = {
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
   readClipboardAtStartup: true,
-  multiModelMessageStyle: 'fold',
+  multiModelMessageStyle: 'horizontal',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
@@ -368,7 +370,9 @@ export const initialState: SettingsState = {
     skipBackupFile: false
   },
   // Developer mode
-  enableDeveloperMode: false
+  enableDeveloperMode: false,
+  // UI
+  navbarPosition: 'left'
 }
 
 const settingsSlice = createSlice({
@@ -763,6 +767,9 @@ const settingsSlice = createSlice({
     },
     setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
       state.enableDeveloperMode = action.payload
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
     }
   }
 })
@@ -882,7 +889,8 @@ export const {
   setDefaultPaintingProvider,
   setS3,
   setS3Partial,
-  setEnableDeveloperMode
+  setEnableDeveloperMode,
+  setNavbarPosition
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

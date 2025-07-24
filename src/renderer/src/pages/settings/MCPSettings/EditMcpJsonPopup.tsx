@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setJsonConfig(formattedJson)
       setJsonError('')
     } catch (error) {
-      logger.error('Failed to format JSON:', error)
+      logger.error('Failed to format JSON:', error as Error)
       setJsonError(t('settings.mcp.jsonFormatError'))
     } finally {
       setIsLoading(false)

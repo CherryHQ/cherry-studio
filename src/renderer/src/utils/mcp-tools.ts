@@ -266,6 +266,25 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
+export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
+  logger.info(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
+
+  if (toolResponse.tool.name === 'think') {
+    const thought = toolResponse.arguments?.thought
+    return {
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: (thought as string) || ''
+        }
+      ]
+    }
+  }
+
+  return undefined
+}
+
 export async function callMCPTool(
   toolResponse: MCPToolResponse,
   topicId?: string,
@@ -309,7 +328,7 @@ export async function callMCPTool(
     logger.info(`Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
     return resp
   } catch (e) {
-    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
+    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e as Error)
     return Promise.resolve({
       isError: true,
       content: [
@@ -469,6 +488,9 @@ export function getMcpServerByTool(tool: MCPTool) {
 }
 
 export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  if (tool.isBuiltIn) {
+    return true
+  }
   const effectiveServer = server ?? getMcpServerByTool(tool)
   return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
 }

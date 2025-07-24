@@ -77,7 +77,7 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
             stream: genericChunkTransformStream
           }
         } catch (error) {
-          logger.error(`Error during chunk transformation:`, error)
+          logger.error('Error during chunk transformation:', error as Error)
           throw error
         }
       }

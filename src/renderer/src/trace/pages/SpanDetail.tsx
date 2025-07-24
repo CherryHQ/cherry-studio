@@ -44,7 +44,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         setIsJson(true)
         return
       } catch {
-        logger.error('failed to parse json data:', data)
+        logger.error(`failed to parse json data: ${data}`)
       }
     } else if (typeof data === 'object' || Array.isArray(data)) {
       setJsonData(data)

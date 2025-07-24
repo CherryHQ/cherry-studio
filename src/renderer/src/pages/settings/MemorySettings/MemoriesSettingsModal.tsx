@@ -84,7 +84,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
             const aiProvider = new AiProvider(provider)
             finalDimensions = await aiProvider.getEmbeddingDimensions(embedderModel)
           } catch (error) {
-            logger.error('Error getting embedding dimensions:', error)
+            logger.error('Error getting embedding dimensions:', error as Error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
@@ -121,7 +121,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         setLoading(false)
       }
     } catch (error) {
-      logger.error('Error submitting form:', error)
+      logger.error('Error submitting form:', error as Error)
       setLoading(false)
     }
   }

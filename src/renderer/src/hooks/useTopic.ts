@@ -18,6 +18,8 @@ import { getStoreSetting } from './useSettings'
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
 
+// const logger = loggerService.withContext('useTopic')
+
 export function useActiveTopic(assistantId: string, topic?: Topic) {
   const { assistant } = useAssistant(assistantId)
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])

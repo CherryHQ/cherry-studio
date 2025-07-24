@@ -208,7 +208,7 @@ export const usePreviewToolHandlers = (
       }
       img.src = svgBase64
     } catch (error) {
-      logger.error('Copy failed:', error)
+      logger.error('Copy failed:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }, [getImgElement, t])
@@ -268,7 +268,7 @@ export const usePreviewToolHandlers = (
           img.src = svgBase64
         }
       } catch (error) {
-        logger.error('Download failed:', error)
+        logger.error('Download failed:', error as Error)
       }
     },
     [getImgElement, prefix, customDownloader]

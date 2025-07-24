@@ -14,6 +14,7 @@ import {
   isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel
@@ -51,7 +52,6 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -128,7 +128,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         return { reasoning: { enabled: false, exclude: true } }
       }
-      if (isSupportedThinkingTokenQwenModel(model)) {
+      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
         return { enable_thinking: false }
       }
 
@@ -186,6 +186,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
       }
       return thinkConfig
+    }
+
+    // Hunyuan models
+    if (isSupportedThinkingTokenHunyuanModel(model)) {
+      return {
+        enable_thinking: true
+      }
     }
 
     // Grok models
@@ -485,10 +492,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           model,
           enableToolUse: isEnabledToolUse(assistant)
         })
-
-        if (this.useSystemPromptForTools) {
-          systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools, assistant)
-        }
 
         // 3. 处理用户消息
         const userMessages: OpenAISdkMessageParam[] = []

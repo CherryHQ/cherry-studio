@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import {
   isEmbeddingModel,
   isGenerateImageModel,
@@ -39,6 +40,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { buildSystemPromptWithThinkTool, buildSystemPromptWithTools } from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -202,7 +204,7 @@ async function fetchExternalTool(
       }
     } catch (error) {
       if (isAbortError(error)) throw error
-      logger.error('Web search failed:', error)
+      logger.error('Web search failed:', error as Error)
       return
     }
   }
@@ -221,7 +223,7 @@ async function fetchExternalTool(
         const currentUserId = selectCurrentUserId(store.getState())
         // Search for relevant memories
         const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info('Searching for relevant memories with content:', content)
+        logger.info(`Searching for relevant memories with content: ${content}`)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -240,7 +242,7 @@ async function fetchExternalTool(
         return []
       }
     } catch (error) {
-      logger.error('Error processing memory search:', error)
+      logger.error('Error processing memory search:', error as Error)
       // Continue with conversation even if memory processing fails
       return []
     }
@@ -289,7 +291,7 @@ async function fetchExternalTool(
         modelName
       )
     } catch (error) {
-      logger.error('Knowledge base search failed:', error)
+      logger.error('Knowledge base search failed:', error as Error)
       return
     }
   }
@@ -345,7 +347,7 @@ async function fetchExternalTool(
     }
 
     // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = [] // Initialize as empty array
+    let mcpTools: MCPTool[] = []
     const allMcpServers = store.getState().mcp.servers || []
     const activedMcpServers = allMcpServers.filter((s) => s.isActive)
     const assistantMcpServers = assistant.mcpServers || []
@@ -360,7 +362,7 @@ async function fetchExternalTool(
             const tools = await window.api.mcp.listTools(mcpServer, spanContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
-            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
             return []
           }
         })
@@ -369,15 +371,28 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
+        // 添加内置工具
+        const { BUILT_IN_TOOLS } = await import('../tools')
+        mcpTools.push(...BUILT_IN_TOOLS)
+
+        // 根据toolUseMode决定如何构建系统提示词
+        const basePrompt = assistant.prompt
+        if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
+          // 提示词模式：需要完整的工具定义和思考指令
+          assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
+        } else {
+          // 原生函数调用模式：仅需要注入思考指令
+          assistant.prompt = buildSystemPromptWithThinkTool(basePrompt)
+        }
       } catch (toolError) {
-        logger.error('Error fetching MCP tools:', toolError)
+        logger.error('Error fetching MCP tools:', toolError as Error)
       }
     }
 
     return { mcpTools }
   } catch (error) {
     if (isAbortError(error)) throw error
-    logger.error('Tool execution failed:', error)
+    logger.error('Tool execution failed:', error as Error)
 
     // 发送错误状态
     const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
@@ -473,13 +488,13 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false
   }
 
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
     await processConversationMemory(messages, assistant)
   }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 /**
@@ -567,10 +582,10 @@ async function processConversationMemory(messages: Message[], assistant: Assista
         }
       })
       .catch((error) => {
-        logger.error('Background memory processing failed:', error)
+        logger.error('Background memory processing failed:', error as Error)
       })
   } catch (error) {
-    logger.error('Error in post-conversation memory processing:', error)
+    logger.error('Error in post-conversation memory processing:', error as Error)
   }
 }
 

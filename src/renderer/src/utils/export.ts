@@ -543,7 +543,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
-    logger.error('导出到Obsidian失败:', error)
+    logger.error('导出到Obsidian失败:', error as Error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
   }
 }
@@ -686,10 +686,10 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
 
     // 确保根路径以/开头
     const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
-
+    const renderedRootPath = await renderSprigTemplate(siyuanApiUrl, siyuanToken, rootPath)
     // 创建文档
     const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
-    const docPath = `${rootPath}/${docTitle}`
+    const docPath = `${renderedRootPath}/${docTitle}`
 
     // 创建文档
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
@@ -699,7 +699,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
       key: 'siyuan-success'
     })
   } catch (error) {
-    logger.error('导出到思源笔记失败:', error)
+    logger.error('导出到思源笔记失败:', error as Error)
     window.message.error({
       content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
       key: 'siyuan-error'
@@ -707,6 +707,30 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
   } finally {
     setExportState({ isExporting: false })
   }
+}
+/**
+ * 渲染 思源笔记 Sprig 模板字符串
+ * @param apiUrl 思源 API 地址
+ * @param token 思源 API Token
+ * @param template Sprig 模板
+ * @returns 渲染后的字符串
+ */
+async function renderSprigTemplate(apiUrl: string, token: string, template: string): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/template/renderSprig`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify({ template })
+  })
+
+  const data = await response.json()
+  if (data.code !== 0) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
 }
 
 /**

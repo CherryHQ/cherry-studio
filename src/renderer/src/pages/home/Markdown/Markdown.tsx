@@ -46,7 +46,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { mathEngine } = useSettings()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
-  const [displayedContent, setDisplayedContent] = useState(block.content)
+  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
   const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
 
   const prevContentRef = useRef(block.content)
@@ -83,7 +83,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     prevBlockIdRef.current = block.id
 
     // 更新 stream 状态
-    const isStreaming = 'status' in block && block.status === 'streaming'
+    const isStreaming = block.status === 'streaming'
     setIsStreamDone(!isStreaming)
   }, [block.content, block.id, block.status, addChunk, reset])
 

@@ -53,7 +53,7 @@ export default class WebDav {
         })
       }
     } catch (error) {
-      logger.error('Error creating directory on WebDAV:', error)
+      logger.error('Error creating directory on WebDAV:', error as Error)
       throw error
     }
 
@@ -62,7 +62,7 @@ export default class WebDav {
     try {
       return await this.instance.putFileContents(remoteFilePath, data, options)
     } catch (error) {
-      logger.error('Error putting file contents on WebDAV:', error)
+      logger.error('Error putting file contents on WebDAV:', error as Error)
       throw error
     }
   }
@@ -77,7 +77,7 @@ export default class WebDav {
     try {
       return await this.instance.getFileContents(remoteFilePath, options)
     } catch (error) {
-      logger.error('Error getting file contents on WebDAV:', error)
+      logger.error('Error getting file contents on WebDAV:', error as Error)
       throw error
     }
   }
@@ -90,7 +90,7 @@ export default class WebDav {
     try {
       return await this.instance.getDirectoryContents(this.webdavPath)
     } catch (error) {
-      logger.error('Error getting directory contents on WebDAV:', error)
+      logger.error('Error getting directory contents on WebDAV:', error as Error)
       throw error
     }
   }
@@ -103,7 +103,7 @@ export default class WebDav {
     try {
       return await this.instance.exists('/')
     } catch (error) {
-      logger.error('Error checking connection:', error)
+      logger.error('Error checking connection:', error as Error)
       throw error
     }
   }
@@ -116,7 +116,7 @@ export default class WebDav {
     try {
       return await this.instance.createDirectory(path, options)
     } catch (error) {
-      logger.error('Error creating directory on WebDAV:', error)
+      logger.error('Error creating directory on WebDAV:', error as Error)
       throw error
     }
   }
@@ -131,7 +131,7 @@ export default class WebDav {
     try {
       return await this.instance.deleteFile(remoteFilePath)
     } catch (error) {
-      logger.error('Error deleting file on WebDAV:', error)
+      logger.error('Error deleting file on WebDAV:', error as Error)
       throw error
     }
   }

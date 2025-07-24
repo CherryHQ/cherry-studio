@@ -50,7 +50,7 @@ const ProvidersList: FC = () => {
               logos[provider.id] = logoData
             }
           } catch (error) {
-            logger.error(`Failed to load logo for provider ${provider.id}`, error)
+            logger.error(`Failed to load logo for provider ${provider.id}`, error as Error)
           }
         }
       }
@@ -302,7 +302,7 @@ const ProvidersList: FC = () => {
         }
         setProviderLogos(updatedLogos)
       } catch (error) {
-        logger.error('Failed to save logo', error)
+        logger.error('Failed to save logo', error as Error)
         window.message.error('保存Provider Logo失败')
       }
     }
@@ -337,7 +337,7 @@ const ProvidersList: FC = () => {
                   [provider.id]: logo
                 }))
               } catch (error) {
-                logger.error('Failed to save logo', error)
+                logger.error('Failed to save logo', error as Error)
                 window.message.error('更新Provider Logo失败')
               }
             } else if (logo === undefined && logoFile === undefined) {
@@ -349,7 +349,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                logger.error('Failed to reset logo', error)
+                logger.error('Failed to reset logo', error as Error)
               }
             }
           }
@@ -380,7 +380,7 @@ const ProvidersList: FC = () => {
                   return newLogos
                 })
               } catch (error) {
-                logger.error('Failed to delete logo', error)
+                logger.error('Failed to delete logo', error as Error)
               }
             }
 

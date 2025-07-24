@@ -60,7 +60,7 @@ class BackupManager {
       // 确保根目录权限
       await this.forceSetWritable(dirPath)
     } catch (error) {
-      logger.error(`权限设置失败：${dirPath}`, error)
+      logger.error(`权限设置失败：${dirPath}`, error as Error)
       throw error
     }
   }
@@ -83,7 +83,7 @@ class BackupManager {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn(`权限设置警告：${targetPath}`, error)
+        logger.warn(`权限设置警告：${targetPath}`, error as Error)
       }
     }
   }
@@ -124,7 +124,7 @@ class BackupManager {
 
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
-      logger.debug('BackupManager IPC', skipBackupFile)
+      logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
 
       if (!skipBackupFile) {
         // 复制 Data 目录到临时目录
@@ -181,7 +181,7 @@ class BackupManager {
           }
         } catch (error) {
           // 仅在出错时记录日志
-          logger.error('[BackupManager] Error calculating totals:', error)
+          logger.error('[BackupManager] Error calculating totals:', error as Error)
         }
       }
 
@@ -241,7 +241,7 @@ class BackupManager {
       logger.debug('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
-      logger.error('[BackupManager] Backup failed:', error)
+      logger.error('[BackupManager] Backup failed:', error as Error)
       // 确保清理临时目录
       await fs.remove(this.tempDir).catch(() => {})
       throw error
@@ -265,7 +265,7 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      logger.debug('step 1: unzip backup file', this.tempDir)
+      logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
 
       const zip = new StreamZip.async({ file: backupPath })
       onProgress({ stage: 'extracting', progress: 15, total: 100 })
@@ -314,7 +314,7 @@ class BackupManager {
 
       return data
     } catch (error) {
-      logger.error('Restore failed:', error)
+      logger.error('Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})
       throw error
     }
@@ -509,7 +509,7 @@ class BackupManager {
       const backupedFilePath = await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile)
       return backupedFilePath
     } catch (error) {
-      logger.error('[BackupManager] Local backup failed:', error)
+      logger.error('[BackupManager] Local backup failed:', error as Error)
       throw error
     }
   }
@@ -535,7 +535,7 @@ class BackupManager {
       logger.debug(`S3 backup completed successfully: ${filename}`)
       return result
     } catch (error) {
-      logger.error(`[BackupManager] S3 backup failed:`, error)
+      logger.error(`[BackupManager] S3 backup failed:`, error as Error)
       await fs.remove(backupedFilePath)
       throw error
     }
@@ -552,7 +552,7 @@ class BackupManager {
 
       return await this.restore(_, backupPath)
     } catch (error) {
-      logger.error('[BackupManager] Local restore failed:', error)
+      logger.error('[BackupManager] Local restore failed:', error as Error)
       throw error
     }
   }
@@ -578,7 +578,7 @@ class BackupManager {
       // Sort by modified time, newest first
       return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error) {
-      logger.error('[BackupManager] List local backup files failed:', error)
+      logger.error('[BackupManager] List local backup files failed:', error as Error)
       throw error
     }
   }
@@ -594,7 +594,7 @@ class BackupManager {
       await fs.remove(filePath)
       return true
     } catch (error) {
-      logger.error('[BackupManager] Delete local backup file failed:', error)
+      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
       throw error
     }
   }
@@ -605,7 +605,7 @@ class BackupManager {
       await fs.ensureDir(dirPath)
       return true
     } catch (error) {
-      logger.error('[BackupManager] Set local backup directory failed:', error)
+      logger.error('[BackupManager] Set local backup directory failed:', error as Error)
       throw error
     }
   }

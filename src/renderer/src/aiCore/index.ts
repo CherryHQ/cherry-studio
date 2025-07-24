@@ -9,9 +9,7 @@ import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
-import { OpenAIAPIClient } from './clients'
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
-import { AnthropicAPIClient } from './clients/anthropic/AnthropicAPIClient'
 import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
@@ -87,12 +85,18 @@ export default class AiProvider {
         builder.remove(ThinkChunkMiddlewareName)
         logger.silly('ThinkChunkMiddleware is removed')
       }
-      // 注意：用client判断会导致typescript类型收窄
-      if (!(this.apiClient instanceof OpenAIAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+      // 使用兼容性类型检查，避免typescript类型收窄和装饰器模式的问题
+      const clientTypes = client.getClientCompatibilityType(model)
+      const isOpenAICompatible =
+        clientTypes.includes('OpenAIAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+      if (!isOpenAICompatible) {
         logger.silly('ThinkingTagExtractionMiddleware is removed')
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
-      if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+
+      const isAnthropicOrOpenAIResponseCompatible =
+        clientTypes.includes('AnthropicAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+      if (!isAnthropicOrOpenAIResponseCompatible) {
         logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)
       }
@@ -119,10 +123,13 @@ export default class AiProvider {
         logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
         logger.silly('FinalChunkConsumerMiddleware is removed')
+        builder.insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
+        logger.silly('ThinkingTagExtractionMiddleware is inserted')
       }
     }
 
     const middlewares = builder.build()
+    logger.silly('middlewares', middlewares)
 
     // 3. Create the wrapped SDK method with middlewares
     const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)
@@ -160,7 +167,7 @@ export default class AiProvider {
       const dimensions = await this.apiClient.getEmbeddingDimensions(model)
       return dimensions
     } catch (error) {
-      logger.error('Error getting embedding dimensions:', error)
+      logger.error('Error getting embedding dimensions:', error as Error)
       throw error
     }
   }

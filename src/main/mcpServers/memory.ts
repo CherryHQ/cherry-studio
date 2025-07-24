@@ -65,7 +65,7 @@ class KnowledgeGraphManager {
         await fs.writeFile(this.memoryPath, JSON.stringify({ entities: [], relations: [] }, null, 2))
       }
     } catch (error) {
-      logger.error('Failed to ensure memory path exists:', error)
+      logger.error('Failed to ensure memory path exists:', error as Error)
       // Propagate the error or handle it more gracefully depending on requirements
       throw new McpError(
         ErrorCode.InternalError,
@@ -104,7 +104,7 @@ class KnowledgeGraphManager {
         this.relations = new Set()
         await this._persistGraph()
       } else {
-        logger.error('Failed to load knowledge graph from disk:', error)
+        logger.error('Failed to load knowledge graph from disk:', error as Error)
         throw new McpError(
           ErrorCode.InternalError,
           `Failed to load graph: ${error instanceof Error ? error.message : String(error)}`
@@ -123,7 +123,7 @@ class KnowledgeGraphManager {
       }
       await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
     } catch (error) {
-      logger.error('Failed to save knowledge graph:', error)
+      logger.error('Failed to save knowledge graph:', error as Error)
       // Decide how to handle write errors - potentially retry or notify
       throw new McpError(
         ErrorCode.InternalError,
@@ -371,7 +371,7 @@ class MemoryServer {
       this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
       logger.debug('KnowledgeGraphManager initialized successfully.')
     } catch (error) {
-      logger.error('Failed to initialize KnowledgeGraphManager:', error)
+      logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
       // Server might be unusable, consider how to handle this state
       // Maybe set a flag and return errors for all tool calls?
       this.knowledgeGraphManager = null // Ensure it's null if init fails
@@ -398,7 +398,7 @@ class MemoryServer {
         await this._getManager() // Wait for initialization before confirming tools are available
       } catch (error) {
         // If manager failed to init, maybe return an empty tool list or throw?
-        logger.error('Cannot list tools, manager initialization failed:', error)
+        logger.error('Cannot list tools, manager initialization failed:', error as Error)
         return { tools: [] } // Return empty list if server is not ready
       }
 
@@ -700,7 +700,7 @@ class MemoryServer {
         if (error instanceof McpError) {
           throw error // Re-throw McpErrors directly
         }
-        logger.error(`Error executing tool ${name}:`, error)
+        logger.error(`Error executing tool ${name}:`, error as Error)
         // Throw a generic internal error for unexpected issues
         throw new McpError(
           ErrorCode.InternalError,

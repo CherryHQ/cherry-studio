@@ -408,7 +408,7 @@ const TranslatePage: FC = () => {
       await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
       setLoading(false)
     } catch (error) {
-      logger.error('Translation error:', error)
+      logger.error('Translation error:', error as Error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
@@ -525,7 +525,7 @@ const TranslatePage: FC = () => {
         )
       }
     } catch (error) {
-      logger.error('Error getting language display:', error)
+      logger.error('Error getting language display:', error as Error)
       setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
@@ -555,17 +555,7 @@ const TranslatePage: FC = () => {
   return (
     <Container id="translate-page">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>
-          {t('translate.title')}
-          <Button
-            className="nodrag"
-            color="default"
-            variant={historyDrawerVisible ? 'filled' : 'text'}
-            type="text"
-            icon={<HistoryOutlined />}
-            onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-          />
-        </NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
@@ -626,7 +616,7 @@ const TranslatePage: FC = () => {
 
         <InputContainer>
           <OperationBar>
-            <Flex align="center" gap={20}>
+            <Flex align="center" gap={8}>
               <Select
                 showSearch
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
@@ -662,6 +652,14 @@ const TranslatePage: FC = () => {
                 icon={<Settings2 size={18} />}
                 onClick={() => setSettingsVisible(true)}
                 style={{ color: 'var(--color-text-2)', display: 'flex' }}
+              />
+              <Button
+                className="nodrag"
+                color="default"
+                variant={historyDrawerVisible ? 'filled' : 'text'}
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
               />
             </Flex>
 

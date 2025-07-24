@@ -73,7 +73,7 @@ export class AppService {
           }
         }
       } catch (error) {
-        logger.error('Failed to set launch on boot for Linux:', error)
+        logger.error('Failed to set launch on boot for Linux:', error as Error)
       }
     }
   }

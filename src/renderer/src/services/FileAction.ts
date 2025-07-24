@@ -84,7 +84,7 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
     })
     logger.info(`Deleted ${blockIdsToDelete.length} blocks for file ${fileId}`)
   } catch (err) {
-    logger.error(`Error removing file blocks for ${fileId}:`, err)
+    logger.error(`Error removing file blocks for ${fileId}:`, err as Error)
     window.modal.error({ content: t('files.delete.db_error'), centered: true })
   }
 }

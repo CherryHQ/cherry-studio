@@ -85,7 +85,7 @@ export async function checkModelsHealth(
       }
     }
   } catch (error) {
-    logger.error('[HealthCheckService] Model health check failed:', error)
+    logger.error('[HealthCheckService] Model health check failed:', error as Error)
   }
 
   return results

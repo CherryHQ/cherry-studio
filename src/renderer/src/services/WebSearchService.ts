@@ -538,7 +538,7 @@ class WebSearchService {
           1000
         )
       } catch (error) {
-        logger.warn('RAG compression failed, will return empty results:', error)
+        logger.warn('RAG compression failed, will return empty results:', error as Error)
         window.message.error({
           key: 'websearch-rag-failed',
           duration: 10,

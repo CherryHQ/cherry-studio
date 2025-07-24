@@ -96,7 +96,7 @@ async function ensureLanguageAndThemeLoaded(
       await highlighter.loadTheme(themeData)
     } catch (error) {
       // 回退到 one-light
-      logger.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error)
+      logger.debug(`Worker: Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
       const { bundledThemes } = await import('shiki')
       const oneLightTheme = await bundledThemes['one-light']()
       await highlighter.loadTheme(oneLightTheme)
@@ -157,7 +157,7 @@ async function highlightCodeChunk(
       recall: result.recall
     }
   } catch (error) {
-    logger.error('Worker failed to highlight code chunk:', error)
+    logger.error('Worker failed to highlight code chunk:', error as Error)
 
     // 提供简单的 fallback
     const fallbackToken: ThemedToken = { content: chunk || '', color: '#000000', offset: 0 }

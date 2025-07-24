@@ -251,7 +251,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setTimeout(() => resizeTextArea(true), 0)
       setExpend(false)
     } catch (error) {
-      logger.warn('Failed to send message:', error)
+      logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
@@ -267,7 +267,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       translatedText && setText(translatedText)
       setTimeout(() => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error)
+      logger.warn('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -962,7 +962,10 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 24px 18px 24px;
+  padding: 0 18px 18px 18px;
+  [navbar-position='top'] & {
+    padding: 0 18px 10px 18px;
+  }
 `
 
 const InputBarContainer = styled.div`

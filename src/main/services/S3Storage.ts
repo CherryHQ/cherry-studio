@@ -52,7 +52,7 @@ export default class S3Storage {
         const isInWhiteList = VIRTUAL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
         return !isInWhiteList
       } catch (e) {
-        logger.warn('[S3Storage] Failed to parse endpoint, fallback to Path-Style:', endpoint, e)
+        logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e as Error)
         return true
       }
     })()
@@ -98,7 +98,7 @@ export default class S3Storage {
         })
       )
     } catch (error) {
-      logger.error('[S3Storage] Error putting object:', error)
+      logger.error('[S3Storage] Error putting object:', error as Error)
       throw error
     }
   }
@@ -111,7 +111,7 @@ export default class S3Storage {
       }
       return await streamToBuffer(res.Body as Readable)
     } catch (error) {
-      logger.error('[S3Storage] Error getting object:', error)
+      logger.error('[S3Storage] Error getting object:', error as Error)
       throw error
     }
   }
@@ -128,7 +128,7 @@ export default class S3Storage {
         }
       }
     } catch (error) {
-      logger.error('[S3Storage] Error deleting object:', error)
+      logger.error('[S3Storage] Error deleting object:', error as Error)
       throw error
     }
   }
@@ -165,7 +165,7 @@ export default class S3Storage {
 
       return files
     } catch (error) {
-      logger.error('[S3Storage] Error listing objects:', error)
+      logger.error('[S3Storage] Error listing objects:', error as Error)
       throw error
     }
   }
@@ -178,7 +178,7 @@ export default class S3Storage {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }))
       return true
     } catch (error) {
-      logger.error('[S3Storage] Error checking connection:', error)
+      logger.error('[S3Storage] Error checking connection:', error as Error)
       throw error
     }
   }
