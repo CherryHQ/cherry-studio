@@ -630,7 +630,7 @@
     "duplicate": "Αντιγραφή",
     "edit": "Επεξεργασία",
     "enabled": "Ενεργοποιημένο",
-    "error": "[to be translated]:错误",
+    "error": "σφάλμα",
     "expand": "Επεκτάση",
     "footnote": "Παραπομπή",
     "footnotes": "Παραπομπές",
@@ -733,7 +733,7 @@
     "created_at": "Ημερομηνία δημιουργίας",
     "delete": {
       "content": "Η διαγραφή του αρχείου θα διαγράψει την αναφορά του σε όλα τα μηνύματα. Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το αρχείο;",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "Αποτυχία διαγραφής",
       "key": "Διαγραφή",
       "paintings": {
         "warning": "Το σχεδίο περιλαμβάνει αυτή την εικόνα και δεν είναι παρόλως δυνατή η διαγραφή."
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "Κώδικας",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "Δεν υπάρχει περιεχόμενο για εμφάνιση",
     "generating": "Δημιουργία",
     "preview": "Προεπισκόπηση",
     "split": "Διαχωρισμός"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "Προεπεξεργασία των ανεβασμένων αρχείων με χρήση OCR",
       "title": "Ρυθμίσεις Γνώσης"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "Επιτυχής προσθήκη",
     "sitemap_placeholder": "Εισάγετε τη διεύθυνση URL του χάρτη τόπων",
     "sitemaps": "Στοιχεία του δικτύου",
     "source": "Πηγή",
@@ -1044,7 +1044,7 @@
       "success": "Η αντιγραφή ασφαλείας ήταν επιτυχής"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "Η δημιουργία του κλάδου απέτυχε"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "Αδυναμία λήψης της εικόνας, πιθανόν οι οδηγίες να περιέχουν ευαίσθητο περιεχόμενο ή απαγορευμένες λέξεις",
     "error": {
       "chunk_overlap_too_large": "Η επικάλυψη μεριδίων δεν μπορεί να είναι μεγαλύτερη από το μέγεθος του μεριδίου",
-      "copy": "[to be translated]:复制失败",
+      "copy": "Η αντιγραφή απέτυχε",
       "dimension_too_large": "Το μέγεθος του περιεχομένου είναι πολύ μεγάλο",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "Η έκθεση σημειώσεων Siyuan απέτυχε, ελέγξτε την κατάσταση σύνδεσης και τις ρυθμίσεις σύμφωνα με τα έγγραφα",
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "Άγνωστο σφάλμα",
       "yuque": {
         "export": "Σφάλμα στην εξαγωγή της Yuque, παρακαλείστε να ελέγξετε τη σύνδεση και τη διαμόρφωση κατά τη διατύπωση του χειρισμού",
         "no_config": "Δεν έχετε διαθέσιμο το Token της Yuque ή το URL της βάσης της Yuque"
@@ -1892,7 +1892,7 @@
         "migration_title": "Μεταφορά δεδομένων",
         "new_path": "Νέα διαδρομή",
         "original_path": "Αρχική διαδρομή",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "Η αλλαγή του καταλόγου δεδομένων απέτυχε",
         "path_changed_without_copy": "Η διαδρομή άλλαξε επιτυχώς",
         "restart_notice": "Η εφαρμογή μπορεί να επανεκκινήσει πολλές φορές για να εφαρμοστούν οι αλλαγές",
         "select": "Αλλαγή καταλόγου",
@@ -2542,10 +2542,10 @@
           "dxtHelp": "Επιλέξτε ένα αρχείο .dxt που περιέχει διακομιστή MCP",
           "dxtProcessFailed": "Αποτυχία επεξεργασίας αρχείου DXT",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "Δεν είναι δυνατή η εισαγωγή από πολλαπλούς διακομιστές"
           },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "Εισαγωγή από JSON",
           "method": "Μέθοδος Εισαγωγής",
           "nameExists": "Ο διακομιστής υπάρχει ήδη: {{name}}",
           "noDxtFile": "Παρακαλώ επιλέξτε ένα αρχείο DXT",
@@ -2648,7 +2648,7 @@
         "availableResources": "Διαθέσιμοι πόροι",
         "blob": "Δυαδικά δεδομένα",
         "blobInvisible": "Αόρατα δυαδικά δεδομένα",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "Σφάλμα λήψης πόρων",
         "mimeType": "Τύπος MIME",
         "noResourcesAvailable": "Δεν υπάρχουν διαθέσιμοι πόροι",
         "size": "Μέγεθος",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} μοντέλα πέρασαν τον έλεγχο υγείας",
         "model_status_summary": "{{provider}}: {{count_passed}} μοντέλα ελέγχθηκαν επιτυχώς (από τα οποία {{count_partial}} μοντέλα δεν είναι προσβάσιμα με ορισμένα κλειδιά), {{count_failed}} μοντέλα είναι εντελώς απρόσβαστα.",
         "no_api_keys": "Δεν βρέθηκαν API κλειδιά. Παρακαλούμε πρώτα προσθέστε κλειδιά API.",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "χωρίς αποτελέσματα",
         "passed": "Επιτυχία",
         "select_api_key": "Επιλέξτε το API key που θέλετε να χρησιμοποιήσετε:",
         "single": "Μόνο",
@@ -2915,7 +2915,7 @@
       "key": "Περισσότερες ρυθμίσεις",
       "warn": "Χρησιμοποιείται κίνδυνος"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "Δεν έχει επιλεγεί πάροχος",
     "notification": {
       "assistant": "Μήνυμα βοηθού",
       "backup": "Δημιουργία αντιγράφου ασφαλείας",
@@ -2990,8 +2990,8 @@
       "basic_auth": {
         "key": "Πιστοποίηση HTTP",
         "password": {
-          "key": "[to be translated]:密码",
-          "tip": "[to be translated]:输入密码"
+          "key": "κωδικός πρόσβασης",
+          "tip": "εισαγάγετε τον κωδικό πρόσβασης"
         },
         "tip": "Ισχύει για περιπτώσεις που τοποθετούνται σε διακομιστή (δείτε την τεκμηρίωση). Υποστηρίζεται μόνο το σχήμα Basic (RFC7617).",
         "user_name": {
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
-        "error": "[to be translated]:认证失败",
+        "error": "Αποτυχία πιστοποίησης",
         "official_website": "Επίσημη ιστοσελίδα"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "Ενέργεια",
-      "actions": "[to be translated]:操作",
+      "actions": "Λειτουργία",
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
-      "enabled": "[to be translated]:启用",
+      "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "key": "Πλήκτρο",
       "mini_window": "Συντομεύστε επιχειρηματικά",
@@ -3264,7 +3264,7 @@
         "search_with_time": "Αναζήτηση με ημερομηνία",
         "subscribe": "Εγγραφή σε μαύρη λίστα",
         "subscribe_add": "Προσθήκη εγγραφής",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "Η προσθήκη της ροής συνδρομής απέτυχε",
         "subscribe_add_success": "Η πηγή εγγραφής προστέθηκε επιτυχώς!",
         "subscribe_delete": "Διαγραφή πηγής εγγραφής",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "Εναλλακτικό όνομα που χρησιμοποιείται όταν η ληφθείσα πηγή εγγραφής δεν έχει όνομα"
         },
         "subscribe_update": "Άμεση ενημέρωση",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "Η ενημέρωση της ροής συνδρομής απέτυχε",
+        "subscribe_update_success": "Η ενημέρωση της ροής συνδρομής ολοκληρώθηκε επιτυχώς",
         "subscribe_url": "Διεύθυνση πηγής εγγραφής",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "Διαδικτυακή Αναζήτηση",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "Εισήχθη μη έγκυρη διεύθυνση URL",
+        "url_required": "Απαιτείται εισαγωγή URL"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "Όταν ενεργοποιηθεί, υποστηρίζεται μόνο διπλής κατεύθυνσης μετάφραση μεταξύ της πηγαίας και της στόχου γλώσσας",
       "model": "Ρύθμιση μοντέλου",
       "model_desc": "Μοντέλο που χρησιμοποιείται από την υπηρεσία μετάφρασης",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "Επιλέξτε μοντέλο μετάφρασης",
+      "no_model_warning": "Δεν έχει επιλεγεί μοντέλο μετάφρασης",
       "preview": "Προεπισκόπηση Markdown",
       "scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
       "title": "Ρυθμίσεις μετάφρασης"

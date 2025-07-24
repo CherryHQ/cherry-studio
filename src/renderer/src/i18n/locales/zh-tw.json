@@ -360,7 +360,7 @@
     "resend": "重新傳送",
     "save": {
       "file": {
-        "title": "[to be translated]:Save to Local File"
+        "title": "儲存到本機檔案"
       },
       "key": "儲存",
       "knowledge": {
@@ -630,7 +630,7 @@
     "duplicate": "複製",
     "edit": "編輯",
     "enabled": "已啟用",
-    "error": "[to be translated]:错误",
+    "error": "錯誤",
     "expand": "展開",
     "footnote": "引用內容",
     "footnotes": "引用",
@@ -733,7 +733,7 @@
     "created_at": "建立時間",
     "delete": {
       "content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "刪除失敗",
       "key": "刪除",
       "paintings": {
         "warning": "繪圖中包含該圖片，暫時無法刪除"
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "程式碼",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "無內容可展示",
     "generating": "生成中",
     "preview": "預覽",
     "split": "分屏"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "預處理上傳的文件",
       "title": "知識庫設定"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "添加成功",
     "sitemap_placeholder": "請輸入網站地圖 URL",
     "sitemaps": "網站",
     "source": "來源",
@@ -1044,7 +1044,7 @@
       "success": "備份成功"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "分支创建失败"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
     "error": {
       "chunk_overlap_too_large": "分段重疊不能大於分段大小",
-      "copy": "[to be translated]:复制失败",
+      "copy": "复制失败",
       "dimension_too_large": "內容尺寸過大",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
         "no_config": "未配置思源筆記 API 地址或令牌"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "未知錯誤",
       "yuque": {
         "export": "匯出語雀錯誤，請檢查連接狀態並對照文件檢查設定",
         "no_config": "未設定語雀 Token 或知識庫 Url"
@@ -1700,11 +1700,11 @@
             "go_to_settings": "去設定",
             "open_accessibility_settings": "打開輔助使用設定"
           },
-          "description": [
-            "劃詞助手需「<strong>輔助使用權限</strong>」才能正常工作。",
-            "請點擊「<strong>去設定</strong>」，並在稍後彈出的權限請求彈窗中點擊 「<strong>打開系統設定</strong>」 按鈕，然後在之後的應用程式列表中找到 「<strong>Cherry Studio</strong>」，並開啟權限開關。",
-            "完成設定後，請再次開啟劃詞助手。"
-          ],
+          "description": {
+            "0": "劃詞助手需「<strong>輔助使用權限</strong>」才能正常工作。",
+            "1": "請點擊「<strong>去設定</strong>」，並在稍後彈出的權限請求彈窗中點擊 「<strong>打開系統設定</strong>」 按鈕，然後在之後的應用程式列表中找到 「<strong>Cherry Studio</strong>」，並開啟權限開關。",
+            "2": "完成設定後，請再次開啟劃詞助手。"
+          },
           "title": "輔助使用權限"
         },
         "title": "啟用"
@@ -1892,7 +1892,7 @@
         "migration_title": "數據遷移",
         "new_path": "新路徑",
         "original_path": "原始路徑",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "數據目錄更改失敗",
         "path_changed_without_copy": "路徑已變更成功",
         "restart_notice": "變更數據目錄後可能需要重啟應用才能生效",
         "select": "修改目錄",
@@ -2542,16 +2542,16 @@
           "dxtHelp": "選擇包含 MCP 服務器的 .dxt 文件",
           "dxtProcessFailed": "處理 DXT 文件失敗",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "不能從多個伺服器匯入"
           },
           "invalid": "無效的輸入，請檢查 JSON 格式",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "從 JSON 匯入",
           "method": "導入方式",
           "nameExists": "伺服器已存在：{{name}}",
           "noDxtFile": "請選擇一個 DXT 文件",
           "oneServer": "每次只能保存一個 MCP 伺服器配置",
           "placeholder": "貼上 MCP 伺服器 JSON 設定",
-          "selectDxtFile": "[to be translated]:选择 DXT 文件",
+          "selectDxtFile": "選擇 DXT 檔案",
           "tooltip": "請從 MCP Servers 的介紹頁面複製配置 JSON（優先使用\n NPX 或 UVX 配置），並粘貼到輸入框中"
         },
         "key": "新增伺服器"
@@ -2648,7 +2648,7 @@
         "availableResources": "可用資源",
         "blob": "二進位數據",
         "blobInvisible": "隱藏二進位數據",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "获取资源错误",
         "mimeType": "MIME 類型",
         "noResourcesAvailable": "無可用資源",
         "size": "大小",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} 個模型通過健康檢查",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "未找到 API 密鑰，請先添加 API 密鑰",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "無結果",
         "passed": "通過",
         "select_api_key": "選擇要使用的 API 密鑰：",
         "single": "單個",
@@ -2915,7 +2915,7 @@
       "key": "更多設定",
       "warn": "風險警告"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "未選擇提供商",
     "notification": {
       "assistant": "助手訊息",
       "backup": "備份訊息",
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "使用 {{provider}} 帳號登入",
         "description": "本服務由 <website>{{provider}}</website> 提供",
-        "error": "[to be translated]:认证失败",
+        "error": "认证失败",
         "official_website": "官方網站"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "操作",
-      "actions": "[to be translated]:操作",
+      "actions": "操作",
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
       "copy_last_message": "複製上一則訊息",
-      "enabled": "[to be translated]:启用",
+      "enabled": "啟用",
       "exit_fullscreen": "退出螢幕",
       "key": "按鍵",
       "mini_window": "快捷助手",
@@ -3264,7 +3264,7 @@
         "search_with_time": "搜尋包含日期",
         "subscribe": "黑名單訂閱",
         "subscribe_add": "新增訂閱",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "订阅源添加失败",
         "subscribe_add_success": "訂閱源新增成功!",
         "subscribe_delete": "刪除",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "下載的訂閱源沒有名稱時使用的替代名稱。"
         },
         "subscribe_update": "更新",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "订阅源更新失败",
+        "subscribe_update_success": "订阅源更新成功",
         "subscribe_url": "訂閱網址",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "網路搜尋",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "輸入了無效的URL",
+        "url_required": "需要輸入URL"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
       "model": "模型設定",
       "model_desc": "翻譯服務使用的模型",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "选择翻译模型",
+      "no_model_warning": "未選擇翻譯模型",
       "preview": "Markdown 預覽",
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"

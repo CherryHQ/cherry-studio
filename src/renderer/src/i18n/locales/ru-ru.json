@@ -630,7 +630,7 @@
     "duplicate": "Дублировать",
     "edit": "Редактировать",
     "enabled": "Включено",
-    "error": "[to be translated]:错误",
+    "error": "ошибка",
     "expand": "Развернуть",
     "footnote": "Цитируемый контент",
     "footnotes": "Сноски",
@@ -733,7 +733,7 @@
     "created_at": "Дата создания",
     "delete": {
       "content": "Удаление файла удалит его из всех сообщений, вы уверены, что хотите удалить этот файл?",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "Удаление не удалось",
       "key": "Удалить",
       "paintings": {
         "warning": "В изображениях содержится этот файл, удаление невозможно"
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "Код",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "Нет содержания для отображения",
     "generating": "Генерация",
     "preview": "Предпросмотр",
     "split": "Разделить"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "Предварительная обработка изображений с помощью OCR",
       "title": "Настройки базы знаний"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "添加成功",
     "sitemap_placeholder": "Введите URL карты сайта",
     "sitemaps": "Сайты",
     "source": "Источник",
@@ -1044,7 +1044,7 @@
       "success": "Резервная копия успешно создана"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "Создание ветви не удалось"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
     "error": {
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
-      "copy": "[to be translated]:复制失败",
+      "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Не настроен API адрес или токен Siyuan"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "Неизвестная ошибка",
       "yuque": {
         "export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Yuque Token или Yuque Url не настроен"
@@ -1700,11 +1700,11 @@
             "go_to_settings": "Настройки",
             "open_accessibility_settings": "Открыть системные настройки"
           },
-          "description": [
-            "Помощник выбора требует <strong>Права доступа</strong> для правильной работы.",
-            "Пожалуйста, перейдите в \"<strong>Настройки</strong>\" и нажмите \"<strong>Открыть системные настройки</strong>\" в запросе разрешения, который появится позже. Затем найдите \"<strong>Cherry Studio</strong>\" в списке приложений, который появится позже, и включите переключатель разрешения.",
-            "После завершения настроек, пожалуйста, перезапустите помощник выбора."
-          ],
+          "description": {
+            "0": "Помощник выбора требует <strong>Права доступа</strong> для правильной работы.",
+            "1": "Пожалуйста, перейдите в \"<strong>Настройки</strong>\" и нажмите \"<strong>Открыть системные настройки</strong>\" в запросе разрешения, который появится позже. Затем найдите \"<strong>Cherry Studio</strong>\" в списке приложений, который появится позже, и включите переключатель разрешения.",
+            "2": "После завершения настроек, пожалуйста, перезапустите помощник выбора."
+          },
           "title": "Права доступа"
         },
         "title": "Включить"
@@ -1892,7 +1892,7 @@
         "migration_title": "Миграция данных",
         "new_path": "Новый путь",
         "original_path": "Исходный путь",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "Сбой изменения каталога данных",
         "path_changed_without_copy": "Путь изменен успешно",
         "restart_notice": "Для применения изменений может потребоваться несколько перезапусков приложения",
         "select": "Изменить директорию",
@@ -2542,16 +2542,16 @@
           "dxtHelp": "Выберите .dxt файл, содержащий MCP сервер",
           "dxtProcessFailed": "Не удалось обработать DXT-файл",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "Невозможно импортировать с нескольких серверов"
           },
           "invalid": "Неверный ввод, проверьте формат JSON",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "Импорт из JSON",
           "method": "Метод импорта",
           "nameExists": "Сервер уже существует: {{name}}",
           "noDxtFile": "Пожалуйста, выберите DXT-файл",
           "oneServer": "Можно сохранить только один конфигурационный файл MCP",
           "placeholder": "Вставьте JSON-конфигурацию сервера MCP",
-          "selectDxtFile": "[to be translated]:选择 DXT 文件",
+          "selectDxtFile": "Выберите файл DXT",
           "tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода."
         },
         "key": "Добавить сервер"
@@ -2648,7 +2648,7 @@
         "availableResources": "Доступные ресурсы",
         "blob": "Двоичные данные",
         "blobInvisible": "Скрытые двоичные данные",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "ошибка получения ресурса",
         "mimeType": "MIME-тип",
         "noResourcesAvailable": "Нет доступных ресурсов",
         "size": "Размер",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} моделей прошли проверку состояния",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "нет результатов",
         "passed": "Прошло",
         "select_api_key": "Выберите API ключ для использования:",
         "single": "Один",
@@ -2915,7 +2915,7 @@
       "key": "Дополнительные настройки",
       "warn": "Предупреждение о риске"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "Поставщик не выбран",
     "notification": {
       "assistant": "Сообщение ассистента",
       "backup": "Резервное сообщение",
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "Войти с {{provider}}",
         "description": "Сервис предоставляется <website>{{provider}}</website>",
-        "error": "[to be translated]:认证失败",
+        "error": "Ошибка аутентификации",
         "official_website": "Официальный сайт"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "Действие",
-      "actions": "[to be translated]:操作",
+      "actions": "操作",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
       "copy_last_message": "Копировать последнее сообщение",
-      "enabled": "[to be translated]:启用",
+      "enabled": "启用",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "key": "Клавиша",
       "mini_window": "Быстрый помощник",
@@ -3264,7 +3264,7 @@
         "search_with_time": "Поиск, содержащий дату",
         "subscribe": "Подписка на черный список",
         "subscribe_add": "Добавить подписку",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "Не удалось добавить источник подписки",
         "subscribe_add_success": "Лента подписки успешно добавлена!",
         "subscribe_delete": "Удалить",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "Альтернативное имя, используемое, когда в загруженной ленте подписки нет имени."
         },
         "subscribe_update": "Обновить",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "Источник обновления подписки не удался",
+        "subscribe_update_success": "Источник подписки успешно обновлен",
         "subscribe_url": "URL подписки",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "Поиск в Интернете",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "Введен недопустимый URL",
+        "url_required": "требуется ввести URL"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "Если включено, перевод будет выполняться в обоих направлениях, исходный текст будет переведен на целевой язык и наоборот.",
       "model": "Настройки модели",
       "model_desc": "Модель, используемая для службы перевода",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "Выберите модель перевода",
+      "no_model_warning": "Не выбрана модель перевода",
       "preview": "Markdown предпросмотр",
       "scroll_sync": "Настройки синхронизации прокрутки",
       "title": "Настройки перевода"

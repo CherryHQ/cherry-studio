@@ -630,7 +630,7 @@
     "duplicate": "複製",
     "edit": "編集",
     "enabled": "有効",
-    "error": "[to be translated]:错误",
+    "error": "エラー",
     "expand": "展開",
     "footnote": "引用内容",
     "footnotes": "脚注",
@@ -733,7 +733,7 @@
     "created_at": "作成日",
     "delete": {
       "content": "ファイルを削除すると、ファイルがすべてのメッセージで参照されることを削除します。このファイルを削除してもよろしいですか？",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "削除に失敗しました",
       "key": "削除",
       "paintings": {
         "warning": "画像に含まれているため、削除できません"
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "コード",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",
     "preview": "プレビュー",
     "split": "分割"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "アップロードされたファイルのOCR預処理",
       "title": "ナレッジベース設定"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "追加成功",
     "sitemap_placeholder": "サイトマップURLを入力",
     "sitemaps": "サイトマップ",
     "source": "ソース",
@@ -1044,7 +1044,7 @@
       "success": "バックアップに成功しました"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "分支作成に失敗しました"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
-      "copy": "[to be translated]:复制失败",
+      "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "未知のエラー",
       "yuque": {
         "export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
         "no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
@@ -1700,11 +1700,11 @@
             "go_to_settings": "設定に移動",
             "open_accessibility_settings": "アクセシビリティー設定を開く"
           },
-          "description": [
-            "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
-            "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
-            "設定が完了したら、テキスト選択ツールを再起動してください。"
-          ],
+          "description": {
+            "0": "テキスト選択ツールは、<strong>アクセシビリティー権限</strong>が必要です。",
+            "1": "「<strong>設定に移動</strong>」をクリックし、後で表示される権限要求ポップアップで「<strong>システム設定を開く</strong>」ボタンをクリックします。その後、表示されるアプリケーションリストで「<strong>Cherry Studio</strong>」を見つけ、権限スイッチをオンにしてください。",
+            "2": "設定が完了したら、テキスト選択ツールを再起動してください。"
+          },
           "title": "アクセシビリティー権限"
         },
         "title": "有効化"
@@ -1892,7 +1892,7 @@
         "migration_title": "データ移行",
         "new_path": "新しいパス",
         "original_path": "元のパス",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "データディレクトリの変更に失敗しました",
         "path_changed_without_copy": "パスが変更されました。",
         "restart_notice": "変更を適用するには、アプリを再起動する必要があります。",
         "select": "ディレクトリを変更",
@@ -2542,16 +2542,16 @@
           "dxtHelp": "MCPサーバーパッケージを含む.dxtファイルを選択",
           "dxtProcessFailed": "DXTファイルの処理に失敗しました",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "複数のサーバーからインポートすることはできません"
           },
           "invalid": "無効な入力です。JSON形式を確認してください。",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "JSONからインポート",
           "method": "インポート方法",
           "nameExists": "サーバーはすでに存在します: {{name}}",
           "noDxtFile": "DXTファイルを選択してください",
           "oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
           "placeholder": "MCPサーバーJSON設定を貼り付け",
-          "selectDxtFile": "[to be translated]:选择 DXT 文件",
+          "selectDxtFile": "DXT ファイルを選択してください",
           "tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。"
         },
         "key": "サーバーを追加"
@@ -2648,7 +2648,7 @@
         "availableResources": "利用可能なリソース",
         "blob": "バイナリデータ",
         "blobInvisible": "バイナリデータを非表示",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "リソースの取得エラー",
         "mimeType": "MIMEタイプ",
         "noResourcesAvailable": "利用可能なリソースはありません",
         "size": "サイズ",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} 個のモデルが健康チェックを通過しました",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "結果なし",
         "passed": "成功",
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
@@ -2915,7 +2915,7 @@
       "key": "詳細設定",
       "warn": "リスク警告"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "未選択のプロバイダー",
     "notification": {
       "assistant": "アシスタントメッセージ",
       "backup": "バックアップメッセージ",
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "{{provider}} アカウントでログイン",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
-        "error": "[to be translated]:认证失败",
+        "error": "認証失敗",
         "official_website": "公式サイト"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "操作",
-      "actions": "[to be translated]:操作",
+      "actions": "操作",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "copy_last_message": "最後のメッセージをコピー",
-      "enabled": "[to be translated]:启用",
+      "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "key": "キー",
       "mini_window": "クイックアシスタント",
@@ -3264,7 +3264,7 @@
         "search_with_time": "日付を含む検索",
         "subscribe": "ブラックリスト購読",
         "subscribe_add": "購読を追加",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "購読ソースの追加に失敗しました",
         "subscribe_add_success": "購読フィードが正常に追加されました!",
         "subscribe_delete": "削除",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "ダウンロードした購読フィードに名前がない場合に使用される代替名。"
         },
         "subscribe_update": "更新",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "フィードの更新に失敗しました",
+        "subscribe_update_success": "订阅源更新成功",
         "subscribe_url": "購読URL",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "ウェブ検索",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "無効なURLが入力されました",
+        "url_required": "URLの入力が必要です"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
       "model": "モデル設定",
       "model_desc": "翻訳サービスで使用されるモデル",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "翻訳モデルを選択してください",
+      "no_model_warning": "翻訳モデルが選択されていません",
       "preview": "Markdown プレビュー",
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"

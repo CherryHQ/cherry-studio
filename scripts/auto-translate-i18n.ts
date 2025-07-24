@@ -71,11 +71,15 @@ const translateRecursively = async (originObj: I18N, systemPrompt: string): Prom
       if (text.startsWith('[to be translated]')) {
         const systemPrompt_ = systemPrompt.replaceAll('{{text}}', text)
         try {
-          newObj[key] = await translate(systemPrompt_)
+          const result = await translate(systemPrompt_)
+          console.log(result)
+          newObj[key] = result
         } catch (e) {
-          newObj[key] = originObj[key]
+          newObj[key] = text
           console.error('translate failed.', text)
         }
+      } else {
+        newObj[key] = text
       }
     } else if (typeof originObj[key] === 'object' && originObj[key] !== null) {
       newObj[key] = await translateRecursively(originObj[key], systemPrompt)

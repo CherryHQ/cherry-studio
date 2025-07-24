@@ -630,7 +630,7 @@
     "duplicate": "Duplicate",
     "edit": "Edit",
     "enabled": "Enabled",
-    "error": "[to be translated]:错误",
+    "error": "error",
     "expand": "Expand",
     "footnote": "Reference content",
     "footnotes": "References",
@@ -733,7 +733,7 @@
     "created_at": "Created At",
     "delete": {
       "content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "Deletion failed",
       "key": "Delete",
       "paintings": {
         "warning": "Image contains this file, deletion is not possible"
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "Code",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "No content to display",
     "generating": "Generating",
     "preview": "Preview",
     "split": "Split"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "Preprocess uploaded files with OCR",
       "title": "Knowledge Base Settings"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "Added successfully",
     "sitemap_placeholder": "Enter Website Map URL",
     "sitemaps": "Websites",
     "source": "Source",
@@ -1044,7 +1044,7 @@
       "success": "Backup successful"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "Branch creation failed"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
-      "copy": "[to be translated]:复制失败",
+      "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "Unknown error",
       "yuque": {
         "export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
         "no_config": "Yuque Token or Yuque Url is not configured"
@@ -1700,11 +1700,11 @@
             "go_to_settings": "Go to Settings",
             "open_accessibility_settings": "Open Accessibility Settings"
           },
-          "description": [
-            "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
-            "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
-            "After completing the settings, please reopen the selection assistant."
-          ],
+          "description": {
+            "0": "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
+            "1": "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
+            "2": "After completing the settings, please reopen the selection assistant."
+          },
           "title": "Accessibility Permission"
         },
         "title": "Enable"
@@ -1892,7 +1892,7 @@
         "migration_title": "Data Migration",
         "new_path": "New Path",
         "original_path": "Original Path",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "Failed to change data directory",
         "path_changed_without_copy": "Path changed successfully",
         "restart_notice": "The app may need to restart multiple times to apply the changes",
         "select": "Modify Directory",
@@ -2542,10 +2542,10 @@
           "dxtHelp": "Select a .dxt file containing an MCP server package",
           "dxtProcessFailed": "Failed to process DXT file",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "Cannot import from multiple servers"
           },
           "invalid": "Invalid input, please check JSON format",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "Import from JSON",
           "method": "Import Method",
           "nameExists": "Server already exists: {{name}}",
           "noDxtFile": "Please select a DXT file",
@@ -2648,7 +2648,7 @@
         "availableResources": "Available Resources",
         "blob": "Blob",
         "blobInvisible": "Blob Invisible",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "Resource acquisition error",
         "mimeType": "MIME Type",
         "noResourcesAvailable": "No resources available",
         "size": "Size",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} models passed health checks",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "No API keys found, please add API keys first.",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "No results",
         "passed": "Passed",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
@@ -2915,7 +2915,7 @@
       "key": "More Settings",
       "warn": "Risk Warning"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "Provider not selected",
     "notification": {
       "assistant": "Assistant Message",
       "backup": "Backup Message",
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "Login with {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
-        "error": "[to be translated]:认证失败",
+        "error": "Authentication failed",
         "official_website": "Official Website"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "Action",
-      "actions": "[to be translated]:操作",
+      "actions": "operation",
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
       "copy_last_message": "Copy Last Message",
-      "enabled": "[to be translated]:启用",
+      "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "key": "Key",
       "mini_window": "Quick Assistant",
@@ -3264,7 +3264,7 @@
         "search_with_time": "Search with dates included",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "Failed to add feed source",
         "subscribe_add_success": "Subscription feed added successfully!",
         "subscribe_delete": "Delete",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "Alternative name used when the downloaded subscription feed has no name."
         },
         "subscribe_update": "Update",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "Subscription source update failed",
+        "subscribe_update_success": "Subscription source updated successfully",
         "subscribe_url": "Subscription Url",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "Web Search",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "Entered an invalid URL",
+        "url_required": "Please enter a URL"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
       "model": "Model Settings",
       "model_desc": "Model used for translation service",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "Select translation model",
+      "no_model_warning": "No translation model selected",
       "preview": "Markdown Preview",
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"

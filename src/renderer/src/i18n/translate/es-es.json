@@ -630,7 +630,7 @@
     "duplicate": "Duplicar",
     "edit": "Editar",
     "enabled": "Activado",
-    "error": "[to be translated]:错误",
+    "error": "error",
     "expand": "Expandir",
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
@@ -733,7 +733,7 @@
     "created_at": "Fecha de creación",
     "delete": {
       "content": "Eliminar el archivo eliminará todas las referencias del archivo en todos los mensajes. ¿Estás seguro de que quieres eliminar este archivo?",
-      "db_error": "[to be translated]:删除失败",
+      "db_error": "Error al eliminar",
       "key": "Eliminar",
       "paintings": {
         "warning": "La imagen está incluida en un dibujo, por lo que temporalmente no se puede eliminar"
@@ -775,7 +775,7 @@
   },
   "html_artifacts": {
     "code": "Código",
-    "empty_preview": "[to be translated]:无内容可展示",
+    "empty_preview": "Sin contenido para mostrar",
     "generating": "Generando",
     "preview": "Vista previa",
     "split": "Dividir"
@@ -843,7 +843,7 @@
       "preprocessing_tooltip": "Preprocesar los archivos cargados usando OCR",
       "title": "Configuración de la Base de Conocimiento"
     },
-    "sitemap_added": "[to be translated]:添加成功",
+    "sitemap_added": "Agregado con éxito",
     "sitemap_placeholder": "Ingrese la URL del mapa del sitio",
     "sitemaps": "Sitios web",
     "source": "Fuente",
@@ -1044,7 +1044,7 @@
       "success": "Backup exitoso"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "La creación de la rama ha fallado"
     },
     "chat": {
       "completion": {
@@ -1073,7 +1073,7 @@
     "empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
     "error": {
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
-      "copy": "[to be translated]:复制失败",
+      "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",
       "enter": {
         "api": {
@@ -1118,7 +1118,7 @@
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "Error desconocido",
       "yuque": {
         "export": "Error de exportación de Yuque, verifique el estado de conexión y la configuración según la documentación",
         "no_config": "No se ha configurado el token de Yuque o la URL de la base de conocimiento"
@@ -1892,7 +1892,7 @@
         "migration_title": "Migración de datos",
         "new_path": "Nueva ruta",
         "original_path": "Ruta original",
-        "path_change_failed": "[to be translated]:数据目录更改失败",
+        "path_change_failed": "Error al cambiar el directorio de datos",
         "path_changed_without_copy": "La ruta se ha cambiado correctamente",
         "restart_notice": "La aplicación podría reiniciarse varias veces para aplicar los cambios",
         "select": "Modificar directorio",
@@ -2542,10 +2542,10 @@
           "dxtHelp": "Selecciona un archivo .dxt que contenga un servidor MCP",
           "dxtProcessFailed": "Error al procesar el archivo DXT",
           "error": {
-            "multipleServers": "[to be translated]:不能从多个服务器导入"
+            "multipleServers": "No se puede importar desde múltiples servidores"
           },
           "invalid": "Entrada no válida, verifica el formato JSON",
-          "json": "[to be translated]:从 JSON 导入",
+          "json": "Importar desde JSON",
           "method": "Método de importación",
           "nameExists": "El servidor ya existe: {{name}}",
           "noDxtFile": "Por favor, selecciona un archivo DXT",
@@ -2648,7 +2648,7 @@
         "availableResources": "Recursos disponibles",
         "blob": "Datos binarios",
         "blobInvisible": "Datos binarios ocultos",
-        "genericError": "[to be translated]:获取资源错误",
+        "genericError": "Error al obtener recursos",
         "mimeType": "Tipo MIME",
         "noResourcesAvailable": "No hay recursos disponibles",
         "size": "Tamaño",
@@ -2862,7 +2862,7 @@
         "model_status_passed": "{{count}} modelos pasaron la verificación de salud",
         "model_status_summary": "{{provider}}: {{count_passed}} modelos completaron la verificación de salud ({{count_partial}} modelos no accesibles con algunas claves), {{count_failed}} modelos completamente inaccesibles.",
         "no_api_keys": "No se encontraron claves API, agrega una clave API primero.",
-        "no_results": "[to be translated]:无结果",
+        "no_results": "Sin resultados",
         "passed": "Pasado",
         "select_api_key": "Seleccionar clave API a usar:",
         "single": "Individual",
@@ -2915,7 +2915,7 @@
       "key": "Configuración adicional",
       "warn": "Advertencia de riesgo"
     },
-    "no_provider_selected": "[to be translated]:未选择提供商",
+    "no_provider_selected": "No se ha seleccionado un proveedor",
     "notification": {
       "assistant": "Mensaje del asistente",
       "backup": "Copia de seguridad",
@@ -2990,8 +2990,8 @@
       "basic_auth": {
         "key": "Autenticación HTTP",
         "password": {
-          "key": "[to be translated]:密码",
-          "tip": "[to be translated]:输入密码"
+          "key": "contraseña",
+          "tip": "Introduzca la contraseña"
         },
         "tip": "Aplicable para instancias desplegadas a través del servidor (ver documento). Actualmente solo se admite el esquema Basic (RFC7617).",
         "user_name": {
@@ -3061,7 +3061,7 @@
       "oauth": {
         "button": "Iniciar sesión con la cuenta de {{provider}}",
         "description": "Este servicio es proporcionado por <website>{{provider}}</website>",
-        "error": "[to be translated]:认证失败",
+        "error": "Fallo en la autenticación",
         "official_website": "Sitio web oficial"
       },
       "openai": {
@@ -3136,11 +3136,11 @@
     },
     "shortcuts": {
       "action": "Acción",
-      "actions": "[to be translated]:操作",
+      "actions": "operación",
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
       "copy_last_message": "Copiar el último mensaje",
-      "enabled": "[to be translated]:启用",
+      "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "key": "Tecla",
       "mini_window": "Asistente rápido",
@@ -3264,7 +3264,7 @@
         "search_with_time": "Buscar con fecha",
         "subscribe": "Suscripción a lista negra",
         "subscribe_add": "Añadir suscripción",
-        "subscribe_add_failed": "[to be translated]:订阅源添加失败",
+        "subscribe_add_failed": "Error al agregar la fuente de suscripción",
         "subscribe_add_success": "¡Fuente de suscripción añadida con éxito!",
         "subscribe_delete": "Eliminar fuente de suscripción",
         "subscribe_name": {
@@ -3272,8 +3272,8 @@
           "placeholder": "Nombre alternativo utilizado cuando la fuente de suscripción descargada no tiene nombre"
         },
         "subscribe_update": "Actualizar ahora",
-        "subscribe_update_failed": "[to be translated]:订阅源更新失败",
-        "subscribe_update_success": "[to be translated]:订阅源更新成功",
+        "subscribe_update_failed": "La actualización del feed de suscripción ha fallado",
+        "subscribe_update_success": "La fuente de suscripción se ha actualizado correctamente",
         "subscribe_url": "Dirección de la fuente de suscripción",
         "tavily": {
           "api_key": {
@@ -3284,8 +3284,8 @@
           "title": "Tavily"
         },
         "title": "Búsqueda web",
-        "url_invalid": "[to be translated]:输入了无效的URL",
-        "url_required": "[to be translated]:需要输入URL"
+        "url_invalid": "Se ingresó una URL no válida",
+        "url_required": "Es necesario introducir una URL"
       }
     },
     "topic": {
@@ -3391,8 +3391,8 @@
       "bidirectional_tip": "Una vez activada, solo se admitirá la traducción bidireccional entre el idioma de origen y el idioma de destino",
       "model": "Configuración del modelo",
       "model_desc": "Modelo utilizado por el servicio de traducción",
-      "model_placeholder": "[to be translated]:选择翻译模型",
-      "no_model_warning": "[to be translated]:未选择翻译模型",
+      "model_placeholder": "Seleccionar modelo de traducción",
+      "no_model_warning": "No se ha seleccionado ningún modelo de traducción",
       "preview": "Vista previa de Markdown",
       "scroll_sync": "Configuración de sincronización de desplazamiento",
       "title": "Configuración de traducción"
