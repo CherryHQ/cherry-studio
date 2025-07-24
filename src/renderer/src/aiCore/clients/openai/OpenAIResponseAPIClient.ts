@@ -104,6 +104,10 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
 
     const actualClient = this.getClient(model)
+    // 避免循环调用：如果返回的是自己，直接返回自己的类型
+    if (actualClient === this) {
+      return [this.constructor.name]
+    }
     return actualClient.getClientCompatibilityType(model)
   }
 
