@@ -84,30 +84,76 @@ const getRoleText = (role: string, modelName?: string, providerId?: string) => {
 }
 
 /**
- * 移除文本中的引用标记
+ * 处理文本中的引用标记
  * @param content 原始文本内容
- * @returns 移除引用标记后的文本
+ * @param mode 处理模式：'remove' 移除引用，'normalize' 标准化为Markdown格式
+ * @returns 处理后的文本
  */
-const removeCitationMarks = (content: string): string => {
-  // 移除各种形式的引用标记，但保留其他Markdown格式
-  const result = content
-    .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-    .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-    .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
-    .replace(/\[(\d+)\](?!\()/g, '')
+const processCitations = (content: string, mode: 'remove' | 'normalize' = 'remove'): string => {
+  let result = content
 
+  if (mode === 'remove') {
+    // 移除各种形式的引用标记
+    result = result
+      .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+      .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+      .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
+      .replace(/\[(\d+)\](?!\()/g, '')
+  } else if (mode === 'normalize') {
+    // 标准化引用格式为Markdown脚注格式
+    result = result
+      // 将 [<sup data-citation='...'>数字</sup>](链接) 转换为 [^数字]
+      .replace(/\[<sup[^>]*data-citation[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
+      // 将 [<sup>数字</sup>](链接) 转换为 [^数字]
+      .replace(/\[<sup[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
+      // 将独立的 <sup data-citation='...'>数字</sup> 转换为 [^数字]
+      .replace(/<sup[^>]*data-citation[^>]*>(\d+)<\/sup>/g, '[^$1]')
+      // 将 [数字] 转换为 [^数字]（但要小心不要转换其他方括号内容）
+      .replace(/\[(\d+)\](?!\()/g, '[^$1]')
+  }
+
+  // 按行处理，保留Markdown结构
   const lines = result.split('\n')
   const processedLines = lines.map((line) => {
+    // 如果是代码块、引用块或其他特殊格式，不要修改空格
     if (line.match(/^```|^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
       return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
     }
+    // 普通文本行，清理多余空格但保留基本格式
     return line.replace(/[ ]+/g, ' ').trim()
   })
 
   return processedLines.join('\n').trim()
 }
 
-const createBaseMarkdown = (message: Message, includeReasoning: boolean = false, excludeCitations: boolean = false) => {
+/**
+ * 标准化引用内容为Markdown脚注格式
+ * @param citations 引用列表
+ * @returns Markdown脚注格式的引用内容
+ */
+const formatCitationsAsFootnotes = (citations: string): string => {
+  if (!citations.trim()) return ''
+
+  // 将引用列表转换为脚注格式
+  const lines = citations.split('\n\n')
+  const footnotes = lines.map((line) => {
+    const match = line.match(/^\[(\d+)\]\s*(.+)/)
+    if (match) {
+      const [, num, content] = match
+      return `[^${num}]: ${content}`
+    }
+    return line
+  })
+
+  return footnotes.join('\n\n')
+}
+
+const createBaseMarkdown = (
+  message: Message,
+  includeReasoning: boolean = false,
+  excludeCitations: boolean = false,
+  normalizeCitations: boolean = true
+) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
   const titleSection = `### ${roleText}`
@@ -141,32 +187,41 @@ const createBaseMarkdown = (message: Message, includeReasoning: boolean = false,
   }
 
   const content = getMainTextContent(message)
-  const citation = excludeCitations ? '' : getCitationContent(message)
+  let citation = excludeCitations ? '' : getCitationContent(message)
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
-  // 如果排除引用，同时移除正文中的引用标记
+  // 处理引用标记
   if (excludeCitations) {
-    processedContent = removeCitationMarks(processedContent)
+    processedContent = processCitations(processedContent, 'remove')
+  } else if (normalizeCitations) {
+    processedContent = processCitations(processedContent, 'normalize')
+    citation = formatCitationsAsFootnotes(citation)
   }
 
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
 export const messageToMarkdown = (message: Message, excludeCitations?: boolean) => {
-  const { excludeCitationsInExport } = store.getState().settings
+  const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
-  const { titleSection, contentSection, citation } = createBaseMarkdown(message, false, shouldExcludeCitations)
+  const { titleSection, contentSection, citation } = createBaseMarkdown(
+    message,
+    false,
+    shouldExcludeCitations,
+    standardizeCitationsInExport
+  )
   return [titleSection, '', contentSection, citation].join('\n\n')
 }
 
 export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean) => {
-  const { excludeCitationsInExport } = store.getState().settings
+  const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
   const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(
     message,
     true,
-    shouldExcludeCitations
+    shouldExcludeCitations,
+    standardizeCitationsInExport
   )
   return [titleSection, '', reasoningSection + contentSection, citation].join('\n\n')
 }

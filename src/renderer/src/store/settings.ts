@@ -141,6 +141,7 @@ export interface SettingsState {
   thoughtAutoCollapse: boolean
   notionExportReasoning: boolean
   excludeCitationsInExport: boolean
+  standardizeCitationsInExport: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -306,6 +307,7 @@ export const initialState: SettingsState = {
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
   excludeCitationsInExport: false,
+  standardizeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -664,6 +666,9 @@ const settingsSlice = createSlice({
     setExcludeCitationsInExport: (state, action: PayloadAction<boolean>) => {
       state.excludeCitationsInExport = action.payload
     },
+    setStandardizeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.standardizeCitationsInExport = action.payload
+    },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
     },
@@ -859,6 +864,7 @@ export const {
   setThoughtAutoCollapse,
   setNotionExportReasoning,
   setExcludeCitationsInExport,
+  setStandardizeCitationsInExport,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,

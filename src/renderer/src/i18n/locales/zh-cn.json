@@ -2099,6 +2099,10 @@
           "help": "在导出 Markdown 时显示模型供应商，如 OpenAI、Gemini 等",
           "title": "显示模型供应商"
         },
+        "standardize_citations": {
+          "help": "开启后，导出 Markdown 时会将引用标记转换为标准 Markdown 脚注格式 [^1]，并格式化引用列表",
+          "title": "标准化引用格式"
+        },
         "title": "Markdown 导出"
       },
       "message_title": {
