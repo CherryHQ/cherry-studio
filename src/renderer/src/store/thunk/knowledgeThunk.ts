@@ -6,23 +6,39 @@ import { v4 as uuidv4 } from 'uuid'
 import { AppDispatch } from '..'
 
 /**
- * 批量添加文件，需要手动调用 KnowledgeQueue.checkAllBases()
- * @param baseId 知识库 ID
- * @param files 文件列表
+ * Creates a new knowledge item with default values.
+ * @param type The type of the knowledge item.
+ * @param content The content of the knowledge item.
+ * @param overrides Optional overrides for the default values.
+ * @returns A new knowledge item.
  */
-export const addFilesThunk = (baseId: string, files: FileMetadata[]) => (dispatch: AppDispatch) => {
+export const createKnowledgeItem = (
+  type: KnowledgeItem['type'],
+  content: KnowledgeItem['content'],
+  overrides: Partial<KnowledgeItem> = {}
+): KnowledgeItem => {
   const timestamp = Date.now()
-  const filesItems: KnowledgeItem[] = files.map((file) => ({
+  return {
     id: uuidv4(),
-    type: 'file' as const,
-    content: file,
+    type,
+    content,
     created_at: timestamp,
     updated_at: timestamp,
     processingStatus: 'pending',
     processingProgress: 0,
     processingError: '',
-    retryCount: 0
-  }))
+    retryCount: 0,
+    ...overrides
+  }
+}
+
+/**
+ * 批量添加文件，需要手动调用 KnowledgeQueue.checkAllBases()
+ * @param baseId 知识库 ID
+ * @param files 文件列表
+ */
+export const addFilesThunk = (baseId: string, files: FileMetadata[]) => (dispatch: AppDispatch) => {
+  const filesItems = files.map((file) => createKnowledgeItem('file', file))
   dispatch(addFilesAction({ baseId, items: filesItems }))
 }
 
@@ -33,34 +49,13 @@ export const addFilesThunk = (baseId: string, files: FileMetadata[]) => (dispatc
  */
 export const addNoteThunk = (baseId: string, content: string) => async (dispatch: AppDispatch) => {
   const noteId = uuidv4()
-  const timestamp = Date.now()
-  const note: KnowledgeItem = {
-    id: noteId,
-    type: 'note',
-    content,
-    created_at: timestamp,
-    updated_at: timestamp,
-    processingStatus: 'pending',
-    processingProgress: 0,
-    processingError: '',
-    retryCount: 0
-  }
+  const note = createKnowledgeItem('note', content, { id: noteId })
 
-  // 存储完整笔记到数据库
+  // 存储完整笔记到数据库，出错时交给调用者处理
   await db.knowledge_notes.add(note)
 
   // 在 store 中只存储引用
-  const noteRef: KnowledgeItem = {
-    id: noteId,
-    type: 'note',
-    content: '', // store中不需要存储实际内容
-    created_at: timestamp,
-    updated_at: timestamp,
-    processingStatus: 'pending',
-    processingProgress: 0,
-    processingError: '',
-    retryCount: 0
-  }
+  const noteRef = { ...note, content: '' } // store中不需要存储实际内容
 
   dispatch(updateNotes({ baseId, item: noteRef }))
 }
@@ -73,17 +68,6 @@ export const addNoteThunk = (baseId: string, content: string) => async (dispatch
  */
 export const addItemThunk =
   (baseId: string, type: KnowledgeItem['type'], content: string) => (dispatch: AppDispatch) => {
-    const timestamp = Date.now()
-    const newItem: KnowledgeItem = {
-      id: uuidv4(),
-      type,
-      content,
-      created_at: timestamp,
-      updated_at: timestamp,
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }
+    const newItem = createKnowledgeItem(type, content)
     dispatch(addItem({ baseId, item: newItem }))
   }

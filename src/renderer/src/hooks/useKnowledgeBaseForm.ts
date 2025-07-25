@@ -5,8 +5,19 @@ import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
+import { nanoid } from 'nanoid'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const createInitialKnowledgeBase = (): KnowledgeBase => ({
+  id: nanoid(),
+  name: '',
+  model: null as any, // model is required, but will be set by user interaction
+  items: [],
+  created_at: Date.now(),
+  updated_at: Date.now(),
+  version: 1
+})
 
 /**
  * A hook that manages the state and handlers for a knowledge base form.
@@ -28,7 +39,7 @@ import { useTranslation } from 'react-i18next'
  */
 export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const { t } = useTranslation()
-  const [newBase, setNewBase] = useState<KnowledgeBase>(base || ({} as KnowledgeBase))
+  const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
   const { preprocessProviders } = usePreprocessProviders()
   const { ocrProviders } = useOcrProviders()
@@ -107,18 +118,18 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
         setNewBase((prev) => ({ ...prev, chunkSize: value || undefined }))
       }
     },
-    [newBase.model, base?.model, setNewBase]
+    [newBase.model, base?.model]
   )
 
   const handleChunkOverlapChange = useCallback(
-    async (value: number | null) => {
+    (value: number | null) => {
       if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
         setNewBase((prev) => ({ ...prev, chunkOverlap: value || undefined }))
       } else {
-        await window.message.error(t('message.error.chunk_overlap_too_large'))
+        window.message.error(t('message.error.chunk_overlap_too_large'))
       }
     },
-    [newBase.chunkSize, setNewBase, t]
+    [newBase.chunkSize, t]
   )
 
   const handleThresholdChange = useCallback(

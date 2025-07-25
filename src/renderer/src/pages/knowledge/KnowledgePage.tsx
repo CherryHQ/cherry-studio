@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AddKnowledgeBasePopup from './components/AddKnowledgeBasePopup'
-import KnowledgeSettings from './components/EditKnowledgeBasePopup'
+import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
@@ -31,9 +31,9 @@ const KnowledgePage: FC = () => {
     }
   }, [t])
 
-  const handleKnowledgeSettings = useCallback(async (base: KnowledgeBase) => {
-    const newBase = await KnowledgeSettings.show({ base })
-    if (newBase?.id !== base.id) {
+  const handleEditKnowledgeBase = useCallback(async (base: KnowledgeBase) => {
+    const newBase = await EditKnowledgeBasePopup.show({ base })
+    if (newBase && newBase?.id !== base.id) {
       setSelectedBase(newBase)
     }
   }, [])
@@ -65,7 +65,7 @@ const KnowledgePage: FC = () => {
           label: t('knowledge.settings.title'),
           key: 'settings',
           icon: <SettingOutlined />,
-          onClick: () => handleKnowledgeSettings(base)
+          onClick: () => handleEditKnowledgeBase(base)
         },
         { type: 'divider' },
         {
@@ -88,7 +88,7 @@ const KnowledgePage: FC = () => {
 
       return menus
     },
-    [deleteKnowledgeBase, handleKnowledgeSettings, renameKnowledgeBase, t]
+    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
   )
 
   useShortcut('search_message', () => {

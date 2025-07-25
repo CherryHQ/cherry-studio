@@ -586,6 +586,10 @@
       "embedding_model": "Embedding Model",
       "embedding_model_required": "Knowledge Base Embedding Model is required",
       "empty": "No knowledge base found",
+      "error": {
+        "failed_to_create": "Knowledge base creation failed",
+        "failed_to_edit": "Knowledge base edit failed"
+      },
       "file_hint": "Support {{file_types}}",
       "index_all": "Index All",
       "index_cancelled": "Indexing cancelled",

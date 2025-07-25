@@ -1,6 +1,6 @@
 import { HStack } from '@renderer/components/Layout'
 import { Menu, Modal, ModalProps } from 'antd'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import styled from 'styled-components'
 
 export interface PanelConfig {
@@ -44,7 +44,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
       <HStack height="100%">
         <LeftMenu>
           <StyledMenu
-            defaultSelectedKeys={[panels[0]?.key]}
+            defaultSelectedKeys={[selectedMenu]}
             mode="vertical"
             items={menuItems}
             onSelect={({ key }) => setSelectedMenu(key)}

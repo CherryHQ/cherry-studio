@@ -24,7 +24,7 @@ interface ShowParams {
 }
 
 interface PopupContainerProps extends ShowParams {
-  resolve: (data: any) => void
+  resolve: (data: KnowledgeBase | null) => void
 }
 
 const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve }) => {
@@ -44,14 +44,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
     [base, newBase]
   )
 
-  const handleMigration = useCallback(() => {
+  const handleMigration = useCallback(async () => {
     const migratedBase = { ...newBase, id: nanoid() }
-    migrateBase(migratedBase).catch((error) => {
-      logger.error('Migration failed:', error as Error)
+    try {
+      await migrateBase(migratedBase)
+      setOpen(false)
+      resolve(migratedBase)
+    } catch (error) {
+      logger.error('KnowledgeBase migration failed:', error as Error)
       window.message.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
-    })
-    setOpen(false)
-    resolve(migratedBase)
+    }
   }, [newBase, migrateBase, resolve, t])
 
   if (!base) {
@@ -90,7 +92,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
         setOpen(false)
         resolve(newBase)
       } catch (error) {
-        logger.error('Validation failed:', error as Error)
+        logger.error('KnowledgeBase edit failed:', error as Error)
+        window.message.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
       }
     }
   }
@@ -141,14 +144,14 @@ export default class EditKnowledgeBasePopup {
     TopView.hide(this.TopViewKey)
   }
 
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+  static show(props: ShowParams): Promise<KnowledgeBase | null> {
+    return new Promise<KnowledgeBase | null>((resolve) => {
       TopView.show(
         <PopupContainer
           {...props}
           resolve={(v) => {
-            resolve(v)
             this.hide()
+            resolve(v)
           }}
         />,
         this.TopViewKey

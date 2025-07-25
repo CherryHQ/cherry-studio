@@ -586,6 +586,10 @@
       "embedding_model": "埋め込みモデル",
       "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
       "empty": "ナレッジベースが見つかりません",
+      "error": {
+        "failed_to_create": "ナレッジベースの作成に失敗しました",
+        "failed_to_edit": "ナレッジベースの編集に失敗しました"
+      },
       "file_hint": "{{file_types}} 形式をサポート",
       "index_all": "すべてをインデックス",
       "index_cancelled": "インデックスがキャンセルされました",

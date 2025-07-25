@@ -49,6 +49,7 @@ const InputEmbeddingDimension = ({
     try {
       const aiProvider = new AiProvider(provider)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
+      // for controlled input
       if (ref?.current) {
         ref.current.value = dimension.toString()
       }

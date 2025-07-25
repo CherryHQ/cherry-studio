@@ -3,7 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { nanoid } from 'nanoid'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -49,20 +49,18 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
     try {
       const _newBase = {
         ...newBase,
-        id: nanoid(),
-        items: [],
         created_at: Date.now(),
-        updated_at: Date.now(),
-        version: 1
+        updated_at: Date.now()
       }
 
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))
 
-      addKnowledgeBase(_newBase as any)
+      addKnowledgeBase(_newBase)
       setOpen(false)
       resolve(_newBase)
     } catch (error) {
-      logger.error('Validation failed:', error as Error)
+      logger.error('KnowledgeBase creation failed:', error as Error)
+      window.message.error(t('knowledge.error.failed_to_create') + formatErrorMessage(error))
     }
   }
 
@@ -92,16 +90,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
     }
   ]
 
-  return (
-    <KnowledgeBaseFormModal
-      title={title}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={() => resolve(null)}
-      panels={panelConfigs}
-    />
-  )
+  return <KnowledgeBaseFormModal title={title} open={open} onOk={onOk} onCancel={onCancel} panels={panelConfigs} />
 }
 
 export default class AddKnowledgeBasePopup {
