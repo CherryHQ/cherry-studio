@@ -148,7 +148,6 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const onThinkingChange = useCallback(
     (option?: ThinkingOption) => {
       const isEnabled = option !== undefined && option !== 'off'
-      console.log('option', option)
       // 然后更新设置
       if (!isEnabled) {
         updateAssistantSettings({
