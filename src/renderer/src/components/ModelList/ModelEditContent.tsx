@@ -146,12 +146,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item
-          name="supported_text_delta"
-          label={t('settings.models.add.supported_text_delta.label')}
-          tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
-          <Switch checked={supportedTextDelta} onChange={(checked) => setSupportedTextDelta(checked)} />
-        </Form.Item>
         {provider.id === 'new-api' && (
           <Form.Item
             name="endpointType"
@@ -346,6 +340,12 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 </div>
               )
             })()}
+            <Form.Item
+              name="supported_text_delta"
+              label={t('settings.models.add.supported_text_delta.label')}
+              tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
+              <Switch checked={supportedTextDelta} onChange={(checked) => setSupportedTextDelta(checked)} />
+            </Form.Item>
             <TypeTitle>{t('models.price.price')}</TypeTitle>
             <Form.Item name="currencySymbol" label={t('models.price.currency')} style={{ marginBottom: 10 }}>
               <Select
