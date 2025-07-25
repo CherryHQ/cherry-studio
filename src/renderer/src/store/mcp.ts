@@ -71,13 +71,11 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
-const prefix = 'settings.mcp.builtinServersDescriptions.'
-
 export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
-    getBuiltinDescription: () => i18n.t(prefix + 'mcp_auto_install'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.mcp_auto_install'),
     type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -87,7 +85,7 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/memory',
-    getBuiltinDescription: () => i18n.t(prefix + 'memory'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.memory'),
     type: 'inMemory',
     isActive: true,
     env: {
@@ -99,7 +97,7 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/sequentialthinking',
-    getBuiltinDescription: () => i18n.t(prefix + 'sequentialthinking'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.sequentialthinking'),
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI'
@@ -108,7 +106,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/brave-search',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t(prefix + 'brave_search'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.brave_search'),
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
@@ -120,7 +118,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/fetch',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t(prefix + 'fetch'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.fetch'),
     isActive: true,
     provider: 'CherryAI'
   },
@@ -128,7 +126,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t(prefix + 'filesystem'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
@@ -138,7 +136,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/dify-knowledge',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t(prefix + 'dify-knowledge'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.dify_knowledge'),
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
@@ -150,7 +148,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/python',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t(prefix + 'python'),
+    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.python'),
     isActive: false,
     provider: 'CherryAI'
   }
