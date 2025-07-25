@@ -640,6 +640,7 @@ class McpService {
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           resetTimeoutOnProgress: server.longRunning,
+          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
         return result as MCPCallToolResponse
