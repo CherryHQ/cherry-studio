@@ -3568,14 +3568,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@mistralai/mistralai@npm:^1.6.0":
-  version: 1.7.2
-  resolution: "@mistralai/mistralai@npm:1.7.2"
+"@mistralai/mistralai@npm:^1.7.5":
+  version: 1.7.5
+  resolution: "@mistralai/mistralai@npm:1.7.5"
   dependencies:
     zod-to-json-schema: "npm:^3.24.1"
   peerDependencies:
     zod: ">= 3"
-  checksum: 10c0/051f77d8d50918153d313c901e5cae89148e6f9e60a3dc00d2afe60e99aeb282122d2d49d1cc11196b329cebbf6b6f2537653c0ba5c5af0d2efc7616318e9cf2
+  checksum: 10c0/1df7be95373f0c5d24f06a5b2424a5c85d9e69c64a9304449a7b99a2e302728236c9a1e7dbdf5741bea62e668e97e615913afa6cb41fa7db28682b67f21defa7
   languageName: node
   linkType: hard
 
@@ -7241,7 +7241,7 @@ __metadata:
     "@langchain/ollama": "npm:^0.2.1"
     "@libsql/client": "npm:0.14.0"
     "@libsql/win32-x64-msvc": "npm:^0.4.7"
-    "@mistralai/mistralai": "npm:^1.6.0"
+    "@mistralai/mistralai": "npm:^1.7.5"
     "@modelcontextprotocol/sdk": "npm:^1.12.3"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
