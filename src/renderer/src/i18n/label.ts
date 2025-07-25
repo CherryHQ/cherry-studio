@@ -234,3 +234,12 @@ export const getReasoningEffortOptionsLabel = (key: string): string => {
   } as const
   return labelMap[key] ?? key
 }
+
+export const getFileFieldLabel = (key: string): string => {
+  const labelMap = {
+    created_at: t('files.created_at'),
+    size: t('files.size'),
+    name: t('files.name')
+  } as const
+  return labelMap[key] ?? key
+}

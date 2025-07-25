@@ -8,6 +8,7 @@ import {
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
+import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata, FileTypes } from '@renderer/types'
@@ -75,12 +76,6 @@ const FilesPage: FC = () => {
     { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
   ]
 
-  const fieldTextMap = {
-    created_at: t('files.created_at'),
-    size: t('files.size'),
-    name: t('files.name')
-  } as const
-
   return (
     <Container>
       <Navbar>
@@ -112,7 +107,7 @@ const FilesPage: FC = () => {
                     setSortOrder('desc')
                   }
                 }}>
-                {fieldTextMap[field]}
+                {getFileFieldLabel(field)}
                 {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
               </SortButton>
             ))}
