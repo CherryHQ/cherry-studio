@@ -22,6 +22,11 @@ type LlmSettings = {
     projectId: string
     location: string
   }
+  awsBedrock: {
+    accessKeyId: string
+    secretAccessKey: string
+    region: string
+  }
 }
 
 export interface LlmState {
@@ -537,6 +542,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'aws-bedrock',
+    name: 'AWS Bedrock',
+    type: 'aws-bedrock',
+    apiKey: '',
+    apiHost: '',
+    models: SYSTEM_MODELS['aws-bedrock'],
+    isSystem: true,
+    enabled: false
   }
 ]
 
@@ -563,6 +578,11 @@ export const initialState: LlmState = {
       },
       projectId: '',
       location: ''
+    },
+    awsBedrock: {
+      accessKeyId: '',
+      secretAccessKey: '',
+      region: ''
     }
   }
 }
@@ -687,6 +707,15 @@ const llmSlice = createSlice({
     setVertexAIServiceAccountClientEmail: (state, action: PayloadAction<string>) => {
       state.settings.vertexai.serviceAccount.clientEmail = action.payload
     },
+    setAwsBedrockAccessKeyId: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.accessKeyId = action.payload
+    },
+    setAwsBedrockSecretAccessKey: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.secretAccessKey = action.payload
+    },
+    setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.region = action.payload
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -723,6 +752,9 @@ export const {
   setVertexAILocation,
   setVertexAIServiceAccountPrivateKey,
   setVertexAIServiceAccountClientEmail,
+  setAwsBedrockAccessKeyId,
+  setAwsBedrockSecretAccessKey,
+  setAwsBedrockRegion,
   updateModel
 } = llmSlice.actions
 

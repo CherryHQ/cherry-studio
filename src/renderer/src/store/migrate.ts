@@ -1869,6 +1869,21 @@ const migrateConfig = {
       logger.error('migrate 123 error', error as Error)
       return state
     }
+  },
+  '124': (state: RootState) => {
+    try {
+      addProvider(state, 'aws-bedrock')
+
+      // 初始化 awsBedrock 设置
+      if (!state.llm.settings.awsBedrock) {
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 123 error', error as Error)
+      return state
+    }
   }
 }
 

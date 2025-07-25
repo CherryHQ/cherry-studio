@@ -45,7 +45,7 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
     } else if (result.rawOutput) {
       // 非流式输出，强行变为可读流
       const whatwgReadableStream: ReadableStream<SdkRawChunk> = createSingleChunkReadableStream<SdkRawChunk>(
-        result.rawOutput
+        result.rawOutput as SdkRawChunk
       )
       return {
         ...result,

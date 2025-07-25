@@ -29,6 +29,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -259,7 +260,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {provider.id !== 'vertexai' && (
+      {provider.id !== 'vertexai' && provider.id !== 'aws-bedrock' && (
         <>
           <SettingSubtitle
             style={{
@@ -372,6 +373,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
+      {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
       <ModelList providerId={provider.id} />
     </SettingContainer>
