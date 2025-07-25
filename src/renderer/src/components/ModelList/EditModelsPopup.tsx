@@ -144,13 +144,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           if (model.supported_endpoint_types && model.supported_endpoint_types.length > 0) {
             addModel({
               ...model,
-              endpoint_type: model.supported_endpoint_types[0]
+              endpoint_type: model.supported_endpoint_types[0],
+              supported_text_delta: true
             })
           } else {
             NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
-          addModel(model)
+          addModel({ ...model, supported_text_delta: true })
         }
       }
     },

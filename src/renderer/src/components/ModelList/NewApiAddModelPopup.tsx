@@ -59,7 +59,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id),
-      endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined
+      endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined,
+      supported_text_delta: true
     }
 
     addModel(model)

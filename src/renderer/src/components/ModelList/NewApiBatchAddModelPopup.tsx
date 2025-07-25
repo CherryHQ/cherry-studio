@@ -45,7 +45,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     batchModels.forEach((model) => {
       addModel({
         ...model,
-        endpoint_type: values.endpointType
+        endpoint_type: values.endpointType,
+        supported_text_delta: true
       })
     })
     return true
