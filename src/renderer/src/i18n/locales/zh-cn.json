@@ -2536,7 +2536,7 @@
       "addServer": {
         "create": "快速创建",
         "importFrom": {
-          "connectionFailed": "連接失敗",
+          "connectionFailed": "连接失败",
           "dxt": "导入 DXT 包",
           "dxtFile": "DXT 包文件",
           "dxtHelp": "选择包含 MCP 服务器的 .dxt 文件",

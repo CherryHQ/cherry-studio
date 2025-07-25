@@ -75,6 +75,12 @@ const FilesPage: FC = () => {
     { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
   ]
 
+  const fieldTextMap = {
+    created_at: t('files.created_at'),
+    size: t('files.size'),
+    name: t('files.name')
+  } as const
+
   return (
     <Container>
       <Navbar>
@@ -94,7 +100,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            {['created_at', 'size', 'name'].map((field) => (
+            {(['created_at', 'size', 'name'] as const).map((field) => (
               <SortButton
                 key={field}
                 active={sortField === field}
@@ -106,7 +112,7 @@ const FilesPage: FC = () => {
                     setSortOrder('desc')
                   }
                 }}>
-                {t(`files.${field}`)}
+                {fieldTextMap[field]}
                 {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
               </SortButton>
             ))}

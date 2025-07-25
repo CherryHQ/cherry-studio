@@ -236,7 +236,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
             window.message.error({
-              content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
+              content: newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'),
               key: 'mcp-quick-add-failed'
             })
           })

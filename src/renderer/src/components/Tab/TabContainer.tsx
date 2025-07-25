@@ -2,6 +2,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
+import { titleLabelMap } from '@renderer/i18n/labelMap'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
@@ -134,7 +135,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => navigate(tab.path)}>
                 <TabHeader>
                   {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                  <TabTitle>{t(`title.${tab.id}`)}</TabTitle>
+                  <TabTitle>{t(titleLabelMap[tab.id])}</TabTitle>
                 </TabHeader>
                 {tab.id !== 'home' && (
                   <CloseButton

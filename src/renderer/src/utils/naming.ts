@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import { providerLabelMap } from '@renderer/i18n/labelMap'
 import { Provider } from '@renderer/types'
 
 /**
@@ -82,7 +82,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
-  return provider.isSystem ? i18n.t(`provider.${provider.id}`) : provider.name
+  return provider.isSystem ? providerLabelMap[provider.id] : provider.name
 }
 
 /**

@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import { providerLabelMap } from '@renderer/i18n/labelMap'
 import store from '@renderer/store'
 import { Provider } from '@renderer/types'
 
@@ -9,7 +9,7 @@ export function getProviderName(id: string) {
   }
 
   if (provider.isSystem) {
-    return i18n.t(`provider.${provider.id}`, { defaultValue: provider.name })
+    return providerLabelMap[provider.id] ?? provider.name
   }
 
   return provider?.name
