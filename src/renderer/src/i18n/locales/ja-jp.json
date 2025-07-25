@@ -2843,6 +2843,10 @@
           "label": "モデル名",
           "placeholder": "例：GPT-4",
           "tooltip": "例：GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "インクリメンタルテキスト出力",
+          "tooltip": "モデルがサポートされていない場合は、ボタンを閉じます"
         }
       },
       "api_key": "API キー",

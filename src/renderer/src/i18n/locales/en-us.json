@@ -2843,6 +2843,10 @@
           "label": "Model Name",
           "placeholder": "Optional e.g. GPT-4",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "Incremental text output",
+          "tooltip": "When the model is not supported, close the button"
         }
       },
       "api_key": "API Key",

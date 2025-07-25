@@ -2843,6 +2843,10 @@
           "label": "模型名稱",
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "增量文本輸出",
+          "tooltip": "當模型不支持的時候，將該按鈕關閉"
         }
       },
       "api_key": "API 密鑰",
