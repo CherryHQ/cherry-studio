@@ -19,8 +19,6 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
   if (nonEmptyKeywords.length === 0) return true
 
   // 如果没有搜索目标，则视为不匹配
-  console.log('target is', target)
-  console.log('nonEmptyKeywords is', nonEmptyKeywords)
   if (!target || typeof target !== 'string') return false
   const targetLower = target.toLowerCase()
 
