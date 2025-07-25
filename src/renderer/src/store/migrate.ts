@@ -1885,6 +1885,22 @@ const migrateConfig = {
           }
         })
       })
+      state.assistants.assistants.forEach((assistant) => {
+        const defaultModel = assistant.defaultModel
+        if (defaultModel) {
+          defaultModel.supported_text_delta = true
+          if (isNotSupportedTextDelta(defaultModel)) {
+            defaultModel.supported_text_delta = false
+          }
+        }
+        const model = assistant.model
+        if (model) {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 124 error', error as Error)
