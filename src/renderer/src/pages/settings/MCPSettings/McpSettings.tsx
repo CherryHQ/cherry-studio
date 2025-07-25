@@ -103,8 +103,6 @@ const McpSettings: React.FC = () => {
 
   const navigate = useNavigate()
 
-  const isLongRunning = Form.useWatch('longRunning', form)
-
   // Initialize form values whenever the server changes
   useEffect(() => {
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
@@ -275,7 +273,7 @@ const McpSettings: React.FC = () => {
         isActive: values.isActive,
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
-        timeout: values.longRunning ? undefined : values.timeout || server.timeout,
+        timeout: values.timeout || server.timeout,
         longRunning: values.longRunning,
         // Preserve existing advanced properties if not set in the form
         provider: values.provider || server.provider,
@@ -646,7 +644,7 @@ const McpSettings: React.FC = () => {
               'settings.mcp.timeoutTooltip',
               'Timeout in seconds for requests to this server, default is 60 seconds'
             )}>
-            <Input disabled={isLongRunning} type="number" min={1} placeholder="60" addonAfter="s" />
+            <Input type="number" min={1} placeholder="60" addonAfter="s" />
           </Form.Item>
 
           <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>

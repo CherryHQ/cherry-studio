@@ -1,13 +1,23 @@
 import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import ProgressBar from '@renderer/components/ProgressBar/ProgressBar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
+import {
+  Button,
+  Collapse,
+  ConfigProvider,
+  Dropdown,
+  Flex,
+  message as antdMessage,
+  Modal,
+  Progress,
+  Tabs,
+  Tooltip
+} from 'antd'
 import { message } from 'antd'
 import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
@@ -30,6 +40,7 @@ const MessageTools: FC<Props> = ({ block }) => {
   const { messageFont, fontSize } = useSettings()
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
+  const [progress, setProgress] = useState<number>(0)
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -58,6 +69,19 @@ const MessageTools: FC<Props> = ({ block }) => {
       }
     }
   }, [countdown, id, isPending])
+
+  useEffect(() => {
+    const removeListener = window.electron.ipcRenderer.on(
+      'mcp-progress',
+      (_event: Electron.IpcRendererEvent, value: number) => {
+        setProgress(value)
+      }
+    )
+    return () => {
+      setProgress(0)
+      removeListener()
+    }
+  }, [])
 
   const cancelCountdown = () => {
     if (timer.current) {
@@ -223,7 +247,11 @@ const MessageTools: FC<Props> = ({ block }) => {
           </TitleContent>
           <ActionButtonsContainer>
             <StatusIndicator status={status} hasError={hasError}>
-              {renderStatusIndicator(status, hasError)}
+              {progress > 0 ? (
+                <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
+              ) : (
+                renderStatusIndicator(status, hasError)
+              )}
             </StatusIndicator>
             <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
               <ActionButton
@@ -325,7 +353,6 @@ const MessageTools: FC<Props> = ({ block }) => {
             }
           }
         }}>
-        <ProgressBar />
         <ToolContainer>
           <ToolContentWrapper className={status}>
             <CollapseContainer
