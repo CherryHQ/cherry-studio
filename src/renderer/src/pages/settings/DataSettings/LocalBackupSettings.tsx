@@ -103,6 +103,15 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const handleLocalBackupDirChange = async (value: string) => {
+    if (value === localBackupDir) {
+      return
+    }
+
+    if (value === '') {
+      handleClearDirectory()
+      return
+    }
+
     if (await checkLocalBackupDirValid(value)) {
       setLocalBackupDir(value)
       setLocalBackupDirInput(value)
