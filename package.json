@@ -135,6 +135,7 @@
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@tryfabric/martian": "^1.2.4",
     "@types/cli-progress": "^3",
     "@types/diff": "^7",

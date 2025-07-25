@@ -15,6 +15,7 @@ import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
+import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import {
   selectCurrentUserId,
@@ -56,7 +57,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '../index'
-import MemoriesSettingsModal from './MemoriesSettingsModal'
 
 const logger = loggerService.withContext('MemorySettings')
 
