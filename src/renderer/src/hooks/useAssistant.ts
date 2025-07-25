@@ -83,7 +83,7 @@ export function useAssistant(id: string) {
     ),
     updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
     updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
-      dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
+      assistant?.id && dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
     }
   }
 }
