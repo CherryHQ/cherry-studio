@@ -50,8 +50,7 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getTopNamingModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
@@ -596,7 +595,7 @@ interface FetchTranslateProps {
 }
 
 export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
+  const model = assistant.model || getDefaultModel()
 
   if (!model) {
     throw new Error(i18n.t('error.provider_disabled'))
