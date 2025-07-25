@@ -186,7 +186,10 @@ const visionAllowedModels = [
   'gemma-3(?:-[\\w-]+)',
   'doubao-seed-1[.-]6(?:-[\\w-]+)?',
   'kimi-thinking-preview',
-  `gemma3(?:-[\\w-]+)`
+  `gemma3(?:-[\\w-]+)`,
+  'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
+  'llama-guard-4(?:-[\\w-]+)?',
+  'llama-4(?:-[\\w-]+)?'
 ]
 
 const visionExcludedModels = [
@@ -1272,7 +1275,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'moonshot',
       group: 'moonshot-v1',
       owned_by: 'moonshot',
-      type: ['text', 'function_calling']
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     },
     {
       id: 'kimi-k2-0711-preview',
@@ -1280,7 +1283,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'moonshot',
       group: 'kimi-k2',
       owned_by: 'moonshot',
-      type: ['text', 'function_calling'],
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }],
       pricing: {
         input_per_million_tokens: 0.6,
         output_per_million_tokens: 2.5,
@@ -2758,7 +2761,7 @@ export function isWebSearchModel(model: Model): boolean {
   const baseName = getLowerBaseModelName(model.id, '/')
 
   // 不管哪个供应商都判断了
-  if (model.id.includes('claude')) {
+  if (isAnthropicModel(model)) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(baseName)
   }
 
@@ -3013,4 +3016,12 @@ export const isVisionModels = (models: Model[]) => {
 
 export const isGenerateImageModels = (models: Model[]) => {
   return models.every((model) => isGenerateImageModel(model))
+}
+
+export const isAnthropicModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  return getLowerBaseModelName(model.id).startsWith('claude')
 }

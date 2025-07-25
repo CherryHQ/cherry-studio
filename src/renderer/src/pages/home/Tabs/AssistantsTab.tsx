@@ -185,7 +185,6 @@ const AssistantAddItem = styled.div`
   padding-right: 35px;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
-  margin-top: -8px;
   cursor: pointer;
 
   &:hover {

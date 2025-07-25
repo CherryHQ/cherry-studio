@@ -1,9 +1,7 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -15,7 +13,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -33,29 +31,11 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const isFullscreen = useFullscreen()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
 
-  // Function to toggle assistants with cooldown
-  const handleToggleShowAssistants = useCallback(() => {
-    if (showAssistants) {
-      toggleShowAssistants()
-    } else {
-      toggleShowAssistants()
-    }
-  }, [showAssistants, toggleShowAssistants])
-
-  const handleToggleShowTopics = useCallback(() => {
-    if (showTopics) {
-      toggleShowTopics()
-    } else {
-      toggleShowTopics()
-    }
-  }, [showTopics, toggleShowTopics])
-
-  useShortcut('toggle_show_assistants', handleToggleShowAssistants)
+  useShortcut('toggle_show_assistants', toggleShowAssistants)
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
@@ -88,16 +68,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       <HStack alignItems="center">
         {showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={handleToggleShowAssistants}>
+            <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showAssistants && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon
-              onClick={() => toggleShowAssistants()}
-              style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}>
+            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -123,14 +101,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </Tooltip>
         {topicPosition === 'right' && !showTopics && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-            <NavbarIcon onClick={() => toggleShowTopics()}>
+            <NavbarIcon onClick={toggleShowTopics}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {topicPosition === 'right' && showTopics && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-            <NavbarIcon onClick={() => handleToggleShowTopics()}>
+            <NavbarIcon onClick={toggleShowTopics}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>

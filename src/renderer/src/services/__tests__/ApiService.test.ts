@@ -65,7 +65,8 @@ vi.mock('@renderer/config/models', () => ({
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro'
     }
-  }
+  },
+  isAnthropicModel: vi.fn(() => false)
 }))
 
 // Mock uuid
@@ -1422,6 +1423,9 @@ const mockGeminiApiClient = {
 
 const mockAnthropicApiClient = {
   createCompletions: vi.fn().mockImplementation(() => anthropicTextNonStreamChunkGenerator()),
+  attachRawStreamListener: vi.fn().mockImplementation((rawOutput: any) => {
+    return rawOutput
+  }),
   getResponseChunkTransformer: vi.fn().mockImplementation(() => {
     return () => {
       let accumulatedJson = ''

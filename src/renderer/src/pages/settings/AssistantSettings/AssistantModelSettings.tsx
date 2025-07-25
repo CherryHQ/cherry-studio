@@ -180,6 +180,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         model: selectedModel,
         defaultModel: selectedModel
       })
+      // TODO: 需要根据配置来设置默认值
       if (selectedModel.name.includes('kimi-k2')) {
         setTemperature(0.6)
         setTimeout(() => updateAssistantSettings({ temperature: 0.6 }), 500)

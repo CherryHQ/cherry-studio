@@ -10,6 +10,7 @@ import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
+import { VertexAPIClient } from './clients/gemini/VertexAPIClient'
 import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
@@ -61,6 +62,8 @@ export default class AiProvider {
     } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
       // OpenAIResponseAPIClient: 根据模型特征选择API类型
       client = this.apiClient.getClient(model) as BaseApiClient
+    } else if (this.apiClient instanceof VertexAPIClient) {
+      client = this.apiClient.getClient(model) as BaseApiClient
     } else {
       // 其他client直接使用
       client = this.apiClient
@@ -79,12 +82,6 @@ export default class AiProvider {
     } else {
       // Existing logic for other models
       logger.silly('Builder Params', params)
-      if (!params.enableReasoning) {
-        // 这里注释掉不会影响正常的关闭思考,可忽略不计的性能下降
-        // builder.remove(ThinkingTagExtractionMiddlewareName)
-        builder.remove(ThinkChunkMiddlewareName)
-        logger.silly('ThinkChunkMiddleware is removed')
-      }
       // 使用兼容性类型检查，避免typescript类型收窄和装饰器模式的问题
       const clientTypes = client.getClientCompatibilityType(model)
       const isOpenAICompatible =
