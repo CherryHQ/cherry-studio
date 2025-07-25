@@ -1,5 +1,4 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { KnowledgeBaseParams } from '@types'
+import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 
 export default abstract class BaseReranker {
   protected base: KnowledgeBaseParams
@@ -11,7 +10,7 @@ export default abstract class BaseReranker {
     this.base = base
   }
 
-  abstract rerank(query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]>
+  abstract rerank(query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]>
 
   /**
    * Get Rerank Request Url
@@ -38,7 +37,7 @@ export default abstract class BaseReranker {
   /**
    * Get Rerank Request Body
    */
-  protected getRerankRequestBody(query: string, searchResults: ExtractChunkData[]) {
+  protected getRerankRequestBody(query: string, searchResults: KnowledgeSearchResult[]) {
     const provider = this.base.rerankApiClient?.provider
     const documents = searchResults.map((doc) => doc.pageContent)
     const topN = this.base.documentCount
@@ -105,7 +104,7 @@ export default abstract class BaseReranker {
    * @protected
    */
   protected getRerankResult(
-    searchResults: ExtractChunkData[],
+    searchResults: KnowledgeSearchResult[],
     rerankResults: Array<{
       index: number
       relevance_score: number
@@ -114,7 +113,7 @@ export default abstract class BaseReranker {
     const resultMap = new Map(rerankResults.map((result) => [result.index, result.relevance_score || 0]))
 
     return searchResults
-      .map((doc: ExtractChunkData, index: number) => {
+      .map((doc: KnowledgeSearchResult, index: number) => {
         const score = resultMap.get(index)
         if (score === undefined) return undefined
 
@@ -123,7 +122,7 @@ export default abstract class BaseReranker {
           score
         }
       })
-      .filter((doc): doc is ExtractChunkData => doc !== undefined)
+      .filter((doc): doc is KnowledgeSearchResult => doc !== undefined)
       .sort((a, b) => b.score - a.score)
   }
 

@@ -12,7 +12,7 @@ import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Alert, Input, InputNumber, Menu, Modal, Select, Slider, Tooltip } from 'antd'
+import { Alert, Input, InputNumber, Menu, Modal, Segmented, Select, Slider, Tooltip } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -191,6 +191,41 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             />
           </SettingsItem>
 
+          {base.framework === 'langchain' && (
+            <SettingsItem>
+              <div className="settings-label">
+                {t('knowledge.retriever')}
+                <Tooltip title={t('knowledge.retriever_tooltip')} placement="right">
+                  <InfoCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)' }} />
+                </Tooltip>
+              </div>
+              <Segmented
+                value={newBase.retriever || 'vector'}
+                onChange={(value) => setNewBase({ ...newBase, retriever: value as 'vector' | 'bm25' | 'hybrid' })}
+                options={[
+                  { label: t('knowledge.retriever_hybrid'), value: 'hybrid' },
+                  { label: t('knowledge.retriever_vector'), value: 'vector' },
+                  { label: t('knowledge.retriever_bm25'), value: 'bm25' }
+                ]}
+              />
+              {newBase.retriever === 'hybrid' && (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-3)' }}>
+                  {t('knowledge.retriever_hybrid_desc')}
+                </div>
+              )}
+              {newBase.retriever === 'vector' && (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-3)' }}>
+                  {t('knowledge.retriever_vector_desc')}
+                </div>
+              )}
+              {newBase.retriever === 'bm25' && (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-3)' }}>
+                  {t('knowledge.retriever_bm25_desc')}
+                </div>
+              )}
+            </SettingsItem>
+          )}
+
           <SettingsItem>
             <div className="settings-label">
               {t('knowledge.document_count')}
@@ -250,8 +285,9 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
               onChange={async (value) => {
                 if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
                   setNewBase({ ...newBase, chunkOverlap: value || undefined })
+                } else {
+                  await window.message.error(t('message.error.chunk_overlap_too_large'))
                 }
-                await window.message.error(t('message.error.chunk_overlap_too_large'))
               }}
             />
           </SettingsItem>

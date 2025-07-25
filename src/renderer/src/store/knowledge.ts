@@ -27,7 +27,11 @@ const knowledgeSlice = createSlice({
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
         const files = base.items.filter((item) => item.type === 'file')
         FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
-        window.api.knowledgeBase.delete(action.payload.baseId)
+        if (base.framework === 'langchain') {
+          window.api.newKnowledgeBase.delete(action.payload.baseId)
+        } else {
+          window.api.knowledgeBase.delete(action.payload.baseId)
+        }
       }
     },
 

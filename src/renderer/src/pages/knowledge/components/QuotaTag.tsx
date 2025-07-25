@@ -31,10 +31,18 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
         const userId = getStoreSetting('userId')
         const baseParams = getKnowledgeBaseParams(base)
         try {
-          const response = await window.api.knowledgeBase.checkQuota({
-            base: baseParams,
-            userId: userId as string
-          })
+          let response: number
+          if (base.framework === 'langchain') {
+            response = await window.api.newKnowledgeBase.checkQuota({
+              base: baseParams,
+              userId: userId as string
+            })
+          } else {
+            response = await window.api.knowledgeBase.checkQuota({
+              base: baseParams,
+              userId: userId as string
+            })
+          }
           setQuota(response)
         } catch (error) {
           logger.error('[KnowledgeContent] Error checking quota:', error as Error)

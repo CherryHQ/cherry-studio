@@ -1,4 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { loggerService } from '@logger'
 import { Span } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
@@ -6,7 +5,13 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
+import {
+  FileMetadata,
+  KnowledgeBase,
+  KnowledgeBaseParams,
+  KnowledgeReference,
+  KnowledgeSearchResult
+} from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -58,7 +63,9 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       baseURL: rerankHost
     },
     preprocessOrOcrProvider: base.preprocessOrOcrProvider,
-    documentCount: base.documentCount
+    documentCount: base.documentCount,
+    framework: base.framework,
+    retriever: base.retriever || 'vector'
   }
 }
 
@@ -89,7 +96,7 @@ export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> 
   return null
 }
 
-export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: FileMetadata | null }) => {
+export const getKnowledgeSourceUrl = async (item: KnowledgeSearchResult & { file: FileMetadata | null }) => {
   if (item.metadata.source.startsWith('http')) {
     return item.metadata.source
   }
@@ -108,7 +115,7 @@ export const searchKnowledgeBase = async (
   topicId?: string,
   parentSpanId?: string,
   modelName?: string
-): Promise<Array<ExtractChunkData & { file: FileMetadata | null }>> => {
+): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
   let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)
@@ -129,9 +136,9 @@ export const searchKnowledgeBase = async (
         modelName
       })
     }
+    const knowledgeBaseApi = base.framework === 'langchain' ? window.api.newKnowledgeBase : window.api.knowledgeBase
 
-    // 执行搜索
-    const searchResults = await window.api.knowledgeBase.search(
+    const searchResults: KnowledgeSearchResult[] = await knowledgeBaseApi.search(
       {
         search: rewrite || query,
         base: baseParams
@@ -145,7 +152,11 @@ export const searchKnowledgeBase = async (
     // 如果有rerank模型，执行重排
     let rerankResults = filteredResults
     if (base.rerankModel && filteredResults.length > 0) {
-      rerankResults = await window.api.knowledgeBase.rerank(
+      // 1. 根据框架选择API对象
+      const knowledgeBaseApi = base.framework === 'langchain' ? window.api.newKnowledgeBase : window.api.knowledgeBase
+
+      // 2. 使用选定的API对象进行调用，代码不再重复
+      rerankResults = await knowledgeBaseApi.rerank(
         {
           search: rewrite || query,
           base: baseParams,
@@ -154,7 +165,6 @@ export const searchKnowledgeBase = async (
         currentSpan?.spanContext()
       )
     }
-
     // 限制文档数量
     const limitedResults = rerankResults.slice(0, documentCount)
 

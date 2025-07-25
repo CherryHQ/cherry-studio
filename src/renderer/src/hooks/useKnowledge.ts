@@ -138,15 +138,19 @@ export const useKnowledge = (baseId: string) => {
   // 移除项目
   const removeItem = async (item: KnowledgeItem) => {
     dispatch(removeItemAction({ baseId, item }))
-    if (base) {
-      if (item?.uniqueId && item?.uniqueIds) {
-        await window.api.knowledgeBase.remove({
-          uniqueId: item.uniqueId,
-          uniqueIds: item.uniqueIds,
-          base: getKnowledgeBaseParams(base)
-        })
-      }
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
     }
+    const apiEndpoint = base.framework === 'langchain' ? window.api.newKnowledgeBase : window.api.knowledgeBase
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await apiEndpoint.remove(removalParams)
+
     if (item.type === 'file' && typeof item.content === 'object') {
       // name: eg. text.pdf
       await window.api.file.delete(item.content.name)
@@ -160,22 +164,29 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
-    if (base && item.uniqueId && item.uniqueIds) {
-      await window.api.knowledgeBase.remove({
-        uniqueId: item.uniqueId,
-        uniqueIds: item.uniqueIds,
-        base: getKnowledgeBaseParams(base)
-      })
-      updateItem({
-        ...item,
-        processingStatus: 'pending',
-        processingProgress: 0,
-        processingError: '',
-        uniqueId: undefined,
-        updated_at: Date.now()
-      })
-      setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
     }
+
+    const apiEndpoint = base.framework === 'langchain' ? window.api.newKnowledgeBase : window.api.knowledgeBase
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await apiEndpoint.remove(removalParams)
+
+    updateItem({
+      ...item,
+      processingStatus: 'pending',
+      processingProgress: 0,
+      processingError: '',
+      uniqueId: undefined,
+      updated_at: Date.now()
+    })
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新处理状态

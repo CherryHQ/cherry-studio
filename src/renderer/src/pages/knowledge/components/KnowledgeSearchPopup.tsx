@@ -1,10 +1,9 @@
 import { CopyOutlined } from '@ant-design/icons'
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileMetadata, KnowledgeBase } from '@renderer/types'
+import { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
 import { Divider, Input, InputRef, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -26,7 +25,7 @@ const logger = loggerService.withContext('KnowledgeSearchPopup')
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileMetadata | null }>>([])
+  const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<InputRef>(null)
@@ -161,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                       ) : (
                         // item.metadata.source
                         <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
-                          {item.metadata.source.split('/').pop() || item.metadata.source}
+                          {item.metadata.source?.split('/')?.pop() || item.metadata.source}
                         </a>
                       )}
                     </Text>

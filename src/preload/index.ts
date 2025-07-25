@@ -1,4 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
@@ -13,6 +12,7 @@ import {
   FileUploadResponse,
   KnowledgeBaseParams,
   KnowledgeItem,
+  KnowledgeSearchResult,
   MCPServer,
   MemoryConfig,
   MemoryListOptions,
@@ -204,11 +204,46 @@ const api = {
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
-      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] },
+      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
       ipcRenderer.invoke(IpcChannel.KnowledgeBase_Check_Quota, base, userId)
+  },
+  newKnowledgeBase: {
+    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.New_KnowledgeBase_Create, context, base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.New_KnowledgeBase_Reset, base),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.New_KnowledgeBase_Delete, id),
+    add: ({
+      base,
+      item,
+      userId,
+      forceReload = false
+    }: {
+      base: KnowledgeBaseParams
+      item: KnowledgeItem
+      userId?: string
+      forceReload?: boolean
+    }) => ipcRenderer.invoke(IpcChannel.New_KnowledgeBase_Add, { base, item, forceReload, userId }),
+    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
+      ipcRenderer.invoke(IpcChannel.New_KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
+    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.New_KnowledgeBase_Search, context, { search, base }),
+    rerank: (
+      {
+        search,
+        base,
+        results
+      }: {
+        search: string
+        base: KnowledgeBaseParams
+        results: KnowledgeSearchResult[]
+      },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.New_KnowledgeBase_Rerank, context, { search, base, results }),
+    checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
+      ipcRenderer.invoke(IpcChannel.New_KnowledgeBase_Check_Quota, base, userId)
   },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>

@@ -127,6 +127,16 @@ export enum IpcChannel {
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
 
+  // new knowledge base
+  New_KnowledgeBase_Create = 'new-knowledge-base:create',
+  New_KnowledgeBase_Reset = 'new-knowledge-base:reset',
+  New_KnowledgeBase_Delete = 'new-knowledge-base:delete',
+  New_KnowledgeBase_Add = 'new-knowledge-base:add',
+  New_KnowledgeBase_Remove = 'new-knowledge-base:remove',
+  New_KnowledgeBase_Search = 'new-knowledge-base:search',
+  New_KnowledgeBase_Rerank = 'new-knowledge-base:rerank',
+  New_KnowledgeBase_Check_Quota = 'new-knowledge-base:check-quota',
+
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',

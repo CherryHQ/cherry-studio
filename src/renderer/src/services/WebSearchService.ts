@@ -248,7 +248,8 @@ class WebSearchService {
       items: [],
       created_at: Date.now(),
       updated_at: Date.now(),
-      version: 1
+      version: 1,
+      framework: 'embedjs'
     }
 
     // 更新LRU cache
