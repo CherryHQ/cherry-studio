@@ -134,6 +134,13 @@ export const MALAY: Language = {
   emoji: '🇲🇾'
 }
 
+export const UKRAINIAN: Language = {
+  value: 'Ukrainian',
+  langCode: 'uk-ua',
+  label: () => i18n.t('languages.ukrainian'),
+  emoji: '🇺🇦'
+}
+
 export const LanguagesEnum = {
   enUS: ENGLISH,
   zhCN: CHINESE_SIMPLIFIED,
@@ -153,7 +160,8 @@ export const LanguagesEnum = {
   viVN: VIETNAMESE,
   idID: INDONESIAN,
   urPK: URDU,
-  msMY: MALAY
+  msMY: MALAY,
+  ukUA: UKRAINIAN
 } as const
 
 export const translateLanguageOptions: Language[] = Object.values(LanguagesEnum)
