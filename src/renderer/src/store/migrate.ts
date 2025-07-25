@@ -6,7 +6,7 @@ import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, LanguageCode, Provider, WebSearchProvider } from '@renderer/types'
+import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -1872,6 +1872,15 @@ const migrateConfig = {
   }, // 1.5.4
   '124': (state: RootState) => {
     try {
+      const updateModelTextDelta = (model?: Model) => {
+        if (model) {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        }
+      }
+
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings && !assistant.settings.toolUseMode) {
           assistant.settings.toolUseMode = 'prompt'
@@ -1879,28 +1888,23 @@ const migrateConfig = {
       })
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
-          model.supported_text_delta = true
-          if (isNotSupportedTextDelta(model)) {
-            model.supported_text_delta = false
-          }
+          updateModelTextDelta(model)
         })
       })
       state.assistants.assistants.forEach((assistant) => {
-        const defaultModel = assistant.defaultModel
-        if (defaultModel) {
-          defaultModel.supported_text_delta = true
-          if (isNotSupportedTextDelta(defaultModel)) {
-            defaultModel.supported_text_delta = false
-          }
-        }
-        const model = assistant.model
-        if (model) {
-          model.supported_text_delta = true
-          if (isNotSupportedTextDelta(model)) {
-            model.supported_text_delta = false
-          }
-        }
+        updateModelTextDelta(assistant.defaultModel)
+        updateModelTextDelta(assistant.model)
       })
+
+      updateModelTextDelta(state.llm.defaultModel)
+      updateModelTextDelta(state.llm.topicNamingModel)
+      updateModelTextDelta(state.llm.translateModel)
+
+      if (state.assistants.defaultAssistant.model) {
+        updateModelTextDelta(state.assistants.defaultAssistant.model)
+        updateModelTextDelta(state.assistants.defaultAssistant.defaultModel)
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 124 error', error as Error)
