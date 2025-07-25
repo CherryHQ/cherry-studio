@@ -2079,6 +2079,10 @@
         "title": "Backup local"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Quando ativado, o conteúdo das citações será excluído ao exportar para Markdown.",
+          "title": "Excluir conteúdo de citações"
+        },
         "force_dollar_math": {
           "help": "Ao ativar, a exportação para Markdown forçará o uso de $$ para marcar fórmulas LaTeX. Nota: isso também afetará todas as formas de exportação via Markdown, como Notion, Yuque, etc.",
           "title": "Forçar o uso de $$ para marcar fórmulas LaTeX"
@@ -2094,6 +2098,10 @@
         "show_model_provider": {
           "help": "Exibe o fornecedor do modelo ao exportar para Markdown, como OpenAI, Gemini, etc.",
           "title": "Exibir fornecedor do modelo"
+        },
+        "standardize_citations": {
+          "help": "Ao ativar, as citações serão convertidas para o formato padrão do Markdown e a lista de citações será formatada",
+          "title": "Formatar citações"
         },
         "title": "Exportação Markdown"
       },
@@ -2901,7 +2909,8 @@
       "manage": {
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
-          "label": "Adicionar modelo da lista"
+          "label": "Adicionar modelo da lista",
+          "models.manage.add_listed.confirm": "Deseja adicionar todos os modelos à lista?"
         },
         "add_whole_group": "Adicionar todo o grupo",
         "remove_listed": "Remover modelo da lista",
@@ -3017,6 +3026,7 @@
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
+          "basic_auth.password.tip": "",
           "label": "palavra-passe",
           "tip": "Introduza a palavra-passe"
         },

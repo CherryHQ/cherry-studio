@@ -2099,6 +2099,10 @@
           "help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
           "title": "モデルプロバイダーを表示"
         },
+        "standardize_citations": {
+          "help": "引用マークを標準の Markdown 脚注形式 [^1] に変換し、引用リストをフォーマットします。これにより、Markdown ドキュメントの引用が一貫性を持ち、読みやすくなります。",
+          "title": "引用を標準化"
+        },
         "title": "Markdownエクスポート"
       },
       "message_title": {

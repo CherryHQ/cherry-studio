@@ -2079,6 +2079,10 @@
         "title": "Sauvegarde locale"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Lorsque cette option est activée, le contenu des citations sera exclu lors de l'exportation en Markdown.",
+          "title": "Exclure le contenu des citations"
+        },
         "force_dollar_math": {
           "help": "Lorsque cette option est activée, l'exportation en Markdown utilisera $$ pour marquer les formules LaTeX. Note : Cette option affecte également toutes les méthodes d'exportation en Markdown, comme Notion, YuQue, etc.",
           "title": "Forcer l'utilisation de $$ pour marquer les formules LaTeX"
@@ -2094,6 +2098,10 @@
         "show_model_provider": {
           "help": "Afficher le fournisseur du modèle lors de l'exportation en Markdown, par exemple OpenAI, Gemini, etc.",
           "title": "Afficher le fournisseur du modèle"
+        },
+        "standardize_citations": {
+          "help": "Lorsque cette option est activée, les citations seront converties au format Markdown standard [^1] et la liste des citations sera formatée.",
+          "title": "Formater les citations"
         },
         "title": "Exporter en Markdown"
       },
@@ -2901,7 +2909,8 @@
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
+          "label": "Ajouter le modèle dans la liste",
+          "models.manage.add_listed.confirm": "Voulez-vous ajouter tous les modèles à la liste ?"
         },
         "add_whole_group": "Ajouter tout le groupe",
         "remove_listed": "Supprimer un modèle de la liste",
@@ -3017,6 +3026,7 @@
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
+          "basic_auth.password.tip": "",
           "label": "mot de passe",
           "tip": "Entrer le mot de passe"
         },
