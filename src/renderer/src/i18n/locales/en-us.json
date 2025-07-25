@@ -804,11 +804,11 @@
     "dimensions": "Embedding dimension",
     "dimensions_auto_set": "Auto-set embedding dimensions",
     "dimensions_default": "The model will use default embedding dimensions",
-    "dimensions_error_invalid": "Please enter embedding dimension size",
+    "dimensions_error_invalid": "Invalid embedding dimension",
     "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
-    "dimensions_size_placeholder": " Embedding dimension size, e.g. 1024",
+    "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
-    "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
+    "dimensions_size_tooltip": "Embedding dimension size, the larger the value, the more tokens will be consumed. Leave empty to not pass dimensions parameter.",
     "directories": "Directories",
     "directory_placeholder": "Enter Directory Path",
     "document_count": "Requested Document Chunks",
@@ -817,13 +817,35 @@
     "drag_file": "Drag file here",
     "edit_remark": "Edit Remark",
     "edit_remark_placeholder": "Please enter remark content",
+    "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge Base Embedding Model is required",
     "empty": "No knowledge base found",
+    "error": {
+      "failed_to_create": "Knowledge base creation failed",
+      "failed_to_edit": "Knowledge base editing failed"
+    },
     "file_hint": "Support {{file_types}}",
     "index_all": "Index All",
     "index_cancelled": "Indexing cancelled",
     "index_started": "Indexing started",
     "invalid_url": "Invalid URL",
+    "migrate": {
+      "button": {
+        "text": "Migrate"
+      },
+      "confirm": {
+        "content": "Detected changes in embedding model or dimension, cannot save configuration directly. Knowledge base migration will not delete the existing knowledge base, but will create a copy and then reprocess all knowledge base entries, which may consume a large number of tokens, please proceed with caution.",
+        "ok": "Start Migration",
+        "title": "Knowledge Base Migration"
+      },
+      "error": {
+        "failed": "Migration failed"
+      },
+      "source_dimensions": "Source Dimensions",
+      "source_model": "Source Model",
+      "target_dimensions": "Target Dimensions",
+      "target_model": "Target Model"
+    },
     "model_info": "Model Info",
     "name_required": "Knowledge Base Name is required",
     "no_bases": "No knowledge bases available",
@@ -833,6 +855,7 @@
     "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
     "notes": "Notes",
     "notes_placeholder": "Enter additional information or context for this knowledge base...",
+    "provider_not_found": "Provider not found",
     "quota": "{{name}} Left Quota: {{quota}}",
     "quota_infinity": "{{name}} Quota: Unlimited",
     "rename": "Rename",
@@ -3226,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "Failed to auto-obtain dimensions",
-            "embedding_model_required": "Please select an embedding model first",
-            "provider_not_found": "Provider not found",
             "rag_failed": "RAG failed"
           },
           "info": {
@@ -3244,11 +3264,6 @@
             "document_count": {
               "label": "Document Chunks Count",
               "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
-            },
-            "embedding_dimensions": {
-              "auto_get": "Auto Get Dimensions",
-              "placeholder": "Leave empty",
-              "tooltip": "If left blank, the dimensions parameter will not be passed"
             }
           },
           "title": "Search Result Compression"

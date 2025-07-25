@@ -817,13 +817,35 @@
     "drag_file": "Glissez-déposez un fichier ici",
     "edit_remark": "Modifier la remarque",
     "edit_remark_placeholder": "Entrez le contenu de la remarque",
+    "embedding_model": "Modèle d'intégration",
     "embedding_model_required": "Le modèle d'intégration de la base de connaissances est obligatoire",
     "empty": "Aucune base de connaissances pour le moment",
+    "error": {
+      "failed_to_create": "Erreur lors de la création de la base de connaissances",
+      "failed_to_edit": "Erreur lors de la modification de la base de connaissances"
+    },
     "file_hint": "Format supporté : {{file_types}}",
     "index_all": "Indexer tout",
     "index_cancelled": "L'indexation a été annulée",
     "index_started": "L'indexation a commencé",
     "invalid_url": "URL invalide",
+    "migrate": {
+      "button": {
+        "text": "Migrer"
+      },
+      "confirm": {
+        "content": "Des modifications ont été détectées dans le modèle d'intégration ou les dimensions, ce qui empêche la sauvegarde de la configuration. Vous pouvez exécuter la migration pour éviter la perte de données. La migration de la base de connaissances ne supprime pas la base de connaissances précédente, mais crée une copie et traite tous les éléments de la base de connaissances, ce qui peut consommer beaucoup de jetons. Veuillez agir avec prudence.",
+        "ok": "Commencer la migration",
+        "title": "Migration de la base de connaissances"
+      },
+      "error": {
+        "failed": "Erreur lors de la migration"
+      },
+      "source_dimensions": "Dimensions source",
+      "source_model": "Modèle source",
+      "target_dimensions": "Dimensions cible",
+      "target_model": "Modèle cible"
+    },
     "model_info": "Informations sur le modèle",
     "name_required": "Le nom de la base de connaissances est obligatoire",
     "no_bases": "Aucune base de connaissances pour le moment",
@@ -833,6 +855,7 @@
     "not_support": "Le moteur de base de données de la base de connaissances a été mis à jour, cette base de connaissances ne sera plus supportée, veuillez en créer une nouvelle",
     "notes": "Notes",
     "notes_placeholder": "Entrez des informations supplémentaires ou un contexte pour cette base de connaissances...",
+    "provider_not_found": "Le fournisseur du modèle de la base de connaissances a été perdu, cette base de connaissances ne sera plus supportée, veuillez en créer une nouvelle",
     "quota": "Quota restant pour {{name}} : {{quota}}",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
@@ -3076,6 +3099,7 @@
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "title": "Services de modèles",
       "vertex_ai": {
+        "api_host_help": "[to be translated]:Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
         "documentation": "Consultez la documentation officielle pour plus de détails sur la configuration :",
         "learn_more": "En savoir plus",
         "location": "Région",
@@ -3225,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "Échec de l'obtention automatique des dimensions",
-            "embedding_model_required": "Veuillez d'abord sélectionner un modèle d'incorporation",
-            "provider_not_found": "Fournisseur non trouvé",
             "rag_failed": "Échec du RAG"
           },
           "info": {
@@ -3243,11 +3264,6 @@
             "document_count": {
               "label": "Nombre de fragments de document",
               "tooltip": "Nombre prévu de fragments de document à extraire d'un seul résultat de recherche. Le nombre total réellement extrait est ce nombre multiplié par le nombre de résultats de recherche."
-            },
-            "embedding_dimensions": {
-              "auto_get": "Obtenir automatiquement les dimensions",
-              "placeholder": "Ne pas définir de dimension",
-              "tooltip": "Laisser vide pour ne pas transmettre le paramètre dimensions"
             }
           },
           "title": "Compression des résultats de recherche"

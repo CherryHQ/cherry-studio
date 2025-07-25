@@ -817,13 +817,35 @@
     "drag_file": "Arrastre archivos aquí",
     "edit_remark": "Editar observación",
     "edit_remark_placeholder": "Ingrese el contenido de la observación",
+    "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "El modelo de incrustación de la base de conocimientos es obligatorio",
     "empty": "Sin bases de conocimientos",
+    "error": {
+      "failed_to_create": "Error al crear la base de conocimientos",
+      "failed_to_edit": "Error al editar la base de conocimientos"
+    },
     "file_hint": "Formatos soportados: {{file_types}}",
     "index_all": "Indexar todo",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
     "invalid_url": "URL inválida",
+    "migrate": {
+      "button": {
+        "text": "Migrar"
+      },
+      "confirm": {
+        "content": "Se detectaron cambios en el modelo de incrustación o las dimensiones, por lo que no se puede guardar la configuración. Puede ejecutar la migración para evitar la pérdida de datos. La migración de la base de conocimientos no elimina la base de conocimientos anterior, sino que crea una copia y procesa todos los elementos de la base de conocimientos, lo que puede consumir muchos tokens. Por favor, tenga cuidado.",
+        "ok": "Iniciar migración",
+        "title": "Migración de base de conocimientos"
+      },
+      "error": {
+        "failed": "Error en la migración"
+      },
+      "source_dimensions": "Dimensiones de origen",
+      "source_model": "Modelo de origen",
+      "target_dimensions": "Dimensiones de destino",
+      "target_model": "Modelo de destino"
+    },
     "model_info": "Información del modelo",
     "name_required": "El nombre de la base de conocimientos es obligatorio",
     "no_bases": "Sin bases de conocimientos",
@@ -833,6 +855,7 @@
     "not_support": "El motor de base de datos de la base de conocimientos ha sido actualizado, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "notes": "Notas",
     "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
+    "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
@@ -3076,6 +3099,7 @@
       "search_placeholder": "Buscar ID o nombre del modelo",
       "title": "Servicio de modelos",
       "vertex_ai": {
+        "api_host_help": "[to be translated]:Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
         "documentation": "Consulte la documentación oficial para obtener más detalles de configuración:",
         "learn_more": "Más información",
         "location": "Región",
@@ -3225,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "Error al obtener automáticamente las dimensiones",
-            "embedding_model_required": "Por favor, seleccione primero un modelo de incrustación",
-            "provider_not_found": "Proveedor no encontrado",
             "rag_failed": "RAG fallido"
           },
           "info": {
@@ -3243,11 +3264,6 @@
             "document_count": {
               "label": "Número de fragmentos de documento",
               "tooltip": "Número esperado de fragmentos de documento extraídos de un único resultado de búsqueda; el número total extraído será este valor multiplicado por la cantidad de resultados de búsqueda"
-            },
-            "embedding_dimensions": {
-              "auto_get": "Obtener automáticamente las dimensiones",
-              "placeholder": "Sin configuración de dimensiones",
-              "tooltip": "Si se deja vacío, no se enviará el parámetro dimensions"
             }
           },
           "title": "Compresión de resultados de búsqueda"

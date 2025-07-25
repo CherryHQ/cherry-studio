@@ -817,13 +817,35 @@
     "drag_file": "Arraste o arquivo aqui",
     "edit_remark": "Editar observação",
     "edit_remark_placeholder": "Digite o conteúdo da observação",
+    "embedding_model": "Modelo de incorporação",
     "embedding_model_required": "O modelo de incorporação da base de conhecimento é obrigatório",
     "empty": "Sem repositório de conhecimento",
+    "error": {
+      "failed_to_create": "Falha ao criar o repositório de conhecimento",
+      "failed_to_edit": "Falha ao editar o repositório de conhecimento"
+    },
     "file_hint": "Formatos suportados: {{file_types}}",
     "index_all": "Índice total",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
     "invalid_url": "URL inválida",
+    "migrate": {
+      "button": {
+        "text": "Migrar"
+      },
+      "confirm": {
+        "content": "Foram detectadas alterações no modelo de incorporação ou dimensões, o que impede a gravação da configuração. Você pode executar a migração para evitar a perda de dados. A migração do repositório de conhecimento não exclui o repositório de conhecimento anterior, mas cria uma cópia e processa todos os itens do repositório de conhecimento, o que pode consumir muitos tokens. Por favor, agir com cuidado.",
+        "ok": "Iniciar migração",
+        "title": "Migração do repositório de conhecimento"
+      },
+      "error": {
+        "failed": "Falha na migração"
+      },
+      "source_dimensions": "Dimensões de origem",
+      "source_model": "Modelo de origem",
+      "target_dimensions": "Dimensões de destino",
+      "target_model": "Modelo de destino"
+    },
     "model_info": "Informações do modelo",
     "name_required": "O nome da base de conhecimento é obrigatório",
     "no_bases": "Sem repositório de conhecimento",
@@ -833,6 +855,7 @@
     "not_support": "O motor de banco de dados do repositório de conhecimento foi atualizado, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
     "notes": "Notas",
     "notes_placeholder": "Digite informações adicionais ou contexto para este repositório de conhecimento...",
+    "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
     "quota": "Cota restante de {{name}}: {{quota}}",
     "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
@@ -3076,6 +3099,7 @@
       "search_placeholder": "Procurar ID ou nome do modelo",
       "title": "Serviços de Modelos",
       "vertex_ai": {
+        "api_host_help": "[to be translated]:Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
         "documentation": "Consulte a documentação oficial para obter mais detalhes de configuração:",
         "learn_more": "Saiba mais",
         "location": "Região",
@@ -3225,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "Falha ao obter automaticamente as dimensões",
-            "embedding_model_required": "Por favor, selecione primeiro o modelo de incorporação",
-            "provider_not_found": "Provedor não encontrado",
             "rag_failed": "RAG falhou"
           },
           "info": {
@@ -3243,11 +3264,6 @@
             "document_count": {
               "label": "Número de fragmentos de documentos",
               "tooltip": "Número esperado de fragmentos de documentos a serem extraídos de um único resultado de pesquisa. O número total real extraído será esse valor multiplicado pelo número de resultados de pesquisa."
-            },
-            "embedding_dimensions": {
-              "auto_get": "Obter automaticamente dimensões",
-              "placeholder": "Não definir dimensões",
-              "tooltip": "Se deixado em branco, o parâmetro dimensions não será enviado"
             }
           },
           "title": "Compressão de resultados de pesquisa"

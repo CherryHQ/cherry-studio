@@ -804,11 +804,11 @@
     "dimensions": "埋め込み次元",
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
-    "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
+    "dimensions_error_invalid": "無効な埋め込み次元",
     "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
-    "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
+    "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
     "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
-    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど消費するトークンも増えます。空欄の場合はdimensionsパラメータを渡しません。",
     "directories": "ディレクトリ",
     "directory_placeholder": "ディレクトリパスを入力",
     "document_count": "要求されたドキュメント分段数",
@@ -817,13 +817,35 @@
     "drag_file": "ファイルをここにドラッグ",
     "edit_remark": "備考を編集",
     "edit_remark_placeholder": "備考内容を入力してください",
+    "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースが見つかりません",
+    "error": {
+      "failed_to_create": "ナレッジベースの作成に失敗しました",
+      "failed_to_edit": "ナレッジベースの編集に失敗しました"
+    },
     "file_hint": "{{file_types}} 形式をサポート",
     "index_all": "すべてをインデックス",
     "index_cancelled": "インデックスがキャンセルされました",
     "index_started": "インデックスを開始",
     "invalid_url": "無効なURL",
+    "migrate": {
+      "button": {
+        "text": "移行"
+      },
+      "confirm": {
+        "content": "埋め込みモデルまたは次元に変更が検出されました。設定を直接保存することはできませんが、移行を実行できます。ナレッジベースの移行では古いナレッジベースは削除されず、代わりにコピーを作成してすべてのエントリを再処理します。大量のトークンを消費する可能性があるため、慎重に操作してください。",
+        "ok": "移行を開始",
+        "title": "ナレッジベースの移行"
+      },
+      "error": {
+        "failed": "移行が失敗しました"
+      },
+      "source_dimensions": "ソース次元",
+      "source_model": "ソースモデル",
+      "target_dimensions": "ターゲット次元",
+      "target_model": "ターゲットモデル"
+    },
     "model_info": "モデル情報",
     "name_required": "ナレッジベース名は必須です",
     "no_bases": "ナレッジベースがありません",
@@ -833,6 +855,7 @@
     "not_support": "ナレッジベースデータベースエンジンが更新されました。このナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
     "notes": "ノート",
     "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
+    "provider_not_found": "プロバイダーが見つかりません",
     "quota": "{{name}} 残りクォータ: {{quota}}",
     "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
@@ -3226,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "次元の自動取得に失敗しました",
-            "embedding_model_required": "まず埋め込みモデルを選択してください",
-            "provider_not_found": "プロバイダーが見つかりません",
             "rag_failed": "RAG に失敗しました"
           },
           "info": {
@@ -3244,11 +3264,6 @@
             "document_count": {
               "label": "文書チャンク数",
               "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
-            },
-            "embedding_dimensions": {
-              "auto_get": "次元を自動取得",
-              "placeholder": "次元を設定しない",
-              "tooltip": "空の場合、dimensions パラメーターは渡されません"
             }
           },
           "title": "検索結果の圧縮"

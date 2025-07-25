@@ -804,11 +804,11 @@
     "dimensions": "嵌入维度",
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_default": "模型将使用默认嵌入维度",
-    "dimensions_error_invalid": "请输入嵌入维度大小",
+    "dimensions_error_invalid": "无效的嵌入维度",
     "dimensions_set_right": "⚠️ 请确保模型支持所设置的嵌入维度大小",
-    "dimensions_size_placeholder": "嵌入维度大小，如 1024",
+    "dimensions_size_placeholder": "留空表示不设置",
     "dimensions_size_too_large": "嵌入维度不能超过模型上下文限制（{{max_context}}）",
-    "dimensions_size_tooltip": "嵌入维度大小，数值越大，嵌入维度越大，但消耗的 Token 也越多",
+    "dimensions_size_tooltip": "嵌入维度大小，数值越大消耗的 Token 也越多。留空则不传递 dimensions 参数。",
     "directories": "目录",
     "directory_placeholder": "请输入目录路径",
     "document_count": "请求文档片段数量",
@@ -817,13 +817,35 @@
     "drag_file": "拖拽文件到这里",
     "edit_remark": "修改备注",
     "edit_remark_placeholder": "请输入备注内容",
+    "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "error": {
+      "failed_to_create": "知识库创建失败",
+      "failed_to_edit": "知识库编辑失败"
+    },
     "file_hint": "支持 {{file_types}} 格式",
     "index_all": "索引全部",
     "index_cancelled": "索引已取消",
     "index_started": "索引开始",
     "invalid_url": "无效的网址",
+    "migrate": {
+      "button": {
+        "text": "迁移"
+      },
+      "confirm": {
+        "content": "检测到嵌入模型或维度有变更，无法直接保存配置，可以执行迁移。知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
+        "ok": "开始迁移",
+        "title": "知识库迁移"
+      },
+      "error": {
+        "failed": "迁移失败"
+      },
+      "source_dimensions": "源维度",
+      "source_model": "源模型",
+      "target_dimensions": "目标维度",
+      "target_model": "目标模型"
+    },
     "model_info": "模型信息",
     "name_required": "知识库名称为必填项",
     "no_bases": "暂无知识库",
@@ -833,6 +855,7 @@
     "not_support": "知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
     "notes": "笔记",
     "notes_placeholder": "输入此知识库的附加信息或上下文...",
+    "provider_not_found": "未找到服务商",
     "quota": "{{name}} 剩余额度：{{quota}}",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
@@ -3226,9 +3249,6 @@
             }
           },
           "error": {
-            "dimensions_auto_failed": "维度自动获取失败",
-            "embedding_model_required": "请先选择嵌入模型",
-            "provider_not_found": "未找到服务商",
             "rag_failed": "RAG 失败"
           },
           "info": {
@@ -3244,11 +3264,6 @@
             "document_count": {
               "label": "文档片段数量",
               "tooltip": "预期从单个搜索结果中提取的文档片段数量，实际提取的总数量是这个值乘以搜索结果数量。"
-            },
-            "embedding_dimensions": {
-              "auto_get": "自动获取维度",
-              "placeholder": "不设置维度",
-              "tooltip": "留空则不传递 dimensions 参数"
             }
           },
           "title": "搜索结果压缩"
