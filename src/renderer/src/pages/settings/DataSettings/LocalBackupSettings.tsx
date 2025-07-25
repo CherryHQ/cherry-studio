@@ -115,11 +115,10 @@ const LocalBackupSettings: React.FC = () => {
       return
     }
 
-    setLocalBackupDir('')
-    setLocalBackupDirInput('')
-    dispatch(_setLocalBackupDir(''))
-    dispatch(setLocalBackupAutoSync(false))
-    stopAutoSync('local')
+    if (localBackupDir) {
+      setLocalBackupDirInput(localBackupDir)
+      return
+    }
   }
 
   const onMaxBackupsChange = (value: number) => {
@@ -143,7 +142,7 @@ const LocalBackupSettings: React.FC = () => {
         return
       }
 
-      handleLocalBackupDirChange(newLocalBackupDir)
+      await handleLocalBackupDirChange(newLocalBackupDir)
     } catch (error) {
       logger.error('Failed to select directory:', error as Error)
     }
