@@ -89,41 +89,54 @@ const getRoleText = (role: string, modelName?: string, providerId?: string) => {
  * @param mode 处理模式：'remove' 移除引用，'normalize' 标准化为Markdown格式
  * @returns 处理后的文本
  */
-const processCitations = (content: string, mode: 'remove' | 'normalize' = 'remove'): string => {
-  let result = content
+export const processCitations = (content: string, mode: 'remove' | 'normalize' = 'remove'): string => {
+  // 使用正则表达式匹配Markdown代码块
+  const codeBlockRegex = /(```[a-zA-Z]*\n[\s\S]*?\n```)/g
+  const parts = content.split(codeBlockRegex)
 
-  if (mode === 'remove') {
-    // 移除各种形式的引用标记
-    result = result
-      .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-      .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-      .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
-      .replace(/\[(\d+)\](?!\()/g, '')
-  } else if (mode === 'normalize') {
-    // 标准化引用格式为Markdown脚注格式
-    result = result
-      // 将 [<sup data-citation='...'>数字</sup>](链接) 转换为 [^数字]
-      .replace(/\[<sup[^>]*data-citation[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
-      // 将 [<sup>数字</sup>](链接) 转换为 [^数字]
-      .replace(/\[<sup[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
-      // 将独立的 <sup data-citation='...'>数字</sup> 转换为 [^数字]
-      .replace(/<sup[^>]*data-citation[^>]*>(\d+)<\/sup>/g, '[^$1]')
-      // 将 [数字] 转换为 [^数字]（但要小心不要转换其他方括号内容）
-      .replace(/\[(\d+)\](?!\()/g, '[^$1]')
-  }
-
-  // 按行处理，保留Markdown结构
-  const lines = result.split('\n')
-  const processedLines = lines.map((line) => {
-    // 如果是代码块、引用块或其他特殊格式，不要修改空格
-    if (line.match(/^```|^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
-      return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
+  const processedParts = parts.map((part, index) => {
+    // 如果是代码块(奇数索引),则原样返回
+    if (index % 2 === 1) {
+      return part
     }
-    // 普通文本行，清理多余空格但保留基本格式
-    return line.replace(/[ ]+/g, ' ').trim()
+
+    let result = part
+
+    if (mode === 'remove') {
+      // 移除各种形式的引用标记
+      result = result
+        .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+        .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
+        .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
+        .replace(/\[(\d+)\](?!\()/g, '')
+    } else if (mode === 'normalize') {
+      // 标准化引用格式为Markdown脚注格式
+      result = result
+        // 将 [<sup data-citation='...'>数字</sup>](链接) 转换为 [^数字]
+        .replace(/\[<sup[^>]*data-citation[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
+        // 将 [<sup>数字</sup>](链接) 转换为 [^数字]
+        .replace(/\[<sup[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
+        // 将独立的 <sup data-citation='...'>数字</sup> 转换为 [^数字]
+        .replace(/<sup[^>]*data-citation[^>]*>(\d+)<\/sup>/g, '[^$1]')
+        // 将 [数字] 转换为 [^数字]（但要小心不要转换其他方括号内容）
+        .replace(/\[(\d+)\](?!\()/g, '[^$1]')
+    }
+
+    // 按行处理，保留Markdown结构
+    const lines = result.split('\n')
+    const processedLines = lines.map((line) => {
+      // 如果是引用块或其他特殊格式，不要修改空格
+      if (line.match(/^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
+        return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
+      }
+      // 普通文本行，清理多余空格但保留基本格式
+      return line.replace(/[ ]+/g, ' ').trim()
+    })
+
+    return processedLines.join('\n')
   })
 
-  return processedLines.join('\n').trim()
+  return processedParts.join('').trim()
 }
 
 /**
@@ -182,7 +195,8 @@ const createBaseMarkdown = (
     <summary>${i18n.t('common.reasoning_content')}</summary>
     ${reasoningContent}
   </details>
-</div>`
+</div>
+`
     }
   }
 
@@ -211,7 +225,7 @@ export const messageToMarkdown = (message: Message, excludeCitations?: boolean) 
     shouldExcludeCitations,
     standardizeCitationsInExport
   )
-  return [titleSection, '', contentSection, citation].join('\n\n')
+  return [titleSection, '', contentSection, citation].join('\n')
 }
 
 export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean) => {
@@ -223,7 +237,7 @@ export const messageToMarkdownWithReasoning = (message: Message, excludeCitation
     shouldExcludeCitations,
     standardizeCitationsInExport
   )
-  return [titleSection, '', reasoningSection + contentSection, citation].join('\n\n')
+  return [titleSection, '', reasoningSection + contentSection, citation].join('\n')
 }
 
 export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean, excludeCitations?: boolean) => {
@@ -233,7 +247,7 @@ export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolea
         ? messageToMarkdownWithReasoning(message, excludeCitations)
         : messageToMarkdown(message, excludeCitations)
     )
-    .join('\n\n---\n\n')
+    .join('\n---\n')
 }
 
 const formatMessageAsPlainText = (message: Message): string => {
