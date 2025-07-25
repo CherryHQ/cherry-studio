@@ -34,6 +34,10 @@ export type Assistant = {
   enableMemory?: boolean
 }
 
+export type TranslateAssistant = Assistant & {
+  targetLanguage?: Language
+}
+
 export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {

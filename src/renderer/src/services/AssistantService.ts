@@ -8,7 +8,16 @@ import {
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Agent, Assistant, AssistantSettings, Language, Model, Provider, Topic } from '@renderer/types'
+import type {
+  Agent,
+  Assistant,
+  AssistantSettings,
+  Language,
+  Model,
+  Provider,
+  Topic,
+  TranslateAssistant
+} from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 export function getDefaultAssistant(): Assistant {
@@ -34,7 +43,7 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): Assistant {
+export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): TranslateAssistant {
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
   assistant.model = translateModel
@@ -47,7 +56,7 @@ export function getDefaultTranslateAssistant(targetLanguage: Language, text: str
     .getState()
     .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
     .replaceAll('{{text}}', text)
-  return assistant
+  return { ...assistant, targetLanguage }
 }
 
 export function getDefaultAssistantSettings() {

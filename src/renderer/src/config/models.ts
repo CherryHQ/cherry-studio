@@ -254,7 +254,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1',
-  'gemini-1(?:\\.[\\w-]+)?'
+  'gemini-1(?:\\.[\\w-]+)?',
+  'qwen-mt(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -3026,9 +3027,21 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return getLowerBaseModelName(model.id).startsWith('claude')
 }
 
-export const isNotSupportedTextDelta = (model: Model): boolean => {
+export const isQwenMTModel = (model: Model): boolean => {
   const name = getLowerBaseModelName(model.id)
-  if (name.includes('qwen-mt')) {
+  return name.includes('qwen-mt')
+}
+
+export const isNotSupportedTextDelta = (model: Model): boolean => {
+  if (isQwenMTModel(model)) {
+    return true
+  }
+
+  return false
+}
+
+export const isNotSupportSystemMessageModel = (model: Model): boolean => {
+  if (isQwenMTModel(model) || isGemmaModel(model)) {
     return true
   }
 
