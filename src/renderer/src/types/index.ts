@@ -58,11 +58,13 @@ export const EFFORT_RATIO: EffortRatio = {
 }
 
 export type AssistantSettings = {
-  contextCount: number
+  maxTokens?: number
+  enableMaxTokens?: boolean
   temperature: number
+  enableTemperature?: boolean
   topP: number
-  maxTokens: number | undefined
-  enableMaxTokens: boolean
+  enableTopP?: boolean
+  contextCount: number
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]

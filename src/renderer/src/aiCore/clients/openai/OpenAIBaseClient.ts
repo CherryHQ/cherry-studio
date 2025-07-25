@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
-  isNotSupportTemperatureAndTopP,
   isOpenAIReasoningModel,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel
@@ -172,23 +171,17 @@ export abstract class OpenAIBaseClient<
   }
 
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.temperature
+    return super.getTemperature(assistant, model)
   }
 
   override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.topP
+    return super.getTopP(assistant, model)
   }
 
   /**
