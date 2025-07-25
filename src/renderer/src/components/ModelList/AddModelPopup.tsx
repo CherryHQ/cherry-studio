@@ -54,13 +54,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       id,
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
-      group: values.group ?? getDefaultGroupName(id),
-      supported_text_delta: true
+      group: values.group ?? getDefaultGroupName(id)
     }
 
-    model.supported_text_delta = !isNotSupportedTextDelta(model)
-
-    addModel(model)
+    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
 
     return true
   }

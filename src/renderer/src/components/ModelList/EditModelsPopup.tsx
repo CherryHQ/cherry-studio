@@ -13,6 +13,7 @@ import {
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
+  isNotSupportedTextDelta,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
@@ -145,13 +146,13 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             addModel({
               ...model,
               endpoint_type: model.supported_endpoint_types[0],
-              supported_text_delta: true
+              supported_text_delta: !isNotSupportedTextDelta(model)
             })
           } else {
             NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
-          addModel({ ...model, supported_text_delta: true })
+          addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
         }
       }
     },

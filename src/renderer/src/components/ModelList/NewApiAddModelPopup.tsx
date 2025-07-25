@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -59,11 +60,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id),
-      endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined,
-      supported_text_delta: true
+      endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined
     }
 
-    addModel(model)
+    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
 
     return true
   }

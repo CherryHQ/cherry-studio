@@ -30,6 +30,7 @@ import {
   MemoryItem,
   Model,
   Provider,
+  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -50,7 +51,8 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel
+  getTopNamingModel,
+  getTranslateModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
@@ -590,12 +592,12 @@ async function processConversationMemory(messages: Message[], assistant: Assista
 
 interface FetchTranslateProps {
   content: string
-  assistant: Assistant
+  assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
 export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = assistant.model || getDefaultModel()
+  const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
     throw new Error(i18n.t('error.provider_disabled'))
