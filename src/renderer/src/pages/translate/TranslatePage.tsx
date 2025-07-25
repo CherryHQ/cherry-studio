@@ -22,7 +22,7 @@ import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } fro
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { isEmpty } from 'lodash'
+import { debounce, isEmpty } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -76,7 +76,7 @@ const TranslatePage: FC = () => {
   _result = result
   _targetLanguage = targetLanguage
 
-  const handleModelChange = (model: Model) => {
+  const handleModelChange = async (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
   }
@@ -173,27 +173,37 @@ const TranslatePage: FC = () => {
     }
   }
 
-  const toggleBidirectional = (value: boolean) => {
+  const toggleBidirectional = async (value: boolean) => {
     setIsBidirectional(value)
     db.settings.put({ id: 'translate:bidirectional:enabled', value })
   }
 
-  const onCopy = () => {
+  const onCopy = async () => {
     navigator.clipboard.writeText(result)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
+  const onHistoryItemClick = async (
+    history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
+  ) => {
     setText(history.sourceText)
     setResult(history.targetText)
     setSourceLanguage(history._sourceLanguage)
     setTargetLanguage(history._targetLanguage)
   }
 
+  const debouncedClear = useMemo(
+    () =>
+      debounce(() => {
+        isEmpty(text) && setResult('')
+      }, 300),
+    [text]
+  )
+
   useEffect(() => {
-    isEmpty(text) && setResult('')
-  }, [text])
+    debouncedClear()
+  }, [debouncedClear])
 
   // Render markdown content when result or enableMarkdown changes
   useEffect(() => {
@@ -256,13 +266,13 @@ const TranslatePage: FC = () => {
     })
   }, [])
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const onKeyDown = debounce((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
     if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
       onTranslate()
     }
-  }
+  }, 300)
 
   const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
