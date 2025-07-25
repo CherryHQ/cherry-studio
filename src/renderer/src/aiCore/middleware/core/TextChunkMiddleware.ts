@@ -45,7 +45,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_DELTA) {
-                if (!model.supported_text_delta) {
+                if (model.supported_text_delta === false) {
                   accumulatedTextContent = chunk.text
                 } else {
                   accumulatedTextContent += chunk.text
