@@ -216,6 +216,7 @@ export type Model = {
   pricing?: ModelPricing
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
+  supported_text_delta?: boolean
 }
 
 export type Suggestion = {

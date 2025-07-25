@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -1876,6 +1876,14 @@ const migrateConfig = {
         if (assistant.settings && !assistant.settings.toolUseMode) {
           assistant.settings.toolUseMode = 'prompt'
         }
+      })
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        })
       })
       return state
     } catch (error) {

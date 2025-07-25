@@ -3025,3 +3025,12 @@ export const isAnthropicModel = (model?: Model): boolean => {
 
   return getLowerBaseModelName(model.id).startsWith('claude')
 }
+
+export const isNotSupportedTextDelta = (model: Model): boolean => {
+  const name = getLowerBaseModelName(model.id)
+  if (name.includes('qwen-mt')) {
+    return true
+  }
+
+  return false
+}
