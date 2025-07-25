@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { Model, Provider } from '@renderer/types'
 
 /**
@@ -43,6 +43,8 @@ export function matchKeywordsInString(keywords: string | string[], value: string
  * @returns 匹配所有关键词则返回 true
  */
 export function matchKeywordsInProvider(keywords: string | string[], provider: Provider): boolean {
+  console.log(keywords, provider.id)
+  console.log(getProviderSearchString(provider))
   return includeKeywords(getProviderSearchString(provider), keywords)
 }
 
@@ -64,7 +66,7 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
-  return provider.isSystem ? `${i18n.t(`provider.${provider.id}`)} ${provider.id}` : provider.name
+  return provider.isSystem ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
 }
 
 /**

@@ -138,14 +138,14 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       registerTool({
         ...viewSourceToolSpec,
         icon: viewMode === 'source' ? <Eye className="icon" /> : <SquarePen className="icon" />,
-        tooltip: viewMode === 'source' ? t('code_block.preview') : t('code_block.edit'),
+        tooltip: viewMode === 'source' ? t('code_block.preview.label') : t('code_block.edit.label'),
         onClick: () => setViewMode(viewMode === 'source' ? 'special' : 'source')
       })
     } else {
       registerTool({
         ...viewSourceToolSpec,
         icon: viewMode === 'source' ? <Eye className="icon" /> : <CodeXml className="icon" />,
-        tooltip: viewMode === 'source' ? t('code_block.preview') : t('code_block.preview.source'),
+        tooltip: viewMode === 'source' ? t('code_block.preview.label') : t('code_block.preview.source'),
         onClick: () => setViewMode(viewMode === 'source' ? 'special' : 'source')
       })
     }
@@ -160,7 +160,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     registerTool({
       ...TOOL_SPECS['split-view'],
       icon: viewMode === 'split' ? <Square className="icon" /> : <SquareSplitHorizontal className="icon" />,
-      tooltip: viewMode === 'split' ? t('code_block.split.restore') : t('code_block.split'),
+      tooltip: viewMode === 'split' ? t('code_block.split.restore') : t('code_block.split.label'),
       onClick: () => setViewMode(viewMode === 'split' ? 'special' : 'split')
     })
 

@@ -70,7 +70,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       centered>
       <Form
         form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type')]) } }}
+        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -80,7 +80,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         }}>
         <Form.Item
           name="endpointType"
-          label={t('settings.models.add.endpoint_type')}
+          label={t('settings.models.add.endpoint_type.label')}
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
           rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>

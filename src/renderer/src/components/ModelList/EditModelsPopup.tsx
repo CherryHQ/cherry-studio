@@ -222,7 +222,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     const onAddAll = () => {
       const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
       window.modal.confirm({
-        title: t('settings.models.manage.add_listed'),
+        title: t('settings.models.manage.add_listed.label'),
         content: t('settings.models.manage.add_listed.confirm'),
         centered: true,
         onOk: () => {
@@ -247,7 +247,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       <Tooltip
         destroyTooltipOnHide
         title={
-          isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
+          isAllFilteredInProvider
+            ? t('settings.models.manage.remove_listed')
+            : t('settings.models.manage.add_listed.label')
         }
         mouseLeaveDelay={0}
         placement="top">
@@ -273,8 +275,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           destroyTooltipOnHide
           title={
             isAllInProvider
-              ? t(`settings.models.manage.remove_whole_group`)
-              : t(`settings.models.manage.add_whole_group`)
+              ? t('settings.models.manage.remove_whole_group')
+              : t('settings.models.manage.add_whole_group')
           }
           mouseLeaveDelay={0}
           placement="top">

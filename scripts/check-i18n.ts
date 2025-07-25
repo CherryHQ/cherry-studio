@@ -29,6 +29,9 @@ function checkRecursively(target: I18N, template: I18N): void {
     if (!(key in target)) {
       throw new Error(`缺少属性 ${key}`)
     }
+    if (key.includes('.')) {
+      throw new Error(`应该使用严格嵌套结构 ${key}`)
+    }
     if (typeof template[key] === 'object' && template[key] !== null) {
       if (typeof target[key] !== 'object' || target[key] === null) {
         throw new Error(`属性 ${key} 不是对象`)
@@ -130,7 +133,8 @@ function checkTranslations() {
     try {
       checkRecursively(targetJson, baseJson)
     } catch (e) {
-      throw new Error(`在检查 ${filePath} 时出错：${e}`)
+      console.error(e)
+      throw new Error(`在检查 ${filePath} 时出错`)
     }
   }
 }
@@ -138,6 +142,7 @@ function checkTranslations() {
 export function main() {
   try {
     checkTranslations()
+    console.log('i18n 检查已通过')
   } catch (e) {
     console.error(e)
     throw new Error(`检查未通过。尝试运行 yarn sync:i18n 以解决问题。`)

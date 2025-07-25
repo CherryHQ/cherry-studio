@@ -660,11 +660,11 @@ const McpSettings: React.FC = () => {
               </Form.Item>
 
               <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
-                <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                <Input placeholder="https://provider-website.com" />
               </Form.Item>
 
               <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
-                <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                <Input placeholder="https://example.com/logo.png" />
               </Form.Item>
 
               <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>

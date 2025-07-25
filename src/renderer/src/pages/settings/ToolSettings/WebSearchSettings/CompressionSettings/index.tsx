@@ -29,7 +29,7 @@ const CompressionSettings = () => {
       <SettingDivider />
 
       <SettingRow>
-        <SettingRowTitle>{t('settings.tool.websearch.compression.method')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
         <Select
           value={compressionConfig?.method || 'none'}
           style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}

@@ -237,7 +237,7 @@ export function NustorePathSelectorFooter(props: FooterProps) {
       <HStack gap={8} alignItems="center">
         <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
         <Button size="small" type="link" onClick={props.mkdir}>
-          {t('settings.data.nutstore.new_folder.button')}
+          {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
       </HStack>
       <HStack gap={8} alignItems="center">

@@ -1,13 +1,13 @@
 import 'emoji-picker-element'
 
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -116,32 +116,34 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (
-          <TextArea
-            rows={10}
-            placeholder={t('common.assistant') + t('common.prompt')}
+          <CodeEditor
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onBlur={() => {
-              onUpdate()
+            language="markdown"
+            placeholder={t('common.assistant') + t('common.prompt')}
+            onChange={setPrompt}
+            onBlur={onUpdate}
+            height="calc(80vh - 202px)"
+            fontSize="var(--ant-font-size)"
+            options={{
+              autocompletion: false,
+              collapsible: false,
+              keymap: true,
+              lineNumbers: false,
+              lint: false,
+              wrappable: true
             }}
-            autoFocus={true}
-            spellCheck={false}
-            style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
+            style={{
+              border: '0.5px solid var(--color-border)',
+              borderRadius: '5px'
+            }}
           />
         )}
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
-
-        {showMarkdown ? (
-          <Button type="primary" onClick={() => setShowMarkdown(false)}>
-            {t('common.edit')}
-          </Button>
-        ) : (
-          <Button type="primary" onClick={() => setShowMarkdown(true)}>
-            {t('common.save')}
-          </Button>
-        )}
+        <Button type="primary" onClick={() => setShowMarkdown((prev) => !prev)}>
+          {t(showMarkdown ? 'common.edit' : 'common.save')}
+        </Button>
       </HSpaceBetweenStack>
     </Container>
   )

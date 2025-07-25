@@ -150,7 +150,7 @@ const AssistantSettings: FC = () => {
         </Button>
       </SettingSubtitle>
       <Row align="middle">
-        <Label>{t('chat.settings.temperature')}</Label>
+        <Label>{t('chat.settings.temperature.label')}</Label>
         <Tooltip title={t('chat.settings.temperature.tip')}>
           <QuestionIcon />
         </Tooltip>
@@ -179,7 +179,7 @@ const AssistantSettings: FC = () => {
         </Col>
       </Row>
       <Row align="middle">
-        <Label>{t('chat.settings.top_p')}</Label>
+        <Label>{t('chat.settings.top_p.label')}</Label>
         <Tooltip title={t('chat.settings.top_p.tip')}>
           <QuestionIcon />
         </Tooltip>
@@ -201,7 +201,7 @@ const AssistantSettings: FC = () => {
         </Col>
       </Row>
       <Row align="middle">
-        <Label>{t('chat.settings.context_count')}</Label>
+        <Label>{t('chat.settings.context_count.label')}</Label>
         <Tooltip title={t('chat.settings.context_count.tip')}>
           <QuestionIcon />
         </Tooltip>
@@ -231,7 +231,7 @@ const AssistantSettings: FC = () => {
       </Row>
       <Flex justify="space-between" align="center" style={{ marginBottom: 10 }}>
         <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
+          <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>

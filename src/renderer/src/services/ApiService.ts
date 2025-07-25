@@ -811,8 +811,8 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      throw new Error(i18n.t('message.error.enter.api.key'))
+      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 

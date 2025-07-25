@@ -241,7 +241,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             danger
             onClick={() => handleDeleteSingle(record.fileName)}
             disabled={deleting || restoring}>
-            {t('settings.data.s3.manager.delete')}
+            {t('settings.data.s3.manager.delete.label')}
           </Button>
         </>
       )

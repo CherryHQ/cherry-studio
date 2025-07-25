@@ -126,7 +126,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
     if (window.api.shell?.openExternal) {
       window.api.shell.openExternal(filePath)
     } else {
-      logger.error(t('artifacts.preview.openExternal.error.content'))
+      logger.error(t('chat.artifacts.preview.openExternal.error.content'))
     }
   }
 
@@ -155,7 +155,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
           {isStreaming && !hasContent ? (
             <GeneratingContainer>
               <ClipLoader size={20} color="var(--color-primary)" />
-              <GeneratingText>{t('html_artifacts.generating_content', 'Generating content...')}</GeneratingText>
+              <GeneratingText>{t('html_artifacts.generating', 'Generating content...')}</GeneratingText>
             </GeneratingContainer>
           ) : isStreaming && hasContent ? (
             <>
@@ -185,7 +185,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
                 {t('chat.artifacts.button.openExternal')}
               </Button>
               <Button icon={<Download size={16} />} onClick={handleDownload} type="text" disabled={!hasContent}>
-                {t('code_block.download')}
+                {t('code_block.download.label')}
               </Button>
             </ButtonContainer>
           )}

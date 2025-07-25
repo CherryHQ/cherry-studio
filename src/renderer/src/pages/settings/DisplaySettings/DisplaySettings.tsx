@@ -224,7 +224,7 @@ const DisplaySettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.display.navbar.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.display.navbar.position.label')}</SettingRowTitle>
           <Segmented
             value={navbarPosition}
             shape="round"
@@ -259,7 +259,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
           <Segmented
             value={topicPosition || 'right'}
             shape="round"
@@ -297,7 +297,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
           <Segmented
             value={assistantIconType}
             shape="round"
@@ -326,7 +326,7 @@ const DisplaySettings: FC = () => {
       )}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.display.custom.css')}
+          {t('settings.display.custom.css.label')}
           <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
             {t('settings.display.custom.css.cherrycss')}
           </TitleExtra>

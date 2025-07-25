@@ -287,7 +287,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                 // 阻止事件冒泡，避免触发全局的 Electron contextMenu
                 e.stopPropagation()
               }}
-              autoSize={{ minRows: 3, maxRows: 15 }}
+              autoSize={{ minRows: 1, maxRows: 15 }}
               style={{
                 fontSize
               }}>
@@ -390,7 +390,7 @@ const EditorContainer = styled(Space)`
     background-color: var(--color-background-opacity);
     border: 0.5px solid var(--color-border);
     border-radius: 15px;
-    padding: 0.5em 1em;
+    padding: 1em;
     flex: 1;
     font-family: Ubuntu;
     resize: none !important;

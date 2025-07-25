@@ -72,7 +72,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
   const panelConfigs: PanelConfig[] = [
     {
       key: 'general',
-      label: t('settings.general'),
+      label: t('settings.general.label'),
       panel: (
         <GeneralSettingsPanel
           newBase={newBase}

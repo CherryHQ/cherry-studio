@@ -16,6 +16,7 @@ import {
   isSupportedThinkingTokenQwenModel
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ReasoningEffortOptions } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FC, ReactElement, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
@@ -153,17 +154,17 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     // 使用表中定义的选项创建UI选项
     return supportedOptions.map((option) => ({
       level: option,
-      label: t(`assistants.settings.reasoning_effort.${option === 'auto' ? 'default' : option}`),
+      label: getReasoningEffortOptionsLabel(option),
       description: '',
       icon: createThinkingIcon(option),
       isSelected: currentReasoningEffort === option,
       action: () => onThinkingChange(option)
     }))
-  }, [t, createThinkingIcon, currentReasoningEffort, supportedOptions, onThinkingChange])
+  }, [createThinkingIcon, currentReasoningEffort, supportedOptions, onThinkingChange])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
-      title: t('assistants.settings.reasoning_effort'),
+      title: t('assistants.settings.reasoning_effort.label'),
       list: panelItems,
       symbol: 'thinking'
     })
@@ -192,7 +193,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   }))
 
   return (
-    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort.label')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>

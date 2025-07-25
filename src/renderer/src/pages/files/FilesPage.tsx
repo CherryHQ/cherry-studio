@@ -8,6 +8,7 @@ import {
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
+import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata, FileTypes } from '@renderer/types'
@@ -94,7 +95,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            {['created_at', 'size', 'name'].map((field) => (
+            {(['created_at', 'size', 'name'] as const).map((field) => (
               <SortButton
                 key={field}
                 active={sortField === field}
@@ -106,7 +107,7 @@ const FilesPage: FC = () => {
                     setSortOrder('desc')
                   }
                 }}>
-                {t(`files.${field}`)}
+                {getFileFieldLabel(field)}
                 {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
               </SortButton>
             ))}

@@ -82,11 +82,13 @@ const OcrProviderSettings: FC<Props> = ({ provider: _provider }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {hasObjectKey(ocrProvider, 'apiKey') && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+            {t('settings.provider.api_key.label')}
+          </SettingSubtitle>
           <Flex gap={8}>
             <Input.Password
               value={apiKey}
-              placeholder={t('settings.provider.api_key')}
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}

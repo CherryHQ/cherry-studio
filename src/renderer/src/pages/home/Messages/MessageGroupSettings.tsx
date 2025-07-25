@@ -24,7 +24,7 @@ const MessageGroupSettings: FC = () => {
       content={
         <div style={{ padding: 8 }}>
           <SettingRow>
-            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger')}</div>
+            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger.label')}</div>
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}
