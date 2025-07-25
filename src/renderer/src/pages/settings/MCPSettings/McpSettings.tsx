@@ -10,7 +10,7 @@ import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -75,10 +75,9 @@ const parseKeyValueString = (str: string): Record<string, string> => {
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const {
-    server: { id: serverId }
-  } = useLocation().state as { server: MCPServer }
-  const server = useMCPServer(serverId).server as MCPServer
+  const { serverId } = useParams<{ serverId: string }>()
+  const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
+  const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -661,11 +660,11 @@ const McpSettings: React.FC = () => {
               </Form.Item>
 
               <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
-                <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                <Input placeholder="https://provider-website.com" />
               </Form.Item>
 
               <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
-                <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                <Input placeholder="https://example.com/logo.png" />
               </Form.Item>
 
               <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>

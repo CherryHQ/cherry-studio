@@ -20,6 +20,7 @@ export enum IpcChannel {
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
+  App_ResolvePath = 'app:resolve-path',
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
@@ -112,6 +113,7 @@ export enum IpcChannel {
 
   // VertexAI
   VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',

@@ -15,7 +15,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -38,24 +38,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
 
-  // Function to toggle assistants with cooldown
-  const handleToggleShowAssistants = useCallback(() => {
-    if (showAssistants) {
-      toggleShowAssistants()
-    } else {
-      toggleShowAssistants()
-    }
-  }, [showAssistants, toggleShowAssistants])
-
-  const handleToggleShowTopics = useCallback(() => {
-    if (showTopics) {
-      toggleShowTopics()
-    } else {
-      toggleShowTopics()
-    }
-  }, [showTopics, toggleShowTopics])
-
-  useShortcut('toggle_show_assistants', handleToggleShowAssistants)
+  useShortcut('toggle_show_assistants', toggleShowAssistants)
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
@@ -88,7 +71,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={handleToggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
+            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -131,14 +114,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </Tooltip>
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={() => toggleShowTopics()}>
+              <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
           {topicPosition === 'right' && showTopics && (
             <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={() => handleToggleShowTopics()}>
+              <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>

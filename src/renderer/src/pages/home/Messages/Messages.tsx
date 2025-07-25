@@ -90,13 +90,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight
-          })
+          scrollContainerRef.current.scrollTo({ top: 0 })
         }
       })
     }
@@ -229,13 +228,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
                 `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
                 error as Error
               )
-              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+              window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
             }
           } else {
             logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
             )
-            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
           }
         }
       )

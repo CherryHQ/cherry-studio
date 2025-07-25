@@ -307,14 +307,15 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  // 由于启用了showHeader = false，不再需要title字段
   const columns: ColumnsType<Shortcut> = [
     {
-      title: t('settings.shortcuts.action'),
+      // title: t('settings.shortcuts.action'),
       dataIndex: 'name',
       key: 'name'
     },
     {
-      title: t('settings.shortcuts.key'),
+      // title: t('settings.shortcuts.label'),
       dataIndex: 'shortcut',
       key: 'shortcut',
       align: 'right',
@@ -354,7 +355,7 @@ const ShortcutSettings: FC = () => {
       }
     },
     {
-      title: t('settings.shortcuts.actions'),
+      // title: t('settings.shortcuts.actions'),
       key: 'actions',
       align: 'right',
       width: '70px',
@@ -382,7 +383,7 @@ const ShortcutSettings: FC = () => {
       )
     },
     {
-      title: t('settings.shortcuts.enabled'),
+      // title: t('settings.shortcuts.enabled'),
       key: 'enabled',
       align: 'right',
       width: '50px',

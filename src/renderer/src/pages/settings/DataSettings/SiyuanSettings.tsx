@@ -102,7 +102,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
-          <span>{t('settings.data.siyuan.token')}</span>
+          <span>{t('settings.data.siyuan.token.label')}</span>
           <Tooltip title={t('settings.data.siyuan.token.help')} placement="left">
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}

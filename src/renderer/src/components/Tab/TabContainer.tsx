@@ -20,7 +20,6 @@ import {
   Sparkle,
   SquareTerminal,
   Sun,
-  SunMoon,
   X
 } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
@@ -70,7 +69,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const tabs = useAppSelector((state) => state.tabs.tabs)
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
-  const { settedTheme, toggleTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -125,19 +124,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(lastSettingsPath)
   }
 
-  const getThemeIcon = () => {
-    switch (settedTheme) {
-      case ThemeMode.dark:
-        return <Moon size={16} />
-      case ThemeMode.light:
-        return <Sun size={16} />
-      case ThemeMode.system:
-        return <SunMoon size={16} />
-      default:
-        return <SunMoon size={16} />
-    }
-  }
-
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
@@ -168,7 +154,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         </AddTabButton>
         <RightButtonsContainer>
           <TopNavbarOpenedMinappTabs />
-          <ThemeButton onClick={toggleTheme}>{getThemeIcon()}</ThemeButton>
+          <ThemeButton onClick={() => setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)}>
+            {theme === ThemeMode.dark ? <Moon size={16} /> : <Sun size={16} />}
+          </ThemeButton>
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>

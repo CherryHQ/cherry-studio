@@ -488,13 +488,13 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false
   }
 
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
     await processConversationMemory(messages, assistant)
   }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 /**
@@ -811,8 +811,8 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      throw new Error(i18n.t('message.error.enter.api.key'))
+      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 

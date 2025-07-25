@@ -225,7 +225,7 @@ const InputbarTools = ({
         }
       },
       {
-        label: t('chat.input.web_search'),
+        label: t('chat.input.web_search.label'),
         description: '',
         icon: <Globe />,
         isMenu: true,
@@ -243,7 +243,7 @@ const InputbarTools = ({
         }
       },
       {
-        label: couldAddImageFile ? t('chat.input.upload') : t('chat.input.upload.document'),
+        label: couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
         isMenu: true,
@@ -315,7 +315,7 @@ const InputbarTools = ({
       },
       {
         key: 'attachment',
-        label: t('chat.input.upload'),
+        label: t('chat.input.upload.label'),
         component: (
           <AttachmentButton
             ref={attachmentButtonRef}
@@ -329,7 +329,7 @@ const InputbarTools = ({
       },
       {
         key: 'thinking',
-        label: t('chat.input.thinking'),
+        label: t('chat.input.thinking.label'),
         component: (
           <ThinkingButton ref={thinkingButtonRef} model={model} assistant={assistant} ToolbarButton={ToolbarButton} />
         ),
@@ -337,7 +337,7 @@ const InputbarTools = ({
       },
       {
         key: 'web_search',
-        label: t('chat.input.web_search'),
+        label: t('chat.input.web_search.label'),
         component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
       },
       {
@@ -415,11 +415,11 @@ const InputbarTools = ({
       },
       {
         key: 'clear_topic',
-        label: t('chat.input.clear', { Command: '' }),
+        label: t('chat.input.clear.label', { Command: '' }),
         component: (
           <Tooltip
             placement="top"
-            title={t('chat.input.clear', { Command: cleanTopicShortcut })}
+            title={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
             <ToolbarButton type="text" onClick={clearTopic}>

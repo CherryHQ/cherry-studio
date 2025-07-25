@@ -621,6 +621,9 @@ class McpService {
           } catch (e) {
             logger.error('args parse error', args)
           }
+          if (args === '') {
+            args = {}
+          }
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {

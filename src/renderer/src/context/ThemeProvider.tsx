@@ -9,12 +9,14 @@ interface ThemeContextType {
   theme: ThemeMode
   settedTheme: ThemeMode
   toggleTheme: () => void
+  setTheme: (theme: ThemeMode) => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.system,
   settedTheme: ThemeMode.dark,
-  toggleTheme: () => {}
+  toggleTheme: () => {},
+  setTheme: () => {}
 })
 
 interface ThemeProviderProps extends PropsWithChildren {
@@ -64,7 +66,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     window.api.setTheme(settedTheme)
   }, [settedTheme])
 
-  return <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme }}>{children}</ThemeContext>
+  return (
+    <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme, setTheme: setSettedTheme }}>
+      {children}
+    </ThemeContext>
+  )
 }
 
 export const useTheme = () => use(ThemeContext)

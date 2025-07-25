@@ -3,10 +3,11 @@ import * as path from 'path'
 
 import { sortedObjectByKeys } from './sort'
 
-const translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
+const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
+const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
 const baseLocale = 'zh-cn'
 const baseFileName = `${baseLocale}.json`
-const baseFilePath = path.join(translationsDir, baseFileName)
+const baseFilePath = path.join(localesDir, baseFileName)
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
@@ -113,17 +114,25 @@ function syncTranslations() {
     }
   }
 
-  const files = fs.readdirSync(translationsDir).filter((file) => file.endsWith('.json') && file !== baseFileName)
+  const localeFiles = fs
+    .readdirSync(localesDir)
+    .filter((file) => file.endsWith('.json') && file !== baseFileName)
+    .map((filename) => path.join(localesDir, filename))
+  const translateFiles = fs
+    .readdirSync(translateDir)
+    .filter((file) => file.endsWith('.json') && file !== baseFileName)
+    .map((filename) => path.join(translateDir, filename))
+  const files = [...localeFiles, ...translateFiles]
 
   // 同步键
-  for (const file of files) {
-    const filePath = path.join(translationsDir, file)
+  for (const filePath of files) {
+    const filename = path.basename(filePath)
     let targetJson: I18N = {}
     try {
       const fileContent = fs.readFileSync(filePath, 'utf-8')
       targetJson = JSON.parse(fileContent)
     } catch (error) {
-      console.error(`解析 ${file} 出错，跳过此文件。`, error)
+      console.error(`解析 ${filename} 出错，跳过此文件。`, error)
       continue
     }
 
@@ -133,9 +142,9 @@ function syncTranslations() {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
-      console.log(`文件 ${file} 已排序并同步更新为主模板的内容`)
+      console.log(`文件 ${filename} 已排序并同步更新为主模板的内容`)
     } catch (error) {
-      console.error(`写入 ${file} 出错。${error}`)
+      console.error(`写入 ${filename} 出错。${error}`)
     }
   }
 }

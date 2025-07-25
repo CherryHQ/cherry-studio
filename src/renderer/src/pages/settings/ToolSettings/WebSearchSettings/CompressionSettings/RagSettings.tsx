@@ -144,7 +144,7 @@ const RagSettings = () => {
 
       <SettingRow>
         <SettingRowTitle>
-          {t('settings.tool.websearch.compression.rag.document_count')}
+          {t('settings.tool.websearch.compression.rag.document_count.label')}
           <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="top">
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
