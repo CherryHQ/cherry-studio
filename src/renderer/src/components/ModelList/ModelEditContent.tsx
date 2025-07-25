@@ -34,7 +34,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
   const [modelCapabilities, setModelCapabilities] = useState(model.capabilities || [])
 
-  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
+  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
 
   const onFinish = (values: any) => {
     const finalCurrencySymbol = isCustomCurrency ? values.customCurrencySymbol : values.currencySymbol
@@ -105,7 +105,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
         onFinish={onFinish}>
         <Form.Item
           name="id"
-          label={t('settings.models.add.model_id')}
+          label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Flex justify="space-between" gap={5}>
@@ -134,20 +134,20 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
         </Form.Item>
         <Form.Item
           name="name"
-          label={t('settings.models.add.model_name')}
+          label={t('settings.models.add.model_name.label')}
           tooltip={t('settings.models.add.model_name.tooltip')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
-          label={t('settings.models.add.group_name')}
+          label={t('settings.models.add.group_name.label')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         {provider.id === 'new-api' && (
           <Form.Item
             name="endpointType"
-            label={t('settings.models.add.endpoint_type')}
+            label={t('settings.models.add.endpoint_type.label')}
             tooltip={t('settings.models.add.endpoint_type.tooltip')}
             rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
             <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
@@ -168,7 +168,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               iconPosition="end"
               onClick={() => setShowMoreSettings(!showMoreSettings)}
               style={{ color: 'var(--color-text-3)' }}>
-              {t('settings.moresetting')}
+              {t('settings.moresetting.label')}
             </Button>
             <Button type="primary" htmlType="submit" size="middle">
               {t('common.save')}

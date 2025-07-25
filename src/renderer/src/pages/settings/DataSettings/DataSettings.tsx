@@ -607,7 +607,7 @@ const DataSettings: FC = () => {
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_data')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
@@ -618,7 +618,7 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
@@ -633,7 +633,7 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
                   <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </HStack>

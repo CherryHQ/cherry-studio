@@ -215,7 +215,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         }
       },
       {
-        label: t('chat.topics.prompt'),
+        label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
         icon: <i className="iconfont icon-ai-model1" style={{ fontSize: '14px' }} />,
         extra: (
@@ -263,7 +263,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         }
       },
       {
-        label: t('settings.topic.position'),
+        label: t('settings.topic.position.label'),
         key: 'topic-position',
         icon: <MenuOutlined />,
         children: [
@@ -312,7 +312,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             onClick: () => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)
           },
           exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md'),
+            label: t('chat.topics.export.md.label'),
             key: 'markdown',
             onClick: () => exportTopicAsMarkdown(topic)
           },

@@ -96,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         onFinish={onFinish}>
         <Form.Item
           name="id"
-          label={t('settings.models.add.model_id')}
+          label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Input
@@ -111,13 +111,13 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         </Form.Item>
         <Form.Item
           name="name"
-          label={t('settings.models.add.model_name')}
+          label={t('settings.models.add.model_name.label')}
           tooltip={t('settings.models.add.model_name.placeholder')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
-          label={t('settings.models.add.group_name')}
+          label={t('settings.models.add.group_name.label')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>

@@ -155,7 +155,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   // Compute label width based on the longest label
-  const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
+  const labelWidth = [t('agents.add.name.label'), t('agents.add.prompt.label'), t('agents.add.knowledge_base.label')]
     .map((labelText) => stringWidth(labelText) * 8)
     .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
 
@@ -203,13 +203,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
-        <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
+        <Form.Item name="name" label={t('agents.add.name.label')} rules={[{ required: true }]}>
           <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
             name="prompt"
-            label={t('agents.add.prompt')}
+            label={t('agents.add.prompt.label')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
             <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
@@ -230,7 +230,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           )}
         </div>
         {showKnowledgeIcon && (
-          <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Form.Item
+            name="knowledge_base_ids"
+            label={t('agents.add.knowledge_base.label')}
+            rules={[{ required: false }]}>
             <Select
               mode="multiple"
               allowClear

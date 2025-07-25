@@ -1,21 +1,8 @@
 {
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "never"
-  },
-  "files.eol": "\n",
-  "search.exclude": {
-    "**/dist/**": true,
-    ".yarn/releases/**": true
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "[typescriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[json]": {
@@ -24,22 +11,35 @@
   "[jsonc]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "[css]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false
   },
   "[scss]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "[markdown]": {
-    "files.trimTrailingWhitespace": false
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "i18n-ally.localesPaths": ["src/renderer/src/i18n/locales"],
-  "i18n-ally.enabledFrameworks": ["react-i18next", "i18next"],
-  "i18n-ally.keystyle": "nested", // 翻译路径格式
-  "i18n-ally.sortKeys": true, // 排序
-  "i18n-ally.namespace": true, // 开启命名空间
-  "i18n-ally.enabledParsers": ["ts", "js", "json"], // 解析语言
-  "i18n-ally.sourceLanguage": "en-us", // 翻译源语言
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "never"
+  },
+  "editor.formatOnSave": true,
+  "files.eol": "\n",
   "i18n-ally.displayLanguage": "zh-cn",
-  "i18n-ally.fullReloadOnChanged": true // 界面显示语言
+  "i18n-ally.enabledFrameworks": ["react-i18next", "i18next"],
+  "i18n-ally.enabledParsers": ["ts", "js", "json"], // 解析语言
+  "i18n-ally.fullReloadOnChanged": true, // 界面显示语言
+  "i18n-ally.keystyle": "nested", // 翻译路径格式
+  "i18n-ally.localesPaths": ["src/renderer/src/i18n/locales"],
+  // "i18n-ally.namespace": true, // 开启命名空间
+  "i18n-ally.sortKeys": true, // 排序
+  "i18n-ally.sourceLanguage": "zh-cn", // 翻译源语言
+  "search.exclude": {
+    "**/dist/**": true,
+    ".yarn/releases/**": true
+  }
 }

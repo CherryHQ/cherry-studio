@@ -7,7 +7,7 @@ import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
 import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -28,6 +28,28 @@ const McpServersList: FC = () => {
   const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
   const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
   const [serverVersions, setServerVersions] = useState<Record<string, string | null>>({})
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 简单的滚动位置记忆
+  useEffect(() => {
+    // 恢复滚动位置
+    const savedScroll = sessionStorage.getItem('mcp-list-scroll')
+    if (savedScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = Number(savedScroll)
+    }
+
+    // 保存滚动位置
+    const handleScroll = () => {
+      if (scrollRef.current) {
+        sessionStorage.setItem('mcp-list-scroll', String(scrollRef.current.scrollTop))
+      }
+    }
+
+    const container = scrollRef.current
+    container?.addEventListener('scroll', handleScroll)
+    return () => container?.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const fetchServerVersion = useCallback(async (server: MCPServer) => {
     if (!server.isActive) return
@@ -61,7 +83,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate(`/settings/mcp/settings`, { state: { server: newServer } })
+    navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
 
@@ -75,7 +97,7 @@ const McpServersList: FC = () => {
       setIsAddModalVisible(false)
       window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-quick-add' })
       // Optionally navigate to the new server's settings page
-      // navigate(`/settings/mcp/settings`, { state: { server } })
+      // navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
     },
     [addMCPServer, t]
   )
@@ -112,7 +134,7 @@ const McpServersList: FC = () => {
   }
 
   return (
-    <Container>
+    <Container ref={scrollRef}>
       <ListHeader>
         <SettingTitle style={{ gap: 3 }}>
           <span>{t('settings.mcp.newServer')}</span>
@@ -132,7 +154,7 @@ const McpServersList: FC = () => {
                 },
                 {
                   key: 'json',
-                  label: t('settings.mcp.addServer.importFrom'),
+                  label: t('settings.mcp.addServer.importFrom.json'),
                   onClick: () => {
                     setModalType('json')
                     setIsAddModalVisible(true)
@@ -150,7 +172,7 @@ const McpServersList: FC = () => {
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer')}
+              {t('settings.mcp.addServer.label')}
             </Button>
           </Dropdown>
           <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
@@ -160,7 +182,9 @@ const McpServersList: FC = () => {
       </ListHeader>
       <DraggableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
         {(server: MCPServer) => (
-          <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
+          <ServerCard
+            key={server.id}
+            onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
             <ServerHeader>
               <ServerName>
                 {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
@@ -190,7 +214,7 @@ const McpServersList: FC = () => {
                 <Button
                   icon={<Settings2 size={16} />}
                   type="text"
-                  onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}
+                  onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
                 />
               </StatusIndicator>
             </ServerHeader>

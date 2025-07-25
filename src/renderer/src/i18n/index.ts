@@ -17,17 +17,19 @@ import ptPT from './translate/pt-pt.json'
 
 const logger = loggerService.withContext('I18N')
 
-const resources = {
-  'el-GR': elGR,
-  'en-US': enUS,
-  'es-ES': esES,
-  'fr-FR': frFR,
-  'ja-JP': jaJP,
-  'pt-PT': ptPT,
-  'ru-RU': ruRU,
-  'zh-CN': zhCN,
-  'zh-TW': zhTW
-}
+const resources = Object.fromEntries(
+  [
+    ['en-US', enUS],
+    ['ja-JP', jaJP],
+    ['ru-RU', ruRU],
+    ['zh-CN', zhCN],
+    ['zh-TW', zhTW],
+    ['el-GR', elGR],
+    ['es-ES', esES],
+    ['fr-FR', frFR],
+    ['pt-PT', ptPT]
+  ].map(([locale, translation]) => [locale, { translation }])
+)
 
 export const getLanguage = () => {
   return localStorage.getItem('language') || navigator.language || defaultLanguage

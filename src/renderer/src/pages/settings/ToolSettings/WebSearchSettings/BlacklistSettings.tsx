@@ -133,7 +133,7 @@ const BlacklistSettings: FC = () => {
           logger.error(`Error updating subscribe source ${source.url}:`, error as Error)
           // 显示具体源更新失败的消息
           window.message.warning({
-            content: t('settings.tool.websearch.subscribe_source_update_failed', { url: source.url }),
+            content: t('settings.tool.websearch.subscribe_update_failed', { url: source.url }),
             duration: 3
           })
         }

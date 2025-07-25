@@ -87,7 +87,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const menuItems = [
     {
       key: 'general',
-      label: t('settings.general')
+      label: t('settings.general.label')
     },
     {
       key: 'advanced',

@@ -50,6 +50,7 @@ local
 .cursor/*
 .claude/*
 .gemini/*
+.qwen/*
 .trae/*
 .claude-code-router/*
 

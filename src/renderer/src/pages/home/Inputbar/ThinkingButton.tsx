@@ -163,7 +163,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
-      title: t('assistants.settings.reasoning_effort'),
+      title: t('assistants.settings.reasoning_effort.label'),
       list: panelItems,
       symbol: 'thinking'
     })
@@ -192,7 +192,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   }))
 
   return (
-    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort.label')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>

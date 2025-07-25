@@ -170,6 +170,10 @@ export default class AiProvider {
   }
 
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
+    if (this.apiClient instanceof AihubmixAPIClient) {
+      const client = this.apiClient.getClientForModel({ id: params.model } as Model)
+      return client.generateImage(params)
+    }
     return this.apiClient.generateImage(params)
   }
 

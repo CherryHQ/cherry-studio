@@ -53,18 +53,26 @@ const MessageGroupMenuBar: FC<Props> = ({
       onOk: () => deleteGroupMessages(askId)
     })
   }
+
+  const multiModelMessageStyleTextByLayout = {
+    fold: t('message.message.multi_model_style.fold.label'),
+    vertical: t('message.message.multi_model_style.vertical'),
+    horizontal: t('message.message.multi_model_style.horizontal'),
+    grid: t('message.message.multi_model_style.grid')
+  } as const
+
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
       <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
         <LayoutContainer>
-          {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
+          {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
               mouseEnterDelay={0.5}
               key={layout}
-              title={t(`message.message.multi_model_style`) + ': ' + t(`message.message.multi_model_style.${layout}`)}>
+              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
-                onClick={() => setMultiModelMessageStyle(layout as MultiModelMessageStyle)}>
+                onClick={() => setMultiModelMessageStyle(layout)}>
                 {layout === 'fold' ? (
                   <FolderOutlined />
                 ) : layout === 'horizontal' ? (

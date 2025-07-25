@@ -87,7 +87,7 @@ export const download = (url: string, filename?: string) => {
       if (error.message) {
         window.message?.error(`${i18n.t('message.download.failed')}：${error.message}`)
       } else {
-        window.message?.error(i18n.t('message.download.failed.network'))
+        window.message?.error(i18n.t('message.download.failed'))
       }
     })
 }

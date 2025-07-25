@@ -27,7 +27,7 @@ const BasicSettings: FC = () => {
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
           <SettingRowTitle style={{ minWidth: 120 }}>
-            {t('settings.tool.websearch.search_max_result')}
+            {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && (
               <Tooltip title={t('settings.tool.websearch.search_max_result.tooltip')} placement="top">
                 <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />

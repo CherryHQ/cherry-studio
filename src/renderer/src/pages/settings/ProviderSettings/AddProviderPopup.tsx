@@ -178,7 +178,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>
-        <Form.Item label={t('settings.provider.add.name')} style={{ marginBottom: 8 }}>
+        <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value.trim())}

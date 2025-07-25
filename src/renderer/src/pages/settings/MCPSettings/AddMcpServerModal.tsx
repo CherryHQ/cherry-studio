@@ -216,19 +216,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
         const newServer: MCPServer = {
           id: nanoid(),
-          name: serverToAdd!.name!,
-          description: serverToAdd!.description ?? '',
+          ...serverToAdd!,
+          name: serverToAdd!.name || t('settings.mcp.newServer'),
           baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
-          command: serverToAdd!.command ?? '',
-          args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
-          env: serverToAdd!.env || {},
-          isActive: false,
-          type: serverToAdd!.type,
-          logoUrl: serverToAdd!.logoUrl,
-          provider: serverToAdd!.provider,
-          providerUrl: serverToAdd!.providerUrl,
-          tags: serverToAdd!.tags,
-          configSample: serverToAdd!.configSample
+          isActive: false // 初始狀態為非啟用
         }
 
         onSuccess(newServer)
@@ -270,7 +261,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   return (
     <Modal
       title={
-        importMethod === 'dxt' ? t('settings.mcp.addServer.importFrom.dxt') : t('settings.mcp.addServer.importFrom')
+        importMethod === 'dxt'
+          ? t('settings.mcp.addServer.importFrom.dxt')
+          : t('settings.mcp.addServer.importFrom.json')
       }
       open={visible}
       onOk={handleOk}
@@ -354,9 +347,9 @@ const parseAndExtractServer = (
     typeof parsedJson.mcpServers === 'object' &&
     Object.keys(parsedJson.mcpServers).length > 1
   ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   }
 
   if (

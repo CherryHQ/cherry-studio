@@ -411,7 +411,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                         items: [
                           {
                             key: 'autoApprove',
-                            label: t('settings.mcp.tools.autoApprove'),
+                            label: t('settings.mcp.tools.autoApprove.label'),
                             onClick: () => {
                               handleAutoApprove()
                             }

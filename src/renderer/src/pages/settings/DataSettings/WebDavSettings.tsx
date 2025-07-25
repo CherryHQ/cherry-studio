@@ -124,7 +124,7 @@ const WebDavSettings: FC = () => {
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.host')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
           value={webdavHost}
@@ -158,7 +158,7 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.path')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}
           value={webdavPath}
@@ -181,7 +181,7 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
           value={syncInterval}

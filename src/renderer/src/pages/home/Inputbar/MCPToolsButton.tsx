@@ -174,7 +174,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     }))
 
     newList.push({
-      label: t('settings.mcp.addServer') + '...',
+      label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
       action: () => navigate('/settings/mcp')
     })
@@ -307,7 +307,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
         } catch (error: Error | any) {
           window.modal.error({
             title: t('common.error'),
-            content: error.message || t('settings.mcp.prompt.genericError')
+            content: error.message || t('settings.mcp.prompts.genericError')
           })
         }
       }
