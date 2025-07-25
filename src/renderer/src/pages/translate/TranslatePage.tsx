@@ -62,15 +62,15 @@ const TranslatePage: FC = () => {
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const _translateHistories = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
-  const translateHistory = useMemo(() => {
-    return _translateHistory?.map((item) => ({
+  const translateHistories = useMemo(() => {
+    return _translateHistories?.map((item) => ({
       ...item,
       _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
       _targetLanguage: getLanguageByLangcode(item.targetLanguage)
     }))
-  }, [_translateHistory])
+  }, [_translateHistories])
 
   _text = text
   _result = result
@@ -316,7 +316,7 @@ const TranslatePage: FC = () => {
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
-            {!isEmpty(translateHistory) && (
+            {!isEmpty(translateHistories) && (
               <Popconfirm
                 title={t('translate.history.clear')}
                 description={t('translate.history.clear_description')}
@@ -327,9 +327,9 @@ const TranslatePage: FC = () => {
               </Popconfirm>
             )}
           </OperationBar>
-          {translateHistory && translateHistory.length ? (
+          {translateHistories && translateHistories.length ? (
             <HistoryList>
-              {translateHistory.map((item) => (
+              {translateHistories.map((item) => (
                 <Dropdown
                   key={item.id}
                   trigger={['contextMenu']}
