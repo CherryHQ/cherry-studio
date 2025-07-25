@@ -457,10 +457,6 @@ class McpService {
         logger.debug(`Message from server ${server.name}:`, notification.params)
       })
 
-      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
-      })
-
       logger.debug(`Set up notification handlers for server: ${server.name}`)
     } catch (error) {
       logger.error(`Failed to set up notification handlers for server ${server.name}:`, error as Error)

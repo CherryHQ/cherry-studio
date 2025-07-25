@@ -246,13 +246,11 @@ const MessageTools: FC<Props> = ({ block }) => {
             </ToolName>
           </TitleContent>
           <ActionButtonsContainer>
-            <StatusIndicator status={status} hasError={hasError}>
-              {progress > 0 ? (
-                <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
-              ) : (
-                renderStatusIndicator(status, hasError)
-              )}
-            </StatusIndicator>
+            {progress > 0 ? (
+              <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
+            ) : (
+              renderStatusIndicator(status, hasError)
+            )}
             <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
               <ActionButton
                 className="message-action-button"
