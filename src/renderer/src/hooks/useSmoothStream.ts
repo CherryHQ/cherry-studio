@@ -8,6 +8,7 @@ interface UseSmoothStreamOptions {
 }
 
 const languages = ['en-US', 'es-ES', 'zh-CN', 'zh-TW', 'ja-JP', 'ru-RU', 'el-GR', 'fr-FR', 'pt-PT']
+const segmenter = new Intl.Segmenter(languages)
 
 export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
   const chunkQueueRef = useRef<string[]>([])
@@ -16,7 +17,6 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
   const lastUpdateTimeRef = useRef<number>(0)
 
   const addChunk = useCallback((chunk: string) => {
-    const segmenter = new Intl.Segmenter(languages)
     const chars = Array.from(segmenter.segment(chunk)).map((s) => s.segment)
     chunkQueueRef.current = [...chunkQueueRef.current, ...(chars || [])]
   }, [])
