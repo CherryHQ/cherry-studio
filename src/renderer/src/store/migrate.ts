@@ -1872,6 +1872,12 @@ const migrateConfig = {
   }, // 1.5.4
   '124': (state: RootState) => {
     try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && !assistant.settings.toolUseMode) {
+          assistant.settings.toolUseMode = 'prompt'
+        }
+      })
+
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
           model.supported_text_delta = true
@@ -1881,11 +1887,6 @@ const migrateConfig = {
         }
       }
 
-      state.assistants.assistants.forEach((assistant) => {
-        if (assistant.settings && !assistant.settings.toolUseMode) {
-          assistant.settings.toolUseMode = 'prompt'
-        }
-      })
       state.llm.providers.forEach((provider) => {
         provider.models.forEach((model) => {
           updateModelTextDelta(model)

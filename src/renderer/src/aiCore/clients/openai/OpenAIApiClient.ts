@@ -47,6 +47,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -481,7 +482,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           const targetLanguage = (assistant as TranslateAssistant).targetLanguage
           extra_body.translation_options = {
             source_lang: 'auto',
-            target_lang: targetLanguage?.value
+            target_lang: mapLanguageToQwenMTModel(targetLanguage!)
           }
         }
 
