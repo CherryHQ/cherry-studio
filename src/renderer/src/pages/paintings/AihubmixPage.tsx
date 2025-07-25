@@ -187,7 +187,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             prompt,
             model: painting.model,
             imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate-exp') ? 1 : painting.numberOfImages || 1,
+            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
             personGeneration: painting.personGeneration
           })
           if (base64s?.length > 0) {

@@ -145,8 +145,8 @@ const TranslateSettings: FC<{
               providers={providers}
               predicate={modelPredicate}
               style={{ width: '100%' }}
-              placeholder={t('translate.settings.model_placeholder')}
               value={defaultTranslateModel}
+              placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const selectedModel = find(allModels, JSON.parse(value)) as Model
                 if (selectedModel) {

@@ -214,6 +214,35 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
 
   const renderTopTools = useCallback(() => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
+
+    const onRemoveAll = () => {
+      list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+    }
+
+    const onAddAll = () => {
+      const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+      window.modal.confirm({
+        title: t('settings.models.manage.add_listed'),
+        content: t('settings.models.manage.add_listed.confirm'),
+        centered: true,
+        onOk: () => {
+          if (provider.id === 'new-api') {
+            if (models.every(isValidNewApiModel)) {
+              wouldAddModel.forEach(onAddModel)
+            } else {
+              NewApiBatchAddModelPopup.show({
+                title: t('settings.models.add.batch_add_models'),
+                batchModels: wouldAddModel,
+                provider
+              })
+            }
+          } else {
+            wouldAddModel.forEach(onAddModel)
+          }
+        }
+      })
+    }
+
     return (
       <Tooltip
         destroyTooltipOnHide
@@ -228,24 +257,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           size="large"
           onClick={(e) => {
             e.stopPropagation()
-            if (isAllFilteredInProvider) {
-              list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
-            } else {
-              const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
-              if (provider.id === 'new-api') {
-                if (models.every(isValidNewApiModel)) {
-                  wouldAddModel.forEach(onAddModel)
-                } else {
-                  NewApiBatchAddModelPopup.show({
-                    title: t('settings.models.add.batch_add_models'),
-                    batchModels: wouldAddModel,
-                    provider
-                  })
-                }
-              } else {
-                wouldAddModel.forEach(onAddModel)
-              }
-            }
+            isAllFilteredInProvider ? onRemoveAll() : onAddAll()
           }}
           disabled={loading || list.length === 0}
         />

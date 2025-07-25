@@ -2170,6 +2170,7 @@
       "models.empty": "モデルが見つかりません",
       "models.enable_topic_naming": "トピックの自動命名",
       "models.manage.add_listed": "リストにモデルを追加",
+      "models.manage.add_listed.confirm": "すべてのモデルをリストに追加しますか？",
       "models.manage.add_whole_group": "グループ全体を追加",
       "models.manage.remove_listed": "リストからモデルを削除",
       "models.manage.remove_model": "モデルを削除",
@@ -2323,6 +2324,7 @@
         "search_placeholder": "モデルIDまたは名前を検索",
         "title": "モデルプロバイダー",
         "vertex_ai": {
+          "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",
           "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
           "learn_more": "詳細を確認",
           "location": "場所",

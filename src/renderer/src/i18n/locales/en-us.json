@@ -2170,6 +2170,7 @@
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
       "models.manage.add_listed": "Add models to the list",
+      "models.manage.add_listed.confirm": "Are you sure you want to add all models to the list?",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_listed": "Remove models from the list",
       "models.manage.remove_model": "Remove model",
@@ -2323,6 +2324,7 @@
         "search_placeholder": "Search model id or name",
         "title": "Model Provider",
         "vertex_ai": {
+          "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
           "documentation": "View official documentation for more configuration details:",
           "learn_more": "Learn More",
           "location": "Location",
