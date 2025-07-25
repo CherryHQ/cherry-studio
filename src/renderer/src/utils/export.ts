@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
-import { providerLabelMap } from '@renderer/i18n/labelMap'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
@@ -69,13 +69,13 @@ const getRoleText = (role: string, modelName?: string, providerId?: string) => {
     if (showModelNameInMarkdown && modelName) {
       assistantText += `${modelName}`
       if (showModelProviderInMarkdown && providerId) {
-        const providerDisplayName = providerLabelMap[providerId] ?? providerId
+        const providerDisplayName = getProviderLabel(providerId) ?? providerId
         assistantText += ` | ${providerDisplayName}`
         return assistantText
       }
       return assistantText
     } else if (showModelProviderInMarkdown && providerId) {
-      const providerDisplayName = providerLabelMap[providerId] ?? providerId
+      const providerDisplayName = getProviderLabel(providerId) ?? providerId
       assistantText += `Assistant | ${providerDisplayName}`
       return assistantText
     }

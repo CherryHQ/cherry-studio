@@ -14,7 +14,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { providerLabelMap } from '@renderer/i18n/labelMap'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -61,7 +61,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
       return {
-        label: providerLabelMap[provider.id],
+        label: getProviderLabel(provider.id),
         value: provider.id
       }
     } else {

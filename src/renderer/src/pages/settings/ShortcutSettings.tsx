@@ -3,7 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
-import { shortcutLabelMap } from '@renderer/i18n/labelMap'
+import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import { Shortcut } from '@renderer/types'
@@ -401,7 +401,7 @@ const ShortcutSettings: FC = () => {
         <SettingDivider style={{ marginBottom: 0 }} />
         <Table
           columns={columns as ColumnsType<unknown>}
-          dataSource={shortcuts.map((s) => ({ ...s, name: shortcutLabelMap[s.key] }))}
+          dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
           pagination={false}
           size="middle"
           showHeader={false}

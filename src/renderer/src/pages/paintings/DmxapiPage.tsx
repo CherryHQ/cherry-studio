@@ -9,7 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { providerLabelMap } from '@renderer/i18n/labelMap'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -52,7 +52,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
       return {
-        label: providerLabelMap[provider.id],
+        label: getProviderLabel(provider.id),
         value: provider.id
       }
     } else {

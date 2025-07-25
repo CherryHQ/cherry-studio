@@ -16,7 +16,7 @@ import {
   isSupportedThinkingTokenQwenModel
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { reasoningEffortOptionsLabelMap } from '@renderer/i18n/labelMap'
+import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ReasoningEffortOptions } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FC, ReactElement, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
@@ -154,7 +154,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     // 使用表中定义的选项创建UI选项
     return supportedOptions.map((option) => ({
       level: option,
-      label: reasoningEffortOptionsLabelMap[option],
+      label: getReasoningEffortOptionsLabel(option),
       description: '',
       icon: createThinkingIcon(option),
       isSelected: currentReasoningEffort === option,

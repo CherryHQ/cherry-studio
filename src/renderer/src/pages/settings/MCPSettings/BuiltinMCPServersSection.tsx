@@ -1,6 +1,6 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { mcpTypeLabelMap } from '@renderer/i18n/labelMap'
+import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { Button, Popover, Tag } from 'antd'
 import { FC } from 'react'
@@ -56,7 +56,7 @@ const BuiltinMCPServersSection: FC = () => {
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                  {mcpTypeLabelMap[server.type ?? 'stdio']}
+                  {getMcpTypeLabel(server.type ?? 'stdio')}
                 </Tag>
                 {server.env && Object.keys(server.env).length > 0 && (
                   <Tag color="warning" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>

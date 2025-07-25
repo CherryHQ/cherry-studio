@@ -1,4 +1,4 @@
-import { progressLabelMap } from '@renderer/i18n/labelMap'
+import { getProgressLabel } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
@@ -53,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         progress: Math.floor(progressData.progress)
       })
     }
-    return progressLabelMap[progressData.stage]
+    return getProgressLabel(progressData.stage)
   }
 
   RestorePopup.hide = onCancel

@@ -1,4 +1,4 @@
-import { httpMessageLabelMap } from '@renderer/i18n/labelMap'
+import { getHttpMessageLabel } from '@renderer/i18n/label'
 import type { ErrorMessageBlock } from '@renderer/types/newMessage'
 import { Alert as AntdAlert } from 'antd'
 import React from 'react'
@@ -19,7 +19,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => 
   const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
   if (block.error && HTTP_ERROR_CODES.includes(block.error?.status)) {
-    return <Alert description={httpMessageLabelMap[block.error.status]} message={block.error?.message} type="error" />
+    return <Alert description={getHttpMessageLabel(block.error.status)} message={block.error?.message} type="error" />
   }
 
   if (block?.error?.message) {

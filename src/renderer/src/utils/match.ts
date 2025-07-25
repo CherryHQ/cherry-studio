@@ -1,4 +1,4 @@
-import { providerLabelMap } from '@renderer/i18n/labelMap'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { Model, Provider } from '@renderer/types'
 
 /**
@@ -19,6 +19,8 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
   if (nonEmptyKeywords.length === 0) return true
 
   // 如果没有搜索目标，则视为不匹配
+  console.log('target is', target)
+  console.log('nonEmptyKeywords is', nonEmptyKeywords)
   if (!target || typeof target !== 'string') return false
   const targetLower = target.toLowerCase()
 
@@ -43,6 +45,8 @@ export function matchKeywordsInString(keywords: string | string[], value: string
  * @returns 匹配所有关键词则返回 true
  */
 export function matchKeywordsInProvider(keywords: string | string[], provider: Provider): boolean {
+  console.log(keywords, provider.id)
+  console.log(getProviderSearchString(provider))
   return includeKeywords(getProviderSearchString(provider), keywords)
 }
 
@@ -64,7 +68,7 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
-  return provider.isSystem ? `${providerLabelMap[provider.id]} ${provider.id}` : provider.name
+  return provider.isSystem ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
 }
 
 /**

@@ -1,4 +1,4 @@
-import { providerLabelMap } from '@renderer/i18n/labelMap'
+import { getProviderLabel } from '@renderer/i18n/label'
 import store from '@renderer/store'
 import { Provider } from '@renderer/types'
 
@@ -9,7 +9,7 @@ export function getProviderName(id: string) {
   }
 
   if (provider.isSystem) {
-    return providerLabelMap[provider.id] ?? provider.name
+    return getProviderLabel(provider.id) ?? provider.name
   }
 
   return provider?.name
