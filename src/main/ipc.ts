@@ -533,6 +533,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return vertexAIService.getAuthHeaders(params)
   })
 
+  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
+    return vertexAIService.getAccessToken(params)
+  })
+
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })

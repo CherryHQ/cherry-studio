@@ -442,7 +442,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       className="topics-tab"
       list={sortedTopics}
       onUpdate={updateTopics}
-      style={{ padding: '13px 0 10px 10px' }}
+      style={{ height: '100%', padding: '13px 0 10px 10px', display: 'flex', flexDirection: 'column' }}
       itemContainerStyle={{ paddingBottom: '8px' }}
       header={
         <AddTopicButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>

@@ -2170,6 +2170,7 @@
       "models.empty": "找不到模型",
       "models.enable_topic_naming": "話題自動重新命名",
       "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.add_listed.confirm": "確定要添加所有模型到列表嗎？",
       "models.manage.add_whole_group": "新增整個分組",
       "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.remove_model": "移除模型",
@@ -2323,6 +2324,7 @@
         "search_placeholder": "搜尋模型 ID 或名稱",
         "title": "模型提供者",
         "vertex_ai": {
+          "api_host_help": "Vertex AI 的 API 地址，不建議填寫，通常適用於反向代理",
           "documentation": "檢視官方文件以取得更多設定詳細資訊：",
           "learn_more": "瞭解更多",
           "location": "地區",

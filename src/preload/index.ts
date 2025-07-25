@@ -246,6 +246,8 @@ const api = {
   vertexAI: {
     getAuthHeaders: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_GetAuthHeaders, params),
+    getAccessToken: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
+      ipcRenderer.invoke(IpcChannel.VertexAI_GetAccessToken, params),
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
   },
