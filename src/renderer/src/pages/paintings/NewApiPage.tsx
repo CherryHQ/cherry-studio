@@ -68,7 +68,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     } else {
       return {
         label: 'Unknown Provider',
-        value: 'Unknown Provider'
+        value: undefined
       }
     }
   })
