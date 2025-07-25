@@ -43,8 +43,6 @@ export function matchKeywordsInString(keywords: string | string[], value: string
  * @returns 匹配所有关键词则返回 true
  */
 export function matchKeywordsInProvider(keywords: string | string[], provider: Provider): boolean {
-  console.log(keywords, provider.id)
-  console.log(getProviderSearchString(provider))
   return includeKeywords(getProviderSearchString(provider), keywords)
 }
 
