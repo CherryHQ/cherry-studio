@@ -72,9 +72,11 @@ const WebviewContainer = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
+    const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+    
     const WebviewStyle: React.CSSProperties = {
       width: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw',
-      height: 'calc(100vh - var(--navbar-height))',
+      height: isTopNavbar ? 'calc(100vh - var(--navbar-height) - var(--navbar-height))' : 'calc(100vh - var(--navbar-height))',
       backgroundColor: 'var(--color-background)',
       display: 'inline-flex'
     }

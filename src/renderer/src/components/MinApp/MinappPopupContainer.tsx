@@ -502,11 +502,12 @@ const MinappPopupContainer: React.FC = () => {
       mask={false}
       rootClassName="minapp-drawer"
       maskClassName="minapp-mask"
-      height={'100%'}
+      height={isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%'}
       maskClosable={false}
       closeIcon={null}
       style={{
         marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
+        marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
