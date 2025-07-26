@@ -1,5 +1,6 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { Button, Popover, Tag } from 'antd'
 import { FC } from 'react'
@@ -43,21 +44,30 @@ const BuiltinMCPServersSection: FC = () => {
                 </StatusIndicator>
               </ServerHeader>
               <Popover
-                content={<PopoverContent>{server.description}</PopoverContent>}
+                content={
+                  <PopoverContent>
+                    {server.getBuiltinDescription
+                      ? server.getBuiltinDescription()
+                      : t('settings.mcp.builtinServersDescriptions.no')}
+                  </PopoverContent>
+                }
                 title={server.name}
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
                 <ServerDescription>
-                  {server.description}
+                  {/* {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'} */}
+                  {server.getBuiltinDescription
+                    ? server.getBuiltinDescription()
+                    : t('settings.mcp.builtinServersDescriptions.no')}
                   <MoreIndicator>...</MoreIndicator>
                 </ServerDescription>
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                  {t(`settings.mcp.types.${server.type || 'stdio'}`)}
+                  {getMcpTypeLabel(server.type ?? 'stdio')}
                 </Tag>
-                {server.env && Object.keys(server.env).length > 0 && (
+                {server?.shouldConfig && (
                   <Tag color="warning" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
                     {t('settings.mcp.requiresConfig')}
                   </Tag>

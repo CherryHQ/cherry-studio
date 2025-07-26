@@ -6,6 +6,8 @@ import {
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
+  isNotSupportSystemMessageModel,
+  isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -31,6 +33,7 @@ import {
   Model,
   Provider,
   ToolCallResponse,
+  TranslateAssistant,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
@@ -43,6 +46,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -464,6 +468,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           streamOutput = true
         }
 
+        const extra_body: Record<string, any> = {}
+
+        if (isQwenMTModel(model)) {
+          const targetLanguage = (assistant as TranslateAssistant).targetLanguage
+          extra_body.translation_options = {
+            source_lang: 'auto',
+            target_lang: mapLanguageToQwenMTModel(targetLanguage!)
+          }
+        }
+
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
@@ -507,7 +521,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         // 4. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
-        if (!systemMessage.content) {
+        if (!systemMessage.content || isNotSupportSystemMessageModel(model)) {
           reqMessages = [...userMessages]
         } else {
           reqMessages = [systemMessage, ...userMessages].filter(Boolean) as OpenAISdkMessageParam[]
@@ -533,15 +547,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
           // OpenRouter usage tracking
-          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {})
+          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
+          ...(isQwenMTModel(model) ? extra_body : {})
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const mistralProviders = ['mistral']
+        const shouldIncludeStreamOptions = streamOutput && !mistralProviders.includes(this.provider.id)
+
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
               ...commonParams,
               stream: true,
-              stream_options: { include_usage: true }
+              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
             }
           : {
               ...commonParams,

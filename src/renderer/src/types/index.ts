@@ -34,6 +34,10 @@ export type Assistant = {
   enableMemory?: boolean
 }
 
+export type TranslateAssistant = Assistant & {
+  targetLanguage?: Language
+}
+
 export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
@@ -51,7 +55,7 @@ export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
 export type EffortRatio = Record<ReasoningEffortOptions, number>
 
 export const EFFORT_RATIO: EffortRatio = {
-  low: 0.2,
+  low: 0.05,
   medium: 0.5,
   high: 0.8,
   auto: 2
@@ -68,7 +72,7 @@ export type AssistantSettings = {
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
-  toolUseMode?: 'function' | 'prompt'
+  toolUseMode: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -216,6 +220,7 @@ export type Model = {
   pricing?: ModelPricing
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
+  supported_text_delta?: boolean
 }
 
 export type Suggestion = {
@@ -524,6 +529,7 @@ export type LanguageCode =
   | 'id-id'
   | 'ur-pk'
   | 'ms-my'
+  | 'uk-ua'
 
 // langCode应当能够唯一确认一种语言
 export type Language = {
@@ -648,6 +654,8 @@ export interface MCPServer {
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
+  shouldConfig?: boolean
+  getBuiltinDescription?: () => string
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
   disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
@@ -658,6 +666,7 @@ export interface MCPServer {
   providerUrl?: string // URL of the MCP server in provider's website or documentation
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
+  longRunning?: boolean // Whether the server is long running
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
   dxtVersion?: string // Version of the DXT package
   dxtPath?: string // Path where the DXT package was extracted

@@ -7,7 +7,7 @@ const rendererConfig = (electronViteConfig as any).renderer
 
 export default defineConfig({
   test: {
-    workspace: [
+    projects: [
       // 主进程单元测试配置
       {
         extends: true,

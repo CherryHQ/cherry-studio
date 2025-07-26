@@ -56,7 +56,7 @@ const AttachmentButton: FC<Props> = ({
   return (
     <Tooltip
       placement="top"
-      title={couldAddImageFile ? t('chat.input.upload') : t('chat.input.upload.document')}
+      title={couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document')}
       mouseLeaveDelay={0}
       arrow>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>

@@ -228,13 +228,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
                 `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
                 error as Error
               )
-              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+              window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
             }
           } else {
             logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
             )
-            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
           }
         }
       )

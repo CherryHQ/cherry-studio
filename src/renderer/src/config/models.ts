@@ -254,7 +254,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1',
-  'gemini-1(?:\\.[\\w-]+)?'
+  'gemini-1(?:\\.[\\w-]+)?',
+  'qwen-mt(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -3006,6 +3007,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
+  'qwen3-235b-a22b-thinking(?:-[\\w-]+)$': { min: 0, max: 81_920 },
   'qwen-plus-.*$': { min: 0, max: 38912 },
   'qwen-turbo-.*$': { min: 0, max: 38912 },
   'qwen3-0\\.6b$': { min: 0, max: 30720 },
@@ -3055,4 +3057,25 @@ export const isAnthropicModel = (model?: Model): boolean => {
   }
 
   return getLowerBaseModelName(model.id).startsWith('claude')
+}
+
+export const isQwenMTModel = (model: Model): boolean => {
+  const name = getLowerBaseModelName(model.id)
+  return name.includes('qwen-mt')
+}
+
+export const isNotSupportedTextDelta = (model: Model): boolean => {
+  if (isQwenMTModel(model)) {
+    return true
+  }
+
+  return false
+}
+
+export const isNotSupportSystemMessageModel = (model: Model): boolean => {
+  if (isQwenMTModel(model) || isGemmaModel(model)) {
+    return true
+  }
+
+  return false
 }

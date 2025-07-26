@@ -2,11 +2,11 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, LanguageCode, Provider, WebSearchProvider } from '@renderer/types'
+import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -202,13 +202,14 @@ const migrateConfig = {
   '8': (state: RootState) => {
     try {
       const fixAssistantName = (assistant: Assistant) => {
+        // 2025/07/25 这俩键早没了，从远古版本迁移包出错的
         if (isEmpty(assistant.name)) {
-          assistant.name = i18n.t(`assistant.${assistant.id}.name`)
+          assistant.name = i18n.t('chat.default.name')
         }
 
         assistant.topics = assistant.topics.map((topic) => {
           if (isEmpty(topic.name)) {
-            topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
+            topic.name = i18n.t('chat.default.topic.name')
           }
           return topic
         })
@@ -280,7 +281,7 @@ const migrateConfig = {
           defaultAssistant: {
             ...state.assistants.defaultAssistant,
             name: ['Default Assistant', '默认助手'].includes(state.assistants.defaultAssistant.name)
-              ? i18n.t(`assistant.default.name`)
+              ? i18n.t('settings.assistant.label')
               : state.assistants.defaultAssistant.name
           }
         }
@@ -1867,6 +1868,48 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 123 error', error as Error)
+      return state
+    }
+  }, // 1.5.4
+  '124': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && !assistant.settings.toolUseMode) {
+          assistant.settings.toolUseMode = 'prompt'
+        }
+      })
+
+      const updateModelTextDelta = (model?: Model) => {
+        if (model) {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        }
+      }
+
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          updateModelTextDelta(model)
+        })
+      })
+      state.assistants.assistants.forEach((assistant) => {
+        updateModelTextDelta(assistant.defaultModel)
+        updateModelTextDelta(assistant.model)
+      })
+
+      updateModelTextDelta(state.llm.defaultModel)
+      updateModelTextDelta(state.llm.topicNamingModel)
+      updateModelTextDelta(state.llm.translateModel)
+
+      if (state.assistants.defaultAssistant.model) {
+        updateModelTextDelta(state.assistants.defaultAssistant.model)
+        updateModelTextDelta(state.assistants.defaultAssistant.defaultModel)
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 124 error', error as Error)
       return state
     }
   }

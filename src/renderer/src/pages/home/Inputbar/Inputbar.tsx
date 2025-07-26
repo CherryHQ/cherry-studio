@@ -311,7 +311,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const openSelectFileMenu = useCallback(() => {
     quickPanel.open({
-      title: t('chat.input.upload'),
+      title: t('chat.input.upload.label'),
       list: [
         {
           label: t('chat.input.upload.upload_from_local'),

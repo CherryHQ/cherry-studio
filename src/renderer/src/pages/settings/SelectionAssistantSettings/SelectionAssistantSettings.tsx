@@ -1,6 +1,7 @@
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
+import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import { FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
@@ -132,10 +133,8 @@ const SelectionAssistantSettings: FC = () => {
               <SettingLabel>
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
-                  <Tooltip
-                    placement="top"
-                    title={t(`selection.settings.toolbar.trigger_mode.description_note.${isWin ? 'windows' : 'mac'}`)}
-                    arrow>
+                  {/* FIXME: 没有考虑Linux？ */}
+                  <Tooltip placement="top" title={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')} arrow>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>

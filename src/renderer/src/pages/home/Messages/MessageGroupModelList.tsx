@@ -72,7 +72,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       <Tooltip
         title={
           isCompact
-            ? t(`message.message.multi_model_style.fold.expand`)
+            ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
         placement="top"

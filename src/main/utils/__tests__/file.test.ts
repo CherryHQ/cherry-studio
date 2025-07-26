@@ -9,7 +9,7 @@ import { detectAll as detectEncodingAll } from 'jschardet'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
-import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir } from '../file'
+import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir, untildify } from '../file'
 
 // Mock dependencies
 vi.mock('node:fs')
@@ -294,6 +294,53 @@ describe('file', () => {
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
+    })
+  })
+
+  describe('untildify', () => {
+    it('should replace ~ with home directory for paths starting with ~', () => {
+      const mockHome = '/mock/home'
+
+      expect(untildify('~')).toBe(mockHome)
+      expect(untildify('~/Documents')).toBe('/mock/home/Documents')
+      expect(untildify('~\\Documents')).toBe('/mock/home\\Documents')
+      expect(untildify('~/Documents/file.txt')).toBe('/mock/home/Documents/file.txt')
+      expect(untildify('~\\Documents\\file.txt')).toBe('/mock/home\\Documents\\file.txt')
+    })
+
+    it('should not replace ~ when not at the beginning', () => {
+      expect(untildify('folder/~/file')).toBe('folder/~/file')
+      expect(untildify('/home/user/~')).toBe('/home/user/~')
+      expect(untildify('Documents/~backup')).toBe('Documents/~backup')
+    })
+
+    it('should not replace ~ when not followed by path separator or end of string', () => {
+      expect(untildify('~abc')).toBe('~abc')
+      expect(untildify('~user')).toBe('~user')
+      expect(untildify('~file.txt')).toBe('~file.txt')
+    })
+
+    it('should handle paths that do not start with ~', () => {
+      expect(untildify('/absolute/path')).toBe('/absolute/path')
+      expect(untildify('./relative/path')).toBe('./relative/path')
+      expect(untildify('../parent/path')).toBe('../parent/path')
+      expect(untildify('relative/path')).toBe('relative/path')
+      expect(untildify('C:\\Windows\\System32')).toBe('C:\\Windows\\System32')
+    })
+
+    it('should handle edge cases', () => {
+      expect(untildify('')).toBe('')
+      expect(untildify(' ')).toBe(' ')
+      expect(untildify('~/')).toBe('/mock/home/')
+      expect(untildify('~\\')).toBe('/mock/home\\')
+    })
+
+    it('should handle special characters and unicode', () => {
+      expect(untildify('~/文档')).toBe('/mock/home/文档')
+      expect(untildify('~/папка')).toBe('/mock/home/папка')
+      expect(untildify('~/folder with spaces')).toBe('/mock/home/folder with spaces')
+      expect(untildify('~/folder-with-dashes')).toBe('/mock/home/folder-with-dashes')
+      expect(untildify('~/folder_with_underscores')).toBe('/mock/home/folder_with_underscores')
     })
   })
 })

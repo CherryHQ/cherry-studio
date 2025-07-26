@@ -200,7 +200,7 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
           <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
         {enableSpellCheck && (

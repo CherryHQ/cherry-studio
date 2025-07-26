@@ -9,6 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -49,9 +50,16 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
 
@@ -770,7 +778,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={onSelectModel}
             style={{ width: '100%' }}
             loading={isLoadingModels}
-            placeholder={isLoadingModels ? t('common.loading') : t('common.select_model')}>
+            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
               if ((models as any[]).length === 0) return null
               return (
