@@ -912,6 +912,7 @@
     "thai": "tailandés",
     "turkish": "turco",
     "ukrainian": "ucraniano",
+    "unknown": "desconocido",
     "urdu": "urdu",
     "vietnamese": "vietnamita"
   },
@@ -3391,6 +3392,7 @@
     },
     "close": "Cerrar",
     "closed": "La traducción ha sido desactivada",
+    "complete": "traducción completada",
     "confirm": {
       "content": "La traducción reemplazará el texto original, ¿desea continuar?",
       "title": "Confirmación de traducción"

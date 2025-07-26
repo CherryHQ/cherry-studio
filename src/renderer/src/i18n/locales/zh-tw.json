@@ -912,6 +912,7 @@
     "thai": "泰文",
     "turkish": "土耳其文",
     "ukrainian": "烏克蘭語",
+    "unknown": "未知",
     "urdu": "烏爾都文",
     "vietnamese": "越南文"
   },
@@ -3393,6 +3394,7 @@
     },
     "close": "關閉",
     "closed": "翻譯已關閉",
+    "complete": "翻譯完成",
     "confirm": {
       "content": "翻譯後將覆蓋原文，是否繼續？",
       "title": "翻譯確認"

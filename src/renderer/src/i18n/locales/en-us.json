@@ -912,6 +912,7 @@
     "thai": "Thai",
     "turkish": "Turkish",
     "ukrainian": "Ukrainian",
+    "unknown": "unknown",
     "urdu": "Urdu",
     "vietnamese": "Vietnamese"
   },
@@ -3393,6 +3394,7 @@
     },
     "close": "Close",
     "closed": "Translation closed",
+    "complete": "Translation completed",
     "confirm": {
       "content": "Translation will replace the original text, continue?",
       "title": "Translation Confirmation"

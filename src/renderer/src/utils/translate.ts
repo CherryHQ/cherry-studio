@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { LanguagesEnum } from '@renderer/config/translate'
+import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { MutableRefObject } from 'react'
@@ -245,7 +245,7 @@ export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
   const result = Object.values(LanguagesEnum).find((item) => item.langCode === langcode)
   if (!result) {
     logger.error(`Language not found for langcode: ${langcode}`)
-    return LanguagesEnum.enUS
+    return UNKNOWN
   }
   return result
 }
