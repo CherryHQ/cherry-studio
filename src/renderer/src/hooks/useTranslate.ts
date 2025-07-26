@@ -1,9 +1,10 @@
 import db from '@renderer/databases'
 import { fetchTranslate } from '@renderer/services/ApiService'
+import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as _setTranslating } from '@renderer/store/runtime'
 import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
-import { Assistant, LanguageCode, TranslateHistory } from '@renderer/types'
+import { Language, LanguageCode, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
 
@@ -21,13 +22,11 @@ export default function useTranslate() {
     dispatch(_setTranslating(translating))
   }
 
-  const translate = async (
-    text: string,
-    assistant: Assistant,
-    actualSourceLanguage: LanguageCode,
-    actualTargetLanguage: LanguageCode
-  ) => {
+  const translate = async (text: string, actualSourceLanguage: Language, actualTargetLanguage: Language) => {
     setTranslating(true)
+
+    const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
+
     await fetchTranslate({
       content: text,
       assistant,
@@ -36,7 +35,7 @@ export default function useTranslate() {
       }
     })
     const translatedContent = store.getState().translate.translatedContent
-    await saveTranslateHistory(text, translatedContent, actualSourceLanguage, actualTargetLanguage)
+    await saveTranslateHistory(text, translatedContent, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
 
     setTranslating(false)
 
@@ -65,12 +64,22 @@ export default function useTranslate() {
     await db.translate_history.add(history)
   }
 
+  const deleteHistory = async (id: string) => {
+    db.translate_history.delete(id)
+  }
+
+  const clearHistory = async () => {
+    db.translate_history.clear()
+  }
+
   return {
     translatedContent,
     translating,
     setTranslatedContent,
     setTranslating,
     translate,
-    saveTranslateHistory
+    saveTranslateHistory,
+    deleteHistory,
+    clearHistory
   }
 }

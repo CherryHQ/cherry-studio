@@ -13,7 +13,6 @@ import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
@@ -303,6 +302,8 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
+  const { translatedContent, translating, translate, setTranslatedContent, clearHistory, deleteHistory } =
+    useTranslate()
 
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
@@ -314,22 +315,12 @@ const TranslatePage: FC = () => {
     }))
   }, [_translateHistory])
 
-  const { translatedContent, translating, translate, setTranslatedContent, setTranslating } = useTranslate()
-
   _text = text
   _targetLanguage = targetLanguage
 
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
-  }
-
-  const deleteHistory = async (id: string) => {
-    db.translate_history.delete(id)
-  }
-
-  const clearHistory = async () => {
-    db.translate_history.clear()
   }
 
   const onTranslate = async () => {
@@ -342,7 +333,6 @@ const TranslatePage: FC = () => {
       return
     }
 
-    setTranslating(true)
     try {
       // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
       let actualSourceLanguage: Language
@@ -366,7 +356,6 @@ const TranslatePage: FC = () => {
           content: errorMessage,
           key: 'translate-message'
         })
-        setTranslating(false)
         return
       }
 
@@ -375,16 +364,13 @@ const TranslatePage: FC = () => {
         setTargetLanguage(actualTargetLanguage)
       }
 
-      const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-
-      await translate(text, assistant, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
+      await translate(text, actualSourceLanguage, actualTargetLanguage)
     } catch (error) {
       logger.error('Translation error:', error as Error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
       })
-      setTranslating(false)
       return
     }
   }
