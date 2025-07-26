@@ -46,7 +46,9 @@ const BuiltinMCPServersSection: FC = () => {
               <Popover
                 content={
                   <PopoverContent>
-                    {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'}
+                    {server.getBuiltinDescription
+                      ? server.getBuiltinDescription()
+                      : t('settings.mcp.builtinServersDescriptions.no')}
                   </PopoverContent>
                 }
                 title={server.name}
@@ -54,7 +56,10 @@ const BuiltinMCPServersSection: FC = () => {
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
                 <ServerDescription>
-                  {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'}
+                  {/* {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'} */}
+                  {server.getBuiltinDescription
+                    ? server.getBuiltinDescription()
+                    : t('settings.mcp.builtinServersDescriptions.no')}
                   <MoreIndicator>...</MoreIndicator>
                 </ServerDescription>
               </Popover>

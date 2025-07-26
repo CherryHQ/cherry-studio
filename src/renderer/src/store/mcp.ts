@@ -126,6 +126,7 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
+    description: i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
