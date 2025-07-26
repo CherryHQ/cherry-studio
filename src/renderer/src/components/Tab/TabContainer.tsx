@@ -118,6 +118,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }
 
   const handleAddTab = () => {
+    hideMinappPopup()
     navigate('/launchpad')
   }
 
