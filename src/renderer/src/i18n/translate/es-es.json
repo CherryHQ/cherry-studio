@@ -3099,7 +3099,6 @@
       "search_placeholder": "Buscar ID o nombre del modelo",
       "title": "Servicio de modelos",
       "vertex_ai": {
-        "api_host_help": "[to be translated]:Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
         "documentation": "Consulte la documentación oficial para obtener más detalles de configuración:",
         "learn_more": "Más información",
         "location": "Región",
@@ -3368,6 +3367,7 @@
     },
     "close": "Cerrar",
     "closed": "La traducción ha sido desactivada",
+    "complete": "traducción completada",
     "confirm": {
       "content": "La traducción reemplazará el texto original, ¿desea continuar?",
       "title": "Confirmación de traducción"

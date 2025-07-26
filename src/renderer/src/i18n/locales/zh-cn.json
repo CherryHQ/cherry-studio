@@ -3368,6 +3368,7 @@
     },
     "close": "关闭",
     "closed": "翻译已关闭",
+    "complete": "翻译完成",
     "confirm": {
       "content": "翻译后将覆盖原文，是否继续？",
       "title": "翻译确认"

@@ -3368,6 +3368,7 @@
     },
     "close": "Close",
     "closed": "Translation closed",
+    "complete": "Translation completed",
     "confirm": {
       "content": "Translation will replace the original text, continue?",
       "title": "Translation Confirmation"
