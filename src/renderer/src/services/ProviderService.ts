@@ -2,6 +2,7 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import store from '@renderer/store'
 import { Provider } from '@renderer/types'
 
+// FIXME: 这个函数从功能上应该重构到naming.ts里面
 export function getProviderName(id: string) {
   const provider = store.getState().llm.providers.find((p) => p.id === id)
   if (!provider) {
