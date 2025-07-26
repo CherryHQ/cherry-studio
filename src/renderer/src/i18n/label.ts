@@ -72,7 +72,7 @@ const providerKeyMap = {
  * @remarks
  * 该函数仅用于获取内置供应商的 i18n label
  *
- * 对于可能处理自定义供应商的情况，使用 getProviderName 更安全
+ * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
 export const getProviderLabel = (key: string): string => {
   return providerKeyMap[key] ? t(providerKeyMap[key]) : key
