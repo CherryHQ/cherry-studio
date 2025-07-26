@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -10,6 +11,8 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   resolve: (data: any) => void
 }
+
+const logger = loggerService.withContext('EditMcpJsonPopup')
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
@@ -40,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setJsonConfig(formattedJson)
       setJsonError('')
     } catch (error) {
-      console.error('Failed to format JSON:', error)
+      logger.error('Failed to format JSON:', error as Error)
       setJsonError(t('settings.mcp.jsonFormatError'))
     } finally {
       setIsLoading(false)
@@ -62,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const parsedConfig = JSON.parse(jsonConfig)
 
       if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
-        throw new Error(t('settings.mcp.invalidMcpFormat'))
+        throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 
       const serversArray: MCPServer[] = []
@@ -87,7 +90,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setJsonError('')
       setOpen(false)
     } catch (error: any) {
-      console.error('Failed to save JSON config:', error)
+      logger.error('Failed to save JSON config:', error)
       setJsonError(error.message || t('settings.mcp.jsonSaveError'))
       window.message.error(t('settings.mcp.jsonSaveError'))
     } finally {

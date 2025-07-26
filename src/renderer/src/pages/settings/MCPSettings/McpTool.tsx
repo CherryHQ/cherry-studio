@@ -51,7 +51,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       }
     }
 
-    // <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema')}:</Typography.Title>
+    // <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema.label')}:</Typography.Title>
     return (
       <Descriptions bordered size="small" column={1} style={{ userSelect: 'text' }}>
         {Object.entries(tool.inputSchema.properties).map(([key, prop]: [string, any]) => (
@@ -151,7 +151,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       title: (
         <Flex align="center" justify="center" gap={4}>
           <Zap size={14} color="red" />
-          <Typography.Text strong>{t('settings.mcp.tools.autoApprove')}</Typography.Text>
+          <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
         </Flex>
       ),
       key: 'autoApprove',

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { FileImage, ZoomIn, ZoomOut } from 'lucide-react'
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
@@ -7,6 +8,8 @@ import { DownloadPngIcon, DownloadSvgIcon } from '../Icons/DownloadIcons'
 import { TOOL_SPECS } from './constants'
 import { useCodeTool } from './hook'
 import { CodeTool } from './types'
+
+const logger = loggerService.withContext('usePreviewToolHandlers')
 
 // 预编译正则表达式用于查询位置
 const TRANSFORM_REGEX = /translate\((-?\d+\.?\d*)px,\s*(-?\d+\.?\d*)px\)/
@@ -205,7 +208,7 @@ export const usePreviewToolHandlers = (
       }
       img.src = svgBase64
     } catch (error) {
-      console.error('Copy failed:', error)
+      logger.error('Copy failed:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }, [getImgElement, t])
@@ -265,7 +268,7 @@ export const usePreviewToolHandlers = (
           img.src = svgBase64
         }
       } catch (error) {
-        console.error('Download failed:', error)
+        logger.error('Download failed:', error as Error)
       }
     },
     [getImgElement, prefix, customDownloader]

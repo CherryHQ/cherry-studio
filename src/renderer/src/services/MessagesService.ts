@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
@@ -29,6 +30,8 @@ import { NavigateFunction } from 'react-router'
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
+
+const logger = loggerService.withContext('MessagesService')
 
 export {
   filterContextMessages,
@@ -232,7 +235,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       }
     } catch (e) {
       window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
-      console.error('Failed to generate title using topic naming, downgraded to default logic', e)
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
     }
   }
 

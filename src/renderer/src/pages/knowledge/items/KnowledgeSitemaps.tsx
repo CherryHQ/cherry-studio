@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -27,6 +28,8 @@ import {
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
+
+const logger = loggerService.withContext('KnowledgeSitemaps')
 
 const getDisplayTime = (item: KnowledgeItem) => {
   const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
@@ -71,7 +74,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         }
         addSitemap(url)
       } catch (e) {
-        console.error('Invalid Sitemap URL:', url)
+        logger.error(`Invalid Sitemap URL: ${url}`)
       }
     }
   }

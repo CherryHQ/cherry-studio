@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -11,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('SiyuanSettings')
 
 const SiyuanSettings: FC = () => {
   const { openMinapp } = useMinappPopup()
@@ -75,7 +78,7 @@ const SiyuanSettings: FC = () => {
 
       window.message.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
-      console.error('Check Siyuan connection failed:', error)
+      logger.error('Check Siyuan connection failed:', error as Error)
       window.message.error(t('settings.data.siyuan.check.error'))
     }
   }
@@ -99,7 +102,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
-          <span>{t('settings.data.siyuan.token')}</span>
+          <span>{t('settings.data.siyuan.token.label')}</span>
           <Tooltip title={t('settings.data.siyuan.token.help')} placement="left">
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}

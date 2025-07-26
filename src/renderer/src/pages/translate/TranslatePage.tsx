@@ -1,7 +1,9 @@
 import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
@@ -28,11 +30,13 @@ import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { find, isEmpty, sortBy } from 'lodash'
+import { find, isEmpty } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TranslatePage')
 
 let _text = ''
 let _targetLanguage = LanguagesEnum.enUS
@@ -50,8 +54,6 @@ const TranslateSettings: FC<{
   setBidirectionalPair: (value: [Language, Language]) => void
   translateModel: Model | undefined
   onModelChange: (model: Model) => void
-  allModels: Model[]
-  selectOptions: any[]
 }> = ({
   visible,
   onClose,
@@ -64,9 +66,7 @@ const TranslateSettings: FC<{
   bidirectionalPair,
   setBidirectionalPair,
   translateModel,
-  onModelChange,
-  allModels,
-  selectOptions
+  onModelChange
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -74,6 +74,14 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
+
+  const { providers } = useProviders()
+  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
+
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -132,18 +140,18 @@ const TranslateSettings: FC<{
             </Tooltip>
           </div>
           <HStack alignItems="center" gap={5}>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={modelPredicate}
               style={{ width: '100%' }}
-              placeholder={t('translate.settings.model_placeholder')}
               value={defaultTranslateModel}
+              placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const selectedModel = find(allModels, JSON.parse(value)) as Model
                 if (selectedModel) {
                   onModelChange(selectedModel)
                 }
               }}
-              options={selectOptions}
-              showSearch
             />
           </HStack>
           {!translateModel && (
@@ -296,9 +304,6 @@ const TranslatePage: FC = () => {
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
-
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
   const translateHistory = useMemo(() => {
@@ -313,31 +318,6 @@ const TranslatePage: FC = () => {
 
   _text = text
   _targetLanguage = targetLanguage
-
-  const selectOptions = useMemo(
-    () =>
-      providers
-        .filter((p) => p.models.length > 0)
-        .flatMap((p) => {
-          const filteredModels = sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
-            .map((m) => ({
-              label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-              value: getModelUniqId(m)
-            }))
-          if (filteredModels.length > 0) {
-            return [
-              {
-                label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-                title: p.name,
-                options: filteredModels
-              }
-            ]
-          }
-          return []
-        }),
-    [providers, t]
-  )
 
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
@@ -399,7 +379,7 @@ const TranslatePage: FC = () => {
 
       await translate(text, assistant, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
     } catch (error) {
-      console.error('Translation error:', error)
+      logger.error('Translation error:', error as Error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
@@ -516,7 +496,7 @@ const TranslatePage: FC = () => {
         )
       }
     } catch (error) {
-      console.error('Error getting language display:', error)
+      logger.error('Error getting language display:', error as Error)
       setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
@@ -546,22 +526,12 @@ const TranslatePage: FC = () => {
   return (
     <Container id="translate-page">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>
-          {t('translate.title')}
-          <Button
-            className="nodrag"
-            color="default"
-            variant={historyDrawerVisible ? 'filled' : 'text'}
-            type="text"
-            icon={<HistoryOutlined />}
-            onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-          />
-        </NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
-            <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
+            <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
@@ -594,13 +564,8 @@ const TranslatePage: FC = () => {
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
                       <Flex align="center" justify="space-between" style={{ flex: 1 }}>
                         <Flex align="center" gap={6}>
-                          <span>
-                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
-                          </span>
-                          →
-                          <span>
-                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
-                          </span>
+                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                         </Flex>
                         <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
                       </Flex>
@@ -622,7 +587,7 @@ const TranslatePage: FC = () => {
 
         <InputContainer>
           <OperationBar>
-            <Flex align="center" gap={20}>
+            <Flex align="center" gap={8}>
               <Select
                 showSearch
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
@@ -658,6 +623,14 @@ const TranslatePage: FC = () => {
                 icon={<Settings2 size={18} />}
                 onClick={() => setSettingsVisible(true)}
                 style={{ color: 'var(--color-text-2)', display: 'flex' }}
+              />
+              <Button
+                className="nodrag"
+                color="default"
+                variant={historyDrawerVisible ? 'filled' : 'text'}
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
               />
             </Flex>
 
@@ -733,8 +706,6 @@ const TranslatePage: FC = () => {
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
         onModelChange={handleModelChange}
-        allModels={allModels}
-        selectOptions={selectOptions}
       />
     </Container>
   )
@@ -900,6 +871,11 @@ const HistoryListItemTitle = styled.div`
 `
 
 const HistoryListItemDate = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
 `

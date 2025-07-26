@@ -7,7 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { classNames } from '@renderer/utils/style'
+import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -102,27 +102,19 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
-        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-        models = models.filter((m) => {
-          const fullName = provider.isSystem
-            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
-            : `${m.name} ${provider.name}`
-
-          const lowerFullName = fullName.toLowerCase()
-          return keywords.every((keyword) => lowerFullName.includes(keyword))
-        })
+        models = filterModelsByKeywords(searchText, models, provider)
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t]
+    [searchText]
   )
 
   // 创建模型列表项
   const createModelItem = useCallback(
     (model: Model, provider: any, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
-      const groupName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
+      const groupName = getFancyProviderName(provider)
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
@@ -148,7 +140,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: modelId === currentModelId
       }
     },
-    [t, currentModelId]
+    [currentModelId]
   )
 
   // 构建扁平化列表数据
@@ -189,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       items.push({
         key: `provider-${p.id}`,
         type: 'group',
-        name: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        name: getFancyProviderName(p),
         isSelected: false
       })
 

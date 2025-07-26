@@ -16,7 +16,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
 
     return (
       <div style={{ marginTop: 12 }}>
-        <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema')}:</Typography.Title>
+        <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema.label')}:</Typography.Title>
         <Descriptions bordered size="small" column={1} style={{ marginTop: 8 }}>
           {prompt.arguments.map((arg, index) => (
             <Descriptions.Item

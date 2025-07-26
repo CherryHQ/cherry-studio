@@ -20,6 +20,7 @@ export enum IpcChannel {
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
+  App_ResolvePath = 'app:resolve-path',
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
@@ -31,6 +32,7 @@ export enum IpcChannel {
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+  App_LogToMain = 'app:log-to-main',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -75,7 +77,6 @@ export enum IpcChannel {
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
-  Mcp_SetProgress = 'mcp:set-progress',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
 
@@ -111,6 +112,7 @@ export enum IpcChannel {
 
   // VertexAI
   VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
@@ -256,5 +258,20 @@ export enum IpcChannel {
   Memory_SetConfig = 'memory:set-config',
   Memory_DeleteUser = 'memory:delete-user',
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
-  Memory_GetUsersList = 'memory:get-users-list'
+  Memory_GetUsersList = 'memory:get-users-list',
+
+  // TRACE
+  TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
+  TRACE_SAVE_ENTITY = 'trace:saveEntity',
+  TRACE_GET_ENTITY = 'trace:getEntity',
+  TRACE_BIND_TOPIC = 'trace:bindTopic',
+  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
+  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
+  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_OPEN_WINDOW = 'trace:openWindow',
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
 }

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
 import {
   GenerateImageParams,
@@ -27,6 +28,8 @@ import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { RequestTransformer, ResponseChunkTransformer } from './types'
+
+const logger = loggerService.withContext('NewAPIClient')
 
 export class NewAPIClient extends BaseApiClient {
   // 使用联合类型而不是any，保持类型安全
@@ -125,6 +128,18 @@ export class NewAPIClient extends BaseApiClient {
     return this.currentClient
   }
 
+  /**
+   * 重写基类方法，返回内部实际使用的客户端类型
+   */
+  public override getClientCompatibilityType(model?: Model): string[] {
+    if (!model) {
+      return [this.constructor.name]
+    }
+
+    const actualClient = this.getClient(model)
+    return actualClient.getClientCompatibilityType(model)
+  }
+
   // ============ BaseApiClient 抽象方法实现 ============
 
   async createCompletions(payload: SdkParams, options?: RequestOptions): Promise<SdkRawOutput> {
@@ -176,7 +191,7 @@ export class NewAPIClient extends BaseApiClient {
 
       return models.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing models:', error)
+      logger.error('Error listing models:', error as Error)
       return []
     }
   }

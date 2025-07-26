@@ -1,5 +1,7 @@
+import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
@@ -11,6 +13,8 @@ import { getCitationContent, getMainTextContent, getThinkingContent } from '@ren
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
+
+const logger = loggerService.withContext('Utils:export')
 
 /**
  * 获取话题的消息列表，使用TopicManager确保消息被正确加载
@@ -53,7 +57,7 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
-const getRoleText = (role: string, modelName?: string, modelProvider?: string) => {
+const getRoleText = (role: string, modelName?: string, providerId?: string) => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
 
   if (role === 'user') {
@@ -64,14 +68,14 @@ const getRoleText = (role: string, modelName?: string, modelProvider?: string) =
     let assistantText = '🤖 '
     if (showModelNameInMarkdown && modelName) {
       assistantText += `${modelName}`
-      if (showModelProviderInMarkdown && modelProvider) {
-        const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+      if (showModelProviderInMarkdown && providerId) {
+        const providerDisplayName = getProviderLabel(providerId) ?? providerId
         assistantText += ` | ${providerDisplayName}`
         return assistantText
       }
       return assistantText
-    } else if (showModelProviderInMarkdown && modelProvider) {
-      const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+    } else if (showModelProviderInMarkdown && providerId) {
+      const providerDisplayName = getProviderLabel(providerId) ?? providerId
       assistantText += `Assistant | ${providerDisplayName}`
       return assistantText
     }
@@ -496,7 +500,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     let isMarkdownFile = false
 
     if (!obsidianVault) {
-      window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
+      window.message.error(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
     }
 
@@ -540,7 +544,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
-    console.error('导出到Obsidian失败:', error)
+    logger.error('导出到Obsidian失败:', error as Error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
   }
 }
@@ -683,10 +687,10 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
 
     // 确保根路径以/开头
     const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
-
+    const renderedRootPath = await renderSprigTemplate(siyuanApiUrl, siyuanToken, rootPath)
     // 创建文档
     const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
-    const docPath = `${rootPath}/${docTitle}`
+    const docPath = `${renderedRootPath}/${docTitle}`
 
     // 创建文档
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
@@ -696,7 +700,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
       key: 'siyuan-success'
     })
   } catch (error) {
-    console.error('导出到思源笔记失败:', error)
+    logger.error('导出到思源笔记失败:', error as Error)
     window.message.error({
       content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
       key: 'siyuan-error'
@@ -704,6 +708,30 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
   } finally {
     setExportState({ isExporting: false })
   }
+}
+/**
+ * 渲染 思源笔记 Sprig 模板字符串
+ * @param apiUrl 思源 API 地址
+ * @param token 思源 API Token
+ * @param template Sprig 模板
+ * @returns 渲染后的字符串
+ */
+async function renderSprigTemplate(apiUrl: string, token: string, template: string): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/template/renderSprig`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify({ template })
+  })
+
+  const data = await response.json()
+  if (data.code !== 0) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
 }
 
 /**

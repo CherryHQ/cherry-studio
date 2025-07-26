@@ -1,6 +1,8 @@
+import { loggerService } from '@logger'
 import { spawn } from 'child_process'
-import Logger from 'electron-log'
 import os from 'os'
+
+const logger = loggerService.withContext('ShellEnv')
 
 /**
  * Spawns a login shell in the user's home directory to capture its environment variables.
@@ -35,7 +37,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         // Defaulting to bash, but this might not be the user's actual login shell.
         // A more robust solution might involve checking /etc/passwd or similar,
         // but that's more complex and often requires higher privileges or native modules.
-        Logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
+        logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
         shellPath = '/bin/bash' // A common default
       }
       // -l: Make it a login shell. This sources profile files like .profile, .bash_profile, .zprofile etc.
@@ -47,7 +49,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       commandArgs = ['-ilc', shellCommandToGetEnv] // -i for interactive, -l for login, -c to execute command
     }
 
-    Logger.log(`[ShellEnv] Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
+    logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
     const child = spawn(shellPath, commandArgs, {
       cwd: homeDirectory, // Run the command in the user's home directory
@@ -68,21 +70,21 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     })
 
     child.on('error', (error) => {
-      Logger.error(`Failed to start shell process: ${shellPath}`, error)
+      logger.error(`Failed to start shell process: ${shellPath}`, error)
       reject(new Error(`Failed to start shell: ${error.message}`))
     })
 
     child.on('close', (code) => {
       if (code !== 0) {
         const errorMessage = `Shell process exited with code ${code}. Shell: ${shellPath}. Args: ${commandArgs.join(' ')}. CWD: ${homeDirectory}. Stderr: ${errorOutput.trim()}`
-        Logger.error(errorMessage)
+        logger.error(errorMessage)
         return reject(new Error(errorMessage))
       }
 
       if (errorOutput.trim()) {
         // Some shells might output warnings or non-fatal errors to stderr
         // during profile loading. Log it, but proceed if exit code is 0.
-        Logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
+        logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
       }
 
       const env: Record<string, string> = {}
@@ -104,10 +106,10 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       if (Object.keys(env).length === 0 && output.length < 100) {
         // Arbitrary small length check
         // This might indicate an issue if no env vars were parsed or output was minimal
-        Logger.warn(
+        logger.warn(
           'Parsed environment is empty or output was very short. This might indicate an issue with shell execution or environment variable retrieval.'
         )
-        Logger.warn('Raw output from shell:\n', output)
+        logger.warn(`Raw output from shell:\n${output}`)
       }
 
       env.PATH = env.Path || env.PATH || ''

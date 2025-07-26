@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import { useCallback } from 'react'
+
+const logger = loggerService.withContext('useNutstoreSSO')
 
 export function useNutstoreSSO() {
   const nutstoreSSOHandler = useCallback(() => {
@@ -11,7 +14,7 @@ export function useNutstoreSSO() {
           if (!encryptedToken) return reject(null)
           resolve(encryptedToken)
         } catch (error) {
-          console.error('解析URL失败:', error)
+          logger.error('解析URL失败:', error as Error)
           reject(null)
         } finally {
           removeListener()

@@ -42,8 +42,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     try {
       setIsInstallingUv(true)
       await window.api.installUVBinary()
-      setIsUvInstalled(true)
       setIsInstallingUv(false)
+      dispatch(setIsUvInstalled(true))
     } catch (error: any) {
       window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
       setIsInstallingUv(false)
@@ -55,8 +55,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
-      setIsBunInstalled(true)
       setIsInstallingBun(false)
+      dispatch(setIsBunInstalled(true))
     } catch (error: any) {
       window.message.error({
         content: `${t('settings.mcp.installError')}: ${error.message}`,
@@ -76,7 +76,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     return (
       <Button
         type="primary"
-        size="small"
         variant="filled"
         shape="circle"
         icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}

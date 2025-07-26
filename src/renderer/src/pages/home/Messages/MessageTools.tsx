@@ -1,13 +1,24 @@
 import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
+import {
+  Button,
+  Collapse,
+  ConfigProvider,
+  Dropdown,
+  Flex,
+  message as antdMessage,
+  Modal,
+  Progress,
+  Tabs,
+  Tooltip
+} from 'antd'
 import { message } from 'antd'
-import Logger from 'electron-log/renderer'
 import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +27,8 @@ import styled from 'styled-components'
 interface Props {
   block: ToolMessageBlock
 }
+
+const logger = loggerService.withContext('MessageTools')
 
 const COUNTDOWN_TIME = 30
 
@@ -27,6 +40,7 @@ const MessageTools: FC<Props> = ({ block }) => {
   const { messageFont, fontSize } = useSettings()
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
+  const [progress, setProgress] = useState<number>(0)
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -42,7 +56,7 @@ const MessageTools: FC<Props> = ({ block }) => {
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
-        console.log('countdown', countdown)
+        logger.debug(`countdown: ${countdown}`)
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
@@ -55,6 +69,19 @@ const MessageTools: FC<Props> = ({ block }) => {
       }
     }
   }, [countdown, id, isPending])
+
+  useEffect(() => {
+    const removeListener = window.electron.ipcRenderer.on(
+      'mcp-progress',
+      (_event: Electron.IpcRendererEvent, value: number) => {
+        setProgress(value)
+      }
+    )
+    return () => {
+      setProgress(0)
+      removeListener()
+    }
+  }, [])
 
   const cancelCountdown = () => {
     if (timer.current) {
@@ -114,12 +141,12 @@ const MessageTools: FC<Props> = ({ block }) => {
       try {
         const success = await window.api.mcp.abortTool(toolResponse.id)
         if (success) {
-          message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
+          window.message.success({ content: t('message.tools.aborted'), key: 'abort-tool' })
         } else {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
       } catch (error) {
-        Logger.error('Failed to abort tool:', error)
+        logger.error('Failed to abort tool:', error as Error)
         message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
@@ -152,7 +179,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     // Also confirm the current tool
     confirmToolAction(id)
 
-    message.success({
+    window.message.success({
       content: t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'),
       key: 'auto-approve'
     })
@@ -219,9 +246,11 @@ const MessageTools: FC<Props> = ({ block }) => {
             </ToolName>
           </TitleContent>
           <ActionButtonsContainer>
-            <StatusIndicator status={status} hasError={hasError}>
-              {renderStatusIndicator(status, hasError)}
-            </StatusIndicator>
+            {progress > 0 ? (
+              <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
+            ) : (
+              renderStatusIndicator(status, hasError)
+            )}
             <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
               <ActionButton
                 className="message-action-button"
@@ -278,22 +307,37 @@ const MessageTools: FC<Props> = ({ block }) => {
     if (!content) return null
 
     try {
+      logger.debug(`renderPreview: ${content}`)
       const parsedResult = JSON.parse(content)
       switch (parsedResult.content[0]?.type) {
         case 'text':
-          return (
-            <CollapsedContent
-              isExpanded={true}
-              resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
-            />
-          )
+          try {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
+              />
+            )
+          } catch (e) {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(parsedResult.content[0].text, null, 2)}
+              />
+            )
+          }
 
         default:
           return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
-      console.error('failed to render the preview of mcp results:', e)
-      return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
+      logger.error('failed to render the preview of mcp results:', e as Error)
+      return (
+        <CollapsedContent
+          isExpanded={true}
+          resultString={e instanceof Error ? e.message : JSON.stringify(e, null, 2)}
+        />
+      )
     }
   }
 
@@ -365,7 +409,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                         items: [
                           {
                             key: 'autoApprove',
-                            label: t('settings.mcp.tools.autoApprove'),
+                            label: t('settings.mcp.tools.autoApprove.label'),
                             onClick: () => {
                               handleAutoApprove()
                             }

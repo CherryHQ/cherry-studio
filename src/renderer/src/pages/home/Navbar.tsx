@@ -1,6 +1,5 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import FloatingSidebar from '@renderer/components/Popups/FloatingSidebar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -15,10 +14,11 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { FC, useCallback, useState } from 'react'
+import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
+import AssistantsDrawer from './components/AssistantsDrawer'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
@@ -37,37 +37,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
-  const [sidebarHideCooldown, setSidebarHideCooldown] = useState(false)
 
-  // Function to toggle assistants with cooldown
-  const handleToggleShowAssistants = useCallback(() => {
-    if (showAssistants) {
-      // When hiding sidebar, set cooldown
-      toggleShowAssistants()
-      setSidebarHideCooldown(true)
-      // setTimeout(() => {
-      //   setSidebarHideCooldown(false)
-      // }, 10000) // 10 seconds cooldown
-    } else {
-      // When showing sidebar, no cooldown needed
-      toggleShowAssistants()
-    }
-  }, [showAssistants, toggleShowAssistants])
-  const handleToggleShowTopics = useCallback(() => {
-    if (showTopics) {
-      // When hiding sidebar, set cooldown
-      toggleShowTopics()
-      setSidebarHideCooldown(true)
-      // setTimeout(() => {
-      //   setSidebarHideCooldown(false)
-      // }, 10000) // 10 seconds cooldown
-    } else {
-      // When showing sidebar, no cooldown needed
-      toggleShowTopics()
-    }
-  }, [showTopics, toggleShowTopics])
-
-  useShortcut('toggle_show_assistants', handleToggleShowAssistants)
+  useShortcut('toggle_show_assistants', toggleShowAssistants)
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
@@ -86,12 +57,21 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     dispatch(setNarrowMode(!narrowMode))
   }
 
+  const onShowAssistantsDrawer = () => {
+    AssistantsDrawer.show({
+      activeAssistant,
+      setActiveAssistant,
+      activeTopic,
+      setActiveTopic
+    })
+  }
+
   return (
     <Navbar className="home-navbar">
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={handleToggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
+            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -104,31 +84,19 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       )}
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
-          {!showAssistants && !sidebarHideCooldown && (
-            <FloatingSidebar
-              activeAssistant={assistant}
-              setActiveAssistant={setActiveAssistant}
-              activeTopic={activeTopic}
-              setActiveTopic={setActiveTopic}
-              position={'left'}>
-              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-                <NavbarIcon
-                  onClick={() => toggleShowAssistants()}
-                  style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}>
-                  <PanelRightClose size={18} />
-                </NavbarIcon>
-              </Tooltip>
-            </FloatingSidebar>
-          )}
-          {!showAssistants && sidebarHideCooldown && (
+          {!showAssistants && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => toggleShowAssistants()}
-                style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}
-                onMouseOut={() => setSidebarHideCooldown(false)}>
+                style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>
+          )}
+          {!showAssistants && (
+            <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
+              <Menu size={18} />
+            </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
         </HStack>
@@ -144,30 +112,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          {topicPosition === 'right' && !showTopics && !sidebarHideCooldown && (
-            <FloatingSidebar
-              activeAssistant={assistant}
-              setActiveAssistant={setActiveAssistant}
-              activeTopic={activeTopic}
-              setActiveTopic={setActiveTopic}
-              position={'right'}>
-              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-                <NavbarIcon onClick={() => toggleShowTopics()}>
-                  <PanelLeftClose size={18} />
-                </NavbarIcon>
-              </Tooltip>
-            </FloatingSidebar>
-          )}
-          {topicPosition === 'right' && !showTopics && sidebarHideCooldown && (
+          {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={() => toggleShowTopics()} onMouseOut={() => setSidebarHideCooldown(false)}>
+              <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
           {topicPosition === 'right' && showTopics && (
             <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={() => handleToggleShowTopics()}>
+              <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>

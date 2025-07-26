@@ -14,8 +14,8 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AddKnowledgePopup from './components/AddKnowledgePopup'
-import KnowledgeSettings from './components/KnowledgeSettings'
+import AddKnowledgeBasePopup from './components/AddKnowledgeBasePopup'
+import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
@@ -24,12 +24,19 @@ const KnowledgePage: FC = () => {
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
 
-  const handleAddKnowledge = async () => {
-    const newBase = await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+  const handleAddKnowledge = useCallback(async () => {
+    const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
     if (newBase) {
       setSelectedBase(newBase)
     }
-  }
+  }, [t])
+
+  const handleEditKnowledgeBase = useCallback(async (base: KnowledgeBase) => {
+    const newBase = await EditKnowledgeBasePopup.show({ base })
+    if (newBase && newBase?.id !== base.id) {
+      setSelectedBase(newBase)
+    }
+  }, [])
 
   useEffect(() => {
     const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
@@ -58,7 +65,7 @@ const KnowledgePage: FC = () => {
           label: t('knowledge.settings.title'),
           key: 'settings',
           icon: <SettingOutlined />,
-          onClick: () => KnowledgeSettings.show({ base })
+          onClick: () => handleEditKnowledgeBase(base)
         },
         { type: 'divider' },
         {
@@ -81,7 +88,7 @@ const KnowledgePage: FC = () => {
 
       return menus
     },
-    [deleteKnowledgeBase, renameKnowledgeBase, t]
+    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
   )
 
   useShortcut('search_message', () => {

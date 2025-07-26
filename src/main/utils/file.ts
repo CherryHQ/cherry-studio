@@ -3,28 +3,15 @@ import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isLinux, isPortable } from '@main/constant'
+import { loggerService } from '@logger'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
-export function initAppDataDir() {
-  const appDataPath = getAppDataPathFromConfig()
-  if (appDataPath) {
-    app.setPath('userData', appDataPath)
-    return
-  }
-
-  if (isPortable) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
-    return
-  }
-}
+const logger = loggerService.withContext('Utils:File')
 
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileTypes>()
@@ -41,92 +28,22 @@ function initFileTypeMap() {
 // 初始化映射表
 initFileTypeMap()
 
-export function hasWritePermission(path: string) {
+export function untildify(pathWithTilde: string) {
+  if (pathWithTilde.startsWith('~')) {
+    const homeDirectory = os.homedir()
+    return pathWithTilde.replace(/^~(?=$|\/|\\)/, homeDirectory)
+  }
+  return pathWithTilde
+}
+
+export async function hasWritePermission(dir: string) {
   try {
-    fs.accessSync(path, fs.constants.W_OK)
+    logger.info(`Checking write permission for ${dir}`)
+    await fs.promises.access(dir, fs.constants.W_OK)
     return true
   } catch (error) {
     return false
   }
-}
-
-function getAppDataPathFromConfig() {
-  try {
-    const configPath = path.join(getConfigDir(), 'config.json')
-    if (!fs.existsSync(configPath)) {
-      return null
-    }
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-
-    if (!config.appDataPath) {
-      return null
-    }
-
-    let executablePath = app.getPath('exe')
-    if (isLinux && process.env.APPIMAGE) {
-      // 如果是 AppImage 打包的应用，直接使用 APPIMAGE 环境变量
-      // 这样可以确保获取到正确的可执行文件路径
-      executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
-    }
-
-    let appDataPath = null
-    // 兼容旧版本
-    if (config.appDataPath && typeof config.appDataPath === 'string') {
-      appDataPath = config.appDataPath
-      // 将旧版本数据迁移到新版本
-      appDataPath && updateAppDataConfig(appDataPath)
-    } else {
-      appDataPath = config.appDataPath.find(
-        (item: { executablePath: string }) => item.executablePath === executablePath
-      )?.dataPath
-    }
-
-    if (appDataPath && fs.existsSync(appDataPath) && hasWritePermission(appDataPath)) {
-      return appDataPath
-    }
-
-    return null
-  } catch (error) {
-    return null
-  }
-}
-
-export function updateAppDataConfig(appDataPath: string) {
-  const configDir = getConfigDir()
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-
-  // config.json
-  // appDataPath: [{ executablePath: string, dataPath: string }]
-  const configPath = path.join(getConfigDir(), 'config.json')
-  let executablePath = app.getPath('exe')
-  if (isLinux && process.env.APPIMAGE) {
-    executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
-  }
-
-  if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ appDataPath: [{ executablePath, dataPath: appDataPath }] }, null, 2))
-    return
-  }
-
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  if (!config.appDataPath || (config.appDataPath && typeof config.appDataPath !== 'object')) {
-    config.appDataPath = []
-  }
-
-  const existingPath = config.appDataPath.find(
-    (item: { executablePath: string }) => item.executablePath === executablePath
-  )
-
-  if (existingPath) {
-    existingPath.dataPath = appDataPath
-  } else {
-    config.appDataPath.push({ executablePath, dataPath: appDataPath })
-  }
-
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
 
 export function getFileType(ext: string): FileTypes {
@@ -234,7 +151,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     .slice(0, 2)
 
   if (encodings.length === 0) {
-    Logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    logger.error('Failed to detect encoding. Use utf-8 to decode.')
     const data = await readFile(filePath)
     return iconv.decode(data, 'UTF-8')
   }
@@ -245,7 +162,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     const encoding = item.encoding
     const content = iconv.decode(data, encoding)
     if (content.includes('\uFFFD')) {
-      Logger.error(
+      logger.error(
         `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
       )
     } else {
@@ -253,6 +170,6 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     }
   }
 
-  Logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
   return iconv.decode(data, 'UTF-8')
 }

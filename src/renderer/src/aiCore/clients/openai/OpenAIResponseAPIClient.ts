@@ -36,7 +36,6 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -78,7 +77,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
    * 根据模型特征选择合适的客户端
    */
   public getClient(model: Model) {
-    if (this.provider.type === 'openai-response') {
+    if (this.provider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
       return this
     }
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
@@ -94,6 +93,22 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     } else {
       return this.client
     }
+  }
+
+  /**
+   * 重写基类方法，返回内部实际使用的客户端类型
+   */
+  public override getClientCompatibilityType(model?: Model): string[] {
+    if (!model) {
+      return [this.constructor.name]
+    }
+
+    const actualClient = this.getClient(model)
+    // 避免循环调用：如果返回的是自己，直接返回自己的类型
+    if (actualClient === this) {
+      return [this.constructor.name]
+    }
+    return actualClient.getClientCompatibilityType(model)
   }
 
   override async getSdkInstance() {
@@ -365,9 +380,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           enableToolUse: isEnabledToolUse(assistant)
         })
 
-        if (this.useSystemPromptForTools) {
-          systemMessageInput.text = await buildSystemPrompt(systemMessageInput.text || '', mcpTools, assistant)
-        }
         systemMessageContent.push(systemMessageInput)
         systemMessage.content = systemMessageContent
 

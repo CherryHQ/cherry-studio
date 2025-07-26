@@ -35,11 +35,13 @@ Thumbs.db
 node_modules
 dist
 out
+mcp_server
 stats.html
 
 # ENV
 .env
 .env.*
+!.env.example
 
 # Local
 local
@@ -48,6 +50,7 @@ local
 .cursor/*
 .claude/*
 .gemini/*
+.qwen/*
 .trae/*
 .claude-code-router/*
 
