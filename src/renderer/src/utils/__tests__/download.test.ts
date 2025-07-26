@@ -5,8 +5,7 @@ vi.mock('@renderer/i18n', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
-        'message.download.failed': '下载失败',
-        'message.download.failed.network': '下载失败，请检查网络'
+        'message.download.failed': '下载失败'
       }
       return translations[key] || key
     })
@@ -228,7 +227,7 @@ describe('download', () => {
         expect(() => download('https://example.com/file.pdf')).not.toThrow()
         await waitForAsync()
 
-        expect(mockMessage.error).toHaveBeenCalledWith('下载失败，请检查网络')
+        expect(mockMessage.error).toHaveBeenCalledWith('下载失败')
       })
 
       it('should handle HTTP errors gracefully', async () => {

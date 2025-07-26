@@ -28,7 +28,7 @@ const ObsidianSettings: FC = () => {
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.obsidian.getVaults()
+        const vaultsData = await window.api.obsidian.getVaults()
 
         if (vaultsData.length === 0) {
           setError(t('settings.data.obsidian.default_vault_no_vaults'))
@@ -43,7 +43,7 @@ const ObsidianSettings: FC = () => {
           dispatch(setDefaultObsidianVault(vaultsData[0].name))
         }
       } catch (error) {
-        logger.error('获取Obsidian Vault失败:', error)
+        logger.error('获取Obsidian Vault失败:', error as Error)
         setError(t('settings.data.obsidian.default_vault_fetch_error'))
       } finally {
         setLoading(false)

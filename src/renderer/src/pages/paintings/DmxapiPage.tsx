@@ -9,6 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -30,11 +31,10 @@ import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
 import {
-  ALL_MODELS,
   COURSE_URL,
   DEFAULT_PAINTING,
+  GetModelGroup,
   IMAGE_SIZES,
-  MODEL_GROUPS,
   MODEOPTIONS,
   STYLE_TYPE_OPTIONS
 } from './config/DmxapiConfig'
@@ -50,13 +50,25 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
 
   const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
+
+  // 动态模型数据状态
+  const [dynamicModelGroups, setDynamicModelGroups] = useState<any>(null)
+  const [allModels, setAllModels] = useState<any[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -84,16 +96,20 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   const getModelOptions = (mode: generationModeType) => {
+    if (!dynamicModelGroups) {
+      return {}
+    }
+
     if (mode === generationModeType.EDIT) {
-      return MODEL_GROUPS.IMAGE_EDIT
+      return dynamicModelGroups.IMAGE_EDIT || {}
     }
 
     if (mode === generationModeType.MERGE) {
-      return MODEL_GROUPS.IMAGE_MERGE
+      return dynamicModelGroups.IMAGE_MERGE || {}
     }
 
     // 默认情况或其它模式下的选项
-    return MODEL_GROUPS.TEXT_TO_IMAGES
+    return dynamicModelGroups.TEXT_TO_IMAGES || {}
   }
 
   const [modelOptions, setModelOptions] = useState(() => {
@@ -103,6 +119,23 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   const textareaRef = useRef<any>(null)
+
+  // 加载模型数据
+  const loadModelData = async () => {
+    try {
+      setIsLoadingModels(true)
+      const modelData = await GetModelGroup()
+      setDynamicModelGroups(modelData)
+
+      const allModelsList = Object.values(modelData).flatMap((group) => Object.values(group).flat())
+
+      setAllModels(allModelsList)
+    } catch (error) {
+      // 如果加载失败，可以设置一个默认的空状态
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
 
   // 更新painting状态的辅助函数
   const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
@@ -145,9 +178,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectModel = (modelId: string) => {
-    const model = ALL_MODELS.find((m) => m.id === modelId)
+    const model = allModels.find((m) => m.id === modelId)
     if (model) {
-      updatePaintingState({ model: modelId })
+      updatePaintingState({ model: modelId, priceModel: model.price })
     }
   }
 
@@ -224,9 +257,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     // 获取第一个非空分组的第一个模型
     let firstModel = ''
+    let priceModel = ''
     for (const provider of Object.keys(newModelGroups)) {
-      if (newModelGroups[provider].length > 0) {
+      if (newModelGroups[provider] && newModelGroups[provider].length > 0) {
         firstModel = newModelGroups[provider][0].id
+        priceModel = newModelGroups[provider][0].price
         break
       }
     }
@@ -235,7 +270,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (Array.isArray(painting.urls) && painting.urls.length > 0) {
       const newPainting = getNewPainting({
         generationMode: v,
-        model: firstModel // 使用新模式下的第一个模型
+        model: firstModel, // 使用新模式下的第一个模型
+        priceModel: priceModel
       })
       const addedPainting = addPainting('DMXAPIPaintings', newPainting)
       setPainting(addedPainting)
@@ -243,7 +279,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 否则更新当前painting
       updatePaintingState({
         generationMode: v,
-        model: firstModel // 使用新模式下的第一个模型
+        model: firstModel, // 使用新模式下的第一个模型
+        priceModel: priceModel
       })
     }
   }
@@ -380,14 +417,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     const data = await response.json()
-
-    // if (
-    //   painting.generationMode &&
-    //   [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode)
-    // ) {
-    //   return data.data.map((item: { b64_json: string }) => 'data:image/png;base64,' + item.b64_json)
-    // }
-    // return data.data.map((item: { url: string }) => item.url)
 
     return data.data.map((item: { url: string; b64_json: string }) => {
       if (item.b64_json) {
@@ -634,6 +663,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
+    loadModelData().then(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (isLoadingModels || !dynamicModelGroups) {
+      return
+    }
+
     if (!DMXAPIPaintings || DMXAPIPaintings.length === 0) {
       const newPainting = getNewPainting()
       addPainting('DMXAPIPaintings', newPainting)
@@ -657,8 +694,26 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (painting?.generationMode) {
       setModelOptions(getModelOptions(painting.generationMode as generationModeType))
     }
+
+    // 如果当前painting没有model，设置默认模型
+    if (painting && !painting.model && allModels.length > 0) {
+      const currentMode = painting.generationMode || MODEOPTIONS[0].value
+      const modelGroups = getModelOptions(currentMode as generationModeType)
+      let firstModel = ''
+      let priceModel = ''
+      for (const provider of Object.keys(modelGroups)) {
+        if (modelGroups[provider] && modelGroups[provider].length > 0) {
+          firstModel = modelGroups[provider][0].id
+          priceModel = modelGroups[provider][0].price
+          break
+        }
+      }
+      if (firstModel) {
+        updatePaintingState({ model: firstModel, priceModel: priceModel })
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 空依赖数组，只在组件挂载时执行一次
+  }, [isLoadingModels, dynamicModelGroups]) // 依赖模型加载状态
 
   return (
     <Container>
@@ -715,13 +770,20 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               </>
             )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select value={painting.model} onChange={onSelectModel} style={{ width: '100%' }}>
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+            {t('common.model')} <SettingPrice>{painting.priceModel !== '0' ? painting.priceModel : ''}</SettingPrice>
+          </SettingTitle>
+          <Select
+            value={painting.model}
+            onChange={onSelectModel}
+            style={{ width: '100%' }}
+            loading={isLoadingModels}
+            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
-              if (models.length === 0) return null
+              if ((models as any[]).length === 0) return null
               return (
                 <Select.OptGroup label={provider} key={provider}>
-                  {models.map((model) => (
+                  {(models as any[]).map((model) => (
                     <Select.Option key={model.id} value={model.id}>
                       {model.name}
                     </Select.Option>
@@ -1032,6 +1094,13 @@ const LoadTextWrap = styled.div`
     1px -1px 0 #ffffff,
     -1px 1px 0 #ffffff,
     1px 1px 0 #ffffff;
+`
+
+const SettingPrice = styled.div`
+  margin-left: auto;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 500;
 `
 
 export default DmxapiPage

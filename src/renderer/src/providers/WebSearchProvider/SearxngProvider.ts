@@ -90,7 +90,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     } catch (err) {
       this.isInitialized = false
 
-      logger.error('Failed to fetch SearxNG engine configuration:', err)
+      logger.error('Failed to fetch SearxNG engine configuration:', err as Error)
       throw new Error(`Failed to initialize SearxNG: ${err}`)
     }
   }
@@ -135,7 +135,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      logger.error('Searxng search failed:', error)
+      logger.error('Searxng search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

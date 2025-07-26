@@ -57,7 +57,7 @@ class ObsidianVaultService {
         name: vault.name || path.basename(vault.path)
       }))
     } catch (error) {
-      logger.error('Failed to get Obsidian Vault:', error)
+      logger.error('Failed to get Obsidian Vault:', error as Error)
       return []
     }
   }
@@ -71,20 +71,20 @@ class ObsidianVaultService {
     try {
       // 检查vault路径是否存在
       if (!fs.existsSync(vaultPath)) {
-        logger.error('Vault path does not exist:', vaultPath)
+        logger.error(`Vault path does not exist: ${vaultPath}`)
         return []
       }
 
       // 检查是否是目录
       const stats = fs.statSync(vaultPath)
       if (!stats.isDirectory()) {
-        logger.error('Vault path is not a directory:', vaultPath)
+        logger.error(`Vault path is not a directory: ${vaultPath}`)
         return []
       }
 
       this.traverseDirectory(vaultPath, '', results)
     } catch (error) {
-      logger.error('Failed to read Vault folder structure:', error)
+      logger.error('Failed to read Vault folder structure:', error as Error)
     }
 
     return results
@@ -106,7 +106,7 @@ class ObsidianVaultService {
 
       // 确保目录存在且可访问
       if (!fs.existsSync(dirPath)) {
-        logger.error('Directory does not exist:', dirPath)
+        logger.error(`Directory does not exist: ${dirPath}`)
         return
       }
 
@@ -114,7 +114,7 @@ class ObsidianVaultService {
       try {
         items = fs.readdirSync(dirPath, { withFileTypes: true })
       } catch (err) {
-        logger.error(`Failed to read directory ${dirPath}:`, err)
+        logger.error(`Failed to read directory ${dirPath}:`, err as Error)
         return
       }
 
@@ -139,7 +139,7 @@ class ObsidianVaultService {
         }
       }
     } catch (error) {
-      logger.error(`Failed to traverse directory ${dirPath}:`, error)
+      logger.error(`Failed to traverse directory ${dirPath}:`, error as Error)
     }
   }
 
@@ -153,14 +153,14 @@ class ObsidianVaultService {
       const vault = vaults.find((v) => v.name === vaultName)
 
       if (!vault) {
-        logger.error('Vault not found:', vaultName)
+        logger.error(`Vault not found: ${vaultName}`)
         return []
       }
 
-      logger.debug('Get Vault file structure:', vault.name, vault.path)
+      logger.debug(`Get Vault file structure: ${vault.name} ${vault.path}`)
       return this.getVaultStructure(vault.path)
     } catch (error) {
-      logger.error('Failed to get Vault file structure:', error)
+      logger.error('Failed to get Vault file structure:', error as Error)
       return []
     }
   }

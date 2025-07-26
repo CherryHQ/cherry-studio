@@ -28,7 +28,7 @@ const StatusIcon: FC<StatusIconProps> = ({
   const status = getProcessingStatus(sourceId)
   const item = base.items.find((item) => item.id === sourceId)
   const errorText = item?.processingError
-  logger.debug('[StatusIcon] Rendering for item:', item?.id, 'Status:', status, 'Progress:', progress)
+  logger.debug(`[StatusIcon] Rendering for item: ${item?.id} Status: ${status} Progress: ${progress}`)
 
   return useMemo(() => {
     if (!status) {

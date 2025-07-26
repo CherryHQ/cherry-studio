@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
 import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
@@ -164,10 +165,11 @@ class WebSearchService {
   public async search(
     provider: WebSearchProvider,
     query: string,
-    httpOptions?: RequestInit
+    httpOptions?: RequestInit,
+    spanId?: string
   ): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
-    const webSearchEngine = new WebSearchEngineProvider(provider)
+    const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query
     // FIXME: 有待商榷，效果一般
@@ -440,16 +442,38 @@ class WebSearchService {
     // 使用请求特定的signal，如果没有则回退到全局signal
     const signal = this.getRequestState(requestId).signal || this.signal
 
+    const span = webSearchProvider.topicId
+      ? addSpan({
+          topicId: webSearchProvider.topicId,
+          name: `WebSearch`,
+          inputs: {
+            question: extractResults.websearch.question,
+            provider: webSearchProvider.id
+          },
+          tag: `Web`,
+          parentSpanId: webSearchProvider.parentSpanId,
+          modelName: webSearchProvider.modelName
+        })
+      : undefined
     const questions = extractResults.websearch.question
     const links = extractResults.websearch.links
 
     // 处理 summarize
     if (questions[0] === 'summarize' && links && links.length > 0) {
       const contents = await fetchWebContents(links, undefined, undefined, { signal })
+      webSearchProvider.topicId &&
+        endSpan({
+          topicId: webSearchProvider.topicId,
+          outputs: contents,
+          modelName: webSearchProvider.modelName,
+          span
+        })
       return { query: 'summaries', results: contents }
     }
 
-    const searchPromises = questions.map((q) => this.search(webSearchProvider, q, { signal }))
+    const searchPromises = questions.map((q) =>
+      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
+    )
     const searchResults = await Promise.allSettled(searchPromises)
 
     // 统计成功完成的搜索数量
@@ -480,6 +504,14 @@ class WebSearchService {
     // 如果没有搜索结果，直接返回空结果
     if (finalResults.length === 0) {
       await this.setWebSearchStatus(requestId, { phase: 'default' })
+      if (webSearchProvider.topicId) {
+        endSpan({
+          topicId: webSearchProvider.topicId,
+          outputs: finalResults,
+          modelName: webSearchProvider.modelName,
+          span
+        })
+      }
       return {
         query: questions.join(' | '),
         results: []
@@ -506,7 +538,7 @@ class WebSearchService {
           1000
         )
       } catch (error) {
-        logger.warn('RAG compression failed, will return empty results:', error)
+        logger.warn('RAG compression failed, will return empty results:', error as Error)
         window.message.error({
           key: 'websearch-rag-failed',
           duration: 10,
@@ -526,6 +558,14 @@ class WebSearchService {
     // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
 
+    if (webSearchProvider.topicId) {
+      endSpan({
+        topicId: webSearchProvider.topicId,
+        outputs: finalResults,
+        modelName: webSearchProvider.modelName,
+        span
+      })
+    }
     return {
       query: questions.join(' | '),
       results: finalResults

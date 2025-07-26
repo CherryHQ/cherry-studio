@@ -30,6 +30,7 @@ interface Props {
   height?: string
   minHeight?: string
   maxHeight?: string
+  fontSize?: string
   /** 用于覆写编辑器的某些设置 */
   options?: {
     stream?: boolean // 用于流式响应场景，默认 false
@@ -61,13 +62,14 @@ const CodeEditor = ({
   height,
   minHeight,
   maxHeight,
+  fontSize,
   options,
   extensions,
   style,
   editable = true
 }: Props) => {
   const {
-    fontSize,
+    fontSize: _fontSize,
     codeShowLineNumbers: _lineNumbers,
     codeCollapsible: _collapsible,
     codeWrappable: _wrappable,
@@ -85,6 +87,8 @@ const CodeEditor = ({
       ...(options as BasicSetupOptions)
     }
   }, [codeEditor, _lineNumbers, options])
+
+  const customFontSize = useMemo(() => fontSize ?? `${_fontSize - 1}px`, [fontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
@@ -137,7 +141,7 @@ const CodeEditor = ({
     registerTool({
       ...TOOL_SPECS.save,
       icon: <SaveIcon className="icon" />,
-      tooltip: t('code_block.edit.save'),
+      tooltip: t('code_block.edit.save.label'),
       onClick: handleSave
     })
 
@@ -221,7 +225,7 @@ const CodeEditor = ({
         ...customBasicSetup // override basicSetup
       }}
       style={{
-        fontSize: `${fontSize - 1}px`,
+        fontSize: customFontSize,
         marginTop: 0,
         borderRadius: 'inherit',
         ...style

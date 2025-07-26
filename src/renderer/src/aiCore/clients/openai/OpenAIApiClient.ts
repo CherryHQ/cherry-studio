@@ -14,6 +14,7 @@ import {
   isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel
@@ -51,7 +52,6 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -128,7 +128,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         return { reasoning: { enabled: false, exclude: true } }
       }
-      if (isSupportedThinkingTokenQwenModel(model)) {
+      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
         return { enable_thinking: false }
       }
 
@@ -186,6 +186,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
       }
       return thinkConfig
+    }
+
+    // Hunyuan models
+    if (isSupportedThinkingTokenHunyuanModel(model)) {
+      return {
+        enable_thinking: true
+      }
     }
 
     // Grok models
@@ -486,10 +493,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           enableToolUse: isEnabledToolUse(assistant)
         })
 
-        if (this.useSystemPromptForTools) {
-          systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools, assistant)
-        }
-
         // 3. 处理用户消息
         const userMessages: OpenAISdkMessageParam[] = []
         if (typeof messages === 'string') {
@@ -536,14 +539,21 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
-          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
+          // OpenRouter usage tracking
+          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {})
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const mistralProviders = ['mistral']
+        const shouldIncludeStreamOptions = streamOutput && !mistralProviders.includes(this.provider.id)
+
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
               ...commonParams,
-              stream: true
+              stream: true,
+              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
             }
           : {
               ...commonParams,
@@ -560,6 +570,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   // 在RawSdkChunkToGenericChunkMiddleware中使用
   getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
+    let hasEmittedWebSearchInProgress = false
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
       contentSource: OpenAISdkRawContentSource,
@@ -656,6 +667,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
     let isFinished = false
     let lastUsageInfo: any = null
+    let hasFinishReason = false // Track if we've seen a finish_reason
 
     /**
      * 统一的完成信号发送逻辑
@@ -691,14 +703,33 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     let isFirstTextChunk = true
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        const isOpenRouter = context.provider?.id === 'openrouter'
+
         // 持续更新usage信息
         logger.silly('chunk', chunk)
         if (chunk.usage) {
+          const usage = chunk.usage as any // OpenRouter may include additional fields like cost
           lastUsageInfo = {
-            prompt_tokens: chunk.usage.prompt_tokens || 0,
-            completion_tokens: chunk.usage.completion_tokens || 0,
-            total_tokens: (chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0)
+            prompt_tokens: usage.prompt_tokens || 0,
+            completion_tokens: usage.completion_tokens || 0,
+            total_tokens: usage.total_tokens || (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
+            // Handle OpenRouter specific cost fields
+            ...(usage.cost !== undefined ? { cost: usage.cost } : {})
           }
+
+          // For OpenRouter, if we've seen finish_reason and now have usage, emit completion signals
+          if (isOpenRouter && hasFinishReason && !isFinished) {
+            emitCompletionSignals(controller)
+            return
+          }
+        }
+
+        // For OpenRouter, if this chunk only contains usage without choices, emit completion signals
+        if (isOpenRouter && chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
+          if (!isFinished) {
+            emitCompletionSignals(controller)
+          }
+          return
         }
 
         // 处理chunk
@@ -728,13 +759,31 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             if (!contentSource) {
               if ('finish_reason' in choice && choice.finish_reason) {
-                emitCompletionSignals(controller)
+                // For OpenRouter, don't emit completion signals immediately after finish_reason
+                // Wait for the usage chunk that comes after
+                if (isOpenRouter) {
+                  hasFinishReason = true
+                  // If we already have usage info, emit completion signals now
+                  if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
+                    emitCompletionSignals(controller)
+                  }
+                } else {
+                  // For other providers, emit completion signals immediately
+                  emitCompletionSignals(controller)
+                }
               }
               continue
             }
 
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {
+              // 如果还未发送搜索进度事件，先发送进度事件
+              if (!hasEmittedWebSearchInProgress) {
+                controller.enqueue({
+                  type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                })
+                hasEmittedWebSearchInProgress = true
+              }
               controller.enqueue({
                 type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                 llm_web_search: webSearchData
@@ -799,12 +848,31 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               logger.debug(`Stream finished with reason: ${choice.finish_reason}`)
               const webSearchData = collectWebSearchData(chunk, contentSource, context)
               if (webSearchData) {
+                // 如果还未发送搜索进度事件，先发送进度事件
+                if (!hasEmittedWebSearchInProgress) {
+                  controller.enqueue({
+                    type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                  })
+                  hasEmittedWebSearchInProgress = true
+                }
                 controller.enqueue({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: webSearchData
                 })
               }
-              emitCompletionSignals(controller)
+
+              // For OpenRouter, don't emit completion signals immediately after finish_reason
+              // Wait for the usage chunk that comes after
+              if (isOpenRouter) {
+                hasFinishReason = true
+                // If we already have usage info, emit completion signals now
+                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
+                  emitCompletionSignals(controller)
+                }
+              } else {
+                // For other providers, emit completion signals immediately
+                emitCompletionSignals(controller)
+              }
             }
           }
         }

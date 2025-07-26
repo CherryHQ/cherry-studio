@@ -15,6 +15,7 @@ import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
+import { nodeTraceService } from './services/NodeTraceService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -25,6 +26,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import process from 'node:process'
 import { apiServerService } from './services/ApiServerService'
 
 const logger = loggerService.withContext('MainEntry')
@@ -71,7 +73,7 @@ app.on('web-contents-created', (_, webContents) => {
     // Interrupt execution and collect call stack from unresponsive renderer
     logger.error('Renderer unresponsive start')
     const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    logger.error('Renderer unresponsive js call stack\n', callStack)
+    logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
   })
 })
 
@@ -84,7 +86,7 @@ if (!isDev) {
 
   // handle unhandled rejection
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
   })
 }
 
@@ -109,6 +111,8 @@ if (!app.requestSingleInstanceLock()) {
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
+
+    nodeTraceService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -185,14 +189,13 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('will-quit', async () => {
-    // event.preventDefault()
+    // 简单的资源清理，不阻塞退出流程
     try {
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
-      logger.error('Error cleaning up MCP service:', error)
+      logger.warn('Error cleaning up MCP service:', error as Error)
     }
-
     // finish the logger
     logger.finish()
   })

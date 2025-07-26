@@ -115,7 +115,7 @@ class FileManager {
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      logger.error('Failed to delete file:', error)
+      logger.error('Failed to delete file:', error as Error)
     }
   }
 

@@ -26,6 +26,7 @@ import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
+import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -209,7 +210,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     logger.info('Starting to send message')
 
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
+    const parent = spanManagerService.startTrace(
+      { topicId: topic.id, name: 'sendMessage', inputs: text },
+      mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
+    )
+    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
       // Dispatch the sendMessage action with all options
@@ -234,6 +239,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
+      message.traceId = parent?.spanContext().traceId
 
       currentMessageId.current = message.id
       dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
@@ -245,7 +251,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setTimeout(() => resizeTextArea(true), 0)
       setExpend(false)
     } catch (error) {
-      logger.warn('Failed to send message:', error)
+      logger.warn('Failed to send message:', error as Error)
+      parent?.recordException(error as Error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
 
@@ -260,7 +267,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       translatedText && setText(translatedText)
       setTimeout(() => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error)
+      logger.warn('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -304,7 +311,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const openSelectFileMenu = useCallback(() => {
     quickPanel.open({
-      title: t('chat.input.upload'),
+      title: t('chat.input.upload.label'),
       list: [
         {
           label: t('chat.input.upload.upload_from_local'),
@@ -472,7 +479,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       await onPause()
       await delay(1)
     }
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
+    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }
 
   const onNewContext = () => {
@@ -955,7 +962,10 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 24px 18px 24px;
+  padding: 0 18px 18px 18px;
+  [navbar-position='top'] & {
+    padding: 0 18px 10px 18px;
+  }
 `
 
 const InputBarContainer = styled.div`

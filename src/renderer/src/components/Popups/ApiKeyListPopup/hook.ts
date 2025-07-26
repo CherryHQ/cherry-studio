@@ -4,6 +4,7 @@ import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/
 import { checkApi } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import { ApiKeyConnectivity, ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { TFunction } from 'i18next'
@@ -11,7 +12,7 @@ import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ApiKeyConnectivity, ApiKeyValidity, ApiKeyWithStatus, ApiProviderKind, ApiProviderUnion } from './types'
+import { ApiKeyValidity, ApiProviderKind, ApiProviderUnion } from './types'
 
 interface UseApiKeysProps {
   provider: ApiProviderUnion
@@ -52,7 +53,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
   const keysWithStatus = useMemo((): ApiKeyWithStatus[] => {
     return keys.map((key) => {
       const connectivityState = connectivityStates.get(key) || {
-        status: 'not_checked' as const,
+        status: HealthStatus.NOT_CHECKED,
         checking: false,
         error: undefined,
         model: undefined,
@@ -70,7 +71,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
     setConnectivityStates((prev) => {
       const newMap = new Map(prev)
       const currentState = prev.get(key) || {
-        status: 'not_checked' as const,
+        status: HealthStatus.NOT_CHECKED,
         checking: false,
         error: undefined,
         model: undefined,
@@ -170,10 +171,12 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
 
   // 移除连通性检查失败的 keys
   const removeInvalidKeys = useCallback(() => {
-    const validKeys = keysWithStatus.filter((keyStatus) => keyStatus.status !== 'error').map((k) => k.key)
+    const validKeys = keysWithStatus.filter((keyStatus) => keyStatus.status !== HealthStatus.FAILED).map((k) => k.key)
 
     // 清除被删除的 keys 的连通性状态
-    const keysToRemove = keysWithStatus.filter((keyStatus) => keyStatus.status === 'error').map((k) => k.key)
+    const keysToRemove = keysWithStatus
+      .filter((keyStatus) => keyStatus.status === HealthStatus.FAILED)
+      .map((k) => k.key)
 
     setConnectivityStates((prev) => {
       const newMap = new Map(prev)
@@ -207,7 +210,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
         // 连通性检查成功
         updateConnectivityState(keyToCheck, {
           checking: false,
-          status: 'success',
+          status: HealthStatus.SUCCESS,
           model,
           latency,
           error: undefined
@@ -216,7 +219,7 @@ export function useApiKeys({ provider, updateProvider, providerKind }: UseApiKey
         // 连通性检查失败
         updateConnectivityState(keyToCheck, {
           checking: false,
-          status: 'error',
+          status: HealthStatus.FAILED,
           error: formatErrorMessage(error),
           model: undefined,
           latency: undefined
@@ -303,7 +306,7 @@ async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model
     if (!selectedModel) return null
     return selectedModel
   } catch (error) {
-    logger.error('failed to select model', error)
+    logger.error('failed to select model', error as Error)
     return null
   }
 }

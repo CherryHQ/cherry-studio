@@ -174,7 +174,7 @@ export class TokenFluxService {
           // Continue polling for other statuses (processing, queued, etc.)
           setTimeout(poll, intervalMs)
         } catch (error) {
-          logger.error('Polling error:', error)
+          logger.error('Polling error:', error as Error)
           retryCount++
 
           if (retryCount >= maxRetries) {
@@ -227,7 +227,7 @@ export class TokenFluxService {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          logger.error('Failed to download image:', error)
+          logger.error('Failed to download image:', error as Error)
           return null
         }
       })

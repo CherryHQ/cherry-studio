@@ -129,7 +129,10 @@ export async function addFileLoader(
         jsonObject = JSON.parse(await readTextFileWithAutoEncoding(file.path))
       } catch (error) {
         jsonParsed = false
-        logger.warn('[KnowledgeBase] failed parsing json file, falling back to text processing:', file.path, error)
+        logger.warn(
+          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${file.path}`,
+          error as Error
+        )
       }
 
       if (jsonParsed) {

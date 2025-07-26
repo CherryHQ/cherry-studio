@@ -51,7 +51,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   return (chunk: Chunk) => {
     try {
       const data = chunk
-      // console.log('data: ', chunk)
+      logger.debug('data: ', data)
       switch (data.type) {
         case ChunkType.BLOCK_COMPLETE: {
           if (callbacks.onComplete) callbacks.onComplete(AssistantMessageStatus.SUCCESS, data?.response)
@@ -142,7 +142,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
       }
     } catch (error) {
-      logger.error('Error processing stream chunk:', error)
+      logger.error('Error processing stream chunk:', error as Error)
       callbacks.onError?.(error)
     }
   }

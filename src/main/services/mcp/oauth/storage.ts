@@ -40,7 +40,7 @@ export class JsonFileStorage implements IOAuthStorage {
         await this.writeStorage(initial)
         return initial
       }
-      logger.error('Error reading OAuth storage:', error)
+      logger.error('Error reading OAuth storage:', error as Error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -61,7 +61,7 @@ export class JsonFileStorage implements IOAuthStorage {
       // Update cache
       this.cache = data
     } catch (error) {
-      logger.error('Error writing OAuth storage:', error)
+      logger.error('Error writing OAuth storage:', error as Error)
       throw new Error(`Failed to write OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -114,7 +114,7 @@ export class JsonFileStorage implements IOAuthStorage {
       this.cache = null
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-        logger.error('Error clearing OAuth storage:', error)
+        logger.error('Error clearing OAuth storage:', error as Error)
         throw new Error(`Failed to clear OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
       }
     }

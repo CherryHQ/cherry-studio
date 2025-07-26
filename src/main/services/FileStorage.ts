@@ -15,8 +15,8 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
-import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
+import pdfjs from 'pdfjs-dist'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
@@ -40,11 +40,12 @@ class FileStorage {
         fs.mkdirSync(this.tempDir, { recursive: true })
       }
     } catch (error) {
-      logger.error('Failed to initialize storage directories:', error)
+      logger.error('Failed to initialize storage directories:', error as Error)
       throw error
     }
   }
 
+  // @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
   private getFileHash = async (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('md5')
@@ -57,7 +58,7 @@ class FileStorage {
 
   findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
-    logger.debug('stats', stats, filePath)
+    logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
 
     const files = await fs.promises.readdir(this.storageDir)
@@ -138,9 +139,9 @@ class FileStorage {
       if (fileSizeInMB > 1) {
         try {
           await fs.promises.copyFile(sourcePath, destPath)
-          logger.debug('Image compressed successfully:', sourcePath)
+          logger.debug(`Image compressed successfully: ${sourcePath}`)
         } catch (jimpError) {
-          logger.error('Image compression failed:', jimpError)
+          logger.error('Image compression failed:', jimpError as Error)
           await fs.promises.copyFile(sourcePath, destPath)
         }
       } else {
@@ -148,7 +149,7 @@ class FileStorage {
         await fs.promises.copyFile(sourcePath, destPath)
       }
     } catch (error) {
-      logger.error('Image handling failed:', error)
+      logger.error('Image handling failed:', error as Error)
       // 错误情况下直接复制原文件
       await fs.promises.copyFile(sourcePath, destPath)
     }
@@ -166,7 +167,7 @@ class FileStorage {
     const ext = path.extname(origin_name).toLowerCase()
     const destPath = path.join(this.storageDir, uuid + ext)
 
-    logger.info('[FileStorage] Uploading file:', file.path)
+    logger.info(`[FileStorage] Uploading file: ${file.path}`)
 
     // 根据文件类型选择处理方式
     if (imageExts.includes(ext)) {
@@ -190,7 +191,7 @@ class FileStorage {
       count: 1
     }
 
-    logger.debug('File uploaded:', fileMetadata)
+    logger.debug(`File uploaded: ${fileMetadata}`)
 
     return fileMetadata
   }
@@ -219,6 +220,7 @@ class FileStorage {
     return fileInfo
   }
 
+  // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
@@ -259,7 +261,7 @@ class FileStorage {
         return data
       } catch (error) {
         chdir(originalCwd)
-        logger.error('Failed to read file:', error)
+        logger.error('Failed to read file:', error as Error)
         throw error
       }
     }
@@ -271,7 +273,7 @@ class FileStorage {
         return fs.readFileSync(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error('Failed to read file:', error)
+      logger.error('Failed to read file:', error as Error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
@@ -348,7 +350,7 @@ class FileStorage {
 
       return fileMetadata
     } catch (error) {
-      logger.error('Failed to save base64 image:', error)
+      logger.error('Failed to save base64 image:', error as Error)
       throw error
     }
   }
@@ -365,7 +367,7 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
 
-    const doc = await getDocument({ data: buffer }).promise
+    const doc = await pdfjs.getDocument({ data: buffer }).promise
     const pages = doc.numPages
     await doc.destroy()
     return pages
@@ -417,7 +419,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error]', 'An error occurred opening the file:', err)
+      logger.error('[IPC - Error] An error occurred opening the file:', err as Error)
       return null
     }
   }
@@ -435,7 +437,7 @@ class FileStorage {
     if (fs.existsSync(filePath)) {
       shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
     } else {
-      logger.warn('[IPC - Warning] File does not exist:', filePath)
+      logger.warn(`[IPC - Warning] File does not exist: ${filePath}`)
     }
   }
 
@@ -462,7 +464,7 @@ class FileStorage {
 
       return result.filePath
     } catch (err: any) {
-      logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
+      logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
       return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
@@ -479,7 +481,7 @@ class FileStorage {
         fs.writeFileSync(filePath, base64Data, 'base64')
       }
     } catch (error) {
-      logger.error('[IPC - Error]', 'An error occurred saving the image:', error)
+      logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
   }
 
@@ -497,7 +499,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error]', 'An error occurred selecting the folder:', err)
+      logger.error('[IPC - Error] An error occurred selecting the folder:', err as Error)
       return null
     }
   }
@@ -562,7 +564,7 @@ class FileStorage {
 
       return fileMetadata
     } catch (error) {
-      logger.error('Download file error:', error)
+      logger.error('Download file error:', error as Error)
       throw error
     }
   }
@@ -586,6 +588,7 @@ class FileStorage {
     return mimeToExtension[mimeType] || '.bin'
   }
 
+  // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)
@@ -598,9 +601,9 @@ class FileStorage {
 
       // 复制文件
       await fs.promises.copyFile(sourcePath, destPath)
-      logger.debug('File copied successfully:', { from: sourcePath, to: destPath })
+      logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
     } catch (error) {
-      logger.error('Copy file failed:', error)
+      logger.error('Copy file failed:', error as Error)
       throw error
     }
   }
@@ -608,18 +611,18 @@ class FileStorage {
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {
       const filePath = path.join(this.storageDir, id)
-      logger.debug('Writing file:', filePath)
+      logger.debug(`Writing file: ${filePath}`)
 
       // 确保目录存在
       if (!fs.existsSync(this.storageDir)) {
-        logger.debug('Creating storage directory:', this.storageDir)
+        logger.debug(`Creating storage directory: ${this.storageDir}`)
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
 
       await fs.promises.writeFile(filePath, content, 'utf8')
-      logger.debug('File written successfully:', filePath)
+      logger.debug(`File written successfully: ${filePath}`)
     } catch (error) {
-      logger.error('Failed to write file:', error)
+      logger.error('Failed to write file:', error as Error)
       throw error
     }
   }

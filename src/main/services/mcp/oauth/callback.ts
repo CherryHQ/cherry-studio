@@ -30,7 +30,7 @@ export class CallBackServer {
             this.events.emit('auth-code-received', code)
           }
         } catch (error) {
-          logger.error('Error processing OAuth callback:', error)
+          logger.error('Error processing OAuth callback:', error as Error)
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('Internal Server Error')
         }
@@ -43,7 +43,7 @@ export class CallBackServer {
 
     // Handle server errors
     server.on('error', (error) => {
-      logger.error('OAuth callback server error:', error)
+      logger.error('OAuth callback server error:', error as Error)
     })
 
     return new Promise<http.Server>((resolve, reject) => {

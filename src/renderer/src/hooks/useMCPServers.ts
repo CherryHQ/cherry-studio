@@ -13,7 +13,7 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) 
 window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
   store.dispatch(addMCPServer(server))
   NavigationService.navigate?.('/settings/mcp')
-  NavigationService.navigate?.('/settings/mcp/settings', { state: { server } })
+  NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
 })
 
 // Note: The following IPC channels are no longer needed since we use ReduxService directly in API server:

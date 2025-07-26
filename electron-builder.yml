@@ -54,7 +54,7 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
   - '!node_modules/pdfjs-dist/web/**/*'
-  - '!node_modules/pdfjs-dist/legacy/web/*'
+  - '!node_modules/pdfjs-dist/legacy/**/*'
   - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
   - '!node_modules/selection-hook/src' # we don't need source files
   - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
@@ -117,8 +117,10 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增全局记忆功能
-    MCP 支持 DXT 格式导入
-    全局快捷键支持 Linux 系统
-    模型思考过程增加动画效果
+    全新 UI 界面：在显示设置里开启抢先体验
+    添加浮动侧边栏方便快速切换模型和助手
+    改进文字流式输出体验
+    新增 Trace（调用链路可视化）功能，由 Alibaba Cloud EDAS 团队提供
+    新增开发者模式：在常规设置中开启，开启后可以查看 Trace 数据
+    修复多模型对比时不能横向滑动问题
     错误修复和性能优化

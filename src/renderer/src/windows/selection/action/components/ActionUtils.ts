@@ -218,6 +218,6 @@ export const processMessages = async (
   } catch (err) {
     if (isAbortError(err)) return
     onError(err instanceof Error ? err : new Error('An error occurred'))
-    logger.error('Error fetching result:', err)
+    logger.error('Error fetching result:', err as Error)
   }
 }

@@ -20,12 +20,15 @@ export const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 const reasoningTags: TagConfig[] = [
   { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
   { openingTag: '<thought>', closingTag: '</thought>', separator: '\n' },
-  { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
+  { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' },
+  { openingTag: '◁think▷', closingTag: '◁/think▷', separator: '\n' },
+  { openingTag: '<thinking>', closingTag: '</thinking>', separator: '\n' }
 ]
 
 const getAppropriateTag = (model?: Model): TagConfig => {
   if (model?.id?.includes('qwen3')) return reasoningTags[0]
   if (model?.id?.includes('gemini-2.5')) return reasoningTags[1]
+  if (model?.id?.includes('kimi-vl-a3b-thinking')) return reasoningTags[3]
   // 可以在这里添加更多模型特定的标签配置
   return reasoningTags[0] // 默认使用 <think> 标签
 }
@@ -84,7 +87,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
-                      text: extractionResult.tagContentExtracted,
+                      text: extractionResult.tagContentExtracted.trim(),
                       thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                     }
                     controller.enqueue(thinkingCompleteChunk)
@@ -104,7 +107,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
 
                       if (extractionResult.content?.trim()) {
-                        accumulatedThinkingContent += extractionResult.content
+                        accumulatedThinkingContent += extractionResult.content.trim()
                         const thinkingDeltaChunk: ThinkingDeltaChunk = {
                           type: ChunkType.THINKING_DELTA,
                           text: accumulatedThinkingContent,

@@ -110,7 +110,7 @@ function createToolUseExtractionTransform(
         // 转发其他所有chunk
         controller.enqueue(chunk)
       } catch (error) {
-        logger.error(`Error processing chunk:`, error)
+        logger.error('Error processing chunk:', error as Error)
         controller.error(error)
       }
     },

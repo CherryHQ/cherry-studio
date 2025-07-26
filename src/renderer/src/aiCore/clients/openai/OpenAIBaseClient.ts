@@ -128,7 +128,7 @@ export abstract class OpenAIBaseClient<
 
       return models.filter(isSupportedModel)
     } catch (error) {
-      logger.error('Error listing models:', error)
+      logger.error('Error listing models:', error as Error)
       return []
     }
   }

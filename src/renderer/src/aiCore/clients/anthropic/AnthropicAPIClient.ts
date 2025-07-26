@@ -24,6 +24,7 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
@@ -69,7 +70,6 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -77,7 +77,7 @@ import { AnthropicStreamListener, RawStreamListener, RequestTransformer, Respons
 const logger = loggerService.withContext('AnthropicAPIClient')
 
 export class AnthropicAPIClient extends BaseApiClient<
-  Anthropic,
+  Anthropic | AnthropicVertex,
   AnthropicSdkParams,
   AnthropicSdkRawOutput,
   AnthropicSdkRawChunk,
@@ -85,11 +85,12 @@ export class AnthropicAPIClient extends BaseApiClient<
   ToolUseBlock,
   ToolUnion
 > {
+  sdkInstance: Anthropic | AnthropicVertex | undefined = undefined
   constructor(provider: Provider) {
     super(provider)
   }
 
-  async getSdkInstance(): Promise<Anthropic> {
+  async getSdkInstance(): Promise<Anthropic | AnthropicVertex> {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
@@ -109,7 +110,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     payload: AnthropicSdkParams,
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
-    const sdk = await this.getSdkInstance()
+    const sdk = (await this.getSdkInstance()) as Anthropic
     if (payload.stream) {
       return sdk.messages.stream(payload, options)
     }
@@ -123,7 +124,7 @@ export class AnthropicAPIClient extends BaseApiClient<
   }
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
-    const sdk = await this.getSdkInstance()
+    const sdk = (await this.getSdkInstance()) as Anthropic
     const response = await sdk.models.list()
     return response.data
   }
@@ -450,7 +451,7 @@ export class AnthropicAPIClient extends BaseApiClient<
       }> => {
         const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
         // 1. 处理系统消息
-        let systemPrompt = assistant.prompt
+        const systemPrompt = assistant.prompt
 
         // 2. 设置工具
         const { tools } = this.setupToolsConfig({
@@ -458,10 +459,6 @@ export class AnthropicAPIClient extends BaseApiClient<
           model,
           enableToolUse: isEnabledToolUse(assistant)
         })
-
-        if (this.useSystemPromptForTools) {
-          systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools, assistant)
-        }
 
         const systemMessage: TextBlockParam | undefined = systemPrompt
           ? { type: 'text', text: systemPrompt }
@@ -680,14 +677,14 @@ export class AnthropicAPIClient extends BaseApiClient<
               const toolCall = toolCalls[rawChunk.index]
               if (toolCall) {
                 try {
-                  toolCall.input = JSON.parse(accumulatedJson)
+                  toolCall.input = accumulatedJson ? JSON.parse(accumulatedJson) : {}
                   logger.debug(`Tool call id: ${toolCall.id}, accumulated json: ${accumulatedJson}`)
                   controller.enqueue({
                     type: ChunkType.MCP_TOOL_CREATED,
                     tool_calls: [toolCall]
                   } as MCPToolCreatedChunk)
                 } catch (error) {
-                  logger.error(`Error parsing tool call input: ${error}`)
+                  logger.error('Error parsing tool call input:', error as Error)
                 }
               }
               break
