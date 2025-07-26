@@ -21,10 +21,12 @@ import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@render
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { TopicManager } from './useTopic'
 
 export function useAssistants() {
+  const { t } = useTranslation()
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
   const logger = loggerService.withContext('useAssistants')
@@ -46,7 +48,12 @@ export function useAssistants() {
         dispatch(addAssistant(_assistant))
       } else {
         // 插入到后面
-        dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
+        try {
+          dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
+        } catch (e) {
+          logger.error('Failed to insert assistant', e as Error)
+          window.message.error(t('message.error.copy'))
+        }
       }
       return _assistant
     },
