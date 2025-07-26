@@ -507,6 +507,7 @@ const MinappPopupContainer: React.FC = () => {
       closeIcon={null}
       style={{
         marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
+        marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
@@ -541,7 +542,7 @@ const TitleContainer = styled.div`
     padding-left: ${isMac ? '20px' : '10px'};
   }
   [navbar-position='top'] & {
-    padding-left: ${isMac ? '80px' : '10px'};
+    padding-left: ${isMac ? '20px' : '10px'};
     border-bottom: 0.5px solid var(--color-border);
   }
 `
