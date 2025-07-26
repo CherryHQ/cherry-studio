@@ -41,7 +41,7 @@ export function useAssistants() {
       }
       const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
       const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
-      if (!index) {
+      if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
         dispatch(addAssistant(_assistant))
       } else {
