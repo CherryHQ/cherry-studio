@@ -274,9 +274,11 @@ describe('export', () => {
       const markdown = messageToMarkdown(msg!)
       expect(markdown).toContain('### 🧑‍💻 User')
       expect(markdown).toContain('hello user')
-      // Should have double newlines between sections
+
+      // The format is: [titleSection, '', contentSection, citation].join('\n')
+      // When citation is empty, we get: "### 🧑‍💻 User\n\nhello user\n"
       const sections = markdown.split('\n\n')
-      expect(sections.length).toBeGreaterThanOrEqual(3) // title, content, citation (empty)
+      expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
     })
 
     it('should format assistant message using main text block', () => {
@@ -285,9 +287,11 @@ describe('export', () => {
       const markdown = messageToMarkdown(msg!)
       expect(markdown).toContain('### 🤖 Assistant')
       expect(markdown).toContain('hi assistant')
-      // Should have double newlines between sections
+
+      // The format is: [titleSection, '', contentSection, citation].join('\n')
+      // When citation is empty, we get: "### 🤖 Assistant\n\nhi assistant\n"
       const sections = markdown.split('\n\n')
-      expect(sections.length).toBeGreaterThanOrEqual(3) // title, content, citation (empty)
+      expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
     })
 
     it('should handle message with no main text block gracefully', () => {
@@ -342,9 +346,10 @@ describe('export', () => {
       expect(markdown).toContain('<details')
       expect(markdown).toContain('<summary>common.reasoning_content</summary>')
       expect(markdown).toContain('Detailed thought process')
-      // Should have double newlines between sections
+
+      // The format includes reasoning section, so should have at least 2 sections
       const sections = markdown.split('\n\n')
-      expect(sections.length).toBeGreaterThanOrEqual(3)
+      expect(sections.length).toBeGreaterThanOrEqual(2)
     })
 
     it('should handle <think> tag and replace newlines with <br> in reasoning', () => {
@@ -404,7 +409,9 @@ describe('export', () => {
       const markdown = messagesToMarkdown(msgs)
       expect(markdown).toContain('User query A')
       expect(markdown).toContain('Assistant response B')
-      expect(markdown.split('\n\n---\n\n').length).toBe(2)
+
+      // With 2 messages, there should be 1 separator, so splitting gives 2 parts
+      expect(markdown.split('\n---\n').length).toBe(2)
     })
 
     it('should handle an empty array of messages', () => {
