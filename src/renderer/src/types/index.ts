@@ -505,6 +505,7 @@ export type GenerateImageResponse = {
 }
 
 export type LanguageCode =
+  | 'unknown'
   | 'en-us'
   | 'zh-cn'
   | 'zh-tw'
