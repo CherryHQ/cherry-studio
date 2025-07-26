@@ -911,6 +911,7 @@
     "spanish": "Espanhol",
     "thai": "Tailandês",
     "turkish": "Turco",
+    "ukrainian": "ucraniano",
     "urdu": "Urdu",
     "vietnamese": "Vietnamita"
   },
@@ -3099,6 +3100,7 @@
       "search_placeholder": "Procurar ID ou nome do modelo",
       "title": "Serviços de Modelos",
       "vertex_ai": {
+        "api_host_help": "O endereço da API do Vertex AI, não é recomendado preencher, normalmente aplicável a proxy reverso",
         "documentation": "Consulte a documentação oficial para obter mais detalhes de configuração:",
         "learn_more": "Saiba mais",
         "location": "Região",
