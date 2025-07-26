@@ -1,17 +1,21 @@
+import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
+import { S3Config } from '@types'
 import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
+
+const logger = loggerService.withContext('BackupManager')
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -25,6 +29,16 @@ class BackupManager {
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
     this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
+    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
+    this.backupToLocalDir = this.backupToLocalDir.bind(this)
+    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
+    this.setLocalBackupDir = this.setLocalBackupDir.bind(this)
+    this.backupToS3 = this.backupToS3.bind(this)
+    this.restoreFromS3 = this.restoreFromS3.bind(this)
+    this.listS3Files = this.listS3Files.bind(this)
+    this.deleteS3File = this.deleteS3File.bind(this)
+    this.checkS3Connection = this.checkS3Connection.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -46,7 +60,7 @@ class BackupManager {
       // 确保根目录权限
       await this.forceSetWritable(dirPath)
     } catch (error) {
-      Logger.error(`权限设置失败：${dirPath}`, error)
+      logger.error(`权限设置失败：${dirPath}`, error as Error)
       throw error
     }
   }
@@ -69,7 +83,7 @@ class BackupManager {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        Logger.warn(`权限设置警告：${targetPath}`, error)
+        logger.warn(`权限设置警告：${targetPath}`, error as Error)
       }
     }
   }
@@ -85,7 +99,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      Logger.log('[BackupManager] backup progress', processData)
+      // 只在关键阶段记录日志：开始、结束和主要阶段转换点
+      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        logger.debug('backup progress', processData)
+      }
     }
 
     try {
@@ -106,7 +124,7 @@ class BackupManager {
 
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
-      Logger.log('[BackupManager IPC] ', skipBackupFile)
+      logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
 
       if (!skipBackupFile) {
         // 复制 Data 目录到临时目录
@@ -127,7 +145,7 @@ class BackupManager {
         await this.setWritableRecursive(tempDataDir)
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
-        Logger.log('[BackupManager] Skip the backup of the file')
+        logger.debug('Skip the backup of the file')
         await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // 不创建空 Data 目录会导致 restore 失败
       }
 
@@ -147,18 +165,23 @@ class BackupManager {
       let totalBytes = 0
       let processedBytes = 0
 
-      // 首先计算总文件数和总大小
+      // 首先计算总文件数和总大小，但不记录详细日志
       const calculateTotals = async (dirPath: string) => {
-        const items = await fs.readdir(dirPath, { withFileTypes: true })
-        for (const item of items) {
-          const fullPath = path.join(dirPath, item.name)
-          if (item.isDirectory()) {
-            await calculateTotals(fullPath)
-          } else {
-            totalEntries++
-            const stats = await fs.stat(fullPath)
-            totalBytes += stats.size
+        try {
+          const items = await fs.readdir(dirPath, { withFileTypes: true })
+          for (const item of items) {
+            const fullPath = path.join(dirPath, item.name)
+            if (item.isDirectory()) {
+              await calculateTotals(fullPath)
+            } else {
+              totalEntries++
+              const stats = await fs.stat(fullPath)
+              totalBytes += stats.size
+            }
           }
+        } catch (error) {
+          // 仅在出错时记录日志
+          logger.error('[BackupManager] Error calculating totals:', error as Error)
         }
       }
 
@@ -197,7 +220,7 @@ class BackupManager {
         archive.on('error', reject)
         archive.on('warning', (err: any) => {
           if (err.code !== 'ENOENT') {
-            Logger.warn('[BackupManager] Archive warning:', err)
+            logger.warn('[BackupManager] Archive warning:', err)
           }
         })
 
@@ -215,10 +238,10 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      Logger.log('[BackupManager] Backup completed successfully')
+      logger.debug('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
-      Logger.error('[BackupManager] Backup failed:', error)
+      logger.error('[BackupManager] Backup failed:', error as Error)
       // 确保清理临时目录
       await fs.remove(this.tempDir).catch(() => {})
       throw error
@@ -230,7 +253,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      Logger.log('[BackupManager] restore progress', processData)
+      // 只在关键阶段记录日志
+      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        logger.debug('restore progress', processData)
+      }
     }
 
     try {
@@ -238,20 +265,20 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      Logger.log('[backup] step 1: unzip backup file', this.tempDir)
+      logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
 
       const zip = new StreamZip.async({ file: backupPath })
       onProgress({ stage: 'extracting', progress: 15, total: 100 })
       await zip.extract(null, this.tempDir)
       onProgress({ stage: 'extracted', progress: 25, total: 100 })
 
-      Logger.log('[backup] step 2: read data.json')
+      logger.debug('step 2: read data.json')
       // 读取 data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
-      Logger.log('[backup] step 3: restore Data directory')
+      logger.debug('step 3: restore Data directory')
       // 恢复 Data 目录
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = getDataPath()
@@ -274,20 +301,20 @@ class BackupManager {
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
       } else {
-        Logger.log('[backup] skipBackupFile is true, skip restoring Data directory')
+        logger.debug('skipBackupFile is true, skip restoring Data directory')
       }
 
-      Logger.log('[backup] step 4: clean up temp directory')
+      logger.debug('step 4: clean up temp directory')
       // 清理临时目录
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      Logger.log('[backup] step 5: Restore completed successfully')
+      logger.debug('step 5: Restore completed successfully')
 
       return data
     } catch (error) {
-      Logger.error('[backup] Restore failed:', error)
+      logger.error('Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})
       throw error
     }
@@ -296,14 +323,22 @@ class BackupManager {
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data, undefined, webdavConfig.skipBackupFile)
-    const contentLength = (await fs.stat(backupedFilePath)).size
     const webdavClient = new WebDav(webdavConfig)
     try {
-      const result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
-        overwrite: true,
-        contentLength
-      })
-      // 上传成功后删除本地备份文件
+      let result
+      if (webdavConfig.disableStream) {
+        const fileContent = await fs.readFile(backupedFilePath)
+        result = await webdavClient.putFileContents(filename, fileContent, {
+          overwrite: true
+        })
+      } else {
+        const contentLength = (await fs.stat(backupedFilePath)).size
+        result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
+          overwrite: true,
+          contentLength
+        })
+      }
+
       await fs.remove(backupedFilePath)
       return result
     } catch (error) {
@@ -336,7 +371,7 @@ class BackupManager {
 
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {
-      Logger.error('[backup] Failed to restore from WebDAV:', error)
+      logger.error('Failed to restore from WebDAV:', error)
       throw new Error(error.message || 'Failed to restore backup file')
     }
   }
@@ -356,7 +391,7 @@ class BackupManager {
         }))
         .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
-      Logger.error('Failed to list WebDAV files:', error)
+      logger.error('Failed to list WebDAV files:', error)
       throw new Error(error.message || 'Failed to list backup files')
     }
   }
@@ -382,21 +417,54 @@ class BackupManager {
     destination: string,
     onProgress: (size: number) => void
   ): Promise<void> {
-    const items = await fs.readdir(source, { withFileTypes: true })
+    // 先统计总文件数
+    let totalFiles = 0
+    let processedFiles = 0
+    let lastProgressReported = 0
 
-    for (const item of items) {
-      const sourcePath = path.join(source, item.name)
-      const destPath = path.join(destination, item.name)
+    // 计算总文件数
+    const countFiles = async (dir: string): Promise<number> => {
+      let count = 0
+      const items = await fs.readdir(dir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isDirectory()) {
+          count += await countFiles(path.join(dir, item.name))
+        } else {
+          count++
+        }
+      }
+      return count
+    }
 
-      if (item.isDirectory()) {
-        await fs.ensureDir(destPath)
-        await this.copyDirWithProgress(sourcePath, destPath, onProgress)
-      } else {
-        const stats = await fs.stat(sourcePath)
-        await fs.copy(sourcePath, destPath)
-        onProgress(stats.size)
+    totalFiles = await countFiles(source)
+
+    // 复制文件并更新进度
+    const copyDir = async (src: string, dest: string): Promise<void> => {
+      const items = await fs.readdir(src, { withFileTypes: true })
+
+      for (const item of items) {
+        const sourcePath = path.join(src, item.name)
+        const destPath = path.join(dest, item.name)
+
+        if (item.isDirectory()) {
+          await fs.ensureDir(destPath)
+          await copyDir(sourcePath, destPath)
+        } else {
+          const stats = await fs.stat(sourcePath)
+          await fs.copy(sourcePath, destPath)
+          processedFiles++
+
+          // 只在进度变化超过5%时报告进度
+          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
+          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
+            lastProgressReported = currentProgress
+            onProgress(stats.size)
+          }
+        }
       }
     }
+
+    await copyDir(source, destination)
   }
 
   async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
@@ -419,9 +487,194 @@ class BackupManager {
       const webdavClient = new WebDav(webdavConfig)
       return await webdavClient.deleteFile(fileName)
     } catch (error: any) {
-      Logger.error('Failed to delete WebDAV file:', error)
+      logger.error('Failed to delete WebDAV file:', error)
       throw new Error(error.message || 'Failed to delete backup file')
     }
+  }
+
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    data: string,
+    fileName: string,
+    localConfig: {
+      localBackupDir: string
+      skipBackupFile: boolean
+    }
+  ) {
+    try {
+      const backupDir = localConfig.localBackupDir
+      // Create backup directory if it doesn't exist
+      await fs.ensureDir(backupDir)
+
+      const backupedFilePath = await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile)
+      return backupedFilePath
+    } catch (error) {
+      logger.error('[BackupManager] Local backup failed:', error as Error)
+      throw error
+    }
+  }
+
+  async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config) {
+    const os = require('os')
+    const deviceName = os.hostname ? os.hostname() : 'device'
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 14)
+    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+
+    logger.debug(`Starting S3 backup to ${filename}`)
+
+    const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
+    const s3Client = new S3Storage(s3Config)
+    try {
+      const fileBuffer = await fs.promises.readFile(backupedFilePath)
+      const result = await s3Client.putFileContents(filename, fileBuffer)
+      await fs.remove(backupedFilePath)
+
+      logger.debug(`S3 backup completed successfully: ${filename}`)
+      return result
+    } catch (error) {
+      logger.error(`[BackupManager] S3 backup failed:`, error as Error)
+      await fs.remove(backupedFilePath)
+      throw error
+    }
+  }
+
+  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const backupDir = localBackupDir
+      const backupPath = path.join(backupDir, fileName)
+
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${backupPath}`)
+      }
+
+      return await this.restore(_, backupPath)
+    } catch (error) {
+      logger.error('[BackupManager] Local restore failed:', error as Error)
+      throw error
+    }
+  }
+
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
+    try {
+      const files = await fs.readdir(localBackupDir)
+      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+
+      for (const file of files) {
+        const filePath = path.join(localBackupDir, file)
+        const stat = await fs.stat(filePath)
+
+        if (stat.isFile() && file.endsWith('.zip')) {
+          result.push({
+            fileName: file,
+            modifiedTime: stat.mtime.toISOString(),
+            size: stat.size
+          })
+        }
+      }
+
+      // Sort by modified time, newest first
+      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error) {
+      logger.error('[BackupManager] List local backup files failed:', error as Error)
+      throw error
+    }
+  }
+
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const filePath = path.join(localBackupDir, fileName)
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Backup file not found: ${filePath}`)
+      }
+
+      await fs.remove(filePath)
+      return true
+    } catch (error) {
+      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
+      throw error
+    }
+  }
+
+  async setLocalBackupDir(_: Electron.IpcMainInvokeEvent, dirPath: string) {
+    try {
+      // Check if directory exists
+      await fs.ensureDir(dirPath)
+      return true
+    } catch (error) {
+      logger.error('[BackupManager] Set local backup directory failed:', error as Error)
+      throw error
+    }
+  }
+
+  async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+
+    logger.debug(`Starting restore from S3: ${filename}`)
+
+    const s3Client = new S3Storage(s3Config)
+    try {
+      const retrievedFile = await s3Client.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      logger.debug(`S3 restore file downloaded successfully: ${filename}`)
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      logger.error('[BackupManager] Failed to restore from S3:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
+    }
+  }
+
+  listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
+    try {
+      const s3Client = new S3Storage(s3Config)
+
+      const objects = await s3Client.listFiles()
+      const files = objects
+        .filter((obj) => obj.key.endsWith('.zip'))
+        .map((obj) => {
+          const segments = obj.key.split('/')
+          const fileName = segments[segments.length - 1]
+          return {
+            fileName,
+            modifiedTime: obj.lastModified || '',
+            size: obj.size
+          }
+        })
+
+      return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      logger.error('Failed to list S3 files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
+  }
+
+  async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
+    try {
+      const s3Client = new S3Storage(s3Config)
+      return await s3Client.deleteFile(fileName)
+    } catch (error: any) {
+      logger.error('Failed to delete S3 file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
+  }
+
+  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const s3Client = new S3Storage(s3Config)
+    return await s3Client.checkConnection()
   }
 }
 

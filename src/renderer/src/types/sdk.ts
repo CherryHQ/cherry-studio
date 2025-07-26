@@ -8,6 +8,7 @@ import {
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import {
   Content,
   CreateChatParameters,
@@ -23,7 +24,7 @@ import { Stream } from 'openai/streaming'
 
 import { EndpointType } from './index'
 
-export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
+export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI
 export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
 export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
 export type SdkRawOutput = OpenAISdkRawOutput | OpenAIResponseSdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
@@ -54,6 +55,7 @@ export type ReasoningEffortOptionalParams = {
   reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
   enable_thinking?: boolean
   thinking_budget?: number
+  incremental_output?: boolean
   enable_reasoning?: boolean
   extra_body?: Record<string, any>
   // Add any other potential reasoning-related keys here if they exist

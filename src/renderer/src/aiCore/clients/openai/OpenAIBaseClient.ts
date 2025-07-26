@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
   isNotSupportTemperatureAndTopP,
@@ -27,6 +28,8 @@ import { formatApiHost } from '@renderer/utils/api'
 import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
+
+const logger = loggerService.withContext('OpenAIBaseClient')
 
 /**
  * 抽象的OpenAI基础客户端类，包含两个OpenAI客户端之间的共享功能
@@ -89,7 +92,7 @@ export abstract class OpenAIBaseClient<
     const data = await sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-      encoding_format: 'float'
+      encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
     })
     return data.data[0].embedding.length
   }
@@ -125,7 +128,7 @@ export abstract class OpenAIBaseClient<
 
       return models.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing models:', error)
+      logger.error('Error listing models:', error as Error)
       return []
     }
   }

@@ -7,6 +7,7 @@ import type {
   KnowledgeReference,
   MCPServer,
   MCPToolResponse,
+  MemoryItem,
   Metrics,
   Model,
   Topic,
@@ -119,6 +120,7 @@ export interface CitationMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.CITATION
   response?: WebSearchResponse
   knowledge?: KnowledgeReference[]
+  memories?: MemoryItem[]
 }
 
 // 文件块
@@ -187,6 +189,9 @@ export type Message = {
 
   // 块集合
   blocks: MessageBlock['id'][]
+
+  // 跟踪Id
+  traceId?: string
 }
 
 export interface Response {

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -49,6 +50,8 @@ interface MessagesProps {
   onFirstUpdate?(): void
 }
 
+const logger = loggerService.withContext('Messages')
+
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
@@ -87,13 +90,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight
-          })
+          scrollContainerRef.current.scrollTo({ top: 0 })
         }
       })
     }
@@ -177,7 +179,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         const currentMessages = messagesRef.current
 
         if (index < 0 || index > currentMessages.length) {
-          console.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
+          logger.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
           return
         }
 
@@ -196,7 +198,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           // Optional: Handle cloning failure (e.g., show an error message)
           // You might want to remove the added topic if cloning fails
           // removeTopic(newTopic.id); // Assuming you have a removeTopic function
-          console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
+          logger.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
           window.message.error(t('message.branch.error')) // Example error message
         }
       }),
@@ -222,14 +224,17 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
               window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
             } catch (error) {
-              console.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error)
-              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+              logger.error(
+                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
+                error as Error
+              )
+              window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
             }
           } else {
-            console.error(
+            logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
             )
-            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
           }
         }
       )
@@ -373,7 +378,7 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 16px 20px;
+  padding: 10px 10px 20px;
   .multi-select-mode & {
     padding-bottom: 60px;
   }

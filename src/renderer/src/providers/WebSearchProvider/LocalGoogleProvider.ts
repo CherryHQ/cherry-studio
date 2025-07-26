@@ -1,4 +1,8 @@
+import { loggerService } from '@logger'
+
 import LocalSearchProvider, { SearchItem } from './LocalSearchProvider'
+
+const logger = loggerService.withContext('LocalGoogleProvider')
 
 export default class LocalGoogleProvider extends LocalSearchProvider {
   protected parseValidUrls(htmlContent: string): SearchItem[] {
@@ -21,7 +25,7 @@ export default class LocalGoogleProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      console.error('Failed to parse Google search HTML:', error)
+      logger.error('Failed to parse Google search HTML:', error as Error)
     }
     return results
   }

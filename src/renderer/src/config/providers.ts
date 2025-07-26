@@ -178,11 +178,11 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/',
+      official: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/',
       apiKey:
-        'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/settings/key-management',
+        'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/settings/key-management',
       docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      models: 'https://ppio.cn/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio'
+      models: 'https://ppio.com/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio'
     }
   },
   gemini: {
@@ -327,7 +327,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.moonshot.cn'
     },
     websites: {
-      official: 'https://moonshot.ai/',
+      official: 'https://www.moonshot.cn/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',
       models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
@@ -664,10 +664,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://maas-api.lanyun.net'
     },
     websites: {
-      official: 'https://lanyun.net',
-      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
-      docs: 'https://archive.lanyun.net/maas/doc/',
-      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
+      official: 'https://maas.lanyun.net',
+      apiKey: 'https://maas.lanyun.net/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/#/maas/',
+      models: 'https://maas.lanyun.net/#/model/modelSquare'
     }
   },
   vertexai: {

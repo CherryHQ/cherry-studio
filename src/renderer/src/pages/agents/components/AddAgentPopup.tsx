@@ -1,6 +1,7 @@
 import 'emoji-picker-element'
 
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -30,6 +31,8 @@ type FieldType = {
   knowledge_base_ids: string[]
 }
 
+const logger = loggerService.withContext('AddAgentPopup')
+
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
@@ -41,6 +44,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [showUndoButton, setShowUndoButton] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const knowledgeOptions: SelectProps['options'] = []
@@ -92,8 +96,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setOpen(false)
   }
 
-  const onCancel = () => {
-    setOpen(false)
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      window.modal.confirm({
+        title: t('common.confirm'),
+        content: t('agents.add.unsaved_changes_warning'),
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        onOk: () => {
+          setOpen(false)
+        }
+      })
+    } else {
+      setOpen(false)
+    }
   }
 
   const onClose = () => {
@@ -124,8 +141,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       form.setFieldsValue({ prompt: generatedText })
       setShowUndoButton(true)
       setOriginalPrompt(content)
+      setHasUnsavedChanges(true)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      logger.error('Error fetching data:', error as Error)
     }
 
     setLoading(false)
@@ -137,7 +155,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   // Compute label width based on the longest label
-  const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
+  const labelWidth = [t('agents.add.name.label'), t('agents.add.prompt.label'), t('agents.add.knowledge_base.label')]
     .map((labelText) => stringWidth(labelText) * 8)
     .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
 
@@ -146,7 +164,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       title={t('agents.add.title')}
       open={open}
       onOk={() => formRef.current?.submit()}
-      onCancel={onCancel}
+      onCancel={handleCancel}
       maskClosable={false}
       afterClose={onClose}
       okText={t('agents.add.title')}
@@ -167,19 +185,31 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             setTokenCount(count)
             setShowUndoButton(false)
           }
+
+          const currentValues = form.getFieldsValue()
+          setHasUnsavedChanges(currentValues.name?.trim() || currentValues.prompt?.trim() || emoji)
         }}>
         <Form.Item name="name" label="Emoji">
-          <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
+          <Popover
+            content={
+              <EmojiPicker
+                onEmojiClick={(selectedEmoji) => {
+                  setEmoji(selectedEmoji)
+                  setHasUnsavedChanges(true)
+                }}
+              />
+            }
+            arrow>
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
-        <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
+        <Form.Item name="name" label={t('agents.add.name.label')} rules={[{ required: true }]}>
           <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
             name="prompt"
-            label={t('agents.add.prompt')}
+            label={t('agents.add.prompt.label')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
             <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
@@ -200,7 +230,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           )}
         </div>
         {showKnowledgeIcon && (
-          <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Form.Item
+            name="knowledge_base_ids"
+            label={t('agents.add.knowledge_base.label')}
+            rules={[{ required: false }]}>
             <Select
               mode="multiple"
               allowClear

@@ -86,7 +86,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             }}
           />
         </Form.Item>
-        <Form.Item name="name" label={t('settings.tool.websearch.subscribe_name')}>
+        <Form.Item name="name" label={t('settings.tool.websearch.subscribe_name.label')}>
           <Input placeholder={t('settings.tool.websearch.subscribe_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Flex justify="end" style={{ marginBottom: 8 }}>

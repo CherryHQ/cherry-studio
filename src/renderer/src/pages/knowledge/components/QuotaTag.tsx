@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -5,6 +6,8 @@ import { KnowledgeBase } from '@renderer/types'
 import { Tag } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('QuotaTag')
 
 const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> = ({
   base,
@@ -34,7 +37,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
           })
           setQuota(response)
         } catch (error) {
-          console.error('[KnowledgeContent] Error checking quota:', error)
+          logger.error('[KnowledgeContent] Error checking quota:', error as Error)
         }
       }
     }
@@ -43,7 +46,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> 
       return
     }
     checkQuota()
-  }, [_quota, base, provider.id, provider.apiKey])
+  }, [_quota, base, provider.id, provider.apiKey, provider, quota, updateProvider])
 
   return (
     <>

@@ -4,7 +4,7 @@ import EditableNumber from '@renderer/components/EditableNumber'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
@@ -180,8 +180,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         model: selectedModel,
         defaultModel: selectedModel
       })
+      // TODO: 需要根据配置来设置默认值
+      if (selectedModel.name.includes('kimi-k2')) {
+        setTemperature(0.6)
+        setTimeout(() => updateAssistantSettings({ temperature: 0.6 }), 500)
+      } else if (selectedModel.name.includes('moonshot')) {
+        setTemperature(0.3)
+        setTimeout(() => updateAssistantSettings({ temperature: 0.3 }), 500)
+      }
     }
-  }, [assistant, defaultModel, updateAssistant])
+  }, [assistant, defaultModel, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -221,7 +229,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.temperature')}
+            {t('chat.settings.temperature.label')}
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -262,7 +270,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.top_p')}
+            {t('chat.settings.top_p.label')}
             <Tooltip title={t('chat.settings.top_p.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -303,7 +311,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.context_count')}{' '}
+            {t('chat.settings.context_count.label')}{' '}
             <Tooltip title={t('chat.settings.context_count.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -312,7 +320,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <EditableNumber
             min={0}
-            max={20}
+            max={MAX_CONTEXT_COUNT}
             step={1}
             value={contextCount}
             changeOnBlur
@@ -330,7 +338,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={24}>
           <Slider
             min={0}
-            max={100}
+            max={MAX_CONTEXT_COUNT}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
@@ -343,7 +351,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
+          <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>
@@ -401,7 +409,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <Label>{t('assistants.settings.tool_use_mode')}</Label>
+        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
         <Selector
           value={toolUseMode}
           options={[

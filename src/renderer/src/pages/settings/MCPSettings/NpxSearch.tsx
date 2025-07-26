@@ -3,7 +3,6 @@ import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { builtinMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
@@ -23,7 +22,7 @@ interface SearchResult {
   configSample?: MCPServer['configSample']
 }
 
-const npmScopes = ['@cherry', '@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
+const npmScopes = ['@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
 
 let _searchResults: SearchResult[] = []
 
@@ -32,7 +31,7 @@ const NpxSearch: FC = () => {
   const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
-  const [npmScope, setNpmScope] = useState('@cherry')
+  const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult[]>(_searchResults)
   const { addMCPServer, mcpServers } = useMCPServers()
@@ -49,22 +48,6 @@ const NpxSearch: FC = () => {
     }
 
     if (searchLoading) {
-      return
-    }
-
-    if (searchScope === '@cherry') {
-      setSearchResults(
-        builtinMCPServers.map((server) => ({
-          key: server.id,
-          name: server.name,
-          description: server.description || '',
-          version: '1.0.0',
-          usage: '参考下方链接中的使用说明',
-          npmLink: 'https://docs.cherry-ai.com/advanced-basic/mcp/in-memory',
-          fullName: server.name,
-          type: server.type || 'inMemory'
-        }))
-      )
       return
     }
 
@@ -187,14 +170,6 @@ const NpxSearch: FC = () => {
                       size="small"
                       onClick={() => {
                         if (isInstalled) {
-                          return
-                        }
-
-                        const buildInServer = builtinMCPServers.find((server) => server.name === record.name)
-
-                        if (buildInServer) {
-                          addMCPServer(buildInServer)
-                          window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
                           return
                         }
 

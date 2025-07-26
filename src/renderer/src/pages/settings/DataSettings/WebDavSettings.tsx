@@ -9,6 +9,7 @@ import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
+  setWebdavDisableStream as _setWebdavDisableStream,
   setWebdavHost as _setWebdavHost,
   setWebdavMaxBackups as _setWebdavMaxBackups,
   setWebdavPass as _setWebdavPass,
@@ -32,7 +33,8 @@ const WebDavSettings: FC = () => {
     webdavPath: webDAVPath,
     webdavSyncInterval: webDAVSyncInterval,
     webdavMaxBackups: webDAVMaxBackups,
-    webdavSkipBackupFile: webdDAVSkipBackupFile
+    webdavSkipBackupFile: webdDAVSkipBackupFile,
+    webdavDisableStream: webDAVDisableStream
   } = useSettings()
 
   const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
@@ -40,6 +42,7 @@ const WebDavSettings: FC = () => {
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
   const [webdavSkipBackupFile, setWebdavSkipBackupFile] = useState<boolean>(webdDAVSkipBackupFile)
+  const [webdavDisableStream, setWebdavDisableStream] = useState<boolean>(webDAVDisableStream)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
@@ -59,10 +62,10 @@ const WebDavSettings: FC = () => {
     dispatch(_setWebdavSyncInterval(value))
     if (value === 0) {
       dispatch(setWebdavAutoSync(false))
-      stopAutoSync()
+      stopAutoSync('webdav')
     } else {
       dispatch(setWebdavAutoSync(true))
-      startAutoSync()
+      startAutoSync(false, 'webdav')
     }
   }
 
@@ -74,6 +77,11 @@ const WebDavSettings: FC = () => {
   const onSkipBackupFilesChange = (value: boolean) => {
     setWebdavSkipBackupFile(value)
     dispatch(_setWebdavSkipBackupFile(value))
+  }
+
+  const onDisableStreamChange = (value: boolean) => {
+    setWebdavDisableStream(value)
+    dispatch(_setWebdavDisableStream(value))
   }
 
   const renderSyncStatus = () => {
@@ -116,7 +124,7 @@ const WebDavSettings: FC = () => {
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.host')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
           value={webdavHost}
@@ -150,7 +158,7 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.path')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}
           value={webdavPath}
@@ -173,7 +181,7 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
           value={syncInterval}
@@ -202,7 +210,7 @@ const WebDavSettings: FC = () => {
           onChange={onMaxBackupsChange}
           disabled={!webdavHost}
           options={[
-            { label: t('settings.data.webdav.maxBackups.unlimited'), value: 0 },
+            { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
             { label: '1', value: 1 },
             { label: '3', value: 3 },
             { label: '5', value: 5 },
@@ -219,6 +227,14 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
+        <Switch checked={webdavDisableStream} onChange={onDisableStreamChange} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (
         <>
@@ -246,7 +262,8 @@ const WebDavSettings: FC = () => {
             webdavHost,
             webdavUser,
             webdavPass,
-            webdavPath
+            webdavPath,
+            webdavDisableStream
           }}
         />
       </>

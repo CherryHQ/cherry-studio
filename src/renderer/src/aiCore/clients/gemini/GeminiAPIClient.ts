@@ -16,6 +16,7 @@ import {
   ThinkingConfig,
   Tool
 } from '@google/genai'
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
@@ -41,7 +42,7 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { ChunkType, LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   GeminiOptions,
@@ -58,11 +59,12 @@ import {
   mcpToolsToGeminiTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { defaultTimeout, MB } from '@shared/config/constant'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
+
+const logger = loggerService.withContext('GeminiAPIClient')
 
 export class GeminiAPIClient extends BaseApiClient<
   GoogleGenAI,
@@ -139,7 +141,7 @@ export class GeminiAPIClient extends BaseApiClient<
       //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
       return images
     } catch (error) {
-      console.error('[generateImage] error:', error)
+      logger.error('[generateImage] error:', error as Error)
       throw error
     }
   }
@@ -288,7 +290,7 @@ export class GeminiAPIClient extends BaseApiClient<
         continue
       }
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           text: file.origin_name + '\n' + fileContent
         })
@@ -443,9 +445,9 @@ export class GeminiAPIClient extends BaseApiClient<
         messages: GeminiSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableUrlContext, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
-        let systemInstruction = assistant.prompt
+        const systemInstruction = assistant.prompt
 
         // 2. 设置工具
         const { tools } = this.setupToolsConfig({
@@ -453,10 +455,6 @@ export class GeminiAPIClient extends BaseApiClient<
           model,
           enableToolUse: isEnabledToolUse(assistant)
         })
-
-        if (this.useSystemPromptForTools) {
-          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
-        }
 
         let messageContents: Content = { role: 'user', parts: [] } // Initialize messageContents
         const history: Content[] = []
@@ -480,6 +478,12 @@ export class GeminiAPIClient extends BaseApiClient<
         if (enableWebSearch) {
           tools.push({
             googleSearch: {}
+          })
+        }
+
+        if (enableUrlContext) {
+          tools.push({
+            urlContext: {}
           })
         }
 
@@ -547,20 +551,35 @@ export class GeminiAPIClient extends BaseApiClient<
   }
 
   getResponseChunkTransformer(): ResponseChunkTransformer<GeminiSdkRawChunk> {
+    const toolCalls: FunctionCall[] = []
+    let isFirstTextChunk = true
+    let isFirstThinkingChunk = true
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        const toolCalls: FunctionCall[] = []
+        logger.silly('chunk', chunk)
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {
               candidate.content.parts?.forEach((part) => {
                 const text = part.text || ''
                 if (part.thought) {
+                  if (isFirstThinkingChunk) {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_START
+                    } as ThinkingStartChunk)
+                    isFirstThinkingChunk = false
+                  }
                   controller.enqueue({
                     type: ChunkType.THINKING_DELTA,
                     text: text
                   })
                 } else if (part.text) {
+                  if (isFirstTextChunk) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_START
+                    } as TextStartChunk)
+                    isFirstTextChunk = false
+                  }
                   controller.enqueue({
                     type: ChunkType.TEXT_DELTA,
                     text: text
@@ -592,6 +611,13 @@ export class GeminiAPIClient extends BaseApiClient<
                     source: WebSearchSource.GEMINI
                   }
                 } as LLMWebSearchCompleteChunk)
+              }
+              if (toolCalls.length > 0) {
+                controller.enqueue({
+                  type: ChunkType.MCP_TOOL_CREATED,
+                  tool_calls: [...toolCalls]
+                })
+                toolCalls.length = 0
               }
               controller.enqueue({
                 type: ChunkType.LLM_RESPONSE_COMPLETE,

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -35,6 +36,8 @@ interface Props {
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
 }
 
+const logger = loggerService.withContext('MessageItem')
+
 const MessageItem: FC<Props> = ({
   message,
   topic,
@@ -47,7 +50,7 @@ const MessageItem: FC<Props> = ({
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
-  const { messageFont, fontSize } = useSettings()
+  const { messageFont, fontSize, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -70,7 +73,7 @@ const MessageItem: FC<Props> = ({
         editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
-        console.error('Failed to save message blocks:', error)
+        logger.error('Failed to save message blocks:', error as Error)
       }
     },
     [message, editMessageBlocks, stopEditing, editMessage]
@@ -85,7 +88,7 @@ const MessageItem: FC<Props> = ({
         await resendUserMessageWithEdit(message, blocks, assistantWithTopicPrompt)
         stopEditing()
       } catch (error) {
-        console.error('Failed to resend message:', error)
+        logger.error('Failed to resend message:', error as Error)
       }
     },
     [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
@@ -95,7 +98,7 @@ const MessageItem: FC<Props> = ({
     stopEditing()
   }, [stopEditing])
 
-  const isLastMessage = index === 0
+  const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
@@ -136,14 +139,7 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}>
-      <MessageHeader
-        message={message}
-        assistant={assistant}
-        model={model}
-        key={getModelUniqId(model)}
-        index={index}
-        topic={topic}
-      />
+      <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} topic={topic} />
       {isEditing && (
         <MessageEditor
           message={message}
@@ -167,7 +163,7 @@ const MessageItem: FC<Props> = ({
             </MessageErrorBoundary>
           </MessageContentContainer>
           {showMenubar && (
-            <MessageFooter className="MessageFooter">
+            <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
               <MessageMenubar
                 message={message}
                 assistant={assistant}
@@ -196,7 +192,8 @@ const MessageContainer = styled.div`
   transition: background-color 0.3s ease;
   transform: translateZ(0);
   will-change: transform;
-  padding: 10px 10px 0 10px;
+  padding: 10px;
+  padding-bottom: 0;
   border-radius: 10px;
   &.message-highlight {
     background-color: var(--color-primary-mute);
@@ -224,14 +221,15 @@ const MessageContentContainer = styled(Scrollbar)`
   overflow-y: auto;
 `
 
-const MessageFooter = styled.div`
+const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plain' | 'bubble' }>`
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+  flex-direction: ${({ $isLastMessage, $messageStyle }) =>
+    $isLastMessage && $messageStyle === 'plain' ? 'row-reverse' : 'row'};
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  gap: 10px;
   margin-left: 46px;
-  margin-top: 2px;
+  margin-top: 8px;
 `
 
 const NewContextMessage = styled.div`

@@ -1,8 +1,9 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -14,9 +15,8 @@ import {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -27,7 +27,7 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
-import { CompletionsParams } from '../aiCore/middleware/schemas'
+const logger = loggerService.withContext('Utils:MCPTools')
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -259,15 +259,38 @@ export function openAIToolsToMcpTool(
   })
 
   if (!tool) {
-    console.warn('No MCP Tool found for tool call:', toolCall)
+    logger.warn('No MCP Tool found for tool call:', toolCall)
     return undefined
   }
 
   return tool
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
-  Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
+  logger.info(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
+
+  if (toolResponse.tool.name === 'think') {
+    const thought = toolResponse.arguments?.thought
+    return {
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: (thought as string) || ''
+        }
+      ]
+    }
+  }
+
+  return undefined
+}
+
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  topicId?: string,
+  modelName?: string
+): Promise<MCPCallToolResponse> {
+  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -275,11 +298,15 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments
-    })
+    const resp = await window.api.mcp.callTool(
+      {
+        server,
+        name: toolResponse.tool.name,
+        args: toolResponse.arguments,
+        callId: toolResponse.id
+      },
+      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+    )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
         const mcpServer: MCPServer = {
@@ -298,10 +325,10 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       }
     }
 
-    Logger.log(`[MCP] Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
+    logger.info(`Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
     return resp
   } catch (e) {
-    console.error(`[MCP] Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
+    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e as Error)
     return Promise.resolve({
       isError: true,
       content: [
@@ -390,17 +417,19 @@ export function geminiFunctionCallToMcpTool(
 ): MCPTool | undefined {
   if (!toolCall) return undefined
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolCall.name)
-  if (!tool) {
-    return undefined
-  }
+
+  const toolName = toolCall.name || toolCall.id
+  if (!toolName) return undefined
+
+  const tool = mcpTools.find((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+
   return tool
 }
 
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
+  onChunk: (chunk: MCPToolPendingChunk | MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
   let result = resp
@@ -416,10 +445,29 @@ export function upsertMCPToolResponse(
   } else {
     results.push(resp)
   }
-  onChunk({
-    type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
-    responses: [result]
-  })
+  switch (resp.status) {
+    case 'pending':
+      onChunk({
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [result]
+      })
+      break
+    case 'invoking':
+      onChunk({
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [result]
+      })
+      break
+    case 'cancelled':
+    case 'done':
+      onChunk({
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [result]
+      })
+      break
+    default:
+      break
+  }
 }
 
 export function filterMCPTools(
@@ -441,7 +489,15 @@ export function getMcpServerByTool(tool: MCPTool) {
   return servers.find((s) => s.id === tool.serverId)
 }
 
-export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseResponse[] {
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  if (tool.isBuiltIn) {
+    return true
+  }
+  const effectiveServer = server ?? getMcpServerByTool(tool)
+  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+}
+
+export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
@@ -461,7 +517,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
   const tools: ToolUseResponse[] = []
   let match
-  let idx = 0
+  let idx = startIdx
   // Find all tool use blocks
   while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     // const fullMatch = match[0]
@@ -479,7 +535,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
     // Logger.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
     const mcpTool = mcpTools.find((tool) => tool.id === toolName)
     if (!mcpTool) {
-      Logger.error(`Tool "${toolName}" not found in MCP tools`)
+      logger.error(`Tool "${toolName}" not found in MCP tools`)
       window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
       continue
     }
@@ -499,105 +555,45 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
   return tools
 }
 
-export async function parseAndCallTools<R>(
-  tools: MCPToolResponse[],
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
-  content: string,
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
-  content: string | MCPToolResponse[],
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<R[]> {
-  const toolResults: R[] = []
-  let curToolResponses: MCPToolResponse[] = []
-  if (Array.isArray(content)) {
-    curToolResponses = content
-  } else {
-    // process tool use
-    curToolResponses = parseToolUse(content, mcpTools || [])
-  }
-  if (!curToolResponses || curToolResponses.length === 0) {
-    return toolResults
-  }
-  for (let i = 0; i < curToolResponses.length; i++) {
-    const toolResponse = curToolResponses[i]
-    upsertMCPToolResponse(
-      allToolResponses,
-      {
-        ...toolResponse,
-        status: 'invoking'
-      },
-      onChunk!
-    )
-  }
-
-  const toolPromises = curToolResponses.map(async (toolResponse) => {
-    const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
-    upsertMCPToolResponse(
-      allToolResponses,
-      {
-        ...toolResponse,
-        status: 'done',
-        response: toolCallResponse
-      },
-      onChunk!
-    )
-
-    for (const content of toolCallResponse.content) {
-      if (content.type === 'image' && content.data) {
-        images.push(`data:${content.mimeType};base64,${content.data}`)
-      }
-    }
-
-    if (images.length) {
-      onChunk?.({
-        type: ChunkType.IMAGE_CREATED
-      })
-      onChunk?.({
-        type: ChunkType.IMAGE_COMPLETE,
-        image: {
-          type: 'base64',
-          images: images
-        }
-      })
-    }
-
-    return convertToMessage(toolResponse, toolCallResponse, model)
-  })
-
-  toolResults.push(...(await Promise.all(toolPromises)).filter((t) => typeof t !== 'undefined'))
-  return toolResults
-}
-
 export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
-  isVisionModel: boolean = false
+  isVisionModel: boolean = false,
+  isCompatibleMode: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
-
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
+  } else if (isCompatibleMode) {
+    let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content += (item.text || 'no content') + '\n'
+            break
+          case 'image':
+            // NOTE: 假设兼容模式下支持解析base64图片，虽然我觉得应该不支持
+            content += `Here is a image result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          case 'audio':
+            // NOTE: 假设兼容模式下支持解析base64音频，虽然我觉得应该不支持
+            content += `Here is a audio result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          default:
+            content += `Here is a unsupported result type: ${item.type}\n`
+            break
+        }
+      }
+    } else {
+      content += JSON.stringify(resp.content)
+      content += '\n'
+    }
+
+    message.content = content
   } else {
     const content: ChatCompletionContentPart[] = [
       {

@@ -1,12 +1,12 @@
 import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Divider, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -87,12 +87,12 @@ const Assistants: FC<AssistantsTabProps> = ({
                       {group.tag}
                     </GroupTitleName>
                   </Tooltip>
-                  <Divider style={{ margin: '12px 0' }}></Divider>
+                  <GroupTitleDivider />
                 </GroupTitle>
               )}
               {!collapsedTags[group.tag] && (
                 <div>
-                  <DragableList
+                  <DraggableList
                     list={group.assistants}
                     onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
                     onDragStart={() => setDragging(true)}
@@ -111,7 +111,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                         handleSortByChange={handleSortByChange}
                       />
                     )}
-                  </DragableList>
+                  </DraggableList>
                 </div>
               )}
             </TagsContainer>
@@ -129,7 +129,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
+      <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
         onDragStart={() => setDragging(true)}
@@ -148,7 +148,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             handleSortByChange={handleSortByChange}
           />
         )}
-      </DragableList>
+      </DraggableList>
       {!dragging && (
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>
@@ -167,6 +167,7 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
+  margin-top: 3px;
 `
 
 const TagsContainer = styled.div`
@@ -187,23 +188,21 @@ const AssistantAddItem = styled.div`
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-background-soft);
-  }
-
-  &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item-hover);
   }
 `
 
 const GroupTitle = styled.div`
-  padding: 8px 0;
-  position: relative;
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: -8px;
   cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: 24px;
+  margin: 5px 0;
 `
 
 const GroupTitleName = styled.div`
@@ -211,13 +210,18 @@ const GroupTitleName = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  background-color: var(--color-background);
   box-sizing: border-box;
   padding: 0 4px;
   color: var(--color-text);
-  position: absolute;
-  transform: translateY(2px);
   font-size: 13px;
+  line-height: 24px;
+  margin-right: 5px;
+  display: flex;
+`
+
+const GroupTitleDivider = styled.div`
+  flex: 1;
+  border-top: 1px solid var(--color-border);
 `
 
 const AssistantName = styled.div`

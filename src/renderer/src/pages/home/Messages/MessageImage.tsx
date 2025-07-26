@@ -8,6 +8,7 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { Image as AntdImage, Space } from 'antd'
 import { FC } from 'react'
@@ -17,6 +18,8 @@ import styled from 'styled-components'
 interface Props {
   block: ImageMessageBlock
 }
+
+const logger = loggerService.withContext('MessageImage')
 
 const MessageImage: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
@@ -31,7 +34,7 @@ const MessageImage: FC<Props> = ({ block }) => {
       document.body.removeChild(link)
       window.message.success(t('message.download.success'))
     } catch (error) {
-      console.error('下载图片失败:', error)
+      logger.error('下载图片失败:', error as Error)
       window.message.error(t('message.download.failed'))
     }
   }
@@ -83,7 +86,7 @@ const MessageImage: FC<Props> = ({ block }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      console.error('复制图片失败:', error)
+      logger.error('复制图片失败:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }

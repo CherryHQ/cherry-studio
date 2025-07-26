@@ -13,7 +13,7 @@
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=fr">Français</a></p>
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=de">Deutsch</a></p>
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=es">Español</a></p>
-        <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=it">Itapano</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=it">Italiano</a></p>
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=ru">Русский</a></p>
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=pt">Português</a></p>
         <p><a href="https://openaitx.github.io/view.html?user=CherryHQ&project=cherry-studio&lang=nl">Nederlands</a></p>
@@ -63,7 +63,7 @@
 
 # 🍒 Cherry Studio
 
-Cherry Studio is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
+Cherry Studio is a desktop client that supports multiple LLM providers, available on Windows, Mac and Linux.
 
 👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
@@ -93,7 +93,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
 3. **Document & Data Processing**:
 
-- 📄 Support for Text, Images, Office, PDF, and more
+- 📄 Supports Text, Images, Office, PDF, and more
 - ☁️ WebDAV File Management and Backup
 - 📊 Mermaid Chart Visualization
 - 💻 Code Syntax Highlighting
@@ -110,7 +110,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 5. **Enhanced User Experience**:
 
 - 🖥️ Cross-platform Support for Windows, Mac, and Linux
-- 📦 Ready to Use, No Environment Setup Required
+- 📦 Ready to Use - No Environment Setup Required
 - 🎨 Light/Dark Themes and Transparent Window
 - 📝 Complete Markdown Rendering
 - 🤲 Easy Content Sharing
@@ -121,11 +121,11 @@ We're actively working on the following features and improvements:
 
 1. 🎯 **Core Features**
 
-- Selection Assistant - Smart content selection enhancement
-- Deep Research - Advanced research capabilities
-- Memory System - Global context awareness
-- Document Preprocessing - Improved document handling
-- MCP Marketplace - Model Context Protocol ecosystem
+- Selection Assistant with smart content selection enhancement
+- Deep Research with advanced research capabilities
+- Memory System with global context awareness
+- Document Preprocessing with improved document handling
+- MCP Marketplace for Model Context Protocol ecosystem
 
 2. 🗂 **Knowledge Management**
 
@@ -199,7 +199,7 @@ To give back to our core contributors and create a virtuous cycle, we have estab
 
 **The inaugural tracking period for this program will be Q3 2025 (July, August, September). Rewards for this cycle will be distributed on October 1st.**
 
-Within any tracking period (e.g., July 1st to September 30th for the first cycle), any developer who contributes more than **30 meaningful commits** to any of Cherry Studio's open-source projects on GitHub is eligible for the following benefits:
+Within any tracking period (e.g., July 1st to September 30th for the first cycle), any developer who contributes more than **30 meaningful commits** to any of Cherry Studio's open-source projects on GitHub will be eligible for the following benefits:
 
 - **Cursor Subscription Sponsorship**: Receive a **$70 USD** credit or reimbursement for your [Cursor](https://cursor.sh/) subscription, making AI your most efficient coding partner.
 - **Unlimited Model Access**: Get **unlimited** API calls for the **DeepSeek** and **Qwen** models.
@@ -223,17 +223,17 @@ Let's build together.
 
 # 🏢 Enterprise Edition
 
-Building on the Community Edition, we are proud to introduce **Cherry Studio Enterprise Edition**—a privately deployable AI productivity and management platform designed for modern teams and enterprises.
+Building on the Community Edition, we are proud to introduce **Cherry Studio Enterprise Edition**—a privately-deployable AI productivity and management platform designed for modern teams and enterprises.
 
 The Enterprise Edition addresses core challenges in team collaboration by centralizing the management of AI resources, knowledge, and data. It empowers organizations to enhance efficiency, foster innovation, and ensure compliance, all while maintaining 100% control over their data in a secure environment.
 
 ## Core Advantages
 
 - **Unified Model Management**: Centrally integrate and manage various cloud-based LLMs (e.g., OpenAI, Anthropic, Google Gemini) and locally deployed private models. Employees can use them out-of-the-box without individual configuration.
-- **Enterprise-Grade Knowledge Base**: Build, manage, and share team-wide knowledge bases. Ensure knowledge is retained and consistent, enabling team members to interact with AI based on unified and accurate information.
+- **Enterprise-Grade Knowledge Base**: Build, manage, and share team-wide knowledge bases. Ensures knowledge retention and consistency, enabling team members to interact with AI based on unified and accurate information.
 - **Fine-Grained Access Control**: Easily manage employee accounts and assign role-based permissions for different models, knowledge bases, and features through a unified admin backend.
 - **Fully Private Deployment**: Deploy the entire backend service on your on-premises servers or private cloud, ensuring your data remains 100% private and under your control to meet the strictest security and compliance standards.
-- **Reliable Backend Services**: Provides stable API services, enterprise-grade data backup and recovery mechanisms to ensure business continuity.
+- **Reliable Backend Services**: Provides stable API services and enterprise-grade data backup and recovery mechanisms to ensure business continuity.
 
 ## ✨ Online Demo
 
@@ -247,23 +247,23 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 
 | Feature           | Community Edition                          | Enterprise Edition                                                                                                                      |
 | :---------------- | :----------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open Source**   | ✅ Yes                                     | ⭕️ part. released to cust.                                                                                                              |
+| **Open Source**   | ✅ Yes                                     | ⭕️ Partially released to customers                                                                                                      |
 | **Cost**          | Free for Personal Use / Commercial License | Buyout / Subscription Fee                                                                                                               |
 | **Admin Backend** | —                                          | ● Centralized **Model** Access<br>● **Employee** Management<br>● Shared **Knowledge Base**<br>● **Access** Control<br>● **Data** Backup |
 | **Server**        | —                                          | ✅ Dedicated Private Deployment                                                                                                         |
 
 ## Get the Enterprise Edition
 
-We believe the Enterprise Edition will become your team's AI productivity engine. If you are interested in Cherry Studio Enterprise Edition and would like to learn more, request a quote, or schedule a demo, please contact us.
+We believe the Enterprise Edition will become your team's AI productivity engine. If you are interested in Cherry Studio Enterprise Edition and would like to learn more, request a quote, or schedule a demo, please feel free to contact us.
 
 - **For Business Inquiries & Purchasing**:
   **📧 [bd@cherry-ai.com](mailto:bd@cherry-ai.com)**
 
 # 🔗 Related Projects
 
-- [one-api](https://github.com/songquanpeng/one-api):LLM API management and distribution system, supporting mainstream models like OpenAI, Azure, and Anthropic. Features unified API interface, suitable for key management and secondary distribution.
+- [one-api](https://github.com/songquanpeng/one-api): LLM API management and distribution system supporting mainstream models like OpenAI, Azure, and Anthropic. Features a unified API interface, suitable for key management and secondary distribution.
 
-- [ublacklist](https://github.com/iorate/ublacklist):Blocks specific sites from appearing in Google search results
+- [ublacklist](https://github.com/iorate/ublacklist): Blocks specific sites from appearing in Google search results
 
 # 🚀 Contributors
 

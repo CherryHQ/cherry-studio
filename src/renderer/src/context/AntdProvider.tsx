@@ -47,6 +47,7 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             colorBorder: 'var(--color-border)'
           },
           InputNumber: {
+            controlHeight: 30,
             colorBorder: 'var(--color-border)'
           },
           Select: {

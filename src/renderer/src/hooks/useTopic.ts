@@ -18,8 +18,10 @@ import { getStoreSetting } from './useSettings'
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
 
-export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
-  const { assistant } = useAssistant(_assistant.id)
+// const logger = loggerService.withContext('useTopic')
+
+export function useActiveTopic(assistantId: string, topic?: Topic) {
+  const { assistant } = useAssistant(assistantId)
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
 
   _activeTopic = activeTopic
@@ -34,7 +36,14 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
 
   useEffect(() => {
     // activeTopic not in assistant.topics
-    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
+    // 确保 assistant 和 assistant.topics 存在，避免在数据未完全加载时访问属性
+    if (
+      assistant &&
+      assistant.topics &&
+      Array.isArray(assistant.topics) &&
+      assistant.topics.length > 0 &&
+      !find(assistant.topics, { id: activeTopic?.id })
+    ) {
       setActiveTopic(assistant.topics[0])
     }
   }, [activeTopic?.id, assistant])
