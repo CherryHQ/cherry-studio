@@ -1,17 +1,15 @@
 import db from '@renderer/databases'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  setTranslatedContent as _setTranslatedContent,
-  setTranslating as _setTranslating
-} from '@renderer/store/translate'
+import { setTranslating as _setTranslating } from '@renderer/store/runtime'
+import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
 import { Assistant, LanguageCode, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
 
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  const translating = useAppSelector((state) => state.translate.translating)
+  const translating = useAppSelector((state) => state.runtime.translating)
 
   const dispatch = useAppDispatch()
 
