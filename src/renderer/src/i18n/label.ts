@@ -1,12 +1,12 @@
-import i18n from './index'
-
-const t = i18n.t
-
 /**
- * 对于列表形式的翻译
+ * 对于需要动态获取的翻译文本：
  * 1. 储存 key -> i18n-key 的 keyMap
  * 2. 通过函数翻译文本
  */
+
+import i18n from './index'
+
+const t = i18n.t
 
 const providerKeyMap = {
   '302ai': 'provider.302ai',
