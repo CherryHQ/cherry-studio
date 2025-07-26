@@ -32,6 +32,15 @@ const assistantsSlice = createSlice({
     addAssistant: (state, action: PayloadAction<Assistant>) => {
       state.assistants.push(action.payload)
     },
+    insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
+      const { index, assistant } = action.payload
+
+      if (index < 0 || index > state.assistants.length) {
+        throw new Error(`InsertAssistant: index ${index} is out of bounds [0, ${state.assistants.length}]`)
+      }
+
+      state.assistants.splice(index, 0, assistant)
+    },
     removeAssistant: (state, action: PayloadAction<{ id: string }>) => {
       state.assistants = state.assistants.filter((c) => c.id !== action.payload.id)
     },
@@ -170,6 +179,7 @@ export const {
   updateDefaultAssistant,
   updateAssistants,
   addAssistant,
+  insertAssistant,
   removeAssistant,
   updateAssistant,
   addTopic,
