@@ -10,7 +10,7 @@ import {
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
-import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
+import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
@@ -190,7 +190,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 ...(isEmbeddingModel(model) ? ['embedding'] : []),
                 ...(isRerankModel(model) ? ['rerank'] : [])
               ]
-
               // 合并现有选择和默认类型用于前端展示
               const selectedTypes = getUnion(
                 modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
@@ -199,6 +198,14 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
                 )
               )
+
+              const newModelCapabilities = selectedTypes.map((type) => {
+                const existingCapability = modelCapabilities?.find((m) => m.type === type)
+                return {
+                  type: type as ModelType,
+                  isUserSelected: existingCapability?.isUserSelected ?? undefined
+                }
+              })
 
               const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
 
@@ -216,30 +223,34 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   cancelButtonProps: { type: 'primary' },
                   onOk: () => {
                     if (onUpdateType) {
-                      const updatedTypes = selectedTypes?.map((t) => {
-                        if (t === newCapability.type) {
-                          return { type: t, isUserSelected: true }
+                      const updatedModelCapabilities = newModelCapabilities?.map((t) => {
+                        if (t.type === newCapability.type) {
+                          return { ...t, isUserSelected: true }
                         }
                         if (
-                          (onUpdateType !== t && onUpdateType === 'rerank') ||
-                          (onUpdateType === 'embedding' && onUpdateType !== t)
+                          (onUpdateType !== t.type && onUpdateType === 'rerank') ||
+                          (onUpdateType === 'embedding' && onUpdateType !== t.type)
                         ) {
-                          return { type: t, isUserSelected: false }
+                          return { ...t, isUserSelected: false }
                         }
-                        return { type: t }
+                        return t
                       })
-                      setModelCapabilities(updatedTypes as ModelCapability[])
+                      setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
                     } else {
-                      const updatedTypes = selectedTypes?.map((t) => {
+                      const updatedModelCapabilities = newModelCapabilities?.map((t) => {
                         if (
-                          (newCapability.type !== t && newCapability.type === 'rerank') ||
-                          (newCapability.type === 'embedding' && newCapability.type !== t)
+                          (newCapability.type !== t.type && newCapability.type === 'rerank') ||
+                          (newCapability.type === 'embedding' && newCapability.type !== t.type)
                         ) {
-                          return { type: t, isUserSelected: false }
+                          return { ...t, isUserSelected: false }
                         }
-                        return { type: t }
+                        if (newCapability.type === t.type) {
+                          return { ...t, isUserSelected: true }
+                        }
+                        return t
                       })
-                      setModelCapabilities([...(updatedTypes as ModelCapability[]), newCapability])
+                      updatedModelCapabilities.push(newCapability as any)
+                      setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
                     }
                   },
                   onCancel: () => {},
@@ -257,7 +268,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   })
                 } else {
                   const disabledTypes = getDifference(selectedTypes, types)
-                  const onUpdateType = modelCapabilities?.find((t) => t.type === disabledTypes[0])
+                  const onUpdateType = newModelCapabilities?.find((t) => t.type === disabledTypes[0])
                   if (onUpdateType) {
                     const updatedTypes = modelCapabilities?.map((t) => {
                       if (t.type === disabledTypes[0]) {
@@ -271,9 +282,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                       }
                       return t
                     })
-                    setModelCapabilities(updatedTypes || [])
+                    setModelCapabilities(uniqueObjectArray(updatedTypes as ModelCapability[]))
                   } else {
-                    const updatedTypes = modelCapabilities?.map((t) => {
+                    const updatedModelCapabilities = newModelCapabilities?.map((t) => {
                       if (
                         (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
                         (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
@@ -282,10 +293,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                       }
                       return t
                     })
-                    setModelCapabilities([
-                      ...(updatedTypes ?? []),
-                      { type: disabledTypes[0] as ModelType, isUserSelected: false }
-                    ])
+                    updatedModelCapabilities.push({ type: disabledTypes[0] as ModelType, isUserSelected: false })
+                    setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
                   }
                 }
               }
