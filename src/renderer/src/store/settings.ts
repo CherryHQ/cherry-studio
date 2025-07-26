@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
@@ -198,11 +199,12 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
+  // Developer mode
+  enableDeveloperMode: boolean
+  // UI
+  navbarPosition: 'left' | 'top'
   // API Server
-  apiServer: {
-    port: number
-    apiKey: string
-  }
+  apiServer: ApiServerConfig
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -370,10 +372,15 @@ export const initialState: SettingsState = {
     maxBackups: 0,
     skipBackupFile: false
   },
+  // Developer mode
+  enableDeveloperMode: false,
+  // UI
+  navbarPosition: 'left',
   // API Server
   apiServer: {
-    port: 13333,
-    apiKey: ''
+    host: 'localhost',
+    port: 23333,
+    apiKey: `cs-sk-${uuid()}`
   }
 }
 
@@ -767,24 +774,24 @@ const settingsSlice = createSlice({
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
     },
+    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+      state.enableDeveloperMode = action.payload
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
+    },
     // API Server actions
     setApiServerPort: (state, action: PayloadAction<number>) => {
-      if (!state.apiServer) {
-        state.apiServer = {
-          port: 13333,
-          apiKey: ''
-        }
+      state.apiServer = {
+        ...state.apiServer,
+        port: action.payload
       }
-      state.apiServer.port = action.payload
     },
     setApiServerApiKey: (state, action: PayloadAction<string>) => {
-      if (!state.apiServer) {
-        state.apiServer = {
-          port: 13333,
-          apiKey: ''
-        }
+      state.apiServer = {
+        ...state.apiServer,
+        apiKey: action.payload
       }
-      state.apiServer.apiKey = action.payload
     }
   }
 })
@@ -904,6 +911,8 @@ export const {
   setDefaultPaintingProvider,
   setS3,
   setS3Partial,
+  setEnableDeveloperMode,
+  setNavbarPosition,
   // API Server actions
   setApiServerPort,
   setApiServerApiKey

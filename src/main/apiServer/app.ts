@@ -1,9 +1,7 @@
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
-import { prettyJSON } from 'hono/pretty-json'
-import { requestId } from 'hono/request-id'
-import { timing } from 'hono/timing'
+import { loggerService } from '@main/services/LoggerService'
+import cors from 'cors'
+import express from 'express'
+import { v4 as uuidv4 } from 'uuid'
 
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
@@ -11,39 +9,44 @@ import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
 
-const app = new Hono()
+const logger = loggerService.withContext('ApiServer')
+
+const app = express()
 
 // Global middleware
-app.use(timing())
-app.use(requestId())
-app.use(logger())
-app.use(prettyJSON())
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    const duration = Date.now() - start
+    logger.info(`${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`)
+  })
+  next()
+})
+
+app.use((req, res, next) => {
+  res.setHeader('X-Request-ID', uuidv4())
+  next()
+})
+
 app.use(
   cors({
     origin: '*',
-    allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   })
 )
 
-// Error handling
-app.onError(errorHandler)
-
 // Health check (no auth required)
-app.get('/health', (c) => {
-  return c.json({
+app.get('/health', (req, res) => {
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0'
   })
 })
-
-// API v1 routes with auth
-const api = app.basePath('/v1').use(authMiddleware)
-
 // API info
-api.get('/', (c) => {
-  return c.json({
+app.get('/', (req, res) => {
+  res.json({
     name: 'Cherry Studio API',
     version: '1.0.0',
     endpoints: {
@@ -55,9 +58,17 @@ api.get('/', (c) => {
   })
 })
 
+// API v1 routes with auth
+const apiRouter = express.Router()
+apiRouter.use(authMiddleware)
+apiRouter.use(express.json())
 // Mount routes
-api.route('/chat', chatRoutes)
-api.route('/mcps', mcpRoutes)
-api.route('/models', modelsRoutes)
+apiRouter.use('/chat', chatRoutes)
+apiRouter.use('/mcps', mcpRoutes)
+apiRouter.use('/models', modelsRoutes)
+app.use('/v1', apiRouter)
+
+// Error handling (must be last)
+app.use(errorHandler)
 
 export { app }

@@ -8,6 +8,7 @@ import { Button, Card, Divider, Flex, Input, Space, Switch, Tooltip, Typography 
 import { FC, useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+import { v4 as uuidv4 } from 'uuid'
 
 import { SettingContainer } from '..'
 
@@ -126,12 +127,8 @@ const ApiServerSettings: FC = () => {
   const dispatch = useAppDispatch()
 
   // API Server state with proper defaults
-  const apiServerSettings = useSelector((state: RootState) => {
-    const settings = state.settings.apiServer
-    return {
-      port: settings?.port ?? 13333,
-      apiKey: settings?.apiKey ?? ''
-    }
+  const apiServerConfig = useSelector((state: RootState) => {
+    return state.settings.apiServer
   })
 
   const [apiServerRunning, setApiServerRunning] = useState(false)
@@ -196,24 +193,24 @@ const ApiServerSettings: FC = () => {
   }
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText(apiServerSettings.apiKey)
+    navigator.clipboard.writeText(apiServerConfig.apiKey)
     window.message.success('API Key copied to clipboard')
   }
 
   const regenerateApiKey = () => {
-    const newApiKey = `cs-${Date.now()}-${Math.random().toString(36).substring(2)}`
+    const newApiKey = `cs-sk-${uuidv4()}`
     dispatch(setApiServerApiKey(newApiKey))
     window.message.success('API Key regenerated')
   }
 
   const copyServerUrl = () => {
-    const url = `http://localhost:${apiServerSettings.port}`
+    const url = `http://localhost:${apiServerConfig.port}`
     navigator.clipboard.writeText(url)
     window.message.success('Server URL copied to clipboard')
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || 13333
+    const port = parseInt(value) || 23333
     if (port >= 1000 && port <= 65535) {
       dispatch(setApiServerPort(port))
     }
@@ -265,7 +262,7 @@ const ApiServerSettings: FC = () => {
               <FieldLabel>Server URL</FieldLabel>
               <Flex gap={8} align="center">
                 <StyledInput
-                  value={`http://localhost:${apiServerSettings.port}`}
+                  value={`http://localhost:${apiServerConfig.port}`}
                   readOnly
                   style={{ flex: 1, maxWidth: 300 }}
                 />
@@ -293,13 +290,13 @@ const ApiServerSettings: FC = () => {
             <FieldLabel>Port</FieldLabel>
             <StyledInput
               type="number"
-              value={apiServerSettings.port}
+              value={apiServerConfig.port}
               onChange={(e) => handlePortChange(e.target.value)}
               style={{ width: 120 }}
               min={1000}
               max={65535}
               disabled={apiServerRunning}
-              placeholder="13333"
+              placeholder="23333"
             />
             {apiServerRunning && (
               <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
@@ -313,7 +310,7 @@ const ApiServerSettings: FC = () => {
             <FieldLabel>API Key</FieldLabel>
             <Flex gap={8} align="center" wrap="wrap">
               <StyledInput
-                value={apiServerSettings.apiKey}
+                value={apiServerConfig.apiKey}
                 readOnly
                 style={{ flex: 1, minWidth: 300, maxWidth: 500 }}
                 placeholder="API key will be auto-generated"
@@ -321,7 +318,7 @@ const ApiServerSettings: FC = () => {
               />
               <ActionButtonGroup>
                 <Tooltip title="Copy API Key">
-                  <Button icon={<CopyOutlined />} onClick={copyApiKey} disabled={!apiServerSettings.apiKey}>
+                  <Button icon={<CopyOutlined />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey}>
                     Copy
                   </Button>
                 </Tooltip>
@@ -332,7 +329,7 @@ const ApiServerSettings: FC = () => {
             </Flex>
             <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.4, marginTop: 8, display: 'block' }}>
               Use this API key in the Authorization header:{' '}
-              <Text code>Authorization: Bearer {apiServerSettings.apiKey || 'your-api-key'}</Text>
+              <Text code>Authorization: Bearer {apiServerConfig.apiKey || 'your-api-key'}</Text>
             </Text>
           </FieldGroup>
         </Space>

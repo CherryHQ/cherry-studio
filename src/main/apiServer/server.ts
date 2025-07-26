@@ -18,19 +18,8 @@ export class ApiServer {
     // Load config
     const { port, host } = await config.load()
 
-    // Create server
-    this.server = createServer(async (req, res) => {
-      try {
-        const request = await this.nodeToWebRequest(req)
-        const response = await app.fetch(request)
-        await this.webToNodeResponse(response, res)
-      } catch (error: any) {
-        logger.error('Request processing error:', error)
-        res.statusCode = 500
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ error: 'Internal server error' }))
-      }
-    })
+    // Create server with Express app
+    this.server = createServer(app)
 
     // Start server
     return new Promise((resolve, reject) => {
@@ -64,51 +53,6 @@ export class ApiServer {
 
   isRunning(): boolean {
     return this.server !== null
-  }
-
-  private async nodeToWebRequest(req: any): Promise<Request> {
-    const url = new URL(req.url || '/', `http://${req.headers.host}`)
-
-    let body: BodyInit | null = null
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      const chunks: Buffer[] = []
-      for await (const chunk of req) {
-        chunks.push(chunk)
-      }
-      if (chunks.length > 0) {
-        body = Buffer.concat(chunks)
-      }
-    }
-
-    return new Request(url, {
-      method: req.method,
-      headers: req.headers,
-      body
-    })
-  }
-
-  private async webToNodeResponse(response: Response, res: any): Promise<void> {
-    res.statusCode = response.status
-
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value)
-    })
-
-    if (response.body) {
-      const reader = response.body.getReader()
-      const pump = async (): Promise<void> => {
-        const { done, value } = await reader.read()
-        if (done) {
-          res.end()
-        } else {
-          res.write(value)
-          await pump()
-        }
-      }
-      await pump()
-    } else {
-      res.end()
-    }
   }
 }
 

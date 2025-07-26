@@ -68,7 +68,8 @@ export class ReduxService extends EventEmitter {
       const selectorFn = new Function('state', `return ${selector}`)
       return selectorFn(this.stateCache)
     } catch (error) {
-      logger.error('Failed to select from cache:', error as Error)
+      // change it to debug level as it not block other operations
+      logger.debug('Failed to select from cache:', error as Error)
       return undefined
     }
   }

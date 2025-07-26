@@ -830,6 +830,12 @@ export type S3Config = {
 
 export type { Message } from './newMessage'
 
+export interface ApiServerConfig {
+  host: string
+  port: number
+  apiKey: string
+}
+
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {

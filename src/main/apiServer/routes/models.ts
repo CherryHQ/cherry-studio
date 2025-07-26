@@ -1,13 +1,13 @@
-import { Hono } from 'hono'
+import express, { Request, Response } from 'express'
 
 import { loggerService } from '../../services/LoggerService'
-import { chatCompletionService } from '../services/ChatCompletionService'
+import { chatCompletionService } from '../services/chat-completion'
 
 const logger = loggerService.withContext('ApiServerModelsRoutes')
 
-const app = new Hono()
+const router = express.Router()
 
-app.get('/', async (c) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     logger.info('Models list request received')
 
@@ -18,23 +18,20 @@ app.get('/', async (c) => {
     }
 
     logger.info(`Returning ${models.length} models`)
-    return c.json({
+    return res.json({
       object: 'list',
       data: models
     })
   } catch (error: any) {
     logger.error('Error fetching models:', error)
-    return c.json(
-      {
-        error: {
-          message: 'Failed to retrieve models',
-          type: 'service_unavailable',
-          code: 'models_unavailable'
-        }
-      },
-      503
-    )
+    return res.status(503).json({
+      error: {
+        message: 'Failed to retrieve models',
+        type: 'service_unavailable',
+        code: 'models_unavailable'
+      }
+    })
   }
 })
 
-export { app as modelsRoutes }
+export { router as modelsRoutes }

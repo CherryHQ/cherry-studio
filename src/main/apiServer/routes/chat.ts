@@ -1,31 +1,27 @@
-import { Hono } from 'hono'
-import { stream } from 'hono/streaming'
+import express, { Request, Response } from 'express'
 import OpenAI from 'openai'
 import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
-import { chatCompletionService } from '../services/ChatCompletionService'
+import { chatCompletionService } from '../services/chat-completion'
 import { getProviderByModel } from '../utils'
 
 const logger = loggerService.withContext('ApiServerChatRoutes')
 
-const app = new Hono()
+const router = express.Router()
 
-app.post('/completions', async (c) => {
+router.post('/completions', async (req: Request, res: Response) => {
   try {
-    const request: ChatCompletionCreateParams = await c.req.json()
+    const request: ChatCompletionCreateParams = req.body
 
     if (!request) {
-      return c.json(
-        {
-          error: {
-            message: 'Request body is required',
-            type: 'invalid_request_error',
-            code: 'missing_body'
-          }
-        },
-        400
-      )
+      return res.status(400).json({
+        error: {
+          message: 'Request body is required',
+          type: 'invalid_request_error',
+          code: 'missing_body'
+        }
+      })
     }
 
     logger.info('Chat completion request:', {
@@ -37,47 +33,38 @@ app.post('/completions', async (c) => {
     // Validate request
     const validation = chatCompletionService.validateRequest(request)
     if (!validation.isValid) {
-      return c.json(
-        {
-          error: {
-            message: validation.errors.join('; '),
-            type: 'invalid_request_error',
-            code: 'validation_failed'
-          }
-        },
-        400
-      )
+      return res.status(400).json({
+        error: {
+          message: validation.errors.join('; '),
+          type: 'invalid_request_error',
+          code: 'validation_failed'
+        }
+      })
     }
 
     // Get provider
     const provider = await getProviderByModel(request.model)
     if (!provider) {
-      return c.json(
-        {
-          error: {
-            message: `Model "${request.model}" not found`,
-            type: 'invalid_request_error',
-            code: 'model_not_found'
-          }
-        },
-        400
-      )
+      return res.status(400).json({
+        error: {
+          message: `Model "${request.model}" not found`,
+          type: 'invalid_request_error',
+          code: 'model_not_found'
+        }
+      })
     }
 
     // Validate model availability
     const modelId = request.model.split(':')[1]
     const model = provider.models?.find((m) => m.id === modelId)
     if (!model) {
-      return c.json(
-        {
-          error: {
-            message: `Model "${modelId}" not available in provider "${provider.id}"`,
-            type: 'invalid_request_error',
-            code: 'model_not_available'
-          }
-        },
-        400
-      )
+      return res.status(400).json({
+        error: {
+          message: `Model "${modelId}" not available in provider "${provider.id}"`,
+          type: 'invalid_request_error',
+          code: 'model_not_available'
+        }
+      })
     }
 
     // Create OpenAI client
@@ -91,34 +78,35 @@ app.post('/completions', async (c) => {
     if (request.stream) {
       const streamResponse = await client.chat.completions.create(request)
 
-      c.header('Content-Type', 'text/plain; charset=utf-8')
-      c.header('Cache-Control', 'no-cache')
-      c.header('Connection', 'keep-alive')
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
 
-      return stream(c, async (stream) => {
-        try {
-          for await (const chunk of streamResponse as any) {
-            await stream.write(`data: ${JSON.stringify(chunk)}\n\n`)
-          }
-          await stream.write('data: [DONE]\n\n')
-        } catch (streamError: any) {
-          logger.error('Stream error:', streamError)
-          await stream.write(
-            `data: ${JSON.stringify({
-              error: {
-                message: 'Stream processing error',
-                type: 'server_error',
-                code: 'stream_error'
-              }
-            })}\n\n`
-          )
+      try {
+        for await (const chunk of streamResponse as any) {
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`)
         }
-      })
+        res.write('data: [DONE]\n\n')
+        res.end()
+      } catch (streamError: any) {
+        logger.error('Stream error:', streamError)
+        res.write(
+          `data: ${JSON.stringify({
+            error: {
+              message: 'Stream processing error',
+              type: 'server_error',
+              code: 'stream_error'
+            }
+          })}\n\n`
+        )
+        res.end()
+      }
+      return
     }
 
     // Handle non-streaming
     const response = await client.chat.completions.create(request)
-    return c.json(response)
+    return res.json(response)
   } catch (error: any) {
     logger.error('Chat completion error:', error)
 
@@ -145,17 +133,14 @@ app.post('/completions', async (c) => {
       }
     }
 
-    return c.json(
-      {
-        error: {
-          message: errorMessage,
-          type: errorType,
-          code: errorCode
-        }
-      },
-      statusCode as any
-    )
+    return res.status(statusCode).json({
+      error: {
+        message: errorMessage,
+        type: errorType,
+        code: errorCode
+      }
+    })
   }
 })
 
-export { app as chatRoutes }
+export { router as chatRoutes }

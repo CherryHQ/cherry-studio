@@ -1,15 +1,11 @@
 import { IpcChannel } from '@shared/IpcChannel'
+import { ApiServerConfig } from '@types'
 import { ipcMain } from 'electron'
 
 import { apiServer } from '../apiServer'
 import { config } from '../apiServer/config'
 import { loggerService } from './LoggerService'
 const logger = loggerService.withContext('ApiServerService')
-
-export interface ApiServerConfig {
-  port: number
-  apiKey: string
-}
 
 export class ApiServerService {
   constructor() {
@@ -50,13 +46,8 @@ export class ApiServerService {
     return apiServer.isRunning()
   }
 
-  getCurrentConfig(): ApiServerConfig {
-    const serverConfig = apiServer.isRunning() ? config.get() : { port: 13333, apiKey: 'not-loaded' }
-
-    return {
-      port: serverConfig.port,
-      apiKey: serverConfig.apiKey
-    }
+  async getCurrentConfig(): Promise<ApiServerConfig> {
+    return await config.get()
   }
 
   registerIpcHandlers(): void {
