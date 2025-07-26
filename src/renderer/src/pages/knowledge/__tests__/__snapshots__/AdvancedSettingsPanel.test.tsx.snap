@@ -206,7 +206,7 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      knowledge.threshold
+      检索相似度阈值
       <div>
         knowledge.threshold_tooltip
       </div>

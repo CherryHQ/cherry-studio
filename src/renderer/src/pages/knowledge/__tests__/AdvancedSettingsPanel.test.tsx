@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => {
         const translations: Record<string, string> = {
           'knowledge.chunk_size': '分块大小',
           'knowledge.chunk_overlap': '分块重叠',
-          'knowledge.retrieval_similarity_threshold': '检索相似度阈值',
+          'knowledge.threshold': '检索相似度阈值',
           'knowledge.chunk_size_change_warning': '避免修改这个高级设置。'
         }
         return translations[k] || k

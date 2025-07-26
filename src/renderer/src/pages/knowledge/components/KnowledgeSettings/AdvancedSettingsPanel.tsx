@@ -64,7 +64,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
           value={newBase.threshold}
           placeholder={t('knowledge.threshold_placeholder')}
           onChange={handleThresholdChange}
-          aria-label={t('knowledge.retrieval_similarity_threshold')}
+          aria-label={t('knowledge.threshold')}
         />
       </SettingsItem>
 
