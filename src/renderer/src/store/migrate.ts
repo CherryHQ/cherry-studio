@@ -202,13 +202,14 @@ const migrateConfig = {
   '8': (state: RootState) => {
     try {
       const fixAssistantName = (assistant: Assistant) => {
+        // 2025/07/25 这俩键早没了，从远古版本迁移包出错的
         if (isEmpty(assistant.name)) {
-          assistant.name = i18n.t(`assistant.${assistant.id}.name`)
+          assistant.name = i18n.t('chat.default.name')
         }
 
         assistant.topics = assistant.topics.map((topic) => {
           if (isEmpty(topic.name)) {
-            topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
+            topic.name = i18n.t('chat.default.topic.name')
           }
           return topic
         })

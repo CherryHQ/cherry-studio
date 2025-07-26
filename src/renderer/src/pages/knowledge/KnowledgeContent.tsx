@@ -12,8 +12,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettings from './components/KnowledgeSettings'
 import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
@@ -126,7 +126,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <Button
             type="text"
             icon={<Settings size={18} color="var(--color-icon)" />}
-            onClick={() => KnowledgeSettings.show({ base })}
+            onClick={() => EditKnowledgeBasePopup.show({ base })}
             size="small"
           />
           <div className="model-row">

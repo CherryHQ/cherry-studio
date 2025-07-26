@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
@@ -56,7 +57,7 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
-const getRoleText = (role: string, modelName?: string, modelProvider?: string) => {
+const getRoleText = (role: string, modelName?: string, providerId?: string) => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
 
   if (role === 'user') {
@@ -67,14 +68,14 @@ const getRoleText = (role: string, modelName?: string, modelProvider?: string) =
     let assistantText = '🤖 '
     if (showModelNameInMarkdown && modelName) {
       assistantText += `${modelName}`
-      if (showModelProviderInMarkdown && modelProvider) {
-        const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+      if (showModelProviderInMarkdown && providerId) {
+        const providerDisplayName = getProviderLabel(providerId) ?? providerId
         assistantText += ` | ${providerDisplayName}`
         return assistantText
       }
       return assistantText
-    } else if (showModelProviderInMarkdown && modelProvider) {
-      const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+    } else if (showModelProviderInMarkdown && providerId) {
+      const providerDisplayName = getProviderLabel(providerId) ?? providerId
       assistantText += `Assistant | ${providerDisplayName}`
       return assistantText
     }

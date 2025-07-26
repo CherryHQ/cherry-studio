@@ -6,6 +6,7 @@ import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
@@ -44,7 +45,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
       <ProviderLogo src={PROVIDER_LOGO_MAP[provider.id]} />
       {isEmpty(provider.apiKey) ? (
         <OAuthButton provider={provider} onSuccess={setApiKey}>
-          {t('settings.provider.oauth.button', { provider: t(`provider.${provider.id}`) })}
+          {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
         <HStack gap={10}>

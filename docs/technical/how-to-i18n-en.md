@@ -64,13 +64,14 @@ Never use flat structures like `"add.button.tip": "Add"`. Instead, adopt a clear
 #### 1. **Plugin Cannot Track Dynamic Keys**
 
 Tools like i18n Ally cannot parse dynamic content within template strings, resulting in:
+
 - No real-time preview
 - No detection of missing translations
 - No navigation to key definitions
 
 ```javascript
 // Not recommended - Plugin cannot resolve
-const message = t(`fruits.${fruit}`);
+const message = t(`fruits.${fruit}`)
 ```
 
 #### 2. **No Real-time Rendering in Editor**
@@ -103,6 +104,7 @@ The project includes several scripts to automate i18n-related tasks:
 ### `check:i18n` - Validate i18n Structure
 
 This script checks:
+
 - Whether all language files use nested structure
 - For missing or unused keys
 - Whether keys are properly sorted

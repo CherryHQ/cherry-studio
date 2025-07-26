@@ -9,6 +9,7 @@ import {
 } from '@hello-pangea/dnd'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { getMiniappsStatusLabel } from '@renderer/i18n/label'
 import { MinAppType } from '@renderer/types'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,7 +116,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       <ProgramSection style={{ background: 'transparent' }}>
         {(['visible', 'disabled'] as const).map((listType) => (
           <ProgramColumn key={listType}>
-            <h4>{t(`settings.miniapps.${listType}`)}</h4>
+            <h4>{getMiniappsStatusLabel(listType)}</h4>
             <Droppable droppableId={listType}>
               {(provided: DroppableProvided) => (
                 <ProgramList ref={provided.innerRef} {...provided.droppableProps}>

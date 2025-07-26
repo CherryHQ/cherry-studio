@@ -524,6 +524,7 @@ export type LanguageCode =
   | 'id-id'
   | 'ur-pk'
   | 'ms-my'
+  | 'uk-ua'
 
 // langCode应当能够唯一确认一种语言
 export type Language = {
@@ -660,6 +661,7 @@ export interface MCPServer {
   providerUrl?: string // URL of the MCP server in provider's website or documentation
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
+  longRunning?: boolean // Whether the server is long running
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
   dxtVersion?: string // Version of the DXT package
   dxtPath?: string // Path where the DXT package was extracted
