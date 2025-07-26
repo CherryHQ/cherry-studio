@@ -502,7 +502,7 @@ const MinappPopupContainer: React.FC = () => {
       mask={false}
       rootClassName="minapp-drawer"
       maskClassName="minapp-mask"
-      height={isTopNavbar ? 'calc(100% - var(--navbar-height))' : '100%'}
+      height={'100%'}
       maskClosable={false}
       closeIcon={null}
       style={{
