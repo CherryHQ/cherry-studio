@@ -3586,22 +3586,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.12.3":
-  version: 1.12.3
-  resolution: "@modelcontextprotocol/sdk@npm:1.12.3"
+"@modelcontextprotocol/sdk@npm:^1.17.0":
+  version: 1.17.0
+  resolution: "@modelcontextprotocol/sdk@npm:1.17.0"
   dependencies:
     ajv: "npm:^6.12.6"
     content-type: "npm:^1.0.5"
     cors: "npm:^2.8.5"
     cross-spawn: "npm:^7.0.5"
     eventsource: "npm:^3.0.2"
+    eventsource-parser: "npm:^3.0.0"
     express: "npm:^5.0.1"
     express-rate-limit: "npm:^7.5.0"
     pkce-challenge: "npm:^5.0.0"
     raw-body: "npm:^3.0.0"
     zod: "npm:^3.23.8"
     zod-to-json-schema: "npm:^3.24.1"
-  checksum: 10c0/8bc0b91e596ec886efc64d68ae8474247647405f1a5ae407e02439c74c2a03528b3fbdce8f9352d9c2df54aa4548411e1aa1816ab3b09e045c2ff4202e2fd374
+  checksum: 10c0/ac497edeb05a434bf8092475e4354ec602644b0197735d3bcd809ee1922f2078ab71e7d8d9dbe1c42765978fa3f2f807df01a2a3ad421c986f0b2207c3a40a68
   languageName: node
   linkType: hard
 
@@ -5672,6 +5673,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/content-type@npm:^1.1.9":
+  version: 1.1.9
+  resolution: "@types/content-type@npm:1.1.9"
+  checksum: 10c0/d8b198257862991880d38985ad9871241db18b21ec728bddc78e4c61e0f987cc037dae6c5f9bd2bcc08f41de74ad371180af2fcdefeafe25d0ccae0c3fceb7fd
+  languageName: node
+  linkType: hard
+
 "@types/d3-array@npm:*":
   version: 3.2.1
   resolution: "@types/d3-array@npm:3.2.1"
@@ -7242,7 +7250,7 @@ __metadata:
     "@libsql/client": "npm:0.14.0"
     "@libsql/win32-x64-msvc": "npm:^0.4.7"
     "@mistralai/mistralai": "npm:^1.7.5"
-    "@modelcontextprotocol/sdk": "npm:^1.12.3"
+    "@modelcontextprotocol/sdk": "npm:^1.17.0"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
     "@opentelemetry/api": "npm:^1.9.0"
@@ -7264,6 +7272,7 @@ __metadata:
     "@testing-library/user-event": "npm:^14.6.1"
     "@tryfabric/martian": "npm:^1.2.4"
     "@types/cli-progress": "npm:^3"
+    "@types/content-type": "npm:^1.1.9"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -7323,7 +7332,6 @@ __metadata:
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     google-auth-library: "npm:^9.15.1"
-    graceful-fs: "npm:^4.2.11"
     hono: "npm:^4.8.4"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -11192,6 +11200,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eventsource-parser@npm:^3.0.0":
+  version: 3.0.3
+  resolution: "eventsource-parser@npm:3.0.3"
+  checksum: 10c0/2594011630efba56cafafc8ed6bd9a50db8f6d5dd62089b0950346e7961828c16efe07a588bdea3ba79e568fd9246c8163824a2ffaade767e1fdb2270c1fae0b
+  languageName: node
+  linkType: hard
+
 "eventsource-parser@npm:^3.0.1":
   version: 3.0.1
   resolution: "eventsource-parser@npm:3.0.1"
@@ -12282,7 +12297,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"graceful-fs@npm:^4.1.10, graceful-fs@npm:^4.1.6, graceful-fs@npm:^4.2.0, graceful-fs@npm:^4.2.11, graceful-fs@npm:^4.2.6":
+"graceful-fs@npm:^4.1.10, graceful-fs@npm:^4.1.6, graceful-fs@npm:^4.2.0, graceful-fs@npm:^4.2.6":
   version: 4.2.11
   resolution: "graceful-fs@npm:4.2.11"
   checksum: 10c0/386d011a553e02bc594ac2ca0bd6d9e4c22d7fa8cfbfc448a6d148c59ea881b092db9dbe3547ae4b88e55f1b01f7c4a2ecc53b310c042793e63aa44cf6c257f2

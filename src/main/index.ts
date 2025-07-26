@@ -144,7 +144,7 @@ if (!app.requestSingleInstanceLock()) {
     // Start API server if enabled
     try {
       await apiServerService.start()
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to start API server:', error)
     }
   })

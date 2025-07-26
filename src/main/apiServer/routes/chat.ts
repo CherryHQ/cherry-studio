@@ -101,7 +101,7 @@ app.post('/completions', async (c) => {
             await stream.write(`data: ${JSON.stringify(chunk)}\n\n`)
           }
           await stream.write('data: [DONE]\n\n')
-        } catch (streamError) {
+        } catch (streamError: any) {
           logger.error('Stream error:', streamError)
           await stream.write(
             `data: ${JSON.stringify({
@@ -119,7 +119,7 @@ app.post('/completions', async (c) => {
     // Handle non-streaming
     const response = await client.chat.completions.create(request)
     return c.json(response)
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Chat completion error:', error)
 
     let statusCode = 500

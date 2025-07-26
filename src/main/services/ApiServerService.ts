@@ -20,7 +20,7 @@ export class ApiServerService {
     try {
       await apiServer.start()
       logger.info('API Server started successfully')
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to start API Server:', error)
       throw error
     }
@@ -30,7 +30,7 @@ export class ApiServerService {
     try {
       await apiServer.stop()
       logger.info('API Server stopped successfully')
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to stop API Server:', error)
       throw error
     }
@@ -40,7 +40,7 @@ export class ApiServerService {
     try {
       await apiServer.restart()
       logger.info('API Server restarted successfully')
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to restart API Server:', error)
       throw error
     }
@@ -65,7 +65,7 @@ export class ApiServerService {
       try {
         await this.start()
         return { success: true }
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Failed to start API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
@@ -75,7 +75,7 @@ export class ApiServerService {
       try {
         await this.stop()
         return { success: true }
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Failed to stop API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
@@ -85,7 +85,7 @@ export class ApiServerService {
       try {
         await this.restart()
         return { success: true }
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Failed to restart API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }

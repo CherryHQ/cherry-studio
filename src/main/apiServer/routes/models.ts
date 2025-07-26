@@ -22,7 +22,7 @@ app.get('/', async (c) => {
       object: 'list',
       data: models
     })
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error fetching models:', error)
     return c.json(
       {

@@ -50,14 +50,14 @@ api.get('/', (c) => {
       health: 'GET /health',
       models: 'GET /v1/models',
       chat: 'POST /v1/chat/completions',
-      mcp: 'GET /v1/mcp/servers'
+      mcp: 'GET /v1/mcps'
     }
   })
 })
 
 // Mount routes
 api.route('/chat', chatRoutes)
-api.route('/mcp', mcpRoutes)
+api.route('/mcps', mcpRoutes)
 api.route('/models', modelsRoutes)
 
 export { app }

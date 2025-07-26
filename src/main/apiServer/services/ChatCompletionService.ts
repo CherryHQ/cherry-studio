@@ -42,7 +42,7 @@ export class ChatCompletionService {
 
       logger.info(`Successfully retrieved ${modelData.length} models`)
       return modelData
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error getting models:', error)
       return []
     }
@@ -149,7 +149,7 @@ export class ChatCompletionService {
 
       logger.info('Successfully processed chat completion')
       return response
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing chat completion:', error)
       throw error
     }
@@ -210,7 +210,7 @@ export class ChatCompletionService {
       }
 
       logger.info('Successfully completed streaming chat completion')
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error processing streaming chat completion:', error)
       throw error
     }

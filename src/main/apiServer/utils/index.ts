@@ -21,7 +21,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
     return providers.filter((p: Provider) => p.enabled)
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to get providers from Redux store:', error)
     return []
   }
@@ -31,7 +31,7 @@ export async function listAllAvailableModels(): Promise<Model[]> {
   try {
     const providers = await getAvailableProviders()
     return providers.map((p: Provider) => p.models || []).flat() as Model[]
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to list available models:', error)
     return []
   }
@@ -40,7 +40,7 @@ export async function listAllAvailableModels(): Promise<Model[]> {
 export async function getProviderByModel(model: string): Promise<Provider | undefined> {
   try {
     if (!model || typeof model !== 'string') {
-      logger.warn('Invalid model parameter:', model)
+      logger.warn(`Invalid model parameter: ${model}`)
       return undefined
     }
 
@@ -48,7 +48,7 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     const modelInfo = model.split(':')
 
     if (modelInfo.length < 2) {
-      logger.warn('Invalid model format, expected "provider:model":', model)
+      logger.warn(`Invalid model format, expected "provider:model": ${model}`)
       return undefined
     }
 
@@ -56,12 +56,12 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     const provider = providers.find((p: Provider) => p.id === providerId)
 
     if (!provider) {
-      logger.warn('Provider not found for model:', model)
+      logger.warn(`Provider not found for model: ${model}`)
       return undefined
     }
 
     return provider
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to get provider by model:', error)
     return undefined
   }
@@ -95,12 +95,12 @@ export function validateProvider(provider: Provider): boolean {
 
     // Check if provider is enabled
     if (!provider.enabled) {
-      logger.debug('Provider is disabled:', provider.id)
+      logger.debug(`Provider is disabled: ${provider.id}`)
       return false
     }
 
     return true
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error validating provider:', error)
     return false
   }

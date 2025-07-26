@@ -24,7 +24,7 @@ export class ApiServer {
         const request = await this.nodeToWebRequest(req)
         const response = await app.fetch(request)
         await this.webToNodeResponse(response, res)
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Request processing error:', error)
         res.statusCode = 500
         res.setHeader('Content-Type', 'application/json')

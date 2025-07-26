@@ -142,7 +142,7 @@ const ApiServerSettings: FC = () => {
     try {
       const status = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus)
       setApiServerRunning(status.running)
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to check API server status:', error)
     }
   }

@@ -40,7 +40,7 @@ class ConfigManager {
       }
 
       return this._config
-    } catch (error) {
+    } catch (error: any) {
       logger.warn('Failed to load config from Redux, using defaults:', error)
       this._config = {
         port: 13333,
