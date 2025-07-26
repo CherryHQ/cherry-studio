@@ -1,3 +1,4 @@
+import { Typography } from 'antd'
 import { ReactNode } from 'react'
 import styled from 'styled-components'
 
@@ -18,7 +19,9 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
       <ListItemContent>
         {icon && <IconWrapper>{icon}</IconWrapper>}
         <TextContainer>
-          <TitleText style={titleStyle}>{title}</TitleText>
+          <Typography.Text style={titleStyle} ellipsis={{ expanded: false, tooltip: title }}>
+            {title}
+          </Typography.Text>
           {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
         </TextContainer>
         {rightContent && <RightContentWrapper>{rightContent}</RightContentWrapper>}
@@ -68,12 +71,6 @@ const TextContainer = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-`
-
-const TitleText = styled.div<{ $active?: boolean }>`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 `
 
 const SubtitleText = styled.div`

@@ -1,4 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
+import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
@@ -56,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       group: values.group ?? getDefaultGroupName(id)
     }
 
-    addModel(model)
+    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
 
     return true
   }
@@ -96,7 +97,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         onFinish={onFinish}>
         <Form.Item
           name="id"
-          label={t('settings.models.add.model_id')}
+          label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Input
@@ -111,13 +112,13 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         </Form.Item>
         <Form.Item
           name="name"
-          label={t('settings.models.add.model_name')}
+          label={t('settings.models.add.model_name.label')}
           tooltip={t('settings.models.add.model_name.placeholder')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
-          label={t('settings.models.add.group_name')}
+          label={t('settings.models.add.group_name.label')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>

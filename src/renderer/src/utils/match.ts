@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { Model, Provider } from '@renderer/types'
 
 /**
@@ -64,7 +64,7 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
-  return provider.isSystem ? `${i18n.t(`provider.${provider.id}`)} ${provider.id}` : provider.name
+  return provider.isSystem ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
 }
 
 /**

@@ -3,6 +3,7 @@ import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
@@ -24,7 +25,6 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -63,7 +63,6 @@ let lastSettingsPath = '/settings/provider'
 const specialTabs = ['launchpad', 'settings']
 
 const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
-  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
@@ -145,7 +144,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                 }}>
                 <TabHeader>
                   {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                  <TabTitle>{t(`title.${tab.id}`)}</TabTitle>
+                  <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
                 </TabHeader>
                 {tab.id !== 'home' && (
                   <CloseButton

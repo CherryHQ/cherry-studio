@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { getProgressLabel } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -14,8 +15,10 @@ interface Props {
   resolve: (data: any) => void
 }
 
+type ProgressStageType = 'reading_data' | 'preparing' | 'extracting' | 'extracted' | 'copying_files' | 'completed'
+
 interface ProgressData {
-  stage: string
+  stage: ProgressStageType
   progress: number
   total: number
 }
@@ -54,11 +57,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (!progressData) return ''
 
     if (progressData.stage === 'copying_files') {
-      return t(`backup.progress.${progressData.stage}`, {
+      return t('backup.progress.copying_files', {
         progress: Math.floor(progressData.progress)
       })
     }
-    return t(`backup.progress.${progressData.stage}`)
+    return getProgressLabel(progressData.stage)
   }
 
   BackupPopup.hide = onCancel

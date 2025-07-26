@@ -11,7 +11,7 @@ import {
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
-import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
+import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,8 +33,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
   const [modelCapabilities, setModelCapabilities] = useState(model.capabilities || [])
+  const [supportedTextDelta, setSupportedTextDelta] = useState(model.supported_text_delta)
 
-  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type')])
+  const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
 
   const onFinish = (values: any) => {
     const finalCurrencySymbol = isCustomCurrency ? values.customCurrencySymbol : values.currencySymbol
@@ -45,6 +46,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
       group: values.group || model.group,
       endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
       capabilities: modelCapabilities,
+      supported_text_delta: supportedTextDelta,
       pricing: {
         input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
         output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
@@ -105,7 +107,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
         onFinish={onFinish}>
         <Form.Item
           name="id"
-          label={t('settings.models.add.model_id')}
+          label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Flex justify="space-between" gap={5}>
@@ -134,20 +136,20 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
         </Form.Item>
         <Form.Item
           name="name"
-          label={t('settings.models.add.model_name')}
+          label={t('settings.models.add.model_name.label')}
           tooltip={t('settings.models.add.model_name.tooltip')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
-          label={t('settings.models.add.group_name')}
+          label={t('settings.models.add.group_name.label')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         {provider.id === 'new-api' && (
           <Form.Item
             name="endpointType"
-            label={t('settings.models.add.endpoint_type')}
+            label={t('settings.models.add.endpoint_type.label')}
             tooltip={t('settings.models.add.endpoint_type.tooltip')}
             rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
             <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
@@ -168,7 +170,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               iconPosition="end"
               onClick={() => setShowMoreSettings(!showMoreSettings)}
               style={{ color: 'var(--color-text-3)' }}>
-              {t('settings.moresetting')}
+              {t('settings.moresetting.label')}
             </Button>
             <Button type="primary" htmlType="submit" size="middle">
               {t('common.save')}
@@ -338,6 +340,12 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 </div>
               )
             })()}
+            <Form.Item
+              name="supported_text_delta"
+              label={t('settings.models.add.supported_text_delta.label')}
+              tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
+              <Switch checked={supportedTextDelta} onChange={(checked) => setSupportedTextDelta(checked)} />
+            </Form.Item>
             <TypeTitle>{t('models.price.price')}</TypeTitle>
             <Form.Item name="currencySymbol" label={t('models.price.currency')} style={{ marginBottom: 10 }}>
               <Select

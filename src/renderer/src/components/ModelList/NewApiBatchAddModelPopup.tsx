@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -45,7 +46,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     batchModels.forEach((model) => {
       addModel({
         ...model,
-        endpoint_type: values.endpointType
+        endpoint_type: values.endpointType,
+        supported_text_delta: !isNotSupportedTextDelta(model)
       })
     })
     return true
@@ -70,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       centered>
       <Form
         form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type')]) } }}
+        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -80,7 +82,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         }}>
         <Form.Item
           name="endpointType"
-          label={t('settings.models.add.endpoint_type')}
+          label={t('settings.models.add.endpoint_type.label')}
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
           rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>

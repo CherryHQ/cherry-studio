@@ -3,6 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
@@ -154,7 +155,7 @@ const McpServersList: FC = () => {
                 },
                 {
                   key: 'json',
-                  label: t('settings.mcp.addServer.importFrom'),
+                  label: t('settings.mcp.addServer.importFrom.json'),
                   onClick: () => {
                     setModalType('json')
                     setIsAddModalVisible(true)
@@ -172,7 +173,7 @@ const McpServersList: FC = () => {
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer')}
+              {t('settings.mcp.addServer.label')}
             </Button>
           </Dropdown>
           <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
@@ -221,7 +222,7 @@ const McpServersList: FC = () => {
             <ServerDescription>{server.description}</ServerDescription>
             <ServerFooter>
               <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                {t(`settings.mcp.types.${server.type || 'stdio'}`)}
+                {getMcpTypeLabel(server.type ?? 'stdio')}
               </Tag>
               {server.provider && (
                 <Tag color="success" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>

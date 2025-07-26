@@ -83,7 +83,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       message.success(t('message.copied'))
     } catch (error) {
       logger.error('Failed to copy text:', error as Error)
-      window.message.error(t('message.copyError') || 'Failed to copy text')
+      window.message.error(t('message.error.copy') || 'Failed to copy text')
     }
   }
 

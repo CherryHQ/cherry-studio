@@ -35,7 +35,7 @@ const YuqueSettings: FC = () => {
       return
     }
     if (!yuqueUrl) {
-      window.message.error(t('settings.data.yuque.check.empty_url'))
+      window.message.error(t('settings.data.yuque.check.empty_repo_url'))
       return
     }
 

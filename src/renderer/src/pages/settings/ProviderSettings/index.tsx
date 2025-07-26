@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
@@ -101,7 +102,7 @@ const ProvidersList: FC = () => {
       }
 
       const providerDisplayName = existingProvider.isSystem
-        ? t(`provider.${existingProvider.id}`)
+        ? getProviderLabel(existingProvider.id)
         : existingProvider.name
 
       // 检查是否已有 API Key

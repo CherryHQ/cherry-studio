@@ -268,7 +268,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            {t('settings.provider.api_key')}
+            {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
                 <Button type="text" size="small" onClick={openApiKeyList} icon={<Settings2 size={14} />} />
@@ -278,7 +278,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
               value={localApiKey}
-              placeholder={t('settings.provider.api_key')}
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setLocalApiKey(e.target.value)}
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}

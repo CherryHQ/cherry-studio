@@ -28,9 +28,18 @@ function initFileTypeMap() {
 // 初始化映射表
 initFileTypeMap()
 
-export function hasWritePermission(path: string) {
+export function untildify(pathWithTilde: string) {
+  if (pathWithTilde.startsWith('~')) {
+    const homeDirectory = os.homedir()
+    return pathWithTilde.replace(/^~(?=$|\/|\\)/, homeDirectory)
+  }
+  return pathWithTilde
+}
+
+export async function hasWritePermission(dir: string) {
   try {
-    fs.accessSync(path, fs.constants.W_OK)
+    logger.info(`Checking write permission for ${dir}`)
+    await fs.promises.access(dir, fs.constants.W_OK)
     return true
   } catch (error) {
     return false

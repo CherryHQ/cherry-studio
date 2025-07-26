@@ -64,7 +64,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     const updateCopyButtonTitles = () => {
       const copyButtons = document.querySelectorAll('.copy-to-clipboard-container > span')
       copyButtons.forEach((btn) => {
-        btn.setAttribute('title', t('code_block.copy'))
+        btn.setAttribute('title', t('code_block.copy.label'))
       })
     }
 
