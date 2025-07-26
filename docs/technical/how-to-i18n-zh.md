@@ -60,13 +60,14 @@ i18n ally是一个强大的VSCode插件，它能在开发阶段提供实时反�
 
 1. **插件无法跟踪**
    i18n ally等工具无法解析模板字符串中的动态内容，导致：
+
    - 无法正确显示实时预览
    - 无法检测翻译缺失
    - 无法提供跳转到定义的功能
 
    ```javascript
    // 不推荐 - 插件无法解析
-   const message = t(`fruits.${fruit}`);
+   const message = t(`fruits.${fruit}`)
    ```
 
 2. **编辑器无法实时渲染**
@@ -97,6 +98,7 @@ const label = fruitLabels[fruit]
 ### `check:i18n` - 检查i18n结构
 
 此脚本会检查：
+
 - 所有语言文件是否为嵌套结构
 - 是否存在缺失的key
 - 是否存在多余的key

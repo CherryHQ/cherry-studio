@@ -8,6 +8,7 @@ import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPo
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -141,7 +142,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
               <SettingHelpLink target="_blank" href={docsWebsite}>
-                {t(`provider.${provider.id}`) + ' '}
+                {getProviderLabel(provider.id) + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}

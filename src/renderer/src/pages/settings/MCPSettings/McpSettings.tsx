@@ -31,6 +31,7 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  longRunning?: boolean
   timeout?: number
 
   provider?: string
@@ -155,6 +156,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      longRunning: server.longRunning,
       timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
@@ -271,6 +273,7 @@ const McpSettings: React.FC = () => {
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
+        longRunning: values.longRunning,
         // Preserve existing advanced properties if not set in the form
         provider: values.provider || server.provider,
         providerUrl: values.providerUrl || server.providerUrl,
@@ -630,6 +633,9 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
+          <Form.Item name="longRunning" label={t('settings.mcp.longRunning', 'Long Running')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
           <Form.Item
             name="timeout"
             label={t('settings.mcp.timeout', 'Timeout')}

@@ -1,3 +1,4 @@
+import { getProviderLabel } from '@renderer/i18n/label'
 import { Provider } from '@renderer/types'
 import { oauthWithAihubmix, oauthWithPPIO, oauthWithSiliconFlow, oauthWithTokenFlux } from '@renderer/utils/oauth'
 import { Button, ButtonProps } from 'antd'
@@ -39,7 +40,7 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
   return (
     <Button type="primary" onClick={onAuth} shape="round" {...buttonProps}>
-      {t('settings.provider.oauth.button', { provider: t(`provider.${provider.id}`) })}
+      {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
     </Button>
   )
 }

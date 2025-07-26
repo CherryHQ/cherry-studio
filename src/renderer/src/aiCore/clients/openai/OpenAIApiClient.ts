@@ -545,11 +545,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const mistralProviders = ['mistral']
+        const shouldIncludeStreamOptions = streamOutput && !mistralProviders.includes(this.provider.id)
+
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
               ...commonParams,
               stream: true,
-              stream_options: { include_usage: true }
+              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
             }
           : {
               ...commonParams,

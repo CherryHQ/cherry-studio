@@ -1,5 +1,4 @@
-import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -9,13 +8,11 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { Button, InputNumber, Slider, Tooltip } from 'antd'
+import { Slider, Tooltip } from 'antd'
 import { find } from 'lodash'
-import { Info, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Info } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const logger = loggerService.withContext('RagSettings')
 
 const INPUT_BOX_WIDTH = 'min(350px, 60%)'
 
@@ -23,7 +20,6 @@ const RagSettings = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
-  const [loadingDimensions, setLoadingDimensions] = useState(false)
 
   const embeddingModels = useMemo(() => {
     return providers.flatMap((p) => p.models).filter((model) => isEmbeddingModel(model))
@@ -55,36 +51,6 @@ const RagSettings = () => {
     updateCompressionConfig({ documentCount: value })
   }
 
-  const handleAutoGetDimensions = async () => {
-    if (!compressionConfig?.embeddingModel) {
-      logger.info('handleAutoGetDimensions: no embedding model')
-      window.message.error(t('settings.tool.websearch.compression.error.embedding_model_required'))
-      return
-    }
-
-    const provider = providers.find((p) => p.id === compressionConfig.embeddingModel?.provider)
-    if (!provider) {
-      logger.info('handleAutoGetDimensions: provider not found')
-      window.message.error(t('settings.tool.websearch.compression.error.provider_not_found'))
-      return
-    }
-
-    setLoadingDimensions(true)
-    try {
-      const aiProvider = new AiProvider(provider)
-      const dimensions = await aiProvider.getEmbeddingDimensions(compressionConfig.embeddingModel)
-
-      updateCompressionConfig({ embeddingDimensions: dimensions })
-
-      window.message.success(t('settings.tool.websearch.compression.info.dimensions_auto_success', { dimensions }))
-    } catch (error) {
-      logger.error('handleAutoGetDimensions: failed to get embedding dimensions', error as Error)
-      window.message.error(t('settings.tool.websearch.compression.error.dimensions_auto_failed'))
-    } finally {
-      setLoadingDimensions(false)
-    }
-  }
-
   return (
     <>
       <SettingRow>
@@ -104,27 +70,17 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
-          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.tooltip')}>
+          <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: INPUT_BOX_WIDTH }}>
-          <InputNumber
-            value={compressionConfig?.embeddingDimensions}
-            style={{ flex: 1 }}
-            placeholder={t('settings.tool.websearch.compression.rag.embedding_dimensions.placeholder')}
-            min={0}
-            onChange={handleEmbeddingDimensionsChange}
-          />
-          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.auto_get')}>
-            <Button
-              icon={<RefreshCw size={16} />}
-              loading={loadingDimensions}
-              disabled={!compressionConfig?.embeddingModel}
-              onClick={handleAutoGetDimensions}
-            />
-          </Tooltip>
-        </div>
+        <InputEmbeddingDimension
+          value={compressionConfig?.embeddingDimensions}
+          onChange={handleEmbeddingDimensionsChange}
+          model={compressionConfig?.embeddingModel}
+          disabled={!compressionConfig?.embeddingModel}
+          style={{ width: INPUT_BOX_WIDTH }}
+        />
       </SettingRow>
       <SettingDivider />
 

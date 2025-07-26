@@ -56,7 +56,7 @@ export default defineConfig([
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*'],
     rules: {
       'no-restricted-syntax': [
-        'warn',
+        process.env.PRCI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:

@@ -38,6 +38,7 @@
   // "i18n-ally.namespace": true, // 开启命名空间
   "i18n-ally.sortKeys": true, // 排序
   "i18n-ally.sourceLanguage": "zh-cn", // 翻译源语言
+  "i18n-ally.usage.derivedKeyRules": ["{key}_one", "{key}_other"], // 标记单复数形式的键为已翻译
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true
