@@ -1652,6 +1652,7 @@
     "progress": {
       "completed": "Restauración completada",
       "copying_files": "Copiando archivos... {{progress}}%",
+      "extracted": "Descomprimido con éxito",
       "extracting": "Descomprimiendo la copia de seguridad...",
       "preparing": "Preparando la restauración...",
       "reading_data": "Leyendo datos...",

@@ -51,7 +51,7 @@ export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
 export type EffortRatio = Record<ReasoningEffortOptions, number>
 
 export const EFFORT_RATIO: EffortRatio = {
-  low: 0.2,
+  low: 0.05,
   medium: 0.5,
   high: 0.8,
   auto: 2

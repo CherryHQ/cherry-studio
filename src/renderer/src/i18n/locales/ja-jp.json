@@ -1652,6 +1652,7 @@
     "progress": {
       "completed": "復元完了",
       "copying_files": "ファイルコピー中... {{progress}}%",
+      "extracted": "解凍に成功しました",
       "extracting": "バックアップ解凍中...",
       "preparing": "復元準備中...",
       "reading_data": "データ読み込み中...",

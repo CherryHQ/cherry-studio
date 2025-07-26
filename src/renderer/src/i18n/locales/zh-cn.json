@@ -1652,6 +1652,7 @@
     "progress": {
       "completed": "恢复完成",
       "copying_files": "复制文件... {{progress}}%",
+      "extracted": "解压成功",
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
       "reading_data": "读取数据...",

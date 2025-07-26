@@ -1652,6 +1652,7 @@
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",
+      "extracted": "Extraction successful",
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
       "reading_data": "Reading data...",

@@ -1652,6 +1652,7 @@
     "progress": {
       "completed": "復原完成",
       "copying_files": "複製檔案... {{progress}}%",
+      "extracted": "解壓成功",
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
