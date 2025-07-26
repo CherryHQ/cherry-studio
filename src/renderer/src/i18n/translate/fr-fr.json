@@ -3076,7 +3076,11 @@
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
       "get_api_key": "Cliquez ici pour obtenir une clé",
-      "is_not_support_array_content": "Activer le mode compatible",
+      "is_not_support_array_content": {
+        "label": "Activer le mode de compatibilité",
+        "tip": "compatible avec les API qui ne prennent pas en charge le format tableau des messages utilisateur"
+      },
+      "misc": "autre",
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
       "not_checked": "Non vérifié",
       "notes": {
@@ -3099,7 +3103,7 @@
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "title": "Services de modèles",
       "vertex_ai": {
-        "api_host_help": "[to be translated]:Vertex AI 的 API 地址，不建议填写，通常适用于反向代理",
+        "api_host_help": "Adresse API de Vertex AI, il n'est pas recommandé de la remplir, généralement utilisée pour le proxy inversé",
         "documentation": "Consultez la documentation officielle pour plus de détails sur la configuration :",
         "learn_more": "En savoir plus",
         "location": "Région",

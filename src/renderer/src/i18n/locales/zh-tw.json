@@ -3076,7 +3076,11 @@
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
       "get_api_key": "點選這裡取得金鑰",
-      "is_not_support_array_content": "開啟相容模式",
+      "is_not_support_array_content": {
+        "label": "開啟相容模式",
+        "tip": "兼容不支持數組格式用戶消息的API"
+      },
+      "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
       "not_checked": "未檢查",
       "notes": {

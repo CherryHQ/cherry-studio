@@ -373,7 +373,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
         }}>
         <CheckboxLabelContainer>
-          {t('settings.provider.is_not_support_array_content')}
+          {t('settings.provider.is_not_support_array_content.label')}
           <Tooltip title={t('settings.provider.is_not_support_array_content.tip')}>
             <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
           </Tooltip>

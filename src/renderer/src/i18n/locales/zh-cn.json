@@ -3076,7 +3076,11 @@
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
       "get_api_key": "点击这里获取密钥",
-      "is_not_support_array_content": "开启兼容模式",
+      "is_not_support_array_content": {
+        "label": "开启兼容模式",
+        "tip": "兼容不支持数组格式用户消息的API"
+      },
+      "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
       "not_checked": "未检测",
       "notes": {

@@ -2610,13 +2610,6 @@
         "toolNotFound": "Tool {{name}} not found"
       },
       "findMore": "Find More MCP",
-      "hardware_acceleration": {
-        "confirm": {
-          "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
-          "title": "Restart Required"
-        },
-        "title": "Disable Hardware Acceleration"
-      },
       "headers": "Headers",
       "headersTooltip": "Custom headers for HTTP requests",
       "inMemory": "Memory",
@@ -2629,106 +2622,7 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
-      "messages.divider": "Show divider between messages",
-      "messages.divider.tooltip": "Not applicable to bubble-style message",
-      "messages.grid_columns": "Message grid display columns",
-      "messages.grid_popover_trigger": "Grid detail trigger",
-      "messages.grid_popover_trigger.click": "Click to display",
-      "messages.grid_popover_trigger.hover": "Hover to display",
-      "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
-      "messages.input.enable_quick_triggers": "Enable / and @ triggers",
-      "messages.input.paste_long_text_as_file": "Paste long text as file",
-      "messages.input.paste_long_text_threshold": "Paste long text length",
-      "messages.input.send_shortcuts": "Send shortcuts",
-      "messages.input.show_estimated_tokens": "Show estimated tokens",
-      "messages.input.title": "Input Settings",
-      "messages.markdown_rendering_input_message": "Markdown render input message",
-      "messages.math_engine": "Math engine",
-      "messages.math_engine.none": "None",
-      "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
-      "messages.model.title": "Model Settings",
-      "messages.navigation": "Navigation bar",
-      "messages.navigation.anchor": "Message Anchor",
-      "messages.navigation.buttons": "Navigation Buttons",
-      "messages.navigation.none": "None",
-      "messages.prompt": "Show prompt",
-      "messages.title": "Message Settings",
-      "messages.tokens": "Show token usage",
-      "messages.use_serif_font": "Use serif font",
-      "mineru.api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key.",
       "missingDependencies": "is Missing, please install it to continue.",
-      "model": "Default Model",
-      "models.add.add_model": "Add Model",
-      "models.add.batch_add_models": "Batch Add Models",
-      "models.add.endpoint_type": "Endpoint Type",
-      "models.add.endpoint_type.placeholder": "Select endpoint type",
-      "models.add.endpoint_type.required": "Please select an endpoint type",
-      "models.add.endpoint_type.tooltip": "Select the API endpoint type format",
-      "models.add.group_name": "Group Name",
-      "models.add.group_name.placeholder": "Optional e.g. ChatGPT",
-      "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
-      "models.add.model_id": "Model ID",
-      "models.add.model_id.placeholder": "Required e.g. gpt-3.5-turbo",
-      "models.add.model_id.select.placeholder": "Select Model",
-      "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
-      "models.add.model_name": "Model Name",
-      "models.add.model_name.placeholder": "Optional e.g. GPT-4",
-      "models.add.model_name.tooltip": "Optional e.g. GPT-4",
-      "models.api_key": "API Key",
-      "models.base_url": "Base URL",
-      "models.check.all": "All",
-      "models.check.all_models_passed": "All models check passed",
-      "models.check.button_caption": "Health check",
-      "models.check.disabled": "Disabled",
-      "models.check.disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
-      "models.check.enable_concurrent": "Concurrent",
-      "models.check.enabled": "Enabled",
-      "models.check.failed": "Failed",
-      "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
-      "models.check.model_status_failed": "{{count}} models completely inaccessible",
-      "models.check.model_status_partial": "{{count}} models had inaccessible keys",
-      "models.check.model_status_passed": "{{count}} models passed health checks",
-      "models.check.model_status_summary": "{{provider}}: {{summary}}",
-      "models.check.no_api_keys": "No API keys found, please add API keys first.",
-      "models.check.passed": "Passed",
-      "models.check.select_api_key": "Select the API key to use:",
-      "models.check.single": "Single",
-      "models.check.start": "Start",
-      "models.check.title": "Model health check",
-      "models.check.use_all_keys": "Key(s)",
-      "models.default_assistant_model": "Default Assistant Model",
-      "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
-      "models.empty": "No models found",
-      "models.enable_topic_naming": "Topic Auto Naming",
-      "models.manage.add_listed": "Add models to the list",
-      "models.manage.add_whole_group": "Add the whole group",
-      "models.manage.remove_listed": "Remove models from the list",
-      "models.manage.remove_whole_group": "Remove the whole group",
-      "models.provider_id": "Provider ID",
-      "models.provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
-      "models.provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
-      "models.provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
-      "models.provider_key_added": "Successfully added API key for {{provider}}",
-      "models.provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
-      "models.provider_key_confirm_title": "Add Provider API Key",
-      "models.provider_key_no_change": "API key for {{provider}} has not changed",
-      "models.provider_key_overridden": "Successfully updated API key for {{provider}}",
-      "models.provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
-      "models.provider_name": "Provider Name",
-      "models.quick_assistant_default_tag": "Default",
-      "models.quick_assistant_model": "Quick Assistant Model",
-      "models.quick_assistant_model_description": "Default model used by Quick Assistant",
-      "models.quick_assistant_selection": "Select Assistant",
-      "models.topic_naming_model": "Topic Naming Model",
-      "models.topic_naming_model_description": "Model used when automatically naming a new topic",
-      "models.topic_naming_model_setting_title": "Topic Naming Model Settings",
-      "models.topic_naming_prompt": "Topic Naming Prompt",
-      "models.translate_model": "Translate Model",
-      "models.translate_model_description": "Model used for translation service",
-      "models.translate_model_prompt_message": "Please enter the translate model prompt",
-      "models.translate_model_prompt_title": "Translate Model Prompt",
-      "models.use_assistant": "Use Assistant",
-      "models.use_model": "Default Model",
       "more": {
         "awesome": "Curated MCP Server List",
         "composio": "Composio MCP Development Tools",
@@ -2740,21 +2634,11 @@
         "pulsemcp": "Pulse MCP Server",
         "smithery": "Smithery MCP Tools"
       },
-      "moresetting": "More Settings",
-      "moresetting.check.confirm": "Confirm Selection",
-      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
-      "moresetting.warn": "Risk Warning",
       "name": "Name",
       "newServer": "MCP Server",
       "noDescriptionAvailable": "No description available",
       "noServers": "No servers configured",
       "not_support": "Model not supported",
-      "notification": {
-        "assistant": "Assistant Message",
-        "backup": "Backup Message",
-        "knowledge_embed": "KnowledgeBase Message",
-        "title": "Notification Settings"
-      },
       "npx_list": {
         "actions": "Actions",
         "description": "Description",
@@ -2768,24 +2652,6 @@
         "usage": "Usage",
         "version": "Version"
       },
-      "openai": {
-        "service_tier.auto": "auto",
-        "service_tier.default": "default",
-        "service_tier.flex": "flex",
-        "service_tier.tip": "Specifies the latency tier to use for processing the request",
-        "service_tier.title": "Service Tier",
-        "summary_text_mode.auto": "auto",
-        "summary_text_mode.concise": "concise",
-        "summary_text_mode.detailed": "detailed",
-        "summary_text_mode.off": "off",
-        "summary_text_mode.tip": "A summary of the reasoning performed by the model",
-        "summary_text_mode.title": "Summary Mode",
-        "title": "OpenAI Settings"
-      },
-      "privacy": {
-        "enable_privacy_mode": "Anonymous reporting of errors and statistics",
-        "title": "Privacy Settings"
-      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -2795,155 +2661,8 @@
         "requiredField": "Required Field"
       },
       "provider": "Provider",
-      "provider": {
-        "add.name": "Provider Name",
-        "add.name.placeholder": "Example: OpenAI",
-        "add.title": "Add Provider",
-        "add.type": "Provider Type",
-        "api.key.check.latency": "Latency",
-        "api.key.error.duplicate": "API key already exists",
-        "api.key.error.empty": "API key cannot be empty",
-        "api.key.list.open": "Open Management Interface",
-        "api.key.list.title": "API Key Management",
-        "api.key.new_key.placeholder": "Enter one or more keys",
-        "api.url.preview": "Preview: {{url}}",
-        "api.url.reset": "Reset",
-        "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
-        "api_host": "API Host",
-        "api_key": "API Key",
-        "api_key.tip": "Multiple keys separated by commas or spaces",
-        "api_version": "API Version",
-        "basic_auth": "HTTP authentication",
-        "basic_auth.password": "Password",
-        "basic_auth.password.tip": "",
-        "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
-        "basic_auth.user_name": "Username",
-        "basic_auth.user_name.tip": "Left empty to disable",
-        "bills": "Fee Bills",
-        "charge": "Balance Recharge",
-        "check": "Check",
-        "check_all_keys": "Check All Keys",
-        "check_multiple_keys": "Check Multiple API Keys",
-        "copilot": {
-          "auth_failed": "Github Copilot authentication failed.",
-          "auth_success": "GitHub Copilot authentication successful.",
-          "auth_success_title": "Certification successful.",
-          "code_failed": "Failed to obtain Device Code, please try again.",
-          "code_generated_desc": "Please copy the device code into the browser link below.",
-          "code_generated_title": "Obtain Device Code",
-          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
-          "confirm_title": "Risk Warning",
-          "connect": "Connect to Github",
-          "custom_headers": "Custom request header",
-          "description": "Your GitHub account needs to subscribe to Copilot.",
-          "expand": "Expand",
-          "headers_description": "Custom request headers (JSON format)",
-          "invalid_json": "JSON format error",
-          "login": "Log in to Github",
-          "logout": "Exit GitHub",
-          "logout_failed": "Exit failed, please try again.",
-          "logout_success": "Successfully logged out.",
-          "model_setting": "Model settings",
-          "open_verification_first": "Please click the link above to access the verification page.",
-          "rate_limit": "Rate limiting",
-          "tooltip": "You need to log in to Github before using Github Copilot"
-        },
-        "delete.content": "Are you sure you want to delete this provider?",
-        "delete.title": "Delete Provider",
-        "dmxapi": {
-          "select_platform": "Select the platform"
-        },
-        "docs_check": "Check",
-        "docs_more_details": "for more details",
-        "get_api_key": "Get API Key",
-        "is_not_support_array_content": "Enable compatible mode",
-        "is_not_support_array_content.tip": "Compatible with providers that do not support arrays in user messages",
-        "misc": "Misc.",
-        "no_models_for_check": "No models available for checking (e.g. chat models)",
-        "not_checked": "Not Checked",
-        "notes": {
-          "markdown_editor_default_value": "Preview area",
-          "placeholder": "Enter Markdown content...",
-          "title": "Model Notes"
-        },
-        "oauth": {
-          "button": "Login with {{provider}}",
-          "description": "This service is provided by <website>{{provider}}</website>",
-          "official_website": "Official Website"
-        },
-        "openai": {
-          "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
-        },
-        "remove_duplicate_keys": "Remove Duplicate Keys",
-        "remove_invalid_keys": "Remove Invalid Keys",
-        "search": "Search Providers...",
-        "search_placeholder": "Search model id or name",
-        "title": "Model Provider",
-        "vertex_ai": {
-          "documentation": "View official documentation for more configuration details:",
-          "learn_more": "Learn More",
-          "location": "Location",
-          "location_help": "Vertex AI service location, e.g., us-central1",
-          "project_id": "Project ID",
-          "project_id_help": "Your Google Cloud project ID",
-          "project_id_placeholder": "your-google-cloud-project-id",
-          "service_account": {
-            "auth_success": "Service Account authenticated successfully",
-            "client_email": "Client Email",
-            "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
-            "client_email_placeholder": "Enter Service Account client email",
-            "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
-            "incomplete_config": "Please complete Service Account configuration first",
-            "private_key": "Private Key",
-            "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
-            "private_key_placeholder": "Enter Service Account private key",
-            "title": "Service Account Configuration"
-          }
-        }
-      },
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
-      "proxy": {
-        "mode": {
-          "custom": "Custom Proxy",
-          "none": "No Proxy",
-          "system": "System Proxy",
-          "title": "Proxy Mode"
-        },
-        "title": "Proxy Settings"
-      },
-      "proxy.title": "Proxy Address",
-      "quickAssistant": {
-        "click_tray_to_show": "Click the tray icon to start",
-        "enable_quick_assistant": "Enable Quick Assistant",
-        "read_clipboard_at_startup": "Read clipboard at startup",
-        "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
-      },
-      "quickPanel": {
-        "back": "Back",
-        "close": "Close",
-        "confirm": "Confirm",
-        "forward": "Forward",
-        "multiple": "Multiple Select",
-        "page": "Page",
-        "select": "Select",
-        "title": "Quick Menu"
-      },
-      "quickPhrase": {
-        "add": "Add Phrase",
-        "assistant": "Assistant Phrases",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "Delete Phrase",
-        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
-        "edit": "Edit Phrase",
-        "global": "Global Phrases",
-        "locationLabel": "Add Location",
-        "title": "Quick Phrases",
-        "titleLabel": "Title",
-        "titlePlaceholder": "Please enter phrase title"
-      },
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
@@ -2962,33 +2681,6 @@
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
-      "shortcuts": {
-        "action": "Action",
-        "clear_shortcut": "Clear Shortcut",
-        "clear_topic": "Clear Messages",
-        "copy_last_message": "Copy Last Message",
-        "exit_fullscreen": "Exit Fullscreen",
-        "key": "Key",
-        "mini_window": "Quick Assistant",
-        "new_topic": "New Topic",
-        "press_shortcut": "Press Shortcut",
-        "reset_defaults": "Reset Defaults",
-        "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
-        "reset_to_default": "Reset to Default",
-        "search_message": "Search Message",
-        "search_message_in_chat": "Search Message in Current Chat",
-        "selection_assistant_select_text": "Selection Assistant: Select Text",
-        "selection_assistant_toggle": "Toggle Selection Assistant",
-        "show_app": "Show/Hide App",
-        "show_settings": "Open Settings",
-        "title": "Keyboard Shortcuts",
-        "toggle_new_context": "Clear Context",
-        "toggle_show_assistants": "Toggle Assistants",
-        "toggle_show_topics": "Toggle Topics",
-        "zoom_in": "Zoom In",
-        "zoom_out": "Zoom Out",
-        "zoom_reset": "Reset Zoom"
-      },
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",
@@ -3019,101 +2711,9 @@
       },
       "tags": "Tags",
       "tagsPlaceholder": "Enter tags",
-      "theme.color_primary": "Primary Color",
-      "theme.dark": "Dark",
-      "theme.light": "Light",
-      "theme.system": "System",
-      "theme.title": "Theme",
-      "theme.window.style.opaque": "Opaque Window",
-      "theme.window.style.title": "Window Style",
-      "theme.window.style.transparent": "Transparent Window",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
       "title": "MCP Settings",
-      "title": "Settings",
-      "tool": {
-        "ocr": {
-          "mac_system_ocr_options": {
-            "min_confidence": "Minimum Confidence",
-            "mode": {
-              "accurate": "Accurate",
-              "fast": "Fast",
-              "title": "Recognition Mode"
-            }
-          },
-          "provider": "OCR Provider",
-          "provider_placeholder": "Choose an OCR provider",
-          "title": "OCR"
-        },
-        "preprocess": {
-          "provider": "Pre Process Provider",
-          "provider_placeholder": "Choose a Pre Process provider",
-          "title": "Pre Process"
-        },
-        "preprocessOrOcr.tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text.",
-        "title": "Tools Settings",
-        "websearch": {
-          "apikey": "API key",
-          "blacklist": "Blacklist",
-          "blacklist_description": "Results from the following websites will not appear in search results",
-          "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
-          "check": "Check",
-          "check_failed": "Verification failed",
-          "check_success": "Verification successful",
-          "compression": {
-            "cutoff.limit": "Cutoff Limit",
-            "cutoff.limit.placeholder": "Enter length",
-            "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
-            "cutoff.unit.char": "Char",
-            "cutoff.unit.token": "Token",
-            "error": {
-              "dimensions_auto_failed": "Failed to auto-obtain dimensions",
-              "embedding_model_required": "Please select an embedding model first",
-              "provider_not_found": "Provider not found",
-              "rag_failed": "RAG failed"
-            },
-            "info": {
-              "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
-            },
-            "method": "Compression Method",
-            "method.cutoff": "Cutoff",
-            "method.none": "None",
-            "method.rag": "RAG",
-            "rag.document_count": "Document Count",
-            "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
-            "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
-            "rag.embedding_dimensions.placeholder": "Leave empty",
-            "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
-            "title": "Search Result Compression"
-          },
-          "content_limit": "Content length limit",
-          "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
-          "free": "Free",
-          "no_provider_selected": "Please select a search service provider before checking.",
-          "overwrite": "Override search service",
-          "overwrite_tooltip": "Force use search service instead of LLM",
-          "search_max_result": "Number of search results",
-          "search_max_result.tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens",
-          "search_provider": "Search service provider",
-          "search_provider_placeholder": "Choose a search service provider.",
-          "search_with_time": "Search with dates included",
-          "subscribe": "Blacklist Subscription",
-          "subscribe_add": "Add Subscription",
-          "subscribe_add_success": "Subscription feed added successfully!",
-          "subscribe_delete": "Delete",
-          "subscribe_name": "Alternative name",
-          "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
-          "subscribe_update": "Update",
-          "subscribe_url": "Subscription Url",
-          "tavily": {
-            "api_key": "Tavily API Key",
-            "api_key.placeholder": "Enter Tavily API Key",
-            "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
-            "title": "Tavily"
-          },
-          "title": "Web Search"
-        }
-      },
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -3136,266 +2736,712 @@
         "noToolsAvailable": "No tools available",
         "run": "Run"
       },
-      "topic.pin_to_top": "Pin Topics to Top",
-      "topic.position": "Topic position",
-      "topic.position.left": "Left",
-      "topic.position.right": "Right",
-      "topic.show.time": "Show topic time",
-      "tray.onclose": "Minimize to Tray on Close",
-      "tray.show": "Show Tray Icon",
-      "tray.title": "Tray",
-      "zoom": {
-        "reset": "Reset",
-        "title": "Page Zoom"
-      }
+      "type": "Type",
+      "types": {
+        "inMemory": "In Memory",
+        "sse": "SSE",
+        "stdio": "STDIO",
+        "streamableHttp": "Streamable HTTP"
+      },
+      "updateError": "Failed to update server",
+      "updateSuccess": "Server updated successfully",
+      "url": "URL",
+      "user": "User"
     },
-    "selection": {
-      "action": {
-        "builtin": {
-          "copy": "Copy",
-          "explain": "Explain",
-          "quote": "Quote",
-          "refine": "Refine",
-          "search": "Search",
-          "summary": "Summarize",
-          "translate": "Translate"
+    "messages": {
+      "divider": {
+        "label": "Show divider between messages",
+        "tooltip": "Not applicable to bubble-style message"
+      },
+      "grid_columns": "Message grid display columns",
+      "grid_popover_trigger": {
+        "click": "Click to display",
+        "hover": "Hover to display",
+        "label": "Grid detail trigger"
+      },
+      "input": {
+        "enable_delete_model": "Enable the backspace key to delete models/attachments.",
+        "enable_quick_triggers": "Enable / and @ triggers",
+        "paste_long_text_as_file": "Paste long text as file",
+        "paste_long_text_threshold": "Paste long text length",
+        "send_shortcuts": "Send shortcuts",
+        "show_estimated_tokens": "Show estimated tokens",
+        "title": "Input Settings"
+      },
+      "markdown_rendering_input_message": "Markdown render input message",
+      "math_engine": {
+        "label": "Math engine",
+        "none": "None"
+      },
+      "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
+      "model": {
+        "title": "Model Settings"
+      },
+      "navigation": {
+        "anchor": "Message Anchor",
+        "buttons": "Navigation Buttons",
+        "label": "Navigation bar",
+        "none": "None"
+      },
+      "prompt": "Show prompt",
+      "title": "Message Settings",
+      "use_serif_font": "Use serif font"
+    },
+    "mineru": {
+      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
+    },
+    "miniapps": {
+      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "Cache Settings",
+      "cache_title": "Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "Duplicate IDs found: {{ids}}",
+        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "Edit Custom Mini App",
+        "id": "ID",
+        "id_error": "ID is required.",
+        "id_placeholder": "Enter ID",
+        "logo": "Logo",
+        "logo_file": "Upload Logo File",
+        "logo_upload_button": "Upload",
+        "logo_upload_error": "Failed to upload logo.",
+        "logo_upload_label": "Upload Logo",
+        "logo_upload_success": "Logo uploaded successfully.",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "Enter logo URL",
+        "name": "Name",
+        "name_error": "Name is required.",
+        "name_placeholder": "Enter name",
+        "placeholder": "Enter custom mini app configuration (JSON format)",
+        "remove_error": "Failed to remove custom mini app.",
+        "remove_success": "Custom mini app removed successfully.",
+        "save": "Save",
+        "save_error": "Failed to save custom mini app.",
+        "save_success": "Custom mini app saved successfully.",
+        "title": "Custom",
+        "url": "URL",
+        "url_error": "URL is required.",
+        "url_placeholder": "Enter URL"
+      },
+      "disabled": "Hidden Mini Apps",
+      "display_title": "Mini App Display Settings",
+      "empty": "Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "Open new-window links in browser"
+      },
+      "reset_tooltip": "Reset to default",
+      "sidebar_description": "Show active mini apps in the sidebar",
+      "sidebar_title": "Sidebar Active Mini Apps Display",
+      "title": "Mini Apps Settings",
+      "visible": "Visible Mini Apps"
+    },
+    "model": "Default Model",
+    "models": {
+      "add": {
+        "add_model": "Add Model",
+        "batch_add_models": "Batch Add Models",
+        "endpoint_type": {
+          "label": "Endpoint Type",
+          "placeholder": "Select endpoint type",
+          "required": "Please select an endpoint type",
+          "tooltip": "Select the API endpoint type format"
         },
-        "translate": {
-          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
+        "group_name": {
+          "label": "Group Name",
+          "placeholder": "Optional e.g. ChatGPT",
+          "tooltip": "Optional e.g. ChatGPT"
         },
-        "window": {
-          "c_copy": "C: Copy",
-          "esc_close": "Esc: Close",
-          "esc_stop": "Esc: Stop",
-          "opacity": "Window Opacity",
-          "original_copy": "Copy Original",
-          "original_hide": "Hide Original",
-          "original_show": "Show Original",
-          "pin": "Pin",
-          "pinned": "Pinned",
-          "r_regenerate": "R: Regenerate"
+        "model_id": {
+          "label": "Model ID",
+          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "select": {
+            "placeholder": "Select Model"
+          },
+          "tooltip": "Example: gpt-3.5-turbo"
+        },
+        "model_name": {
+          "label": "Model Name",
+          "placeholder": "Optional e.g. GPT-4",
+          "tooltip": "Optional e.g. GPT-4"
         }
       },
-      "name": "Selection Assistant",
-      "settings": {
-        "actions": {
-          "add_tooltip": {
-            "disabled": "Maximum number of custom actions reached ({{max}})",
-            "enabled": "Add Custom Action"
-          },
-          "custom": "Custom Action",
-          "delete_confirm": "Are you sure you want to delete this custom action?",
-          "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
-          "reset": {
-            "button": "Reset",
-            "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted.",
-            "tooltip": "Reset to default actions. Custom actions will not be deleted."
-          },
-          "title": "Actions"
+      "api_key": "API Key",
+      "base_url": "Base URL",
+      "check": {
+        "all": "All",
+        "all_models_passed": "All models check passed",
+        "button_caption": "Health check",
+        "disabled": "Disabled",
+        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "enable_concurrent": "Concurrent",
+        "enabled": "Enabled",
+        "failed": "Failed",
+        "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+        "model_status_failed": "{{count}} models completely inaccessible",
+        "model_status_partial": "{{count}} models had inaccessible keys",
+        "model_status_passed": "{{count}} models passed health checks",
+        "model_status_summary": "{{provider}}: {{summary}}",
+        "no_api_keys": "No API keys found, please add API keys first.",
+        "no_results": "No results",
+        "passed": "Passed",
+        "select_api_key": "Select the API key to use:",
+        "single": "Single",
+        "start": "Start",
+        "title": "Model health check",
+        "use_all_keys": "Key(s)"
+      },
+      "default_assistant_model": "Default Assistant Model",
+      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "empty": "No models found",
+      "enable_topic_naming": "Topic Auto Naming",
+      "manage": {
+        "add_listed": {
+          "confirm": "Are you sure you want to add all models to the list?",
+          "label": "Add models to the list"
         },
-        "advanced": {
-          "filter_list": {
-            "description": "Advanced feature, recommended for users with experience",
-            "title": "Filter List"
-          },
-          "filter_mode": {
-            "blacklist": "Blacklist",
-            "default": "Off",
-            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
-            "title": "Application Filter",
-            "whitelist": "Whitelist"
-          },
-          "title": "Advanced"
+        "add_whole_group": "Add the whole group",
+        "remove_listed": "Remove models from the list",
+        "remove_model": "Remove model",
+        "remove_whole_group": "Remove the whole group"
+      },
+      "provider_id": "Provider ID",
+      "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
+      "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
+      "provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
+      "provider_key_added": "Successfully added API key for {{provider}}",
+      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
+      "provider_key_confirm_title": "Add Provider API Key",
+      "provider_key_no_change": "API key for {{provider}} has not changed",
+      "provider_key_overridden": "Successfully updated API key for {{provider}}",
+      "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
+      "provider_name": "Provider Name",
+      "quick_assistant_default_tag": "Default",
+      "quick_assistant_model": "Quick Assistant Model",
+      "quick_assistant_model_description": "Default model used by Quick Assistant",
+      "quick_assistant_selection": "Select Assistant",
+      "topic_naming_model": "Topic Naming Model",
+      "topic_naming_model_description": "Model used when automatically naming a new topic",
+      "topic_naming_model_setting_title": "Topic Naming Model Settings",
+      "topic_naming_prompt": "Topic Naming Prompt",
+      "translate_model": "Translate Model",
+      "translate_model_description": "Model used for translation service",
+      "translate_model_prompt_message": "Please enter the translate model prompt",
+      "translate_model_prompt_title": "Translate Model Prompt",
+      "use_assistant": "Use Assistant",
+      "use_model": "Default Model"
+    },
+    "moresetting": {
+      "check": {
+        "confirm": "Confirm Selection",
+        "warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!"
+      },
+      "label": "More Settings",
+      "warn": "Risk Warning"
+    },
+    "no_provider_selected": "Provider not selected",
+    "notification": {
+      "assistant": "Assistant Message",
+      "backup": "Backup Message",
+      "knowledge_embed": "KnowledgeBase Message",
+      "title": "Notification Settings"
+    },
+    "openai": {
+      "service_tier": {
+        "auto": "auto",
+        "default": "default",
+        "flex": "flex",
+        "tip": "Specifies the latency tier to use for processing the request",
+        "title": "Service Tier"
+      },
+      "summary_text_mode": {
+        "auto": "auto",
+        "concise": "concise",
+        "detailed": "detailed",
+        "off": "off",
+        "tip": "A summary of the reasoning performed by the model",
+        "title": "Summary Mode"
+      },
+      "title": "OpenAI Settings"
+    },
+    "privacy": {
+      "enable_privacy_mode": "Anonymous reporting of errors and statistics",
+      "title": "Privacy Settings"
+    },
+    "provider": {
+      "add": {
+        "name": {
+          "label": "Provider Name",
+          "placeholder": "Example: OpenAI"
         },
-        "enable": {
-          "description": "Currently only supported on Windows & macOS",
-          "mac_process_trust_hint": {
-            "button": {
-              "go_to_settings": "Go to Settings",
-              "open_accessibility_settings": "Open Accessibility Settings"
-            },
-            "description": [
-              "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
-              "Please click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
-              "After completing the settings, please reopen the selection assistant."
-            ],
-            "title": "Accessibility Permission"
+        "title": "Add Provider",
+        "type": "Provider Type"
+      },
+      "api": {
+        "key": {
+          "check": {
+            "latency": "Latency"
           },
-          "title": "Enable"
-        },
-        "experimental": "Experimental Features",
-        "filter_modal": {
-          "title": "Application Filter List",
-          "user_tips": {
-            "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-            "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "error": {
+            "duplicate": "API key already exists",
+            "empty": "API key cannot be empty"
+          },
+          "list": {
+            "open": "Open Management Interface",
+            "title": "API Key Management"
+          },
+          "new_key": {
+            "placeholder": "Enter one or more keys"
           }
         },
-        "search_modal": {
-          "custom": {
-            "name": {
-              "hint": "Please enter search engine name",
-              "label": "Custom Name",
-              "max_length": "Name cannot exceed 16 characters"
+        "url": {
+          "preview": "Preview: {{url}}",
+          "reset": "Reset",
+          "tip": "Ending with / ignores v1, ending with # forces use of input address"
+        }
+      },
+      "api_host": "API Host",
+      "api_key": {
+        "label": "API Key",
+        "tip": "Multiple keys separated by commas or spaces"
+      },
+      "api_version": "API Version",
+      "azure": {
+        "apiversion": {
+          "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"
+        }
+      },
+      "basic_auth": {
+        "label": "HTTP authentication",
+        "password": {
+          "label": "Password",
+          "tip": ""
+        },
+        "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "user_name": {
+          "label": "Username",
+          "tip": "Left empty to disable"
+        }
+      },
+      "bills": "Fee Bills",
+      "charge": "Balance Recharge",
+      "check": "Check",
+      "check_all_keys": "Check All Keys",
+      "check_multiple_keys": "Check Multiple API Keys",
+      "copilot": {
+        "auth_failed": "Github Copilot authentication failed.",
+        "auth_success": "GitHub Copilot authentication successful.",
+        "auth_success_title": "Certification successful.",
+        "code_copied": "Authorization code automatically copied to clipboard",
+        "code_failed": "Failed to obtain Device Code, please try again.",
+        "code_generated_desc": "Please copy the device code into the browser link below.",
+        "code_generated_title": "Obtain Device Code",
+        "connect": "Connect to Github",
+        "custom_headers": "Custom request header",
+        "description": "Your GitHub account needs to subscribe to Copilot.",
+        "description_detail": "GitHub Copilot is an AI-powered code assistant that requires a valid GitHub Copilot subscription to use",
+        "expand": "Expand",
+        "headers_description": "Custom request headers (JSON format)",
+        "invalid_json": "JSON format error",
+        "login": "Log in to Github",
+        "logout": "Exit GitHub",
+        "logout_failed": "Exit failed, please try again.",
+        "logout_success": "Successfully logged out.",
+        "model_setting": "Model settings",
+        "open_verification_first": "Please click the link above to access the verification page.",
+        "open_verification_page": "Open Authorization Page",
+        "rate_limit": "Rate limiting",
+        "start_auth": "Start Authorization",
+        "step_authorize": "Open Authorization Page",
+        "step_authorize_desc": "Complete authorization on GitHub",
+        "step_authorize_detail": "Click the button below to open GitHub authorization page, then enter the copied authorization code",
+        "step_connect": "Complete Connection",
+        "step_connect_desc": "Confirm connection to GitHub",
+        "step_connect_detail": "After completing authorization on GitHub page, click this button to complete the connection",
+        "step_copy_code": "Copy Authorization Code",
+        "step_copy_code_desc": "Copy device authorization code",
+        "step_copy_code_detail": "Authorization code has been automatically copied, you can also copy it manually",
+        "step_get_code": "Get Authorization Code",
+        "step_get_code_desc": "Generate device authorization code"
+      },
+      "delete": {
+        "content": "Are you sure you want to delete this provider?",
+        "title": "Delete Provider"
+      },
+      "dmxapi": {
+        "select_platform": "Select the platform"
+      },
+      "docs_check": "Check",
+      "docs_more_details": "for more details",
+      "get_api_key": "Get API Key",
+      "is_not_support_array_content": {
+        "label": "Enable compatibility mode",
+        "tip": "Compatible with API user messages that do not support array format"
+      },
+      "misc": "Other",
+      "no_models_for_check": "No models available for checking (e.g. chat models)",
+      "not_checked": "Not Checked",
+      "notes": {
+        "markdown_editor_default_value": "Preview area",
+        "placeholder": "Enter Markdown content...",
+        "title": "Model Notes"
+      },
+      "oauth": {
+        "button": "Login with {{provider}}",
+        "description": "This service is provided by <website>{{provider}}</website>",
+        "error": "Authentication failed",
+        "official_website": "Official Website"
+      },
+      "openai": {
+        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+      },
+      "remove_duplicate_keys": "Remove Duplicate Keys",
+      "remove_invalid_keys": "Remove Invalid Keys",
+      "search": "Search Providers...",
+      "search_placeholder": "Search model id or name",
+      "title": "Model Provider",
+      "vertex_ai": {
+        "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
+        "documentation": "View official documentation for more configuration details:",
+        "learn_more": "Learn More",
+        "location": "Location",
+        "location_help": "Vertex AI service location, e.g., us-central1",
+        "project_id": "Project ID",
+        "project_id_help": "Your Google Cloud project ID",
+        "project_id_placeholder": "your-google-cloud-project-id",
+        "service_account": {
+          "auth_success": "Service Account authenticated successfully",
+          "client_email": "Client Email",
+          "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
+          "client_email_placeholder": "Enter Service Account client email",
+          "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
+          "incomplete_config": "Please complete Service Account configuration first",
+          "private_key": "Private Key",
+          "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
+          "private_key_placeholder": "Enter Service Account private key",
+          "title": "Service Account Configuration"
+        }
+      }
+    },
+    "proxy": {
+      "address": "Proxy Address",
+      "mode": {
+        "custom": "Custom Proxy",
+        "none": "No Proxy",
+        "system": "System Proxy",
+        "title": "Proxy Mode"
+      }
+    },
+    "quickAssistant": {
+      "click_tray_to_show": "Click the tray icon to start",
+      "enable_quick_assistant": "Enable Quick Assistant",
+      "read_clipboard_at_startup": "Read clipboard at startup",
+      "title": "Quick Assistant",
+      "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+    },
+    "quickPanel": {
+      "back": "Back",
+      "close": "Close",
+      "confirm": "Confirm",
+      "forward": "Forward",
+      "multiple": "Multiple Select",
+      "page": "Page",
+      "select": "Select",
+      "title": "Quick Menu"
+    },
+    "quickPhrase": {
+      "add": "Add Phrase",
+      "assistant": "Assistant Phrases",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Delete Phrase",
+      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+      "edit": "Edit Phrase",
+      "global": "Global Phrases",
+      "locationLabel": "Add Location",
+      "title": "Quick Phrases",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Please enter phrase title"
+    },
+    "shortcuts": {
+      "action": "Action",
+      "actions": "operation",
+      "clear_shortcut": "Clear Shortcut",
+      "clear_topic": "Clear Messages",
+      "copy_last_message": "Copy Last Message",
+      "enabled": "Enable",
+      "exit_fullscreen": "Exit Fullscreen",
+      "label": "Key",
+      "mini_window": "Quick Assistant",
+      "new_topic": "New Topic",
+      "press_shortcut": "Press Shortcut",
+      "reset_defaults": "Reset Defaults",
+      "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
+      "reset_to_default": "Reset to Default",
+      "search_message": "Search Message",
+      "search_message_in_chat": "Search Message in Current Chat",
+      "selection_assistant_select_text": "Selection Assistant: Select Text",
+      "selection_assistant_toggle": "Toggle Selection Assistant",
+      "show_app": "Show/Hide App",
+      "show_settings": "Open Settings",
+      "title": "Keyboard Shortcuts",
+      "toggle_new_context": "Clear Context",
+      "toggle_show_assistants": "Toggle Assistants",
+      "toggle_show_topics": "Toggle Topics",
+      "zoom_in": "Zoom In",
+      "zoom_out": "Zoom Out",
+      "zoom_reset": "Reset Zoom"
+    },
+    "theme": {
+      "color_primary": "Primary Color",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System",
+      "title": "Theme",
+      "window": {
+        "style": {
+          "opaque": "Opaque Window",
+          "title": "Window Style",
+          "transparent": "Transparent Window"
+        }
+      }
+    },
+    "title": "Settings",
+    "tool": {
+      "ocr": {
+        "mac_system_ocr_options": {
+          "min_confidence": "Minimum Confidence",
+          "mode": {
+            "accurate": "Accurate",
+            "fast": "Fast",
+            "title": "Recognition Mode"
+          }
+        },
+        "provider": "OCR Provider",
+        "provider_placeholder": "Choose an OCR provider",
+        "title": "OCR Settings"
+      },
+      "preprocess": {
+        "provider": "Pre Process Provider",
+        "provider_placeholder": "Choose a Pre Process provider",
+        "title": "Pre Process"
+      },
+      "preprocessOrOcr": {
+        "tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text."
+      },
+      "title": "Tools Settings",
+      "websearch": {
+        "apikey": "API key",
+        "blacklist": "Blacklist",
+        "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+        "check": "Check",
+        "check_failed": "Verification failed",
+        "check_success": "Verification successful",
+        "compression": {
+          "cutoff": {
+            "limit": {
+              "label": "Cutoff Limit",
+              "placeholder": "Enter length",
+              "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)"
             },
-            "test": "Test",
-            "url": {
-              "hint": "Use {{queryString}} to represent the search term",
-              "invalid_format": "Please enter a valid URL starting with http:// or https://",
-              "label": "Custom Search URL",
-              "missing_placeholder": "URL must contain {{queryString}} placeholder",
-              "required": "Please enter search URL"
+            "unit": {
+              "char": "Char",
+              "token": "Token"
             }
           },
-          "engine": {
-            "custom": "Custom",
-            "label": "Search Engine"
+          "error": {
+            "rag_failed": "RAG failed"
           },
-          "title": "Set Search Engine"
+          "info": {
+            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+          },
+          "method": {
+            "cutoff": "Cutoff",
+            "label": "Compression Method",
+            "none": "None",
+            "rag": "RAG"
+          },
+          "rag": {
+            "document_count": {
+              "label": "Document Chunks Count",
+              "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
+            }
+          },
+          "title": "Search Result Compression"
         },
-        "toolbar": {
-          "compact_mode": {
-            "description": "In compact mode, only icons are displayed without text",
-            "title": "Compact Mode"
-          },
-          "title": "Toolbar",
-          "trigger_mode": {
-            "ctrlkey": "Ctrl Key",
-            "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
-            "description": "The way to trigger the selection assistant and show the toolbar",
-            "description_note": {
-              "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text.",
-              "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text."
-            },
-            "selected": "Selection",
-            "selected_note": "Show toolbar immediately when text is selected",
-            "shortcut": "Shortcut",
-            "shortcut_link": "Go to Shortcut Settings",
-            "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
-            "title": "Trigger Mode"
-          }
+        "content_limit": "Content length limit",
+        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+        "free": "Free",
+        "no_provider_selected": "Please select a search service provider before checking.",
+        "overwrite": "Override search service",
+        "overwrite_tooltip": "Force use search service instead of LLM",
+        "search_max_result": {
+          "label": "Number of search results",
+          "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
         },
-        "user_modal": {
-          "assistant": {
-            "default": "Default",
-            "label": "Select Assistant"
-          },
-          "icon": {
-            "error": "Invalid icon name, please check your input",
-            "label": "Icon",
-            "placeholder": "Enter Lucide icon name",
-            "random": "Random Icon",
-            "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
-            "view_all": "View All Icons"
-          },
-          "model": {
-            "assistant": "Use Assistant",
-            "default": "Default Model",
-            "label": "Model",
-            "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters"
-          },
-          "name": {
-            "hint": "Please enter action name",
-            "label": "Name"
-          },
-          "prompt": {
-            "copy_placeholder": "Copy Placeholder",
-            "label": "User Prompt",
-            "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
-            "placeholder_text": "Placeholder",
-            "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt"
-          },
-          "title": {
-            "add": "Add Custom Action",
-            "edit": "Edit Custom Action"
-          }
+        "search_provider": "Search service provider",
+        "search_provider_placeholder": "Choose a search service provider.",
+        "search_with_time": "Search with dates included",
+        "subscribe": "Blacklist Subscription",
+        "subscribe_add": "Add Subscription",
+        "subscribe_add_failed": "Failed to add feed source",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Delete",
+        "subscribe_name": {
+          "label": "Alternative name",
+          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
         },
-        "window": {
-          "auto_close": {
-            "description": "Automatically close the window when it's not pinned and loses focus",
-            "title": "Auto Close"
+        "subscribe_update": "Update",
+        "subscribe_update_failed": "Subscription source update failed",
+        "subscribe_update_success": "Subscription source updated successfully",
+        "subscribe_url": "Subscription Url",
+        "tavily": {
+          "api_key": {
+            "label": "Tavily API Key",
+            "placeholder": "Enter Tavily API Key"
           },
-          "auto_pin": {
-            "description": "Pin the window by default",
-            "title": "Auto Pin"
-          },
-          "follow_toolbar": {
-            "description": "Window position will follow the toolbar. When disabled, it will always be centered.",
-            "title": "Follow Toolbar"
-          },
-          "opacity": {
-            "description": "Set the default opacity of the window, 100% is fully opaque",
-            "title": "Opacity"
-          },
-          "remember_size": {
-            "description": "Window will display at the last adjusted size during the application running",
-            "title": "Remember Size"
-          },
-          "title": "Action Window"
-        }
+          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "title": "Tavily"
+        },
+        "title": "Web Search",
+        "url_invalid": "Entered an invalid URL",
+        "url_required": "Please enter a URL"
       }
     },
-    "translate": {
-      "alter_language": "Alternative Language",
-      "any.language": "Any language",
-      "button.translate": "Translate",
-      "close": "Close",
-      "closed": "Translation closed",
-      "confirm": {
-        "content": "Translation will replace the original text, continue?",
-        "title": "Translation Confirmation"
+    "topic": {
+      "pin_to_top": "Pin Topics to Top",
+      "position": {
+        "label": "Topic position",
+        "left": "Left",
+        "right": "Right"
       },
-      "copied": "Translation content copied",
-      "detected.language": "Auto Detect",
-      "empty": "Translation content is empty",
-      "error.failed": "Translation failed",
-      "error.not_configured": "Translation model is not configured",
-      "history": {
-        "clear": "Clear History",
-        "clear_description": "Clear history will delete all translation history, continue?",
-        "delete": "Delete",
-        "empty": "No translation history",
-        "title": "Translation History"
-      },
-      "input.placeholder": "Enter text to translate",
-      "language.not_pair": "Source language is different from the set language",
-      "language.same": "Source and target languages are the same",
-      "menu": {
-        "description": "Translate the content of the current input box"
-      },
-      "not.found": "Translation content not found",
-      "output.placeholder": "Translation",
-      "processing": "Translation in progress...",
-      "settings": {
-        "bidirectional": "Bidirectional Translation Settings",
-        "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
-        "model": "Model Settings",
-        "model_desc": "Model used for translation service",
-        "preview": "Markdown Preview",
-        "scroll_sync": "Scroll Sync Settings",
-        "title": "Translation Settings"
-      },
-      "target_language": "Target Language",
-      "title": "Translation",
-      "tooltip.newline": "Newline"
+      "show": {
+        "time": "Show topic time"
+      }
     },
     "tray": {
-      "quit": "Quit",
-      "show_mini_window": "Quick Assistant",
-      "show_window": "Show Window"
+      "onclose": "Minimize to Tray on Close",
+      "show": "Show Tray Icon",
+      "title": "Tray"
     },
-    "update": {
-      "install": "Install",
-      "later": "Later",
-      "message": "New version {{version}} is ready, do you want to install it now?",
-      "noReleaseNotes": "No release notes",
-      "title": "Update"
-    },
-    "words": {
-      "knowledgeGraph": "Knowledge Graph",
-      "quit": "Quit",
-      "show_window": "Show Window",
-      "visualization": "Visualization"
+    "zoom": {
+      "reset": "Reset",
+      "title": "Page Zoom"
     }
+  },
+  "title": {
+    "agents": "Agents",
+    "apps": "Apps",
+    "files": "Files",
+    "home": "Home",
+    "knowledge": "Knowledge Base",
+    "launchpad": "Launchpad",
+    "mcp-servers": "MCP Servers",
+    "memories": "Memories",
+    "paintings": "Paintings",
+    "settings": "Settings",
+    "translate": "Translate"
+  },
+  "trace": {
+    "backList": "Back To List",
+    "edasSupport": "Powered by Alibaba Cloud EDAS",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "name": "Node Name",
+    "noTraceList": "No trace information found",
+    "outputs": "Outputs",
+    "parentId": "Parent Id",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "traceWindow": "Call Chain Window"
+  },
+  "translate": {
+    "alter_language": "Alternative Language",
+    "any": {
+      "language": "Any language"
+    },
+    "button": {
+      "translate": "Translate"
+    },
+    "close": "Close",
+    "closed": "Translation closed",
+    "confirm": {
+      "content": "Translation will replace the original text, continue?",
+      "title": "Translation Confirmation"
+    },
+    "copied": "Translation content copied",
+    "detected": {
+      "language": "Auto Detect"
+    },
+    "empty": "Translation content is empty",
+    "error": {
+      "failed": "Translation failed",
+      "not_configured": "Translation model is not configured"
+    },
+    "history": {
+      "clear": "Clear History",
+      "clear_description": "Clear history will delete all translation history, continue?",
+      "delete": "Delete",
+      "empty": "No translation history",
+      "title": "Translation History"
+    },
+    "input": {
+      "placeholder": "Enter text to translate"
+    },
+    "language": {
+      "not_pair": "Source language is different from the set language",
+      "same": "Source and target languages are the same"
+    },
+    "menu": {
+      "description": "Translate the content of the current input box"
+    },
+    "not": {
+      "found": "Translation content not found"
+    },
+    "output": {
+      "placeholder": "Translation"
+    },
+    "processing": "Translation in progress...",
+    "settings": {
+      "bidirectional": "Bidirectional Translation Settings",
+      "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+      "model": "Model Settings",
+      "model_desc": "Model used for translation service",
+      "model_placeholder": "Select translation model",
+      "no_model_warning": "No translation model selected",
+      "preview": "Markdown Preview",
+      "scroll_sync": "Scroll Sync Settings",
+      "title": "Translation Settings"
+    },
+    "target_language": "Target Language",
+    "title": "Translation",
+    "tooltip": {
+      "newline": "Newline"
+    }
+  },
+  "tray": {
+    "quit": "Quit",
+    "show_mini_window": "Quick Assistant",
+    "show_window": "Show Window"
+  },
+  "update": {
+    "install": "Install",
+    "later": "Later",
+    "message": "New version {{version}} is ready, do you want to install it now?",
+    "noReleaseNotes": "No release notes",
+    "title": "Update"
+  },
+  "words": {
+    "knowledgeGraph": "Knowledge Graph",
+    "quit": "Quit",
+    "show_window": "Show Window",
+    "visualization": "Visualization"
   }
 }
