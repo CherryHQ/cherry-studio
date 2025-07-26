@@ -198,10 +198,11 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
-  // Developer mode
-  enableDeveloperMode: boolean
-  // UI
-  navbarPosition: 'left' | 'top'
+  // API Server
+  apiServer: {
+    port: number
+    apiKey: string
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -369,10 +370,11 @@ export const initialState: SettingsState = {
     maxBackups: 0,
     skipBackupFile: false
   },
-  // Developer mode
-  enableDeveloperMode: false,
-  // UI
-  navbarPosition: 'left'
+  // API Server
+  apiServer: {
+    port: 13333,
+    apiKey: ''
+  }
 }
 
 const settingsSlice = createSlice({
@@ -765,11 +767,24 @@ const settingsSlice = createSlice({
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
     },
-    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
-      state.enableDeveloperMode = action.payload
+    // API Server actions
+    setApiServerPort: (state, action: PayloadAction<number>) => {
+      if (!state.apiServer) {
+        state.apiServer = {
+          port: 13333,
+          apiKey: ''
+        }
+      }
+      state.apiServer.port = action.payload
     },
-    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
-      state.navbarPosition = action.payload
+    setApiServerApiKey: (state, action: PayloadAction<string>) => {
+      if (!state.apiServer) {
+        state.apiServer = {
+          port: 13333,
+          apiKey: ''
+        }
+      }
+      state.apiServer.apiKey = action.payload
     }
   }
 })
@@ -889,8 +904,9 @@ export const {
   setDefaultPaintingProvider,
   setS3,
   setS3Partial,
-  setEnableDeveloperMode,
-  setNavbarPosition
+  // API Server actions
+  setApiServerPort,
+  setApiServerApiKey
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

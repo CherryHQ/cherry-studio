@@ -273,5 +273,11 @@ export enum IpcChannel {
   TRACE_SET_TITLE = 'trace:setTitle',
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  ApiServer_GetConfig = 'api-server:get-config'
 }
