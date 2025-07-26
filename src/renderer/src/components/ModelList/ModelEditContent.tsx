@@ -373,6 +373,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 <Input
                   style={{ width: '100px' }}
                   placeholder={t('models.price.custom_currency_placeholder')}
+                  defaultValue={model.pricing?.currencySymbol}
                   maxLength={5}
                   onChange={(e) => setCurrencySymbol(e.target.value)}
                 />
@@ -382,6 +383,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
             <Form.Item label={t('models.price.input')} name="input_per_million_tokens">
               <InputNumber
                 placeholder="0.00"
+                defaultValue={model.pricing?.input_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
@@ -392,6 +394,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
             <Form.Item label={t('models.price.output')} name="output_per_million_tokens">
               <InputNumber
                 placeholder="0.00"
+                defaultValue={model.pricing?.output_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
