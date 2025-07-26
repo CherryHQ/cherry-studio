@@ -172,6 +172,7 @@ const visionAllowedModels = [
   'qvq',
   'internvl2',
   'grok-vision-beta',
+  'grok-4(?:-[\\w-]+)?',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4.1(?:-[\\w-]+)?',
