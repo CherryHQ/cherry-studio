@@ -3076,7 +3076,11 @@
       "docs_check": "Check",
       "docs_more_details": "for more details",
       "get_api_key": "Get API Key",
-      "is_not_support_array_content": "Enable compatible mode",
+      "is_not_support_array_content": {
+        "label": "Enable compatibility mode",
+        "tip": "Compatible with API user messages that do not support array format"
+      },
+      "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
       "notes": {

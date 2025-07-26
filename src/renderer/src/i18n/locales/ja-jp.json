@@ -3076,7 +3076,11 @@
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
       "get_api_key": "APIキーを取得",
-      "is_not_support_array_content": "互換モードを有効にする",
+      "is_not_support_array_content": {
+        "label": "互換モードを有効にする",
+        "tip": "配列形式のユーザー メッセージをサポートしていない API との互換性"
+      },
+      "misc": "その他",
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
       "not_checked": "未チェック",
       "notes": {

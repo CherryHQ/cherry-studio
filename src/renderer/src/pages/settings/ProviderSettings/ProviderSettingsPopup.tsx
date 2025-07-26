@@ -58,6 +58,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
 
 const TopViewKey = 'ProviderSettingsPopup'
 
+/**
+ * @deprecated
+ */
 export default class ProviderSettingsPopup {
   static topviewId = 0
   static hide() {
