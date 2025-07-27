@@ -13,7 +13,7 @@ import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch } from 'antd'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -68,6 +68,38 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
     ...symbols.map((symbol) => ({ label: symbol, value: symbol })),
     { label: t('models.price.custom'), value: 'custom' }
   ]
+
+  const defaultTypes = [
+    ...(isVisionModel(model) ? ['vision'] : []),
+    ...(isReasoningModel(model) ? ['reasoning'] : []),
+    ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
+    ...(isWebSearchModel(model) ? ['web_search'] : []),
+    ...(isEmbeddingModel(model) ? ['embedding'] : []),
+    ...(isRerankModel(model) ? ['rerank'] : [])
+  ]
+
+  const selectedTypes: string[] = getUnion(
+    modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
+    getDifference(defaultTypes, modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || [])
+  )
+
+  // 被rerank/embedding改变的类型
+  const changedTypesRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (showMoreSettings) {
+      const newModelCapabilities = selectedTypes.map((type) => {
+        const existingCapability = modelCapabilities?.find((m) => m.type === type)
+        return {
+          type: type as ModelType,
+          isUserSelected: existingCapability?.isUserSelected ?? undefined
+        }
+      })
+
+      setModelCapabilities(newModelCapabilities)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMoreSettings])
 
   return (
     <Modal
@@ -182,31 +214,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
             <Divider style={{ margin: '16px 0 16px 0' }} />
             <TypeTitle>{t('models.type.select')}:</TypeTitle>
             {(() => {
-              const defaultTypes = [
-                ...(isVisionModel(model) ? ['vision'] : []),
-                ...(isReasoningModel(model) ? ['reasoning'] : []),
-                ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
-                ...(isWebSearchModel(model) ? ['web_search'] : []),
-                ...(isEmbeddingModel(model) ? ['embedding'] : []),
-                ...(isRerankModel(model) ? ['rerank'] : [])
-              ]
-              // 合并现有选择和默认类型用于前端展示
-              const selectedTypes = getUnion(
-                modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
-                getDifference(
-                  defaultTypes,
-                  modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
-                )
-              )
-
-              const newModelCapabilities = selectedTypes.map((type) => {
-                const existingCapability = modelCapabilities?.find((m) => m.type === type)
-                return {
-                  type: type as ModelType,
-                  isUserSelected: existingCapability?.isUserSelected ?? undefined
-                }
-              })
-
               const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
 
               const isRerankDisabled = selectedTypes.includes('embedding')
@@ -223,25 +230,29 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   cancelButtonProps: { type: 'primary' },
                   onOk: () => {
                     if (onUpdateType) {
-                      const updatedModelCapabilities = newModelCapabilities?.map((t) => {
+                      const updatedModelCapabilities = modelCapabilities?.map((t) => {
                         if (t.type === newCapability.type) {
                           return { ...t, isUserSelected: true }
                         }
                         if (
-                          (onUpdateType !== t.type && onUpdateType === 'rerank') ||
-                          (onUpdateType === 'embedding' && onUpdateType !== t.type)
+                          ((onUpdateType !== t.type && onUpdateType === 'rerank') ||
+                            (onUpdateType === 'embedding' && onUpdateType !== t.type)) &&
+                          t.isUserSelected !== false
                         ) {
+                          changedTypesRef.current.push(t.type)
                           return { ...t, isUserSelected: false }
                         }
                         return t
                       })
                       setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
                     } else {
-                      const updatedModelCapabilities = newModelCapabilities?.map((t) => {
+                      const updatedModelCapabilities = modelCapabilities?.map((t) => {
                         if (
-                          (newCapability.type !== t.type && newCapability.type === 'rerank') ||
-                          (newCapability.type === 'embedding' && newCapability.type !== t.type)
+                          ((newCapability.type !== t.type && newCapability.type === 'rerank') ||
+                            (newCapability.type === 'embedding' && newCapability.type !== t.type)) &&
+                          t.isUserSelected !== false
                         ) {
+                          changedTypesRef.current.push(t.type)
                           return { ...t, isUserSelected: false }
                         }
                         if (newCapability.type === t.type) {
@@ -268,7 +279,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                   })
                 } else {
                   const disabledTypes = getDifference(selectedTypes, types)
-                  const onUpdateType = newModelCapabilities?.find((t) => t.type === disabledTypes[0])
+                  const onUpdateType = modelCapabilities?.find((t) => t.type === disabledTypes[0])
                   if (onUpdateType) {
                     const updatedTypes = modelCapabilities?.map((t) => {
                       if (t.type === disabledTypes[0]) {
@@ -278,13 +289,15 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         (onUpdateType !== t && onUpdateType.type === 'rerank') ||
                         (onUpdateType.type === 'embedding' && onUpdateType !== t && t.isUserSelected === false)
                       ) {
-                        return { ...t, isUserSelected: true }
+                        if (changedTypesRef.current.includes(t.type)) {
+                          return { ...t, isUserSelected: true }
+                        }
                       }
                       return t
                     })
                     setModelCapabilities(uniqueObjectArray(updatedTypes as ModelCapability[]))
                   } else {
-                    const updatedModelCapabilities = newModelCapabilities?.map((t) => {
+                    const updatedModelCapabilities = modelCapabilities?.map((t) => {
                       if (
                         (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
                         (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
@@ -296,6 +309,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                     updatedModelCapabilities.push({ type: disabledTypes[0] as ModelType, isUserSelected: false })
                     setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
                   }
+                  changedTypesRef.current.length = 0
                 }
               }
 
