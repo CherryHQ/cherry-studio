@@ -42,7 +42,7 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
 
   return (
     <TopNavContainer
-      style={{ backgroundColor: keepAliveMinapps.length > 1 ? 'var(--color-list-item)' : 'transparent' }}>
+      style={{ backgroundColor: keepAliveMinapps.length > 0 ? 'var(--color-list-item)' : 'transparent' }}>
       <TopNavMenus>
         {keepAliveMinapps.map((app) => {
           const menuItems: MenuProps['items'] = [
