@@ -52,7 +52,13 @@ export class ApiServer {
   }
 
   isRunning(): boolean {
-    return this.server !== null
+    const hasServer = this.server !== null
+    const isListening = this.server?.listening || false
+    const result = hasServer && isListening
+
+    logger.debug('isRunning check:', { hasServer, isListening, result })
+
+    return result
   }
 }
 

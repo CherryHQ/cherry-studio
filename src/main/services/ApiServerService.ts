@@ -82,15 +82,29 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, () => {
-      return {
-        running: this.isRunning(),
-        config: this.getCurrentConfig()
+    ipcMain.handle(IpcChannel.ApiServer_GetStatus, async () => {
+      try {
+        const config = await this.getCurrentConfig()
+        return {
+          running: this.isRunning(),
+          config
+        }
+      } catch (error: any) {
+        logger.error('Failed to get API server status:', error)
+        return {
+          running: this.isRunning(),
+          config: null
+        }
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetConfig, () => {
-      return this.getCurrentConfig()
+    ipcMain.handle(IpcChannel.ApiServer_GetConfig, async () => {
+      try {
+        return await this.getCurrentConfig()
+      } catch (error: any) {
+        logger.error('Failed to get API server config:', error)
+        return null
+      }
     })
   }
 }
