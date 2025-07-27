@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir, untildify } from '../file'
+import chardet from 'chardet'
 
 // Mock dependencies
 vi.mock('node:fs')
@@ -286,12 +287,11 @@ describe('file', () => {
       // 模拟 fs.open 方法
       vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
-      vi.mock('chardet', () => ({
-        analyse: vi.fn().mockReturnValue([
-          { name: 'UTF-8', confidence: 0.9 },
-          { name: 'GB18030', confidence: 0.8 }
-        ])
-      }))
+      // 模拟 chardet.analyse 方法
+      vi.spyOn(chardet, 'analyse').mockReturnValue([
+        { name: 'GB18030', confidence: 0.9 },
+        { name: 'UTF-8', confidence: 0.1 }
+      ])
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
