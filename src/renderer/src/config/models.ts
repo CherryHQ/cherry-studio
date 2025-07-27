@@ -108,6 +108,7 @@ import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
 import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
+import PanguModelLogo from '@renderer/assets/images/models/pangu.svg'
 import {
   default as PerplexityModelLogo,
   default as PerplexityModelLogoDark
@@ -413,7 +414,8 @@ export function getModelLogo(modelId: string) {
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
-    'nomic-': NomicLogo
+    'nomic-': NomicLogo,
+    'pangu-': PanguModelLogo
   }
 
   for (const key in logoMap) {
@@ -2748,7 +2750,8 @@ export function isReasoningModel(model?: Model): boolean {
     isPerplexityReasoningModel(model) ||
     model.id.toLowerCase().includes('glm-z1') ||
     model.id.toLowerCase().includes('magistral') ||
-    model.id.toLowerCase().includes('minimax-m1')
+    model.id.toLowerCase().includes('minimax-m1') ||
+    model.id.toLowerCase().includes('pangu-pro-moe')
   ) {
     return true
   }
