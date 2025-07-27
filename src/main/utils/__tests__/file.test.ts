@@ -289,8 +289,8 @@ describe('file', () => {
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
       // 模拟 chardet.analyse 方法
       vi.spyOn(chardet, 'analyse').mockReturnValue([
-        { name: 'GB18030', confidence: 0.9 },
-        { name: 'UTF-8', confidence: 0.1 }
+        { name: 'UTF-8', confidence: 0.9 },
+        { name: 'GB18030', confidence: 0.8 }
       ])
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
