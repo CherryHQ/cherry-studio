@@ -1,12 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import { loggerService } from '@logger'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
-import { loggerService } from '@renderer/services/LoggerService'
 import { Provider } from '@renderer/types'
 import { isEmpty } from 'lodash'
 
-const logger = loggerService.withContext('AnthropicVertexClient')
 import { AnthropicAPIClient } from './AnthropicAPIClient'
+
+const logger = loggerService.withContext('AnthropicVertexClient')
 
 export class AnthropicVertexClient extends AnthropicAPIClient {
   sdkInstance: AnthropicVertex | undefined = undefined
