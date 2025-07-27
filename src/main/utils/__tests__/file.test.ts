@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { FileTypes } from '@types'
 import iconv from 'iconv-lite'
-import { detectAll as detectEncodingAll } from 'jschardet'
+import chardet from 'chardet'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
@@ -287,10 +287,7 @@ describe('file', () => {
       // 模拟 fs.open 方法
       vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
-      vi.mocked(vi.fn(detectEncodingAll)).mockReturnValue([
-        { encoding: 'UTF-8', confidence: 0.9 },
-        { encoding: 'GB2312', confidence: 0.8 }
-      ])
+      vi.spyOn(chardet, 'detect').mockReturnValue('GB2312')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
