@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { FileTypes } from '@types'
-import { analyse as analyseAll } from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -287,10 +286,12 @@ describe('file', () => {
       // 模拟 fs.open 方法
       vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
-      vi.mocked(analyseAll).mockReturnValue([
-        { name: 'UTF-8', confidence: 0.9 },
-        { name: 'GB18030', confidence: 0.8 }
-      ])
+      vi.mock('chardet', () => ({
+        analyse: vi.fn().mockReturnValue([
+          { name: 'UTF-8', confidence: 0.9 },
+          { name: 'GB18030', confidence: 0.8 }
+        ])
+      }))
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
