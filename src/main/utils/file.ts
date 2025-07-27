@@ -135,15 +135,25 @@ export function getMcpDir() {
  */
 export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
   // 读取前1MB以检测编码
-  const buffer = Buffer.alloc(1 * MB)
+  const buffer = Buffer.alloc(MB)
   const fh = await open(filePath, 'r')
-  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  const { buffer: bufferRead } = await fh.read(buffer, 0, MB, 0)
   await fh.close()
 
-  // 获取文件编码格式，最多取前两个可能的编码
-  const encoding = chardet.detect(bufferRead) || 'UTF-8'
-  const encodings = [encoding, 'UTF-8']
-  logger.debug(`File ${filePath} encoding ${encoding}`)
+  const encodings = chardet
+    .analyse(bufferRead)
+    .map((item) => (item.name === 'ASCII' ? 'UTF-8' : item.name))
+    .filter((name, index, arr) => arr.indexOf(name) === index)
+    .slice(0, 2)
+
+  if (encodings.length === 0) {
+    logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    const data = await readFile(filePath)
+    return iconv.decode(data, 'UTF-8')
+  }
+
+  logger.debug(`File ${filePath} detected encodings: ${encodings.join(', ')}`)
+
   const data = await readFile(filePath)
 
   for (const encoding of encodings) {
