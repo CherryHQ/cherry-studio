@@ -4,7 +4,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Card, Flex, Input, Space, Switch, Tooltip, Typography } from 'antd'
+import { Button, Card, Input, Space, Switch, Tooltip, Typography } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -209,7 +209,7 @@ const ApiServerSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingContainer theme={theme} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header Section */}
       <div style={{ marginBottom: 32 }}>
         <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
@@ -218,16 +218,24 @@ const ApiServerSettings: FC = () => {
         <Text type="secondary">Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs</Text>
       </div>
 
-      {/* Server Status Card */}
+      {/* Server Status & Configuration Card */}
       <ConfigCard
         title={
           <SectionHeader>
             <GlobalOutlined />
-            <h4>Server Status</h4>
+            <h4>Server Status & Configuration</h4>
           </SectionHeader>
         }>
-        <Space direction="vertical" size={20} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          {/* Status and Control Row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16
+            }}>
             <StatusIndicator status={apiServerRunning}>
               <div className="status-dot" />
               <span className="status-text">{apiServerRunning ? 'Running' : 'Stopped'}</span>
@@ -241,7 +249,11 @@ const ApiServerSettings: FC = () => {
               />
               {apiServerRunning && (
                 <Tooltip title="Restart Server">
-                  <Button icon={<ReloadOutlined />} onClick={handleApiServerRestart} loading={apiServerLoading}>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleApiServerRestart}
+                    loading={apiServerLoading}
+                    size="small">
                     Restart
                   </Button>
                 </Tooltip>
@@ -249,127 +261,133 @@ const ApiServerSettings: FC = () => {
             </ActionButtonGroup>
           </div>
 
-          {apiServerRunning && (
-            <FieldGroup>
-              <FieldLabel>Server URL</FieldLabel>
-              <Flex gap={8} align="center">
+          {/* Configuration Fields */}
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {/* Port Configuration */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <FieldLabel style={{ minWidth: 50, margin: 0 }}>Port</FieldLabel>
+              <StyledInput
+                type="number"
+                value={apiServerConfig.port}
+                onChange={(e) => handlePortChange(e.target.value)}
+                style={{ width: 100 }}
+                min={1000}
+                max={65535}
+                disabled={apiServerRunning}
+                placeholder="23333"
+                size="small"
+              />
+              {apiServerRunning && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Stop server to change port
+                </Text>
+              )}
+            </div>
+
+            {/* Server URL (only when running) */}
+            {apiServerRunning && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <FieldLabel style={{ minWidth: 50, margin: 0 }}>URL</FieldLabel>
                 <StyledInput
                   value={`http://localhost:${apiServerConfig.port}`}
                   readOnly
-                  style={{ flex: 1, maxWidth: 300 }}
+                  style={{ flex: 1, maxWidth: 250 }}
+                  size="small"
                 />
                 <Tooltip title="Copy URL">
-                  <Button icon={<CopyOutlined />} onClick={copyServerUrl}>
+                  <Button icon={<CopyOutlined />} onClick={copyServerUrl} size="small">
                     Copy
                   </Button>
                 </Tooltip>
-              </Flex>
-            </FieldGroup>
-          )}
-        </Space>
-      </ConfigCard>
-
-      {/* Configuration Card */}
-      <ConfigCard
-        title={
-          <SectionHeader>
-            <h4>Configuration</h4>
-          </SectionHeader>
-        }>
-        <Space direction="vertical" size={24} style={{ width: '100%' }}>
-          {/* Port Configuration */}
-          <FieldGroup>
-            <FieldLabel>Port</FieldLabel>
-            <StyledInput
-              type="number"
-              value={apiServerConfig.port}
-              onChange={(e) => handlePortChange(e.target.value)}
-              style={{ width: 120 }}
-              min={1000}
-              max={65535}
-              disabled={apiServerRunning}
-              placeholder="23333"
-            />
-            {apiServerRunning && (
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                Stop the server to change the port
-              </Text>
+              </div>
             )}
-          </FieldGroup>
 
-          {/* API Key Configuration */}
-          <FieldGroup>
-            <FieldLabel>API Key</FieldLabel>
-            <Flex gap={8} align="center" wrap="wrap">
+            {/* API Key Configuration */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <FieldLabel style={{ minWidth: 50, margin: 0 }}>API Key</FieldLabel>
               <StyledInput
                 value={apiServerConfig.apiKey}
                 readOnly
-                style={{ flex: 1, minWidth: 300, maxWidth: 500 }}
+                style={{ flex: 1, minWidth: 200, maxWidth: 300 }}
                 placeholder="API key will be auto-generated"
                 disabled={apiServerRunning}
+                size="small"
               />
               <ActionButtonGroup>
                 <Tooltip title="Copy API Key">
-                  <Button icon={<CopyOutlined />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey}>
+                  <Button icon={<CopyOutlined />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} size="small">
                     Copy
                   </Button>
                 </Tooltip>
-                <Button onClick={regenerateApiKey} disabled={apiServerRunning}>
+                <Button onClick={regenerateApiKey} disabled={apiServerRunning} size="small">
                   Regenerate
                 </Button>
               </ActionButtonGroup>
-            </Flex>
-            <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.4, marginTop: 8, display: 'block' }}>
-              Use this API key in the Authorization header:{' '}
-              <Text code>Authorization: Bearer {apiServerConfig.apiKey || 'your-api-key'}</Text>
+            </div>
+
+            {/* Authorization header info */}
+            <Text type="secondary" style={{ fontSize: 11, lineHeight: 1.3 }}>
+              Use in Authorization header:{' '}
+              <Text code style={{ fontSize: 11 }}>
+                Bearer {apiServerConfig.apiKey || 'your-api-key'}
+              </Text>
             </Text>
-          </FieldGroup>
+          </div>
         </Space>
       </ConfigCard>
 
       {/* API Documentation Card */}
       <ConfigCard
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          marginBottom: 0
+        }}
+        bodyStyle={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0
+        }}
         title={
           <SectionHeader>
             <h4>API Documentation</h4>
           </SectionHeader>
         }>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          {apiServerRunning ? (
-            <div
-              style={{
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                overflow: 'hidden',
-                height: 600
-              }}>
-              <iframe
-                src={`http://localhost:${apiServerConfig.port}/api-docs`}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none'
-                }}
-                title="API Documentation"
-                sandbox="allow-scripts allow-forms"
-              />
-            </div>
-          ) : (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '40px 20px',
-                color: 'var(--color-text-2)',
-                background: 'var(--color-bg-2)',
-                borderRadius: 8,
-                border: '1px dashed var(--color-border)'
-              }}>
-              <GlobalOutlined style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }} />
-              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>API Documentation Unavailable</div>
-              <div style={{ fontSize: 14 }}>Start the API server to view the interactive documentation</div>
-            </div>
-          )}
-        </Space>
+        {apiServerRunning ? (
+          <iframe
+            src={`http://localhost:${apiServerConfig.port}/api-docs`}
+            style={{
+              width: '100%',
+              flex: 1,
+              border: 'none',
+              minHeight: 500
+            }}
+            title="API Documentation"
+            sandbox="allow-scripts allow-forms"
+          />
+        ) : (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              color: 'var(--color-text-2)',
+              background: 'var(--color-bg-2)',
+              borderRadius: 8,
+              border: '1px dashed var(--color-border)',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              margin: 16,
+              minHeight: 300
+            }}>
+            <GlobalOutlined style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }} />
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>API Documentation Unavailable</div>
+            <div style={{ fontSize: 14 }}>Start the API server to view the interactive documentation</div>
+          </div>
+        )}
       </ConfigCard>
     </SettingContainer>
   )
