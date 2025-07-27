@@ -147,12 +147,6 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
 
   const data = await readFile(filePath)
 
-  if (encodings.length === 0) {
-    logger.error('Failed to detect encoding. Use utf-8 to decode.')
-    const data = await readFile(filePath)
-    return iconv.decode(data, 'UTF-8')
-  }
-
   for (const encoding of encodings) {
     try {
       const content = iconv.decode(data, encoding)
