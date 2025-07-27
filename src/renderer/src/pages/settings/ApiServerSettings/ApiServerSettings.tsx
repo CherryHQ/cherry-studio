@@ -6,6 +6,7 @@ import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Card, Input, Space, Switch, Tooltip, Typography } from 'antd'
 import { FC, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
@@ -53,14 +54,6 @@ const FieldLabel = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-`
-
-const FieldGroup = styled.div`
-  margin-bottom: 24px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
 `
 
 const ActionButtonGroup = styled(Space)`
@@ -117,6 +110,7 @@ const StatusIndicator = styled.div<{ status: boolean }>`
 const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
+  const { t } = useTranslation()
 
   // API Server state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => {
@@ -147,21 +141,21 @@ const ApiServerSettings: FC = () => {
         const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Start)
         if (result.success) {
           setApiServerRunning(true)
-          window.message.success('API Server started successfully')
+          window.message.success(t('apiServer.messages.startSuccess'))
         } else {
-          window.message.error('Failed to start API Server: ' + result.error)
+          window.message.error(t('apiServer.messages.startError') + result.error)
         }
       } else {
         const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
         if (result.success) {
           setApiServerRunning(false)
-          window.message.success('API Server stopped successfully')
+          window.message.success(t('apiServer.messages.stopSuccess'))
         } else {
-          window.message.error('Failed to stop API Server: ' + result.error)
+          window.message.error(t('apiServer.messages.stopError') + result.error)
         }
       }
     } catch (error) {
-      window.message.error('API Server operation failed: ' + (error as Error).message)
+      window.message.error(t('apiServer.messages.operationFailed') + (error as Error).message)
     } finally {
       setApiServerLoading(false)
     }
@@ -173,12 +167,12 @@ const ApiServerSettings: FC = () => {
       const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Restart)
       if (result.success) {
         await checkApiServerStatus()
-        window.message.success('API Server restarted successfully')
+        window.message.success(t('apiServer.messages.restartSuccess'))
       } else {
-        window.message.error('Failed to restart API Server: ' + result.error)
+        window.message.error(t('apiServer.messages.restartError') + result.error)
       }
     } catch (error) {
-      window.message.error('API Server restart failed: ' + (error as Error).message)
+      window.message.error(t('apiServer.messages.restartFailed') + (error as Error).message)
     } finally {
       setApiServerLoading(false)
     }
@@ -186,19 +180,19 @@ const ApiServerSettings: FC = () => {
 
   const copyApiKey = () => {
     navigator.clipboard.writeText(apiServerConfig.apiKey)
-    window.message.success('API Key copied to clipboard')
+    window.message.success(t('apiServer.messages.apiKeyCopied'))
   }
 
   const regenerateApiKey = () => {
     const newApiKey = `cs-sk-${uuidv4()}`
     dispatch(setApiServerApiKey(newApiKey))
-    window.message.success('API Key regenerated')
+    window.message.success(t('apiServer.messages.apiKeyRegenerated'))
   }
 
   const copyServerUrl = () => {
     const url = `http://localhost:${apiServerConfig.port}`
     navigator.clipboard.writeText(url)
-    window.message.success('Server URL copied to clipboard')
+    window.message.success(t('apiServer.messages.urlCopied'))
   }
 
   const handlePortChange = (value: string) => {
@@ -213,9 +207,9 @@ const ApiServerSettings: FC = () => {
       {/* Header Section */}
       <div style={{ marginBottom: 32 }}>
         <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-          API Server
+          {t('apiServer.title')}
         </Title>
-        <Text type="secondary">Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs</Text>
+        <Text type="secondary">{t('apiServer.description')}</Text>
       </div>
 
       {/* Server Status & Configuration Card */}
@@ -223,7 +217,7 @@ const ApiServerSettings: FC = () => {
         title={
           <SectionHeader>
             <GlobalOutlined />
-            <h4>Server Status & Configuration</h4>
+            <h4>{t('apiServer.configuration')}</h4>
           </SectionHeader>
         }>
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -238,7 +232,9 @@ const ApiServerSettings: FC = () => {
             }}>
             <StatusIndicator status={apiServerRunning}>
               <div className="status-dot" />
-              <span className="status-text">{apiServerRunning ? 'Running' : 'Stopped'}</span>
+              <span className="status-text">
+                {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
+              </span>
             </StatusIndicator>
             <ActionButtonGroup>
               <Switch
@@ -248,13 +244,13 @@ const ApiServerSettings: FC = () => {
                 size="default"
               />
               {apiServerRunning && (
-                <Tooltip title="Restart Server">
+                <Tooltip title={t('apiServer.actions.restart.tooltip')}>
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={handleApiServerRestart}
                     loading={apiServerLoading}
                     size="small">
-                    Restart
+                    {t('apiServer.actions.restart.button')}
                   </Button>
                 </Tooltip>
               )}
@@ -265,7 +261,7 @@ const ApiServerSettings: FC = () => {
           <div style={{ display: 'grid', gap: '16px' }}>
             {/* Port Configuration */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <FieldLabel style={{ minWidth: 50, margin: 0 }}>Port</FieldLabel>
+              <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.port.label')}</FieldLabel>
               <StyledInput
                 type="number"
                 value={apiServerConfig.port}
@@ -279,7 +275,7 @@ const ApiServerSettings: FC = () => {
               />
               {apiServerRunning && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Stop server to change port
+                  {t('apiServer.fields.port.helpText')}
                 </Text>
               )}
             </div>
@@ -287,16 +283,16 @@ const ApiServerSettings: FC = () => {
             {/* Server URL (only when running) */}
             {apiServerRunning && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                <FieldLabel style={{ minWidth: 50, margin: 0 }}>URL</FieldLabel>
+                <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.url.label')}</FieldLabel>
                 <StyledInput
                   value={`http://localhost:${apiServerConfig.port}`}
                   readOnly
                   style={{ flex: 1, maxWidth: 250 }}
                   size="small"
                 />
-                <Tooltip title="Copy URL">
+                <Tooltip title={t('apiServer.fields.url.copyTooltip')}>
                   <Button icon={<CopyOutlined />} onClick={copyServerUrl} size="small">
-                    Copy
+                    {t('apiServer.actions.copy')}
                   </Button>
                 </Tooltip>
               </div>
@@ -304,30 +300,30 @@ const ApiServerSettings: FC = () => {
 
             {/* API Key Configuration */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <FieldLabel style={{ minWidth: 50, margin: 0 }}>API Key</FieldLabel>
+              <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.apiKey.label')}</FieldLabel>
               <StyledInput
                 value={apiServerConfig.apiKey}
                 readOnly
                 style={{ flex: 1, minWidth: 200, maxWidth: 300 }}
-                placeholder="API key will be auto-generated"
+                placeholder={t('apiServer.fields.apiKey.placeholder')}
                 disabled={apiServerRunning}
                 size="small"
               />
               <ActionButtonGroup>
-                <Tooltip title="Copy API Key">
+                <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
                   <Button icon={<CopyOutlined />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} size="small">
-                    Copy
+                    {t('apiServer.actions.copy')}
                   </Button>
                 </Tooltip>
                 <Button onClick={regenerateApiKey} disabled={apiServerRunning} size="small">
-                  Regenerate
+                  {t('apiServer.actions.regenerate')}
                 </Button>
               </ActionButtonGroup>
             </div>
 
             {/* Authorization header info */}
             <Text type="secondary" style={{ fontSize: 11, lineHeight: 1.3 }}>
-              Use in Authorization header:{' '}
+              {t('apiServer.authHeaderText')}{' '}
               <Text code style={{ fontSize: 11 }}>
                 Bearer {apiServerConfig.apiKey || 'your-api-key'}
               </Text>
@@ -352,7 +348,7 @@ const ApiServerSettings: FC = () => {
         }}
         title={
           <SectionHeader>
-            <h4>API Documentation</h4>
+            <h4>{t('apiServer.documentation.title')}</h4>
           </SectionHeader>
         }>
         {apiServerRunning ? (
@@ -384,8 +380,10 @@ const ApiServerSettings: FC = () => {
               minHeight: 300
             }}>
             <GlobalOutlined style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }} />
-            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>API Documentation Unavailable</div>
-            <div style={{ fontSize: 14 }}>Start the API server to view the interactive documentation</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>
+              {t('apiServer.documentation.unavailable.title')}
+            </div>
+            <div style={{ fontSize: 14 }}>{t('apiServer.documentation.unavailable.description')}</div>
           </div>
         )}
       </ConfigCard>

@@ -3464,5 +3464,58 @@
     "quit": "退出",
     "show_window": "显示窗口",
     "visualization": "可视化"
+  },
+  "apiServer": {
+    "title": "API 服务器",
+    "description": "通过 OpenAI 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
+    "configuration": "配置",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "actions": {
+      "restart": {
+        "tooltip": "重启服务器",
+        "button": "重启"
+      },
+      "copy": "复制",
+      "regenerate": "重新生成"
+    },
+    "fields": {
+      "port": {
+        "label": "端口",
+        "helpText": "停止服务器以更改端口"
+      },
+      "url": {
+        "label": "URL",
+        "copyTooltip": "复制 URL"
+      },
+      "apiKey": {
+        "label": "API 密钥",
+        "placeholder": "API 密钥将自动生成",
+        "copyTooltip": "复制 API 密钥"
+      }
+    },
+    "authHeaderText": "在授权标头中使用：",
+    "documentation": {
+      "title": "API 文档",
+      "unavailable": {
+        "title": "API 文档不可用",
+        "description": "启动 API 服务器以查看交互式文档"
+      }
+    },
+    "messages": {
+      "startSuccess": "API 服务器启动成功",
+      "startError": "启动 API 服务器失败：",
+      "stopSuccess": "API 服务器停止成功",
+      "stopError": "停止 API 服务器失败：",
+      "operationFailed": "API 服务器操作失败：",
+      "restartSuccess": "API 服务器重启成功",
+      "restartError": "重启 API 服务器失败：",
+      "restartFailed": "API 服务器重启失败：",
+      "apiKeyCopied": "API 密钥已复制到剪贴板",
+      "apiKeyRegenerated": "API 密钥已重新生成",
+      "urlCopied": "服务器 URL 已复制到剪贴板"
+    }
   }
 }

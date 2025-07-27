@@ -3462,5 +3462,58 @@
     "quit": "Quitter",
     "show_window": "Afficher la fenêtre",
     "visualization": "Visualisation"
+  },
+  "apiServer": {
+    "title": "Serveur API",
+    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
+    "configuration": "Configuration",
+    "status": {
+      "running": "En cours d'exécution",
+      "stopped": "Arrêté"
+    },
+    "actions": {
+      "restart": {
+        "tooltip": "Redémarrer le Serveur",
+        "button": "Redémarrer"
+      },
+      "copy": "Copier",
+      "regenerate": "Régénérer"
+    },
+    "fields": {
+      "port": {
+        "label": "Port",
+        "helpText": "Arrêtez le serveur pour changer le port"
+      },
+      "url": {
+        "label": "URL",
+        "copyTooltip": "Copier l'URL"
+      },
+      "apiKey": {
+        "label": "Clé API",
+        "placeholder": "La clé API sera générée automatiquement",
+        "copyTooltip": "Copier la Clé API"
+      }
+    },
+    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
+    "documentation": {
+      "title": "Documentation API",
+      "unavailable": {
+        "title": "Documentation API Indisponible",
+        "description": "Démarrez le serveur API pour voir la documentation interactive"
+      }
+    },
+    "messages": {
+      "startSuccess": "Serveur API démarré avec succès",
+      "startError": "Échec du démarrage du Serveur API : ",
+      "stopSuccess": "Serveur API arrêté avec succès",
+      "stopError": "Échec de l'arrêt du Serveur API : ",
+      "operationFailed": "Opération du Serveur API échouée : ",
+      "restartSuccess": "Serveur API redémarré avec succès",
+      "restartError": "Échec du redémarrage du Serveur API : ",
+      "restartFailed": "Redémarrage du Serveur API échoué : ",
+      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
+      "apiKeyRegenerated": "Clé API régénérée",
+      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+    }
   }
 }

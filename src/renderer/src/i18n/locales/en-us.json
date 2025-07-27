@@ -3464,5 +3464,58 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "apiServer": {
+    "title": "API Server",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "configuration": "Configuration",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "actions": {
+      "restart": {
+        "tooltip": "Restart Server",
+        "button": "Restart"
+      },
+      "copy": "Copy",
+      "regenerate": "Regenerate"
+    },
+    "fields": {
+      "port": {
+        "label": "Port",
+        "helpText": "Stop server to change port"
+      },
+      "url": {
+        "label": "URL",
+        "copyTooltip": "Copy URL"
+      },
+      "apiKey": {
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated",
+        "copyTooltip": "Copy API Key"
+      }
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "documentation": {
+      "title": "API Documentation",
+      "unavailable": {
+        "title": "API Documentation Unavailable",
+        "description": "Start the API server to view the interactive documentation"
+      }
+    },
+    "messages": {
+      "startSuccess": "API Server started successfully",
+      "startError": "Failed to start API Server: ",
+      "stopSuccess": "API Server stopped successfully",
+      "stopError": "Failed to stop API Server: ",
+      "operationFailed": "API Server operation failed: ",
+      "restartSuccess": "API Server restarted successfully",
+      "restartError": "Failed to restart API Server: ",
+      "restartFailed": "API Server restart failed: ",
+      "apiKeyCopied": "API Key copied to clipboard",
+      "apiKeyRegenerated": "API Key regenerated",
+      "urlCopied": "Server URL copied to clipboard"
+    }
   }
 }

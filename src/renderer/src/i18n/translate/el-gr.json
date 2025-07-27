@@ -3462,5 +3462,58 @@
     "quit": "Έξοδος",
     "show_window": "Εμφάνιση Παραθύρου",
     "visualization": "προβολή"
+  },
+  "apiServer": {
+    "title": "Διακομιστής API",
+    "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
+    "configuration": "Διαμόρφωση",
+    "status": {
+      "running": "Εκτελείται",
+      "stopped": "Σταματημένος"
+    },
+    "actions": {
+      "restart": {
+        "tooltip": "Επανεκκίνηση Διακομιστή",
+        "button": "Επανεκκίνηση"
+      },
+      "copy": "Αντιγραφή",
+      "regenerate": "Αναδημιουργία"
+    },
+    "fields": {
+      "port": {
+        "label": "Θύρα",
+        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα"
+      },
+      "url": {
+        "label": "URL",
+        "copyTooltip": "Αντιγραφή URL"
+      },
+      "apiKey": {
+        "label": "Κλειδί API",
+        "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα",
+        "copyTooltip": "Αντιγραφή Κλειδιού API"
+      }
+    },
+    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
+    "documentation": {
+      "title": "Τεκμηρίωση API",
+      "unavailable": {
+        "title": "Τεκμηρίωση API Μη Διαθέσιμη",
+        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση"
+      }
+    },
+    "messages": {
+      "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
+      "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
+      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
+      "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
+      "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
+      "restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",
+      "restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
+      "restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
+      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
+      "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
+      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
+    }
   }
 }

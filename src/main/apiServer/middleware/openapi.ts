@@ -20,7 +20,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:{port}',
+        url: 'http://localhost:23333',
         description: 'Local development server',
         variables: {
           port: {
