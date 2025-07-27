@@ -4,7 +4,7 @@ import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerErrorHandler')
 
-export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('API Server Error:', err)
 
   // Don't expose internal errors in production

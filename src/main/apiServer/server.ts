@@ -16,7 +16,7 @@ export class ApiServer {
     }
 
     // Load config
-    const { port, host } = await config.load()
+    const { port, host, apiKey } = await config.load()
 
     // Create server with Express app
     this.server = createServer(app)
@@ -25,7 +25,7 @@ export class ApiServer {
     return new Promise((resolve, reject) => {
       this.server!.listen(port, host, () => {
         logger.info(`API Server started at http://${host}:${port}`)
-        logger.info(`API Key: ${config.get().apiKey}`)
+        logger.info(`API Key: ${apiKey}`)
         resolve()
       })
 

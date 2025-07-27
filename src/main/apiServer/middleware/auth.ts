@@ -21,5 +21,5 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     return res.status(403).json({ error: 'Forbidden' })
   }
 
-  next()
+  return next()
 }

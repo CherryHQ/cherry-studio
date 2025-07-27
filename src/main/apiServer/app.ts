@@ -23,7 +23,7 @@ app.use((req, res, next) => {
   next()
 })
 
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.setHeader('X-Request-ID', uuidv4())
   next()
 })
@@ -37,7 +37,7 @@ app.use(
 )
 
 // Health check (no auth required)
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -45,7 +45,7 @@ app.get('/health', (req, res) => {
   })
 })
 // API info
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     name: 'Cherry Studio API',
     version: '1.0.0',

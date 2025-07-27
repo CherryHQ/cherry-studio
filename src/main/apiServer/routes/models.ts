@@ -7,7 +7,7 @@ const logger = loggerService.withContext('ApiServerModelsRoutes')
 
 const router = express.Router()
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     logger.info('Models list request received')
 
