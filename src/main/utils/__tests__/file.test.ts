@@ -251,8 +251,8 @@ describe('file', () => {
     const mockFilePath = '/path/to/mock/file.txt'
 
     it('should read file with auto encoding', async () => {
-      const content = '这是一段GB2312编码的测试内容'
-      const buffer = iconv.encode(content, 'GB2312')
+      const content = '这是一段GB18030编码的测试内容'
+      const buffer = iconv.encode(content, 'GB18030')
 
       // 创建模拟的 FileHandle 对象
       const mockFileHandle = {
@@ -272,8 +272,8 @@ describe('file', () => {
     })
 
     it('should try to fix bad detected encoding', async () => {
-      const content = '这是一段GB2312编码的测试内容'
-      const buffer = iconv.encode(content, 'GB2312')
+      const content = '这是一段GB18030编码的测试内容'
+      const buffer = iconv.encode(content, 'GB18030')
 
       // 创建模拟的 FileHandle 对象
       const mockFileHandle = {

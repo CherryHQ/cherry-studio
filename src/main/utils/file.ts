@@ -140,13 +140,10 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   const { buffer: bufferRead } = await fh.read(buffer, 0, MB, 0)
   await fh.close()
 
-  const encodings = chardet
-    .analyse(bufferRead)
-    .map((item) => (item.name === 'ASCII' ? 'UTF-8' : item.name))
-    .filter((name, index, arr) => arr.indexOf(name) === index)
-    .slice(0, 2)
+  const encoding = chardet.detect(bufferRead) || 'UTF-8'
 
-  logger.debug(`File ${filePath} detected encodings: ${encodings.join(', ')}`)
+  const encodings = [encoding, 'UTF-8']
+  logger.debug(`File ${filePath} encoding ${encoding}`)
 
   const data = await readFile(filePath)
 
