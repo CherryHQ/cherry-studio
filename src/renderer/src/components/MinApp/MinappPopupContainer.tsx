@@ -143,7 +143,7 @@ const MinappPopupContainer: React.FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
-  const { isTopNavbar } = useNavbarPosition()
+  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
@@ -164,8 +164,6 @@ const MinappPopupContainer: React.FC = () => {
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
   const { minappsOpenLinkExternal } = useSettings()
-
-  const { isLeftNavbar } = useNavbarPosition()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -405,7 +403,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''}>
+        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''} isTopNavBar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
@@ -564,14 +562,14 @@ const TitleTextTooltip = styled.span`
   }
 `
 
-const ButtonsGroup = styled.div`
+const ButtonsGroup = styled.div<{ isTopNavBar: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWin ? '130px' : isLinux ? '100px' : 0};
+    margin-right: ${(props) => (props.isTopNavBar ? 0 : isWin ? '130px' : isLinux ? '100px' : 0)};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;
