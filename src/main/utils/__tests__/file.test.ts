@@ -4,12 +4,12 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { FileTypes } from '@types'
+import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
 import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir, untildify } from '../file'
-import chardet from 'chardet'
 
 // Mock dependencies
 vi.mock('node:fs')
