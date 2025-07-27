@@ -22,13 +22,13 @@ class ConfigManager {
         })
 
         this._config = {
-          port: settings?.apiServer?.port ?? 13333,
+          port: settings?.apiServer?.port ?? 23333,
           host: 'localhost',
           apiKey: generatedKey
         }
       } else {
         this._config = {
-          port: settings?.apiServer?.port ?? 13333,
+          port: settings?.apiServer?.port ?? 23333,
           host: 'localhost',
           apiKey: settings.apiServer.apiKey
         }
@@ -38,9 +38,9 @@ class ConfigManager {
     } catch (error: any) {
       logger.warn('Failed to load config from Redux, using defaults:', error)
       this._config = {
-        port: 13333,
+        port: 23333,
         host: 'localhost',
-        apiKey: `sk-${uuidv4()}`
+        apiKey: `cs-sk-${uuidv4()}`
       }
       return this._config
     }
