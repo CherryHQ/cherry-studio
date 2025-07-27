@@ -3,6 +3,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
@@ -25,7 +26,7 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
     setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
   }, [openedKeepAliveMinapps])
 
-  const handleOnClick = (app) => {
+  const handleOnClick = (app: MinAppType) => {
     if (minappShow && currentMinappId === app.id) {
       hideMinappPopup()
     } else {
@@ -66,12 +67,14 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
             <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="bottom">
               <StyledLink>
                 <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                  <TopNavIcon
-                    theme={theme}
-                    onClick={() => handleOnClick(app)}
-                    className={`${isActive ? 'opened-active' : ''}`}>
-                    <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
-                  </TopNavIcon>
+                  <TopNavItemContainer
+                    className={`${isActive ? 'opened-active' : ''}`}
+                    onClick={() => handleOnClick(app)}>
+                    <TopNavIcon theme={theme}>
+                      <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
+                    </TopNavIcon>
+                    <TopNavLabel>{app.name}</TopNavLabel>
+                  </TopNavItemContainer>
                 </Dropdown>
               </StyledLink>
             </Tooltip>
@@ -326,7 +329,7 @@ const TabsWrapper = styled.div`
 const TopNavContainer = styled.div`
   display: flex;
   align-items: center;
-  padding: 4px 2px;
+  padding: 2px;
   gap: 6px;
   background-color: var(--color-list-item);
   border-radius: 20px;
@@ -350,16 +353,39 @@ const TopNavIcon = styled(Icon)`
     height: 22px;
   }
 
+  &.opened-active {
+    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    border: 0.5px solid var(--color-border);
+    border-radius: 25%;
+    .icon {
+      color: var(--color-primary);
+    }
+  }
+`
+
+const TopNavLabel = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+`
+
+const TopNavItemContainer = styled.div`
+  display: flex;
+  padding: 4px 2px;
+  transition: border 0.3s ease;
+  box-sizing: content-box;
+
   &:hover {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     border-radius: 50%;
+    cursor: pointer;
   }
 
   &.opened-active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
-    border: 0.5px solid var(--color-border);
-    border-radius: 50%;
+    border: 0.5px solid var(--color-primary);
+    border-radius: 18px;
     .icon {
       color: var(--color-primary);
     }
