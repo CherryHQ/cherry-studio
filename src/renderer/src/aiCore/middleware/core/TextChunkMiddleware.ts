@@ -45,8 +45,11 @@ export const TextChunkMiddleware: CompletionsMiddleware =
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_DELTA) {
-                accumulatedTextContent += chunk.text
-
+                if (model.supported_text_delta === false) {
+                  accumulatedTextContent = chunk.text
+                } else {
+                  accumulatedTextContent += chunk.text
+                }
                 // 处理 onResponse 回调 - 发送增量文本更新
                 if (params.onResponse) {
                   params.onResponse(accumulatedTextContent, false)

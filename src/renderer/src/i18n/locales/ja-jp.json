@@ -2080,6 +2080,10 @@
         "title": "ローカルバックアップ"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Markdownエクスポート時に引用や参考文献を除外し、メインコンテンツのみを保持します。",
+          "title": "引用を除外"
+        },
         "force_dollar_math": {
           "help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
           "title": "LaTeX数式に$$を強制使用"
@@ -2096,7 +2100,11 @@
           "help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
           "title": "モデルプロバイダーを表示"
         },
-        "title": "Markdown エクスポート"
+        "standardize_citations": {
+          "help": "引用マークを標準の Markdown 脚注形式 [^1] に変換し、引用リストをフォーマットします。これにより、Markdown ドキュメントの引用が一貫性を持ち、読みやすくなります。",
+          "title": "引用を標準化"
+        },
+        "title": "Markdownエクスポート"
       },
       "message_title": {
         "use_topic_naming": {
@@ -2587,6 +2595,17 @@
       "argsTooltip": "1行に1つの引数を入力してください",
       "baseUrlTooltip": "リモートURLアドレス",
       "builtinServers": "組み込みサーバー",
+      "builtinServersDescriptions": {
+        "brave_search": "Brave検索APIを統合したMCPサーバーの実装で、ウェブ検索とローカル検索の両機能を提供します。BRAVE_API_KEY環境変数の設定が必要です",
+        "dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
+        "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
+        "filesystem": "Node.jsサーバーによるファイルシステム操作を実現するモデルコンテキストプロトコル（MCP）。アクセスを許可するディレクトリの設定が必要です",
+        "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "説明なし",
+        "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
+        "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
+      },
       "command": "コマンド",
       "config_description": "モデルコンテキストプロトコルサーバーの設定",
       "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
@@ -2868,6 +2887,10 @@
           "label": "モデル名",
           "placeholder": "例：GPT-4",
           "tooltip": "例：GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "インクリメンタルテキスト出力",
+          "tooltip": "モデルがサポートされていない場合は、ボタンを閉じます"
         }
       },
       "api_key": "API キー",

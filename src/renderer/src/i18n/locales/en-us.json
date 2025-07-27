@@ -2080,6 +2080,10 @@
         "title": "Local Backup"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
+          "title": "Exclude Citations"
+        },
         "force_dollar_math": {
           "help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
           "title": "Force $$ for LaTeX formulas"
@@ -2095,6 +2099,10 @@
         "show_model_provider": {
           "help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
           "title": "Show Model Provider"
+        },
+        "standardize_citations": {
+          "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
+          "title": "Standardize Citation Format"
         },
         "title": "Markdown Export"
       },
@@ -2587,6 +2595,17 @@
       "argsTooltip": "Each argument on a new line",
       "baseUrlTooltip": "Remote server base URL",
       "builtinServers": "Builtin Servers",
+      "builtinServersDescriptions": {
+        "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
+        "fetch": "MCP server for retrieving URL web content",
+        "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
+        "mcp_auto_install": "Automatically install MCP service (beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "No description",
+        "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
+      },
       "command": "Command",
       "config_description": "Configure Model Context Protocol servers",
       "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
@@ -2868,6 +2887,10 @@
           "label": "Model Name",
           "placeholder": "Optional e.g. GPT-4",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "Incremental text output",
+          "tooltip": "When the model is not supported, close the button"
         }
       },
       "api_key": "API Key",

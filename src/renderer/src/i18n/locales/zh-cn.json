@@ -2080,6 +2080,10 @@
         "title": "本地备份"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "导出 Markdown 时排除引用和参考文献，仅保留主要内容",
+          "title": "不导出引用内容"
+        },
         "force_dollar_math": {
           "help": "开启后，导出 Markdown 时会将强制使用 $$ 来标记 LaTeX 公式。注意：该项也会影响所有通过 Markdown 导出的方式，如 Notion、语雀等",
           "title": "强制使用 $$ 来标记 LaTeX 公式"
@@ -2095,6 +2099,10 @@
         "show_model_provider": {
           "help": "在导出 Markdown 时显示模型供应商，如 OpenAI、Gemini 等",
           "title": "显示模型供应商"
+        },
+        "standardize_citations": {
+          "help": "开启后，导出 Markdown 时会将引用标记转换为标准 Markdown 脚注格式 [^1]，并格式化引用列表",
+          "title": "标准化引用格式"
         },
         "title": "Markdown 导出"
       },
@@ -2587,6 +2595,17 @@
       "argsTooltip": "每个参数占一行",
       "baseUrlTooltip": "远程 URL 地址",
       "builtinServers": "内置服务器",
+      "builtinServersDescriptions": {
+        "brave_search": "一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量",
+        "dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
+        "fetch": "用于获取 URL 网页内容的 MCP 服务器",
+        "filesystem": "实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器。需要配置允许访问的目录",
+        "mcp_auto_install": "自动安装 MCP 服务（测试版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "无描述",
+        "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
+        "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
+      },
       "command": "命令",
       "config_description": "配置模型上下文协议服务器",
       "customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
@@ -2868,6 +2887,10 @@
           "label": "模型名称",
           "placeholder": "例如 GPT-4",
           "tooltip": "例如 GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "增量文本输出",
+          "tooltip": "当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "API 密钥",
