@@ -76,6 +76,59 @@
     },
     "title": "Ειδικοί"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Αντιγραφή",
+      "regenerate": "Αναδημιουργία",
+      "restart": {
+        "button": "Επανεκκίνηση",
+        "tooltip": "Επανεκκίνηση Διακομιστή"
+      }
+    },
+    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
+    "configuration": "Διαμόρφωση",
+    "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
+    "documentation": {
+      "title": "Τεκμηρίωση API",
+      "unavailable": {
+        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση",
+        "title": "Τεκμηρίωση API Μη Διαθέσιμη"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Αντιγραφή Κλειδιού API",
+        "label": "Κλειδί API",
+        "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
+      },
+      "port": {
+        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
+        "label": "Θύρα"
+      },
+      "url": {
+        "copyTooltip": "Αντιγραφή URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
+      "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
+      "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
+      "restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
+      "restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
+      "restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",
+      "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
+      "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
+      "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
+      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
+      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
+    },
+    "status": {
+      "running": "Εκτελείται",
+      "stopped": "Σταματημένος"
+    },
+    "title": "Διακομιστής API"
+  },
   "assistants": {
     "abbr": "Βοηθός",
     "clear": {
@@ -2887,6 +2940,10 @@
           "label": "Όνομα μοντέλου",
           "placeholder": "Για παράδειγμα GPT-3.5",
           "tooltip": "Για παράδειγμα GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "[to be translated]:增量文本输出",
+          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "Κλειδί API",
@@ -2924,7 +2981,6 @@
           "label": "Προσθήκη μοντέλων από τη λίστα"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
-        "models.manage.add_listed.confirm": "Θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
         "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
         "remove_model": "Αφαίρεση Μοντέλου",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας"
@@ -3038,7 +3094,6 @@
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
-          "basic_auth.password.tip": ":",
           "label": "κωδικός πρόσβασης",
           "tip": "εισαγάγετε τον κωδικό πρόσβασης"
         },
@@ -3462,58 +3517,5 @@
     "quit": "Έξοδος",
     "show_window": "Εμφάνιση Παραθύρου",
     "visualization": "προβολή"
-  },
-  "apiServer": {
-    "title": "Διακομιστής API",
-    "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
-    "configuration": "Διαμόρφωση",
-    "status": {
-      "running": "Εκτελείται",
-      "stopped": "Σταματημένος"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "Επανεκκίνηση Διακομιστή",
-        "button": "Επανεκκίνηση"
-      },
-      "copy": "Αντιγραφή",
-      "regenerate": "Αναδημιουργία"
-    },
-    "fields": {
-      "port": {
-        "label": "Θύρα",
-        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "Αντιγραφή URL"
-      },
-      "apiKey": {
-        "label": "Κλειδί API",
-        "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα",
-        "copyTooltip": "Αντιγραφή Κλειδιού API"
-      }
-    },
-    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
-    "documentation": {
-      "title": "Τεκμηρίωση API",
-      "unavailable": {
-        "title": "Τεκμηρίωση API Μη Διαθέσιμη",
-        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση"
-      }
-    },
-    "messages": {
-      "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
-      "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
-      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
-      "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
-      "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
-      "restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",
-      "restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
-      "restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
-      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
-      "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
-      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
-    }
   }
 }

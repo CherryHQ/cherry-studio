@@ -76,6 +76,59 @@
     },
     "title": "Agent intelligent"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copier",
+      "regenerate": "Régénérer",
+      "restart": {
+        "button": "Redémarrer",
+        "tooltip": "Redémarrer le Serveur"
+      }
+    },
+    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
+    "configuration": "Configuration",
+    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
+    "documentation": {
+      "title": "Documentation API",
+      "unavailable": {
+        "description": "Démarrez le serveur API pour voir la documentation interactive",
+        "title": "Documentation API Indisponible"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copier la Clé API",
+        "label": "Clé API",
+        "placeholder": "La clé API sera générée automatiquement"
+      },
+      "port": {
+        "helpText": "Arrêtez le serveur pour changer le port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copier l'URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
+      "apiKeyRegenerated": "Clé API régénérée",
+      "operationFailed": "Opération du Serveur API échouée : ",
+      "restartError": "Échec du redémarrage du Serveur API : ",
+      "restartFailed": "Redémarrage du Serveur API échoué : ",
+      "restartSuccess": "Serveur API redémarré avec succès",
+      "startError": "Échec du démarrage du Serveur API : ",
+      "startSuccess": "Serveur API démarré avec succès",
+      "stopError": "Échec de l'arrêt du Serveur API : ",
+      "stopSuccess": "Serveur API arrêté avec succès",
+      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+    },
+    "status": {
+      "running": "En cours d'exécution",
+      "stopped": "Arrêté"
+    },
+    "title": "Serveur API"
+  },
   "assistants": {
     "abbr": "Aide",
     "clear": {
@@ -2887,6 +2940,10 @@
           "label": "Nom du modèle",
           "placeholder": "Par exemple, GPT-3.5",
           "tooltip": "Par exemple GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "[to be translated]:增量文本输出",
+          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "Clé API",
@@ -2921,8 +2978,7 @@
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste",
-          "models.manage.add_listed.confirm": "Voulez-vous ajouter tous les modèles à la liste ?"
+          "label": "Ajouter le modèle dans la liste"
         },
         "add_whole_group": "Ajouter tout le groupe",
         "remove_listed": "Supprimer un modèle de la liste",
@@ -3038,7 +3094,6 @@
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "mot de passe",
           "tip": "Entrer le mot de passe"
         },
@@ -3462,58 +3517,5 @@
     "quit": "Quitter",
     "show_window": "Afficher la fenêtre",
     "visualization": "Visualisation"
-  },
-  "apiServer": {
-    "title": "Serveur API",
-    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
-    "configuration": "Configuration",
-    "status": {
-      "running": "En cours d'exécution",
-      "stopped": "Arrêté"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "Redémarrer le Serveur",
-        "button": "Redémarrer"
-      },
-      "copy": "Copier",
-      "regenerate": "Régénérer"
-    },
-    "fields": {
-      "port": {
-        "label": "Port",
-        "helpText": "Arrêtez le serveur pour changer le port"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "Copier l'URL"
-      },
-      "apiKey": {
-        "label": "Clé API",
-        "placeholder": "La clé API sera générée automatiquement",
-        "copyTooltip": "Copier la Clé API"
-      }
-    },
-    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
-    "documentation": {
-      "title": "Documentation API",
-      "unavailable": {
-        "title": "Documentation API Indisponible",
-        "description": "Démarrez le serveur API pour voir la documentation interactive"
-      }
-    },
-    "messages": {
-      "startSuccess": "Serveur API démarré avec succès",
-      "startError": "Échec du démarrage du Serveur API : ",
-      "stopSuccess": "Serveur API arrêté avec succès",
-      "stopError": "Échec de l'arrêt du Serveur API : ",
-      "operationFailed": "Opération du Serveur API échouée : ",
-      "restartSuccess": "Serveur API redémarré avec succès",
-      "restartError": "Échec du redémarrage du Serveur API : ",
-      "restartFailed": "Redémarrage du Serveur API échoué : ",
-      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
-      "apiKeyRegenerated": "Clé API régénérée",
-      "urlCopied": "URL du serveur copiée dans le presse-papiers"
-    }
   }
 }

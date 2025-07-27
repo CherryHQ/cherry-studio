@@ -76,6 +76,59 @@
     },
     "title": "Agente"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copiar",
+      "regenerate": "Regenerar",
+      "restart": {
+        "button": "Reiniciar",
+        "tooltip": "Reiniciar Servidor"
+      }
+    },
+    "authHeaderText": "Usar no cabeçalho de autorização:",
+    "configuration": "Configuração",
+    "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
+    "documentation": {
+      "title": "Documentação API",
+      "unavailable": {
+        "description": "Inicie o servidor API para ver a documentação interativa",
+        "title": "Documentação API Indisponível"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copiar Chave API",
+        "label": "Chave API",
+        "placeholder": "A chave API será gerada automaticamente"
+      },
+      "port": {
+        "helpText": "Pare o servidor para alterar a porta",
+        "label": "Porta"
+      },
+      "url": {
+        "copyTooltip": "Copiar URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Chave API copiada para a área de transferência",
+      "apiKeyRegenerated": "Chave API regenerada",
+      "operationFailed": "Operação do Servidor API falhou: ",
+      "restartError": "Falha ao reiniciar o Servidor API: ",
+      "restartFailed": "Reinício do Servidor API falhou: ",
+      "restartSuccess": "Servidor API reiniciado com sucesso",
+      "startError": "Falha ao iniciar o Servidor API: ",
+      "startSuccess": "Servidor API iniciado com sucesso",
+      "stopError": "Falha ao parar o Servidor API: ",
+      "stopSuccess": "Servidor API parado com sucesso",
+      "urlCopied": "URL do servidor copiada para a área de transferência"
+    },
+    "status": {
+      "running": "A executar",
+      "stopped": "Parado"
+    },
+    "title": "Servidor API"
+  },
   "assistants": {
     "abbr": "Assistente",
     "clear": {
@@ -2887,6 +2940,10 @@
           "label": "Nome do modelo",
           "placeholder": "Exemplo: GPT-3.5",
           "tooltip": "Por exemplo, GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "[to be translated]:增量文本输出",
+          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "Chave API",
@@ -2921,8 +2978,7 @@
       "manage": {
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
-          "label": "Adicionar modelo da lista",
-          "models.manage.add_listed.confirm": "Deseja adicionar todos os modelos à lista?"
+          "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
         "remove_listed": "Remover modelo da lista",
@@ -3038,7 +3094,6 @@
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "palavra-passe",
           "tip": "Introduza a palavra-passe"
         },
@@ -3462,58 +3517,5 @@
     "quit": "Sair",
     "show_window": "Exibir Janela",
     "visualization": "Visualização"
-  },
-  "apiServer": {
-    "title": "Servidor API",
-    "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
-    "configuration": "Configuração",
-    "status": {
-      "running": "A executar",
-      "stopped": "Parado"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "Reiniciar Servidor",
-        "button": "Reiniciar"
-      },
-      "copy": "Copiar",
-      "regenerate": "Regenerar"
-    },
-    "fields": {
-      "port": {
-        "label": "Porta",
-        "helpText": "Pare o servidor para alterar a porta"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "Copiar URL"
-      },
-      "apiKey": {
-        "label": "Chave API",
-        "placeholder": "A chave API será gerada automaticamente",
-        "copyTooltip": "Copiar Chave API"
-      }
-    },
-    "authHeaderText": "Usar no cabeçalho de autorização:",
-    "documentation": {
-      "title": "Documentação API",
-      "unavailable": {
-        "title": "Documentação API Indisponível",
-        "description": "Inicie o servidor API para ver a documentação interativa"
-      }
-    },
-    "messages": {
-      "startSuccess": "Servidor API iniciado com sucesso",
-      "startError": "Falha ao iniciar o Servidor API: ",
-      "stopSuccess": "Servidor API parado com sucesso",
-      "stopError": "Falha ao parar o Servidor API: ",
-      "operationFailed": "Operação do Servidor API falhou: ",
-      "restartSuccess": "Servidor API reiniciado com sucesso",
-      "restartError": "Falha ao reiniciar o Servidor API: ",
-      "restartFailed": "Reinício do Servidor API falhou: ",
-      "apiKeyCopied": "Chave API copiada para a área de transferência",
-      "apiKeyRegenerated": "Chave API regenerada",
-      "urlCopied": "URL do servidor copiada para a área de transferência"
-    }
   }
 }

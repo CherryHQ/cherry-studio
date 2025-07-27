@@ -76,6 +76,59 @@
     },
     "title": "智慧代理人"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "複製",
+      "regenerate": "重新生成",
+      "restart": {
+        "button": "重新啟動",
+        "tooltip": "重新啟動伺服器"
+      }
+    },
+    "authHeaderText": "在授權標頭中使用：",
+    "configuration": "配置",
+    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
+    "documentation": {
+      "title": "API 文件",
+      "unavailable": {
+        "description": "啟動 API 伺服器以檢視互動式文件",
+        "title": "API 文件無法使用"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "複製 API 金鑰",
+        "label": "API 金鑰",
+        "placeholder": "API 金鑰將自動生成"
+      },
+      "port": {
+        "helpText": "停止伺服器以變更連接埠",
+        "label": "連接埠"
+      },
+      "url": {
+        "copyTooltip": "複製 URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API 金鑰已複製到剪貼簿",
+      "apiKeyRegenerated": "API 金鑰已重新生成",
+      "operationFailed": "API 伺服器操作失敗：",
+      "restartError": "重新啟動 API 伺服器失敗：",
+      "restartFailed": "API 伺服器重新啟動失敗：",
+      "restartSuccess": "API 伺服器重新啟動成功",
+      "startError": "啟動 API 伺服器失敗：",
+      "startSuccess": "API 伺服器啟動成功",
+      "stopError": "停止 API 伺服器失敗：",
+      "stopSuccess": "API 伺服器停止成功",
+      "urlCopied": "伺服器 URL 已複製到剪貼簿"
+    },
+    "status": {
+      "running": "執行中",
+      "stopped": "已停止"
+    },
+    "title": "API 伺服器"
+  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -3464,58 +3517,5 @@
     "quit": "結束",
     "show_window": "顯示視窗",
     "visualization": "視覺化"
-  },
-  "apiServer": {
-    "title": "API 伺服器",
-    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
-    "configuration": "配置",
-    "status": {
-      "running": "執行中",
-      "stopped": "已停止"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "重新啟動伺服器",
-        "button": "重新啟動"
-      },
-      "copy": "複製",
-      "regenerate": "重新生成"
-    },
-    "fields": {
-      "port": {
-        "label": "連接埠",
-        "helpText": "停止伺服器以變更連接埠"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "複製 URL"
-      },
-      "apiKey": {
-        "label": "API 金鑰",
-        "placeholder": "API 金鑰將自動生成",
-        "copyTooltip": "複製 API 金鑰"
-      }
-    },
-    "authHeaderText": "在授權標頭中使用：",
-    "documentation": {
-      "title": "API 文件",
-      "unavailable": {
-        "title": "API 文件無法使用",
-        "description": "啟動 API 伺服器以檢視互動式文件"
-      }
-    },
-    "messages": {
-      "startSuccess": "API 伺服器啟動成功",
-      "startError": "啟動 API 伺服器失敗：",
-      "stopSuccess": "API 伺服器停止成功",
-      "stopError": "停止 API 伺服器失敗：",
-      "operationFailed": "API 伺服器操作失敗：",
-      "restartSuccess": "API 伺服器重新啟動成功",
-      "restartError": "重新啟動 API 伺服器失敗：",
-      "restartFailed": "API 伺服器重新啟動失敗：",
-      "apiKeyCopied": "API 金鑰已複製到剪貼簿",
-      "apiKeyRegenerated": "API 金鑰已重新生成",
-      "urlCopied": "伺服器 URL 已複製到剪貼簿"
-    }
   }
 }

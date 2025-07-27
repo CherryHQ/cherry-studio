@@ -76,6 +76,59 @@
     },
     "title": "Агенты"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Копировать",
+      "regenerate": "Перегенерировать",
+      "restart": {
+        "button": "Перезапустить",
+        "tooltip": "Перезапустить сервер"
+      }
+    },
+    "authHeaderText": "Использовать в заголовке авторизации:",
+    "configuration": "Конфигурация",
+    "description": "Предоставляет возможности ИИ Cherry Studio через HTTP API, совместимые с OpenAI",
+    "documentation": {
+      "title": "Документация API",
+      "unavailable": {
+        "description": "Запустите API сервер для просмотра интерактивной документации",
+        "title": "Документация API недоступна"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Копировать API ключ",
+        "label": "API Ключ",
+        "placeholder": "API ключ будет сгенерирован автоматически"
+      },
+      "port": {
+        "helpText": "Остановите сервер для изменения порта",
+        "label": "Порт"
+      },
+      "url": {
+        "copyTooltip": "Копировать URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API ключ скопирован в буфер обмена",
+      "apiKeyRegenerated": "API ключ перегенерирован",
+      "operationFailed": "Операция API сервера не удалась: ",
+      "restartError": "Не удалось перезапустить API сервер: ",
+      "restartFailed": "Перезапуск API сервера не удался: ",
+      "restartSuccess": "API сервер успешно перезапущен",
+      "startError": "Не удалось запустить API сервер: ",
+      "startSuccess": "API сервер успешно запущен",
+      "stopError": "Не удалось остановить API сервер: ",
+      "stopSuccess": "API сервер успешно остановлен",
+      "urlCopied": "URL сервера скопирован в буфер обмена"
+    },
+    "status": {
+      "running": "Работает",
+      "stopped": "Остановлен"
+    },
+    "title": "API Сервер"
+  },
   "assistants": {
     "abbr": "Ассистент",
     "clear": {
@@ -3464,58 +3517,5 @@
     "quit": "Выйти",
     "show_window": "Показать окно",
     "visualization": "Визуализация"
-  },
-  "apiServer": {
-    "title": "API Сервер",
-    "description": "Предоставляет возможности ИИ Cherry Studio через HTTP API, совместимые с OpenAI",
-    "configuration": "Конфигурация",
-    "status": {
-      "running": "Работает",
-      "stopped": "Остановлен"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "Перезапустить сервер",
-        "button": "Перезапустить"
-      },
-      "copy": "Копировать",
-      "regenerate": "Перегенерировать"
-    },
-    "fields": {
-      "port": {
-        "label": "Порт",
-        "helpText": "Остановите сервер для изменения порта"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "Копировать URL"
-      },
-      "apiKey": {
-        "label": "API Ключ",
-        "placeholder": "API ключ будет сгенерирован автоматически",
-        "copyTooltip": "Копировать API ключ"
-      }
-    },
-    "authHeaderText": "Использовать в заголовке авторизации:",
-    "documentation": {
-      "title": "Документация API",
-      "unavailable": {
-        "title": "Документация API недоступна",
-        "description": "Запустите API сервер для просмотра интерактивной документации"
-      }
-    },
-    "messages": {
-      "startSuccess": "API сервер успешно запущен",
-      "startError": "Не удалось запустить API сервер: ",
-      "stopSuccess": "API сервер успешно остановлен",
-      "stopError": "Не удалось остановить API сервер: ",
-      "operationFailed": "Операция API сервера не удалась: ",
-      "restartSuccess": "API сервер успешно перезапущен",
-      "restartError": "Не удалось перезапустить API сервер: ",
-      "restartFailed": "Перезапуск API сервера не удался: ",
-      "apiKeyCopied": "API ключ скопирован в буфер обмена",
-      "apiKeyRegenerated": "API ключ перегенерирован",
-      "urlCopied": "URL сервера скопирован в буфер обмена"
-    }
   }
 }

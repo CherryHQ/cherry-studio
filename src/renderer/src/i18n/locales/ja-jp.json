@@ -76,6 +76,59 @@
     },
     "title": "エージェント"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "コピー",
+      "regenerate": "再生成",
+      "restart": {
+        "button": "再起動",
+        "tooltip": "サーバーを再起動"
+      }
+    },
+    "authHeaderText": "認証ヘッダーで使用：",
+    "configuration": "設定",
+    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
+    "documentation": {
+      "title": "API ドキュメント",
+      "unavailable": {
+        "description": "インタラクティブドキュメントを表示するには API サーバーを開始してください",
+        "title": "API ドキュメントが利用できません"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "API キーをコピー",
+        "label": "API キー",
+        "placeholder": "API キーは自動生成されます"
+      },
+      "port": {
+        "helpText": "ポートを変更するにはサーバーを停止してください",
+        "label": "ポート"
+      },
+      "url": {
+        "copyTooltip": "URL をコピー",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API キーがクリップボードにコピーされました",
+      "apiKeyRegenerated": "API キーが再生成されました",
+      "operationFailed": "API サーバーの操作に失敗しました：",
+      "restartError": "API サーバーの再起動に失敗しました：",
+      "restartFailed": "API サーバーの再起動に失敗しました：",
+      "restartSuccess": "API サーバーが正常に再起動されました",
+      "startError": "API サーバーの開始に失敗しました：",
+      "startSuccess": "API サーバーが正常に開始されました",
+      "stopError": "API サーバーの停止に失敗しました：",
+      "stopSuccess": "API サーバーが正常に停止されました",
+      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+    },
+    "status": {
+      "running": "実行中",
+      "stopped": "停止中"
+    },
+    "title": "API サーバー"
+  },
   "assistants": {
     "abbr": "アシスタント",
     "clear": {
@@ -3464,58 +3517,5 @@
     "quit": "終了",
     "show_window": "ウィンドウを表示",
     "visualization": "可視化"
-  },
-  "apiServer": {
-    "title": "API サーバー",
-    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
-    "configuration": "設定",
-    "status": {
-      "running": "実行中",
-      "stopped": "停止中"
-    },
-    "actions": {
-      "restart": {
-        "tooltip": "サーバーを再起動",
-        "button": "再起動"
-      },
-      "copy": "コピー",
-      "regenerate": "再生成"
-    },
-    "fields": {
-      "port": {
-        "label": "ポート",
-        "helpText": "ポートを変更するにはサーバーを停止してください"
-      },
-      "url": {
-        "label": "URL",
-        "copyTooltip": "URL をコピー"
-      },
-      "apiKey": {
-        "label": "API キー",
-        "placeholder": "API キーは自動生成されます",
-        "copyTooltip": "API キーをコピー"
-      }
-    },
-    "authHeaderText": "認証ヘッダーで使用：",
-    "documentation": {
-      "title": "API ドキュメント",
-      "unavailable": {
-        "title": "API ドキュメントが利用できません",
-        "description": "インタラクティブドキュメントを表示するには API サーバーを開始してください"
-      }
-    },
-    "messages": {
-      "startSuccess": "API サーバーが正常に開始されました",
-      "startError": "API サーバーの開始に失敗しました：",
-      "stopSuccess": "API サーバーが正常に停止されました",
-      "stopError": "API サーバーの停止に失敗しました：",
-      "operationFailed": "API サーバーの操作に失敗しました：",
-      "restartSuccess": "API サーバーが正常に再起動されました",
-      "restartError": "API サーバーの再起動に失敗しました：",
-      "restartFailed": "API サーバーの再起動に失敗しました：",
-      "apiKeyCopied": "API キーがクリップボードにコピーされました",
-      "apiKeyRegenerated": "API キーが再生成されました",
-      "urlCopied": "サーバー URL がクリップボードにコピーされました"
-    }
   }
 }
