@@ -7,6 +7,35 @@ const logger = loggerService.withContext('ApiServerModelsRoutes')
 
 const router = express.Router()
 
+/**
+ * @swagger
+ * /v1/models:
+ *   get:
+ *     summary: List available models
+ *     description: Returns a list of available AI models from all configured providers
+ *     tags: [Models]
+ *     responses:
+ *       200:
+ *         description: List of available models
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 object:
+ *                   type: string
+ *                   example: list
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Model'
+ *       503:
+ *         description: Service unavailable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/', async (_req: Request, res: Response) => {
   try {
     logger.info('Models list request received')

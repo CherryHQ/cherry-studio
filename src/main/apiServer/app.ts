@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
+import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
@@ -36,7 +37,32 @@ app.use(
   })
 )
 
-// Health check (no auth required)
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     description: Check server status (no authentication required)
+ *     tags: [Health]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 version:
+ *                   type: string
+ *                   example: 1.0.0
+ */
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -44,7 +70,32 @@ app.get('/health', (_req, res) => {
     version: process.env.npm_package_version || '1.0.0'
   })
 })
-// API info
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: API information
+ *     description: Get basic API information and available endpoints
+ *     tags: [General]
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: API information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 name:
+ *                   type: string
+ *                   example: Cherry Studio API
+ *                 version:
+ *                   type: string
+ *                   example: 1.0.0
+ *                 endpoints:
+ *                   type: object
+ */
 app.get('/', (_req, res) => {
   res.json({
     name: 'Cherry Studio API',
@@ -67,6 +118,9 @@ apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/models', modelsRoutes)
 app.use('/v1', apiRouter)
+
+// Setup OpenAPI documentation
+setupOpenAPIDocumentation(app)
 
 // Error handling (must be last)
 app.use(errorHandler)

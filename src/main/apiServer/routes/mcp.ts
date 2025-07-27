@@ -7,7 +7,40 @@ const logger = loggerService.withContext('ApiServerMCPRoutes')
 
 const router = express.Router()
 
-// List all MCP servers
+/**
+ * @swagger
+ * /v1/mcps:
+ *   get:
+ *     summary: List MCP servers
+ *     description: Get a list of all configured Model Context Protocol servers
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: List of MCP servers
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/MCPServer'
+ *       503:
+ *         description: Service unavailable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   $ref: '#/components/schemas/Error'
+ */
 router.get('/', async (req: Request, res: Response) => {
   try {
     logger.info('Get all MCP servers request received')
@@ -29,7 +62,45 @@ router.get('/', async (req: Request, res: Response) => {
   }
 })
 
-// Get specific MCP server info
+/**
+ * @swagger
+ * /v1/mcps/{server_id}:
+ *   get:
+ *     summary: Get MCP server info
+ *     description: Get detailed information about a specific MCP server
+ *     tags: [MCP]
+ *     parameters:
+ *       - in: path
+ *         name: server_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: MCP server ID
+ *     responses:
+ *       200:
+ *         description: MCP server information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/MCPServer'
+ *       404:
+ *         description: MCP server not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   $ref: '#/components/schemas/Error'
+ */
 router.get('/:server_id', async (req: Request, res: Response) => {
   try {
     logger.info('Get MCP server info request received')

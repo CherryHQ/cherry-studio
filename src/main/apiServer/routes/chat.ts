@@ -10,6 +10,85 @@ const logger = loggerService.withContext('ApiServerChatRoutes')
 
 const router = express.Router()
 
+/**
+ * @swagger
+ * /v1/chat/completions:
+ *   post:
+ *     summary: Create chat completion
+ *     description: Create a chat completion response, compatible with OpenAI API
+ *     tags: [Chat]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChatCompletionRequest'
+ *     responses:
+ *       200:
+ *         description: Chat completion response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 object:
+ *                   type: string
+ *                   example: chat.completion
+ *                 created:
+ *                   type: integer
+ *                 model:
+ *                   type: string
+ *                 choices:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       index:
+ *                         type: integer
+ *                       message:
+ *                         $ref: '#/components/schemas/ChatMessage'
+ *                       finish_reason:
+ *                         type: string
+ *                 usage:
+ *                   type: object
+ *                   properties:
+ *                     prompt_tokens:
+ *                       type: integer
+ *                     completion_tokens:
+ *                       type: integer
+ *                     total_tokens:
+ *                       type: integer
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               description: Server-sent events stream (when stream=true)
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Rate limit exceeded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/completions', async (req: Request, res: Response) => {
   try {
     const request: ChatCompletionCreateParams = req.body

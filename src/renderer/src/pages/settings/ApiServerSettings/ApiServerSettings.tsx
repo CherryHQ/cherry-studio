@@ -4,7 +4,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Card, Divider, Flex, Input, Space, Switch, Tooltip, Typography } from 'antd'
+import { Button, Card, Flex, Input, Space, Switch, Tooltip, Typography } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -28,14 +28,6 @@ const ConfigCard = styled(Card)`
 
   .ant-card-body {
     padding: 24px;
-  }
-`
-
-const ConfigSection = styled.div`
-  margin-bottom: 32px;
-
-  &:last-child {
-    margin-bottom: 0;
   }
 `
 
@@ -339,90 +331,44 @@ const ApiServerSettings: FC = () => {
       <ConfigCard
         title={
           <SectionHeader>
-            <h4>Available Endpoints</h4>
+            <h4>API Documentation</h4>
           </SectionHeader>
         }>
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <ConfigSection>
-            <Text strong style={{ fontSize: 14 }}>
-              Health Check
-            </Text>
-            <div style={{ marginTop: 8 }}>
-              <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                GET /health
-              </Text>
-              <br />
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                Check server status (no authentication required)
-              </Text>
+          {apiServerRunning ? (
+            <div
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                overflow: 'hidden',
+                height: 600
+              }}>
+              <iframe
+                src={`http://localhost:${apiServerConfig.port}/api-docs`}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none'
+                }}
+                title="API Documentation"
+                sandbox="allow-scripts allow-forms"
+              />
             </div>
-          </ConfigSection>
-
-          <Divider style={{ margin: 0 }} />
-
-          <ConfigSection>
-            <Text strong style={{ fontSize: 14 }}>
-              OpenAI Compatible APIs
-            </Text>
-            <div style={{ marginTop: 8 }}>
-              <div style={{ marginBottom: 6 }}>
-                <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                  POST /api/chat/completions
-                </Text>
-                <Text type="secondary" style={{ marginLeft: 8 }}>
-                  Chat completions
-                </Text>
-              </div>
-              <div style={{ marginBottom: 6 }}>
-                <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                  GET /api/models
-                </Text>
-                <Text type="secondary" style={{ marginLeft: 8 }}>
-                  List available models
-                </Text>
-              </div>
-              <div style={{ marginBottom: 6 }}>
-                <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                  POST /api/embeddings
-                </Text>
-                <Text type="secondary" style={{ marginLeft: 8 }}>
-                  Generate embeddings
-                </Text>
-              </div>
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                Compatible with OpenAI SDK and tools
-              </Text>
+          ) : (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: 'var(--color-text-2)',
+                background: 'var(--color-bg-2)',
+                borderRadius: 8,
+                border: '1px dashed var(--color-border)'
+              }}>
+              <GlobalOutlined style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }} />
+              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>API Documentation Unavailable</div>
+              <div style={{ fontSize: 14 }}>Start the API server to view the interactive documentation</div>
             </div>
-          </ConfigSection>
-
-          <Divider style={{ margin: 0 }} />
-
-          <ConfigSection>
-            <Text strong style={{ fontSize: 14 }}>
-              Cherry Studio Specific
-            </Text>
-            <div style={{ marginTop: 8 }}>
-              <div style={{ marginBottom: 6 }}>
-                <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                  GET /api/mcps
-                </Text>
-                <Text type="secondary" style={{ marginLeft: 8 }}>
-                  List MCP servers
-                </Text>
-              </div>
-              <div style={{ marginBottom: 6 }}>
-                <Text code style={{ background: '#f6f8fa', padding: '2px 6px', borderRadius: 4 }}>
-                  POST /api/notifications
-                </Text>
-                <Text type="secondary" style={{ marginLeft: 8 }}>
-                  Send notifications
-                </Text>
-              </div>
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                Access Cherry Studio's unique features
-              </Text>
-            </div>
-          </ConfigSection>
+          )}
         </Space>
       </ConfigCard>
     </SettingContainer>

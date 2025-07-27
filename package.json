@@ -80,6 +80,8 @@
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
     "selection-hook": "^1.0.8",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "turndown": "7.2.0"
   },
   "devDependencies": {
@@ -153,6 +155,8 @@
     "@types/react-dom": "^19.0.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "@types/react-window": "^1",
+    "@types/swagger-jsdoc": "^6",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/tinycolor2": "^1",
     "@types/word-extractor": "^1",
     "@uiw/codemirror-extensions-langs": "^4.23.14",
