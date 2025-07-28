@@ -47,8 +47,13 @@ const LocalBackupSettings: React.FC = () => {
 
   useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
-    window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
   }, [])
+
+  useEffect(() => {
+    if (localBackupDirSetting) {
+      window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
+    }
+  }, [localBackupDirSetting])
 
   const { theme } = useTheme()
 
