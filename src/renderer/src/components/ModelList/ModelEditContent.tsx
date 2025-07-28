@@ -12,6 +12,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch } from 'antd'
+import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +34,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
   const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
   const [modelCapabilities, setModelCapabilities] = useState(model.capabilities || [])
+  const originalModelCapabilities = cloneDeep(model.capabilities || [])
   const [supportedTextDelta, setSupportedTextDelta] = useState(model.supported_text_delta)
 
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
@@ -99,7 +101,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
         modelCapabilities?.filter((t) => t.isUserSelected === false),
         (item) => item.type
       )
-
       setModelCapabilities(newModelCapabilities)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,7 +223,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
               const isRerankDisabled = selectedTypes.includes('embedding')
               const isEmbeddingDisabled = selectedTypes.includes('rerank')
-
               const showTypeConfirmModal = (newCapability: ModelCapability) => {
                 const onUpdateType = selectedTypes?.find((t) => t === newCapability.type)
                 window.modal.confirm({
@@ -319,7 +319,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               }
 
               const handleResetTypes = () => {
-                setModelCapabilities([])
+                setModelCapabilities(originalModelCapabilities)
               }
 
               return (
