@@ -243,6 +243,7 @@ export const FUNCTION_CALLING_MODELS = [
   'hunyuan',
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
+  'glm-4.5(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
@@ -1187,6 +1188,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
+    {
+      id: 'glm-4.5',
+      provider: 'zhipu',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
     {
       id: 'glm-z1-air',
       provider: 'zhipu',
@@ -2559,7 +2566,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
-    isSupportedThinkingTokenHunyuanModel(model)
+    isSupportedThinkingTokenHunyuanModel(model) ||
+    isSupportedThinkingTokenZhipuModel(model)
   )
 }
 
@@ -2722,6 +2730,13 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return baseName.includes('sonar-deep-research')
 }
 
+export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('glm-4.5')
+}
+
+export const isZhipuReasoningModel = isSupportedThinkingTokenZhipuModel
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -2748,6 +2763,7 @@ export function isReasoningModel(model?: Model): boolean {
     isGrokReasoningModel(model) ||
     isHunyuanReasoningModel(model) ||
     isPerplexityReasoningModel(model) ||
+    isZhipuReasoningModel(model) ||
     model.id.toLowerCase().includes('glm-z1') ||
     model.id.toLowerCase().includes('magistral') ||
     model.id.toLowerCase().includes('minimax-m1') ||
