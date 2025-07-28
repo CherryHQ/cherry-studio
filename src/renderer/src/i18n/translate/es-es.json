@@ -3407,7 +3407,8 @@
     "empty": "El contenido de traducción está vacío",
     "error": {
       "failed": "Fallo en la traducción",
-      "not_configured": "El modelo de traducción no está configurado"
+      "not_configured": "El modelo de traducción no está configurado",
+      "unknown": "Se produjo un error desconocido durante la traducción"
     },
     "history": {
       "clear": "Borrar historial",

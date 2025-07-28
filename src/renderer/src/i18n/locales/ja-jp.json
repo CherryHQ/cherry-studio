@@ -3407,7 +3407,8 @@
     "empty": "翻訳内容が空です",
     "error": {
       "failed": "翻訳に失敗しました",
-      "not_configured": "翻訳モデルが設定されていません"
+      "not_configured": "翻訳モデルが設定されていません",
+      "unknown": "翻訳中に不明なエラーが発生しました"
     },
     "history": {
       "clear": "履歴をクリア",

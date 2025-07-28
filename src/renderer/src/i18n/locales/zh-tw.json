@@ -3407,7 +3407,8 @@
     "empty": "翻譯內容為空",
     "error": {
       "failed": "翻譯失敗",
-      "not_configured": "翻譯模型未設定"
+      "not_configured": "翻譯模型未設定",
+      "unknown": "翻譯過程中遇到未知錯誤"
     },
     "history": {
       "clear": "清空歷史",

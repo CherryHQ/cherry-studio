@@ -3407,7 +3407,8 @@
     "empty": "Le contenu à traduire est vide",
     "error": {
       "failed": "échec de la traduction",
-      "not_configured": "le modèle de traduction n'est pas configuré"
+      "not_configured": "le modèle de traduction n'est pas configuré",
+      "unknown": "Une erreur inconnue s'est produite lors de la traduction"
     },
     "history": {
       "clear": "Effacer l'historique",

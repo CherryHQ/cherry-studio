@@ -3407,7 +3407,8 @@
     "empty": "Translation content is empty",
     "error": {
       "failed": "Translation failed",
-      "not_configured": "Translation model is not configured"
+      "not_configured": "Translation model is not configured",
+      "unknown": "An unknown error occurred during translation"
     },
     "history": {
       "clear": "Clear History",

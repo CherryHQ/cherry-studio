@@ -89,7 +89,7 @@ export default function useTranslate() {
       setTranslating(false)
     } catch (e) {
       logger.error('Failed to translate', e as Error)
-      window.message.error(t('translate.error.failed'))
+      window.message.error(t('translate.error.unknown'))
       setTranslating(false)
     }
   }
