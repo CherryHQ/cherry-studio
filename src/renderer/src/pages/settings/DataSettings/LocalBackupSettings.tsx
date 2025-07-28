@@ -36,6 +36,7 @@ const LocalBackupSettings: React.FC = () => {
   } = useSettings()
 
   const [localBackupDir, setLocalBackupDir] = useState<string | undefined>(localBackupDirSetting)
+  const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = useState<boolean>(localBackupSkipBackupFileSetting)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
@@ -43,6 +44,12 @@ const LocalBackupSettings: React.FC = () => {
   const [maxBackups, setMaxBackups] = useState<number>(localBackupMaxBackupsSetting)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
+
+  useEffect(() => {
+    if (localBackupDir) {
+      window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
+    }
+  }, [localBackupDir])
 
   useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
@@ -183,7 +190,7 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useLocalBackupModal(localBackupDir)
+    useLocalBackupModal(resolvedLocalBackupDir)
 
   const showBackupManager = () => {
     setBackupManagerVisible(true)
@@ -298,7 +305,7 @@ const LocalBackupSettings: React.FC = () => {
         <LocalBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
-          localBackupDir={localBackupDir}
+          localBackupDir={resolvedLocalBackupDir}
         />
       </>
     </SettingGroup>
