@@ -57,7 +57,11 @@ const BuiltinMCPServersSection: FC = () => {
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <ServerDescription>{server.description}</ServerDescription>
+                <ServerDescription>
+                  {server.getBuiltinDescription
+                    ? server.getBuiltinDescription()
+                    : t('settings.mcp.builtinServersDescriptions.no')}
+                </ServerDescription>
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
