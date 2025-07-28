@@ -16,8 +16,8 @@ import {
   getFilesDir,
   getFileType,
   getTempDir,
-  untildify,
-  isPathInside
+  isPathInside,
+  untildify
 } from '../file'
 
 // Mock dependencies
