@@ -1653,6 +1653,7 @@
     "progress": {
       "completed": "復原完成",
       "copying_files": "複製檔案... {{progress}}%",
+      "extracted": "解壓成功",
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
@@ -2080,6 +2081,10 @@
         "title": "本地備份"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "匯出 Markdown 時排除引用和參考文獻，僅保留主要內容",
+          "title": "不匯出引用內容"
+        },
         "force_dollar_math": {
           "help": "開啟後，匯出 Markdown 時會強制使用 $$ 來標記 LaTeX 公式。注意：該項也會影響所有透過 Markdown 匯出的方式，如 Notion、語雀等",
           "title": "LaTeX 公式強制使用 $$"
@@ -2095,6 +2100,10 @@
         "show_model_provider": {
           "help": "在匯出 Markdown 時顯示模型供應商，如 OpenAI、Gemini 等",
           "title": "顯示模型供應商"
+        },
+        "standardize_citations": {
+          "help": "將引用標記轉換為標準 Markdown 腳註格式 [^1]，並格式化引用列表",
+          "title": "標準化引用格式"
         },
         "title": "Markdown 匯出"
       },
@@ -2587,6 +2596,17 @@
       "argsTooltip": "每個參數佔一行",
       "baseUrlTooltip": "遠端 URL 地址",
       "builtinServers": "內置伺服器",
+      "builtinServersDescriptions": {
+        "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
+        "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
+        "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
+        "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
+        "mcp_auto_install": "自動安裝 MCP 服務（測試版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "基於本地知識圖譜的持久性記憶基礎實現。這使得模型能夠在不同對話間記住使用者的相關資訊。需要配置 MEMORY_FILE_PATH 環境變數。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "無描述",
+        "python": "在安全的沙盒環境中執行 Python 代碼。使用 Pyodide 運行 Python，支援大多數標準庫和科學計算套件",
+        "sequentialthinking": "一個 MCP 伺服器實現，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
+      },
       "command": "指令",
       "config_description": "設定模型上下文協議伺服器",
       "customRegistryPlaceholder": "請輸入私有倉庫位址，如: https://npm.company.com",
@@ -2868,6 +2888,10 @@
           "label": "模型名稱",
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "增量文本輸出",
+          "tooltip": "當模型不支持的時候，將該按鈕關閉"
         }
       },
       "api_key": "API 密鑰",

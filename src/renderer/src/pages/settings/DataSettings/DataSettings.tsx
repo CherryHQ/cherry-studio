@@ -210,13 +210,15 @@ const DataSettings: FC = () => {
     }
 
     // check new app data path is not in old app data path
-    if (newAppDataPath.startsWith(appInfo.appDataPath)) {
+    const isInOldPath = await window.api.isPathInside(newAppDataPath, appInfo.appDataPath)
+    if (isInOldPath) {
       window.message.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
 
     // check new app data path is not in app install path
-    if (newAppDataPath.startsWith(appInfo.installPath)) {
+    const isInInstallPath = await window.api.isPathInside(newAppDataPath, appInfo.installPath)
+    if (isInInstallPath) {
       window.message.error(t('settings.data.app_data.select_error_in_app_path'))
       return
     }

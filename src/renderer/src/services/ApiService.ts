@@ -30,6 +30,7 @@ import {
   MemoryItem,
   Model,
   Provider,
+  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -591,7 +592,7 @@ async function processConversationMemory(messages: Message[], assistant: Assista
 
 interface FetchTranslateProps {
   content: string
-  assistant: Assistant
+  assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
 }
 

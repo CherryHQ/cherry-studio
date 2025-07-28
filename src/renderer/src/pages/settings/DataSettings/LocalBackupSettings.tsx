@@ -36,6 +36,7 @@ const LocalBackupSettings: React.FC = () => {
   } = useSettings()
 
   const [localBackupDir, setLocalBackupDir] = useState<string | undefined>(localBackupDirSetting)
+  const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = useState<boolean>(localBackupSkipBackupFileSetting)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
@@ -47,6 +48,12 @@ const LocalBackupSettings: React.FC = () => {
   useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
   }, [])
+
+  useEffect(() => {
+    if (localBackupDirSetting) {
+      window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
+    }
+  }, [localBackupDirSetting])
 
   const { theme } = useTheme()
 
@@ -75,14 +82,14 @@ const LocalBackupSettings: React.FC = () => {
 
     // check new local backup dir is not in app data path
     // if is in app data path, show error
-    if (resolvedDir.startsWith(appInfo!.appDataPath)) {
+    if (await window.api.isPathInside(resolvedDir, appInfo!.appDataPath)) {
       window.message.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
-    if (resolvedDir.startsWith(appInfo!.installPath)) {
+    if (await window.api.isPathInside(resolvedDir, appInfo!.installPath)) {
       window.message.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
@@ -110,8 +117,7 @@ const LocalBackupSettings: React.FC = () => {
     if (await checkLocalBackupDirValid(value)) {
       setLocalBackupDir(value)
       dispatch(_setLocalBackupDir(value))
-      // Create directory if it doesn't exist and set it in the backend
-      await window.api.backup.setLocalBackupDir(value)
+      setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       dispatch(setLocalBackupAutoSync(true))
       startAutoSync(true, 'local')
@@ -183,7 +189,7 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useLocalBackupModal(localBackupDir)
+    useLocalBackupModal(resolvedLocalBackupDir)
 
   const showBackupManager = () => {
     setBackupManagerVisible(true)
@@ -298,7 +304,7 @@ const LocalBackupSettings: React.FC = () => {
         <LocalBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
-          localBackupDir={localBackupDir}
+          localBackupDir={resolvedLocalBackupDir}
         />
       </>
     </SettingGroup>

@@ -10,6 +10,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   isDoubaoThinkingAutoModel,
   isSupportedReasoningEffortGrokModel,
+  isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
@@ -42,8 +43,10 @@ const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   gemini: ['off', 'low', 'medium', 'high', 'auto'],
   gemini_pro: ['low', 'medium', 'high', 'auto'],
   qwen: ['off', 'low', 'medium', 'high'],
+  qwen_3235ba22b_thinking: ['low', 'medium', 'high'],
   doubao: ['off', 'auto', 'high'],
-  hunyuan: ['off', 'auto']
+  hunyuan: ['off', 'auto'],
+  perplexity: ['low', 'medium', 'high']
 }
 
 // 选项转换映射表：当选项不支持时使用的替代选项
@@ -64,8 +67,10 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const isGeminiModel = isSupportedThinkingTokenGeminiModel(model)
   const isGeminiFlashModel = GEMINI_FLASH_MODEL_REGEX.test(model.id)
   const isQwenModel = isSupportedThinkingTokenQwenModel(model)
+  const isQwen3235BA22BThinkingModel = model.id.includes('qwen3-235b-a22b-thinking')
   const isDoubaoModel = isSupportedThinkingTokenDoubaoModel(model)
   const isHunyuanModel = isSupportedThinkingTokenHunyuanModel(model)
+  const isPerplexityModel = isSupportedReasoningEffortPerplexityModel(model)
 
   const currentReasoningEffort = useMemo(() => {
     return assistant.settings?.reasoning_effort || 'off'
@@ -81,11 +86,26 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
       }
     }
     if (isGrokModel) return 'grok'
-    if (isQwenModel) return 'qwen'
+    if (isQwenModel) {
+      if (isQwen3235BA22BThinkingModel) {
+        return 'qwen_3235ba22b_thinking'
+      }
+      return 'qwen'
+    }
     if (isDoubaoModel) return 'doubao'
     if (isHunyuanModel) return 'hunyuan'
+    if (isPerplexityModel) return 'perplexity'
     return 'default'
-  }, [isGeminiModel, isGrokModel, isQwenModel, isDoubaoModel, isGeminiFlashModel, isHunyuanModel])
+  }, [
+    isGeminiModel,
+    isGrokModel,
+    isQwenModel,
+    isDoubaoModel,
+    isGeminiFlashModel,
+    isHunyuanModel,
+    isPerplexityModel,
+    isQwen3235BA22BThinkingModel
+  ])
 
   // 获取当前模型支持的选项
   const supportedOptions = useMemo(() => {

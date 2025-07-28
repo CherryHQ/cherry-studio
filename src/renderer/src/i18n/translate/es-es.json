@@ -1653,6 +1653,7 @@
     "progress": {
       "completed": "Restauración completada",
       "copying_files": "Copiando archivos... {{progress}}%",
+      "extracted": "Descomprimido con éxito",
       "extracting": "Descomprimiendo la copia de seguridad...",
       "preparing": "Preparando la restauración...",
       "reading_data": "Leyendo datos...",
@@ -2080,6 +2081,10 @@
         "title": "Copia de seguridad local"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Al activarse, se excluirá el contenido de las citas al exportar a Markdown.",
+          "title": "Excluir contenido de citas"
+        },
         "force_dollar_math": {
           "help": "Al activarlo, al exportar a Markdown se usarán $$ para marcar las fórmulas LaTeX. Nota: Esto también afectará a todas las formas de exportación a través de Markdown, como Notion, Yuque, etc.",
           "title": "Forzar el uso de $$ para marcar fórmulas LaTeX"
@@ -2095,6 +2100,10 @@
         "show_model_provider": {
           "help": "Mostrar el proveedor del modelo al exportar a Markdown, por ejemplo, OpenAI, Gemini, etc.",
           "title": "Mostrar proveedor del modelo"
+        },
+        "standardize_citations": {
+          "help": "Al activarse, se convertirán las citas al formato estándar de Markdown [^1] y se formateará la lista de citas.",
+          "title": "Formatear citas"
         },
         "title": "Exportar Markdown"
       },
@@ -2587,6 +2596,17 @@
       "argsTooltip": "Cada argumento en una línea",
       "baseUrlTooltip": "Dirección URL remota",
       "builtinServers": "Servidores integrados",
+      "builtinServersDescriptions": {
+        "brave_search": "Una implementación de servidor MCP que integra la API de búsqueda de Brave, proporcionando funciones de búsqueda web y búsqueda local. Requiere configurar la variable de entorno BRAVE_API_KEY",
+        "dify_knowledge": "Implementación del servidor MCP de Dify, que proporciona una API sencilla para interactuar con Dify. Se requiere configurar la clave de Dify.",
+        "fetch": "Servidor MCP para obtener el contenido de la página web de una URL",
+        "filesystem": "Servidor Node.js que implementa el protocolo de contexto del modelo (MCP) para operaciones del sistema de archivos. Requiere configuración del directorio permitido para el acceso",
+        "mcp_auto_install": "Instalación automática del servicio MCP (versión beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "sin descripción",
+        "python": "Ejecuta código Python en un entorno sandbox seguro. Usa Pyodide para ejecutar Python, compatible con la mayoría de las bibliotecas estándar y paquetes de cálculo científico.",
+        "sequentialthinking": "Una implementación de servidor MCP que proporciona herramientas para la resolución dinámica y reflexiva de problemas mediante un proceso de pensamiento estructurado"
+      },
       "command": "Comando",
       "config_description": "Configurar modelo de contexto del protocolo del servidor",
       "customRegistryPlaceholder": "Por favor ingresa la dirección del repositorio privado, por ejemplo: https://npm.company.com",
@@ -2902,7 +2922,8 @@
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista"
+          "label": "Agregar modelo en la lista",
+          "models.manage.add_listed.confirm": "¿Desea agregar todos los modelos a la lista?"
         },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
@@ -3018,6 +3039,7 @@
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
+          "basic_auth.password.tip": "",
           "label": "contraseña",
           "tip": "Introduzca la contraseña"
         },

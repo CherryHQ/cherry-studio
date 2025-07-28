@@ -1653,6 +1653,7 @@
     "progress": {
       "completed": "Restauration terminée",
       "copying_files": "Copie des fichiers... {{progress}}%",
+      "extracted": "décompression réussie",
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
@@ -2080,6 +2081,10 @@
         "title": "Sauvegarde locale"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Lorsque cette option est activée, le contenu des citations sera exclu lors de l'exportation en Markdown.",
+          "title": "Exclure le contenu des citations"
+        },
         "force_dollar_math": {
           "help": "Lorsque cette option est activée, l'exportation en Markdown utilisera $$ pour marquer les formules LaTeX. Note : Cette option affecte également toutes les méthodes d'exportation en Markdown, comme Notion, YuQue, etc.",
           "title": "Forcer l'utilisation de $$ pour marquer les formules LaTeX"
@@ -2095,6 +2100,10 @@
         "show_model_provider": {
           "help": "Afficher le fournisseur du modèle lors de l'exportation en Markdown, par exemple OpenAI, Gemini, etc.",
           "title": "Afficher le fournisseur du modèle"
+        },
+        "standardize_citations": {
+          "help": "Lorsque cette option est activée, les citations seront converties au format Markdown standard [^1] et la liste des citations sera formatée.",
+          "title": "Formater les citations"
         },
         "title": "Exporter en Markdown"
       },
@@ -2587,6 +2596,17 @@
       "argsTooltip": "Chaque argument sur une ligne",
       "baseUrlTooltip": "Adresse URL distante",
       "builtinServers": "Serveurs intégrés",
+      "builtinServersDescriptions": {
+        "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
+        "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
+        "filesystem": "Serveur Node.js implémentant le protocole de contexte de modèle (MCP) pour les opérations de système de fichiers. Nécessite une configuration des répertoires autorisés à être accédés.",
+        "mcp_auto_install": "Installation automatique du service MCP (version bêta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
+        "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "no": "sans description",
+        "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
+        "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
+      },
       "command": "Commande",
       "config_description": "Configurer le modèle du protocole de contexte du serveur",
       "customRegistryPlaceholder": "Veuillez entrer l'adresse du registre privé, par exemple : https://npm.company.com",
@@ -2902,7 +2922,8 @@
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
+          "label": "Ajouter le modèle dans la liste",
+          "models.manage.add_listed.confirm": "Voulez-vous ajouter tous les modèles à la liste ?"
         },
         "add_whole_group": "Ajouter tout le groupe",
         "remove_listed": "Supprimer un modèle de la liste",
@@ -3018,6 +3039,7 @@
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
+          "basic_auth.password.tip": "",
           "label": "mot de passe",
           "tip": "Entrer le mot de passe"
         },

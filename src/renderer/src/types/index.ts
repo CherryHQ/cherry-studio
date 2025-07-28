@@ -34,6 +34,10 @@ export type Assistant = {
   enableMemory?: boolean
 }
 
+export type TranslateAssistant = Assistant & {
+  targetLanguage?: Language
+}
+
 export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
@@ -51,18 +55,20 @@ export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
 export type EffortRatio = Record<ReasoningEffortOptions, number>
 
 export const EFFORT_RATIO: EffortRatio = {
-  low: 0.2,
+  low: 0.05,
   medium: 0.5,
   high: 0.8,
   auto: 2
 }
 
 export type AssistantSettings = {
-  contextCount: number
+  maxTokens?: number
+  enableMaxTokens?: boolean
   temperature: number
+  enableTemperature?: boolean
   topP: number
-  maxTokens: number | undefined
-  enableMaxTokens: boolean
+  enableTopP?: boolean
+  contextCount: number
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
@@ -216,6 +222,7 @@ export type Model = {
   pricing?: ModelPricing
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
+  supported_text_delta?: boolean
 }
 
 export type Suggestion = {
@@ -650,6 +657,8 @@ export interface MCPServer {
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
+  shouldConfig?: boolean
+  getBuiltinDescription?: () => string
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
   disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server

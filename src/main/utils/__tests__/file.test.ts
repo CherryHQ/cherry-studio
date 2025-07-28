@@ -9,7 +9,16 @@ import { detectAll as detectEncodingAll } from 'jschardet'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
-import { getAllFiles, getAppConfigDir, getConfigDir, getFilesDir, getFileType, getTempDir, untildify } from '../file'
+import {
+  getAllFiles,
+  getAppConfigDir,
+  getConfigDir,
+  getFilesDir,
+  getFileType,
+  getTempDir,
+  isPathInside,
+  untildify
+} from '../file'
 
 // Mock dependencies
 vi.mock('node:fs')
@@ -341,6 +350,156 @@ describe('file', () => {
       expect(untildify('~/folder with spaces')).toBe('/mock/home/folder with spaces')
       expect(untildify('~/folder-with-dashes')).toBe('/mock/home/folder-with-dashes')
       expect(untildify('~/folder_with_underscores')).toBe('/mock/home/folder_with_underscores')
+    })
+  })
+
+  describe('isPathInside', () => {
+    beforeEach(() => {
+      // Mock path.resolve to simulate path resolution
+      vi.mocked(path.resolve).mockImplementation((...args) => {
+        const joined = args.join('/')
+        return joined.startsWith('/') ? joined : `/${joined}`
+      })
+
+      // Mock path.normalize to simulate path normalization
+      vi.mocked(path.normalize).mockImplementation((p) => p.replace(/\/+/g, '/'))
+
+      // Mock path.relative to calculate relative paths
+      vi.mocked(path.relative).mockImplementation((from, to) => {
+        // Simple mock implementation for testing
+        const fromParts = from.split('/').filter((p) => p)
+        const toParts = to.split('/').filter((p) => p)
+
+        // Find common prefix
+        let i = 0
+        while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) {
+          i++
+        }
+
+        // Calculate relative path
+        const upLevels = fromParts.length - i
+        const downPath = toParts.slice(i)
+
+        if (upLevels === 0 && downPath.length === 0) {
+          return ''
+        }
+
+        const result = ['..'.repeat(upLevels), ...downPath].filter((p) => p).join('/')
+        return result || '.'
+      })
+
+      // Mock path.isAbsolute
+      vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/'))
+    })
+
+    describe('basic parent-child relationships', () => {
+      it('should return true when child is inside parent', () => {
+        expect(isPathInside('/root/test/child', '/root/test')).toBe(true)
+        expect(isPathInside('/root/test/deep/child', '/root/test')).toBe(true)
+        expect(isPathInside('child/deep', 'child')).toBe(true)
+      })
+
+      it('should return false when child is not inside parent', () => {
+        expect(isPathInside('/root/test', '/root/test/child')).toBe(false)
+        expect(isPathInside('/root/other', '/root/test')).toBe(false)
+        expect(isPathInside('/different/path', '/root/test')).toBe(false)
+        expect(isPathInside('child', 'child/deep')).toBe(false)
+      })
+
+      it('should return true when paths are the same', () => {
+        expect(isPathInside('/root/test', '/root/test')).toBe(true)
+        expect(isPathInside('child', 'child')).toBe(true)
+      })
+    })
+
+    describe('edge cases that startsWith cannot handle', () => {
+      it('should correctly distinguish similar path names', () => {
+        // The problematic case mentioned by user
+        expect(isPathInside('/root/test aaa', '/root/test')).toBe(false)
+        expect(isPathInside('/root/test', '/root/test aaa')).toBe(false)
+
+        // More similar cases
+        expect(isPathInside('/home/user-data', '/home/user')).toBe(false)
+        expect(isPathInside('/home/user', '/home/user-data')).toBe(false)
+        expect(isPathInside('/var/log-backup', '/var/log')).toBe(false)
+      })
+
+      it('should handle paths with spaces correctly', () => {
+        expect(isPathInside('/path with spaces/child', '/path with spaces')).toBe(true)
+        expect(isPathInside('/path with spaces', '/path with spaces/child')).toBe(false)
+      })
+
+      it('should handle Windows-style paths', () => {
+        // Mock for Windows paths
+        vi.mocked(path.resolve).mockImplementation((...args) => {
+          const joined = args.join('\\').replace(/\//g, '\\')
+          return joined.match(/^[A-Z]:/) ? joined : `C:${joined}`
+        })
+
+        vi.mocked(path.normalize).mockImplementation((p) => p.replace(/\\+/g, '\\'))
+
+        // Mock path.relative for Windows paths
+        vi.mocked(path.relative).mockImplementation((from, to) => {
+          const fromParts = from.split('\\').filter((p) => p && p !== 'C:')
+          const toParts = to.split('\\').filter((p) => p && p !== 'C:')
+
+          // Find common prefix
+          let i = 0
+          while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) {
+            i++
+          }
+
+          // Calculate relative path
+          const upLevels = fromParts.length - i
+          const downPath = toParts.slice(i)
+
+          if (upLevels === 0 && downPath.length === 0) {
+            return ''
+          }
+
+          const upPath = Array(upLevels).fill('..').join('\\')
+          const result = [upPath, ...downPath].filter((p) => p).join('\\')
+          return result || '.'
+        })
+
+        expect(isPathInside('C:\\Users\\test\\child', 'C:\\Users\\test')).toBe(true)
+        expect(isPathInside('C:\\Users\\test aaa', 'C:\\Users\\test')).toBe(false)
+      })
+    })
+
+    describe('error handling', () => {
+      it('should return false when path operations throw errors', () => {
+        vi.mocked(path.resolve).mockImplementation(() => {
+          throw new Error('Path resolution failed')
+        })
+
+        expect(isPathInside('/any/path', '/any/parent')).toBe(false)
+      })
+    })
+
+    describe('comparison with startsWith behavior', () => {
+      const testCases: [string, string, boolean, boolean][] = [
+        ['/root/test aaa', '/root/test', false, true], // isPathInside vs startsWith
+        ['/root/test', '/root/test aaa', false, false],
+        ['/root/test/child', '/root/test', true, true],
+        ['/home/user-data', '/home/user', false, true]
+      ]
+
+      it.each(testCases)(
+        'should correctly handle %s vs %s',
+        (child: string, parent: string, expectedIsPathInside: boolean, expectedStartsWith: boolean) => {
+          const isPathInsideResult = isPathInside(child, parent)
+          const startsWithResult = child.startsWith(parent)
+
+          expect(isPathInsideResult).toBe(expectedIsPathInside)
+          expect(startsWithResult).toBe(expectedStartsWith)
+
+          // Verify that isPathInside gives different (correct) result in problematic cases
+          if (expectedIsPathInside !== expectedStartsWith) {
+            expect(isPathInsideResult).not.toBe(startsWithResult)
+          }
+        }
+      )
     })
   })
 })
