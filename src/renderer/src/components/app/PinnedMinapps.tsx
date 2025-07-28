@@ -372,19 +372,19 @@ const TopNavLabel = styled.div`
 const TopNavItemContainer = styled.div`
   display: flex;
   padding: 4px 2px;
-  transition: border 0.3s ease;
-  box-sizing: content-box;
+  transition: border 0.2s ease;
+  border-radius: 18px;
+  /* 避免布局偏移 */
+  border: 1px solid transparent;
 
   &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    border-bottom: 2px solid var(--color-primary);
     opacity: 0.8;
-    border-radius: 50%;
     cursor: pointer;
   }
 
   &.opened-active {
-    border: 0.5px solid var(--color-primary);
-    border-radius: 18px;
+    border: 1px solid var(--color-primary);
     .icon {
       color: var(--color-primary);
     }
