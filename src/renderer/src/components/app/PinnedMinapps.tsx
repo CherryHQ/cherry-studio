@@ -64,20 +64,19 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
           const isActive = minappShow && currentMinappId === app.id
 
           return (
-            <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="bottom">
-              <StyledLink>
-                <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                  <TopNavItemContainer
-                    className={`${isActive ? 'opened-active' : ''}`}
-                    onClick={() => handleOnClick(app)}>
-                    <TopNavIcon theme={theme}>
-                      <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
-                    </TopNavIcon>
-                    <TopNavLabel>{app.name}</TopNavLabel>
-                  </TopNavItemContainer>
-                </Dropdown>
-              </StyledLink>
-            </Tooltip>
+            <StyledLink key={app.id}>
+              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+                <TopNavItemContainer
+                  className={`${isActive ? 'opened-active' : ''}`}
+                  onClick={() => handleOnClick(app)}
+                  theme={theme}>
+                  <TopNavIcon theme={theme}>
+                    <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
+                  </TopNavIcon>
+                  <TopNavLabel>{app.name}</TopNavLabel>
+                </TopNavItemContainer>
+              </Dropdown>
+            </StyledLink>
           )
         })}
       </TopNavMenus>
