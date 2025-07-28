@@ -5,7 +5,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as _setTranslating } from '@renderer/store/runtime'
 import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
-import { Language, LanguageCode, TranslateHistory } from '@renderer/types'
+import { Language, LanguageCode, TranslateAssistant, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
 
@@ -54,7 +54,17 @@ export default function useTranslate() {
 
       setTranslating(true)
 
-      const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
+      let assistant: TranslateAssistant
+      try {
+        assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
+      } catch (e) {
+        if (e instanceof Error) {
+          window.message.error(e.message)
+          return
+        } else {
+          throw e
+        }
+      }
 
       try {
         await fetchTranslate({
