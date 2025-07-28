@@ -3,10 +3,11 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
-import { Select, SelectProps } from 'antd'
+import { Avatar, Select, SelectProps } from 'antd'
 import { sortBy } from 'lodash'
 import { BaseSelectRef } from 'rc-select'
 import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ModelOption {
   label: React.ReactNode
@@ -50,6 +51,8 @@ const ModelSelector = ({
   ref,
   ...props
 }: ModelSelectorProps & { ref?: React.Ref<BaseSelectRef> | null }) => {
+  const { t } = useTranslation()
+
   // 单个 provider 的模型选项
   const getModelOptions = useCallback(
     (p: Provider, fancyName: string) => {
@@ -95,7 +98,33 @@ const ModelSelector = ({
     return providers.flatMap((p) => getModelOptions(p, getFancyProviderName(p)))
   }, [providers, grouped, getModelOptions])
 
-  return <Select ref={ref} options={options} filterOption={modelSelectFilter} showSearch {...props} />
+  const labelRender = useCallback(
+    (props) => {
+      const { label } = props
+      if (label) {
+        return label
+      } else {
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {showAvatar && <Avatar size={18} />}
+            <span>{t('knowledge.error.model_invalid')}</span>
+          </div>
+        )
+      }
+    },
+    [showAvatar, t]
+  )
+
+  return (
+    <Select
+      ref={ref}
+      options={options}
+      filterOption={modelSelectFilter}
+      labelRender={labelRender}
+      showSearch
+      {...props}
+    />
+  )
 }
 
 export default memo(ModelSelector)

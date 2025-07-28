@@ -14,7 +14,8 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
-  isSupportedThinkingTokenQwenModel
+  isSupportedThinkingTokenQwenModel,
+  isSupportedThinkingTokenZhipuModel
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
@@ -46,6 +47,7 @@ const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   qwen_3235ba22b_thinking: ['low', 'medium', 'high'],
   doubao: ['off', 'auto', 'high'],
   hunyuan: ['off', 'auto'],
+  zhipu: ['off', 'auto'],
   perplexity: ['low', 'medium', 'high']
 }
 
@@ -71,6 +73,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const isDoubaoModel = isSupportedThinkingTokenDoubaoModel(model)
   const isHunyuanModel = isSupportedThinkingTokenHunyuanModel(model)
   const isPerplexityModel = isSupportedReasoningEffortPerplexityModel(model)
+  const isZhipuModel = isSupportedThinkingTokenZhipuModel(model)
 
   const currentReasoningEffort = useMemo(() => {
     return assistant.settings?.reasoning_effort || 'off'
@@ -95,6 +98,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     if (isDoubaoModel) return 'doubao'
     if (isHunyuanModel) return 'hunyuan'
     if (isPerplexityModel) return 'perplexity'
+    if (isZhipuModel) return 'zhipu'
     return 'default'
   }, [
     isGeminiModel,
@@ -104,7 +108,8 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     isGeminiFlashModel,
     isHunyuanModel,
     isPerplexityModel,
-    isQwen3235BA22BThinkingModel
+    isQwen3235BA22BThinkingModel,
+    isZhipuModel
   ])
 
   // 获取当前模型支持的选项

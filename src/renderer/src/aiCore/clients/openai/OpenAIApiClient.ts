@@ -18,6 +18,7 @@ import {
   isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
+  isSupportedThinkingTokenZhipuModel,
   isVisionModel
 } from '@renderer/config/models'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -117,6 +118,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
       // 其他情况不带 thinking 字段
       return {}
+    }
+
+    if (isSupportedThinkingTokenZhipuModel(model)) {
+      if (!reasoningEffort) {
+        return { thinking: { type: 'disabled' } }
+      }
+      return { thinking: { type: 'enabled' } }
     }
 
     if (!reasoningEffort) {

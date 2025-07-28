@@ -822,7 +822,8 @@
     "empty": "ナレッジベースが見つかりません",
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
-      "failed_to_edit": "ナレッジベースの編集に失敗しました"
+      "failed_to_edit": "ナレッジベースの編集に失敗しました",
+      "model_invalid": "モデルが選択されていないか、削除されています"
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "index_all": "すべてをインデックス",

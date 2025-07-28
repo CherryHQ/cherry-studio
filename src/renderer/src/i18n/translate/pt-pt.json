@@ -822,7 +822,8 @@
     "empty": "Sem repositório de conhecimento",
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
-      "failed_to_edit": "Falha ao editar o repositório de conhecimento"
+      "failed_to_edit": "Falha ao editar o repositório de conhecimento",
+      "model_invalid": "Modelo não selecionado ou eliminado"
     },
     "file_hint": "Formatos suportados: {{file_types}}",
     "index_all": "Índice total",

@@ -822,7 +822,8 @@
     "empty": "暂无知识库",
     "error": {
       "failed_to_create": "知识库创建失败",
-      "failed_to_edit": "知识库编辑失败"
+      "failed_to_edit": "知识库编辑失败",
+      "model_invalid": "未选择模型或已删除"
     },
     "file_hint": "支持 {{file_types}} 格式",
     "index_all": "索引全部",
