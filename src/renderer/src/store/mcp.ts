@@ -86,10 +86,9 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/memory',
+    reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.memory'),
     type: 'inMemory',
-    description:
-      '基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     isActive: true,
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
