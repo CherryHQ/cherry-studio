@@ -82,7 +82,7 @@ const SettingsPage: FC = () => {
           <MenuItemLink to="/settings/api-server">
             <MenuItem className={isRoute('/settings/api-server')}>
               <Server size={18} />
-              API Server
+              {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/tool">
