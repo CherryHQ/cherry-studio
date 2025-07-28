@@ -107,7 +107,7 @@ const ModelSelector = ({
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {showAvatar && <Avatar size={18} />}
-            <span>{t('knowledge.error.model_deleted')}</span>
+            <span style={{ color: 'var(--color-status-error)' }}>{t('knowledge.error.model_deleted')}</span>
           </div>
         )
       }
