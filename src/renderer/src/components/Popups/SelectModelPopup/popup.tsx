@@ -346,7 +346,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   // 初始化焦点和滚动位置
   useEffect(() => {
     if (!open) return
-    setTimeout(() => inputRef.current?.focus(), 0)
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
   }, [open])
 
   const togglePin = useCallback(

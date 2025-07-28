@@ -64,9 +64,9 @@ const WebviewContainer = memo(
       webviewRef.current.src = url
 
       return () => {
+        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
-        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -494,12 +494,16 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
   const [styledResult, setStyledResult] = useState<string>('')
 
   useEffect(() => {
+    if (!isExpanded) {
+      return
+    }
+
     const highlight = async () => {
-      const result = await highlightCode(isExpanded ? resultString : '', 'json')
+      const result = await highlightCode(resultString, 'json')
       setStyledResult(result)
     }
 
-    setTimeout(highlight, 0)
+    highlight()
   }, [isExpanded, resultString, highlightCode])
 
   if (!isExpanded) {

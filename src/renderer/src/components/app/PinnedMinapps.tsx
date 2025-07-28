@@ -22,7 +22,8 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
   const [keepAliveMinapps, setKeepAliveMinapps] = useState(openedKeepAliveMinapps)
 
   useEffect(() => {
-    setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
+    const timer = setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
+    return () => clearTimeout(timer)
   }, [openedKeepAliveMinapps])
 
   const handleOnClick = (app) => {
