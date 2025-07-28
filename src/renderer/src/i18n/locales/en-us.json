@@ -823,7 +823,7 @@
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
-      "model_deleted": "The model has been deleted"
+      "model_invalid": "No model selected or deleted"
     },
     "file_hint": "Support {{file_types}}",
     "index_all": "Index All",

@@ -823,7 +823,7 @@
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
       "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
-      "model_deleted": "Le modèle a été supprimé"
+      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
     "file_hint": "Format supporté : {{file_types}}",
     "index_all": "Indexer tout",
