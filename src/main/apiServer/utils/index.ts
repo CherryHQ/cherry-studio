@@ -67,6 +67,10 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
   }
 }
 
+export function getRealProviderModel(modelStr: string): string {
+  return modelStr.split(':').slice(1).join(':')
+}
+
 export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
   return {
     id: `${model.provider}:${model.id}`,

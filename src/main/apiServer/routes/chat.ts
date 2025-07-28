@@ -4,7 +4,7 @@ import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import { chatCompletionService } from '../services/chat-completion'
-import { getProviderByModel } from '../utils'
+import { getProviderByModel, getRealProviderModel } from '../utils'
 
 const logger = loggerService.withContext('ApiServerChatRoutes')
 
@@ -134,7 +134,7 @@ router.post('/completions', async (req: Request, res: Response) => {
     }
 
     // Validate model availability
-    const modelId = request.model.split(':')[1]
+    const modelId = getRealProviderModel(request.model)
     const model = provider.models?.find((m) => m.id === modelId)
     if (!model) {
       return res.status(400).json({

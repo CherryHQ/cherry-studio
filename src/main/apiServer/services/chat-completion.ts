@@ -4,6 +4,7 @@ import { ChatCompletionCreateParams } from 'openai/resources'
 import { loggerService } from '../../services/LoggerService'
 import {
   getProviderByModel,
+  getRealProviderModel,
   listAllAvailableModels,
   OpenAICompatibleModel,
   transformModelToOpenAI,
@@ -124,7 +125,7 @@ export class ChatCompletionService {
       }
 
       // Extract model ID from the full model string
-      const modelId = request.model!.split(':').slice(1).join(':')
+      const modelId = getRealProviderModel(request.model)
 
       // Create OpenAI client for the provider
       const client = new OpenAI({
@@ -182,7 +183,7 @@ export class ChatCompletionService {
       }
 
       // Extract model ID from the full model string
-      const modelId = request.model!.split(':').slice(1).join(':')
+      const modelId = getRealProviderModel(request.model)
 
       // Create OpenAI client for the provider
       const client = new OpenAI({
