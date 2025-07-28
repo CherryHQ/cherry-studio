@@ -46,13 +46,8 @@ const LocalBackupSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    if (localBackupDir) {
-      window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
-    }
-  }, [localBackupDir])
-
-  useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
+    window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
   }, [])
 
   const { theme } = useTheme()
@@ -117,8 +112,7 @@ const LocalBackupSettings: React.FC = () => {
     if (await checkLocalBackupDirValid(value)) {
       setLocalBackupDir(value)
       dispatch(_setLocalBackupDir(value))
-      // Create directory if it doesn't exist and set it in the backend
-      await window.api.backup.setLocalBackupDir(value)
+      setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       dispatch(setLocalBackupAutoSync(true))
       startAutoSync(true, 'local')

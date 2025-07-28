@@ -906,9 +906,6 @@ export async function backupToLocal({
   showMessage?: boolean
   customFileName?: string
   autoBackupProcess?: boolean
-  localBackupDir?: string
-  localBackupMaxBackups?: number
-  localBackupSkipBackupFile?: boolean
 } = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {

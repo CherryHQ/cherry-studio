@@ -118,7 +118,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_ListLocalBackupFiles, localBackupDir),
     deleteLocalBackupFile: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
-    setLocalBackupDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.Backup_SetLocalBackupDir, dirPath),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
 
