@@ -49,7 +49,9 @@ class ConfigManager {
   async get(): Promise<ApiServerConfig> {
     if (!this._config) {
       await this.load()
-      throw new Error('Config not loaded. Call load() first.')
+    }
+    if (!this._config) {
+      throw new Error('Failed to load API server configuration')
     }
     return this._config
   }

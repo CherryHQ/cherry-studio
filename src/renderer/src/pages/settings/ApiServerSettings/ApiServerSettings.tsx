@@ -28,7 +28,7 @@ const ConfigCard = styled(Card)`
   }
 
   .ant-card-body {
-    padding: 24px;
+    padding: 16px 20px;
   }
 `
 
@@ -36,7 +36,7 @@ const SectionHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 
   h4 {
     margin: 0;
@@ -85,25 +85,100 @@ const StyledInput = styled(Input)`
   }
 `
 
-const StatusIndicator = styled.div<{ status: boolean }>`
+const ServerControlPanel = styled.div<{ status: boolean }>`
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: ${(props) => (props.status ? '#f6ffed' : '#fff2f0')};
-  border: 1px solid ${(props) => (props.status ? '#b7eb8f' : '#ffb3b3')};
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: ${(props) =>
+    props.status
+      ? 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)'
+      : 'linear-gradient(135deg, #fff2f0 0%, #fafafa 100%)'};
+  border: 1px solid ${(props) => (props.status ? '#d9f7be' : '#ffd6d6')};
+  transition: all 0.3s ease;
 
-  .status-dot {
-    width: 8px;
-    height: 8px;
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+`
+
+const StatusSection = styled.div<{ status: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .status-indicator {
+    position: relative;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: ${(props) => (props.status ? '#52c41a' : '#ff4d4f')};
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: ${(props) => (props.status ? '#52c41a' : '#ff4d4f')};
+      opacity: 0.2;
+      animation: ${(props) => (props.status ? 'pulse 2s infinite' : 'none')};
+    }
+  }
+
+  .status-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .status-text {
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 14px;
     color: ${(props) => (props.status ? '#52c41a' : '#ff4d4f')};
+    margin: 0;
+  }
+
+  .status-subtext {
+    font-size: 12px;
+    color: var(--color-text-3);
+    margin: 0;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.2;
+    }
+    50% {
+      transform: scale(1.5);
+      opacity: 0.1;
+    }
+  }
+`
+
+const ControlSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .ant-switch {
+    &.ant-switch-checked {
+      background: #52c41a;
+    }
+  }
+
+  .restart-btn {
+    opacity: 0;
+    transform: translateX(10px);
+    transition: all 0.3s ease;
+
+    &.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 `
 
@@ -189,12 +264,6 @@ const ApiServerSettings: FC = () => {
     window.message.success(t('apiServer.messages.apiKeyRegenerated'))
   }
 
-  const copyServerUrl = () => {
-    const url = `http://localhost:${apiServerConfig.port}`
-    navigator.clipboard.writeText(url)
-    window.message.success(t('apiServer.messages.urlCopied'))
-  }
-
   const handlePortChange = (value: string) => {
     const port = parseInt(value) || 23333
     if (port >= 1000 && port <= 65535) {
@@ -220,86 +289,69 @@ const ApiServerSettings: FC = () => {
             <h4>{t('apiServer.configuration')}</h4>
           </SectionHeader>
         }>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          {/* Status and Control Row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 16
-            }}>
-            <StatusIndicator status={apiServerRunning}>
-              <div className="status-dot" />
-              <span className="status-text">
-                {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
-              </span>
-            </StatusIndicator>
-            <ActionButtonGroup>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {/* Server Control Panel */}
+          <ServerControlPanel status={apiServerRunning}>
+            <StatusSection status={apiServerRunning}>
+              <div className="status-indicator" />
+              <div className="status-content">
+                <div className="status-text">
+                  {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
+                </div>
+                <div className="status-subtext">
+                  {apiServerRunning ? `http://localhost:${apiServerConfig.port}` : t('apiServer.fields.port.helpText')}
+                </div>
+              </div>
+            </StatusSection>
+
+            <ControlSection>
               <Switch
                 checked={apiServerRunning}
                 loading={apiServerLoading}
                 onChange={handleApiServerToggle}
                 size="default"
               />
-              {apiServerRunning && (
-                <Tooltip title={t('apiServer.actions.restart.tooltip')}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={handleApiServerRestart}
-                    loading={apiServerLoading}
-                    size="small">
-                    {t('apiServer.actions.restart.button')}
-                  </Button>
-                </Tooltip>
-              )}
-            </ActionButtonGroup>
-          </div>
+              <Tooltip title={t('apiServer.actions.restart.tooltip')}>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={handleApiServerRestart}
+                  loading={apiServerLoading}
+                  size="small"
+                  type="text"
+                  className={`restart-btn ${apiServerRunning ? 'visible' : ''}`}>
+                  {t('apiServer.actions.restart.button')}
+                </Button>
+              </Tooltip>
+            </ControlSection>
+          </ServerControlPanel>
 
           {/* Configuration Fields */}
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{ display: 'grid', gap: '12px' }}>
             {/* Port Configuration */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.port.label')}</FieldLabel>
-              <StyledInput
-                type="number"
-                value={apiServerConfig.port}
-                onChange={(e) => handlePortChange(e.target.value)}
-                style={{ width: 100 }}
-                min={1000}
-                max={65535}
-                disabled={apiServerRunning}
-                placeholder="23333"
-                size="small"
-              />
-              {apiServerRunning && (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('apiServer.fields.port.helpText')}
-                </Text>
-              )}
-            </div>
-
-            {/* Server URL (only when running) */}
-            {apiServerRunning && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.url.label')}</FieldLabel>
+            {!apiServerRunning && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.port.label')}</FieldLabel>
                 <StyledInput
-                  value={`http://localhost:${apiServerConfig.port}`}
-                  readOnly
-                  style={{ flex: 1, maxWidth: 250 }}
+                  type="number"
+                  value={apiServerConfig.port}
+                  onChange={(e) => handlePortChange(e.target.value)}
+                  style={{ width: 100 }}
+                  min={1000}
+                  max={65535}
+                  disabled={apiServerRunning}
+                  placeholder="23333"
                   size="small"
                 />
-                <Tooltip title={t('apiServer.fields.url.copyTooltip')}>
-                  <Button icon={<CopyOutlined />} onClick={copyServerUrl} size="small">
-                    {t('apiServer.actions.copy')}
-                  </Button>
-                </Tooltip>
+                {apiServerRunning && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('apiServer.fields.port.helpText')}
+                  </Text>
+                )}
               </div>
             )}
 
             {/* API Key Configuration */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <FieldLabel style={{ minWidth: 50, margin: 0 }}>{t('apiServer.fields.apiKey.label')}</FieldLabel>
               <StyledInput
                 value={apiServerConfig.apiKey}
@@ -315,9 +367,11 @@ const ApiServerSettings: FC = () => {
                     {t('apiServer.actions.copy')}
                   </Button>
                 </Tooltip>
-                <Button onClick={regenerateApiKey} disabled={apiServerRunning} size="small">
-                  {t('apiServer.actions.regenerate')}
-                </Button>
+                {!apiServerRunning && (
+                  <Button onClick={regenerateApiKey} disabled={apiServerRunning} size="small">
+                    {t('apiServer.actions.regenerate')}
+                  </Button>
+                )}
               </ActionButtonGroup>
             </div>
 
@@ -340,11 +394,13 @@ const ApiServerSettings: FC = () => {
           flexDirection: 'column',
           marginBottom: 0
         }}
-        bodyStyle={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 0
+        styles={{
+          body: {
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 0
+          }
         }}
         title={
           <SectionHeader>
@@ -356,9 +412,8 @@ const ApiServerSettings: FC = () => {
             src={`http://localhost:${apiServerConfig.port}/api-docs`}
             style={{
               width: '100%',
-              flex: 1,
               border: 'none',
-              minHeight: 500
+              height: 'calc(100vh - 500px)'
             }}
             title="API Documentation"
             sandbox="allow-scripts allow-forms"
@@ -377,7 +432,7 @@ const ApiServerSettings: FC = () => {
               flexDirection: 'column',
               justifyContent: 'center',
               margin: 16,
-              minHeight: 300
+              height: '300px'
             }}>
             <GlobalOutlined style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }} />
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>

@@ -124,7 +124,7 @@ export class ChatCompletionService {
       }
 
       // Extract model ID from the full model string
-      const modelId = request.model!.split(':')[1]
+      const modelId = request.model!.split(':').slice(1).join(':')
 
       // Create OpenAI client for the provider
       const client = new OpenAI({
@@ -182,7 +182,7 @@ export class ChatCompletionService {
       }
 
       // Extract model ID from the full model string
-      const modelId = request.model!.split(':')[1]
+      const modelId = request.model!.split(':').slice(1).join(':')
 
       // Create OpenAI client for the provider
       const client = new OpenAI({

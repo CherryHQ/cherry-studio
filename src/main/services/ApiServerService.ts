@@ -57,7 +57,6 @@ export class ApiServerService {
         await this.start()
         return { success: true }
       } catch (error: any) {
-        logger.error('Failed to start API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -67,7 +66,6 @@ export class ApiServerService {
         await this.stop()
         return { success: true }
       } catch (error: any) {
-        logger.error('Failed to stop API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -77,7 +75,6 @@ export class ApiServerService {
         await this.restart()
         return { success: true }
       } catch (error: any) {
-        logger.error('Failed to restart API server:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -90,7 +87,6 @@ export class ApiServerService {
           config
         }
       } catch (error: any) {
-        logger.error('Failed to get API server status:', error)
         return {
           running: this.isRunning(),
           config: null
@@ -102,7 +98,6 @@ export class ApiServerService {
       try {
         return await this.getCurrentConfig()
       } catch (error: any) {
-        logger.error('Failed to get API server config:', error)
         return null
       }
     })

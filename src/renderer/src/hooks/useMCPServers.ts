@@ -16,11 +16,6 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPSer
   NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
 })
 
-// Note: The following IPC channels are no longer needed since we use ReduxService directly in API server:
-// - IpcChannel.Mcp_RequestServers (API server gets servers via ReduxService)
-// - IpcChannel.Mcp_UpdateServer (API server updates via ReduxService actions)
-// - IpcChannel.Mcp_DeleteServer (API server deletes via ReduxService actions)
-
 const selectMcpServers = (state) => state.mcp.servers
 const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>
   servers.filter((server) => server.isActive)
