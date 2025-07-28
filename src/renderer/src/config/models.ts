@@ -2816,7 +2816,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
     return true
   }
 
