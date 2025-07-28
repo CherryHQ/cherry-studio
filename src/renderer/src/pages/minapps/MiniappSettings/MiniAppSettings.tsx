@@ -5,6 +5,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import {
+  setEnableMinappPreload,
   setMaxKeepAliveMinapps,
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
@@ -22,7 +23,8 @@ const DEFAULT_MAX_KEEPALIVE = 3
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
+  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal, enableMinappPreload } =
+    useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
@@ -141,6 +143,17 @@ const MiniAppSettings: FC = () => {
           checked={showOpenedMinappsInSidebar}
           onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingLabelGroup>
+          <SettingRowTitle>
+            {t('settings.miniapps.enable_preload.title')} (
+            <span style={{ color: 'orange' }}>{t('common.experimental')}</span>)
+          </SettingRowTitle>
+          <SettingDescription>{t('settings.miniapps.enable_preload.description')}</SettingDescription>
+        </SettingLabelGroup>
+        <Switch checked={enableMinappPreload} onChange={(checked) => dispatch(setEnableMinappPreload(checked))} />
       </SettingRow>
     </Container>
   )

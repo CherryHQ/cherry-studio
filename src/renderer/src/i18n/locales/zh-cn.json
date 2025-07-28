@@ -632,6 +632,7 @@
     "enabled": "已启用",
     "error": "错误",
     "expand": "展开",
+    "experimental": "实验性功能",
     "footnote": "引用内容",
     "footnotes": "引用内容",
     "fullscreen": "已进入全屏模式，按 F11 退出",
@@ -2850,6 +2851,10 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "把要隐藏的小程序从左侧拖拽到这里",
+      "enable_preload": {
+        "description": "通过加载伪装脚本实现Cloudflare验证的正常进行，可能存在风险，请谨慎开启",
+        "title": "加载伪装脚本"
+      },
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },

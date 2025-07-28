@@ -161,6 +161,7 @@ export interface SettingsState {
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
   minappsOpenLinkExternal: boolean
+  enableMinappPreload: boolean
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -325,6 +326,7 @@ export const initialState: SettingsState = {
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
+  enableMinappPreload: false,
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -720,6 +722,9 @@ const settingsSlice = createSlice({
     setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
       state.minappsOpenLinkExternal = action.payload
     },
+    setEnableMinappPreload: (state, action: PayloadAction<boolean>) => {
+      state.enableMinappPreload = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -882,6 +887,7 @@ export const {
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
+  setEnableMinappPreload,
   setEnableDataCollection,
   setEnableSpellCheck,
   setSpellCheckLanguages,

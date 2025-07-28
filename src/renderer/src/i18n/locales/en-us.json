@@ -632,6 +632,7 @@
     "enabled": "Enabled",
     "error": "error",
     "expand": "Expand",
+    "experimental": "Experimental feature",
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -2850,6 +2851,10 @@
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
       "empty": "Drag mini apps from the left to hide them",
+      "enable_preload": {
+        "description": "Achieve normal Cloudflare verification by loading spoofing script, may pose risks, enable with caution",
+        "title": "Load spoofing script"
+      },
       "open_link_external": {
         "title": "Open new-window links in browser"
       },

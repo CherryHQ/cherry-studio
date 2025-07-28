@@ -632,6 +632,7 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "expand": "展開",
+    "experimental": "實驗性功能",
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
@@ -2850,6 +2851,10 @@
       "disabled": "隱藏的小程式",
       "display_title": "小程式顯示設置",
       "empty": "把要隱藏的小程式從左側拖拽到這裡",
+      "enable_preload": {
+        "description": "透過加載偽裝腳本實現 Cloudflare 驗證的正常進行，可能存在風險，請謹慎啟用",
+        "title": "加載偽裝腳本"
+      },
       "open_link_external": {
         "title": "在瀏覽器中打開新視窗連結"
       },

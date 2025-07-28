@@ -22,7 +22,7 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
-    const { enableSpellCheck } = useSettings()
+    const { enableSpellCheck, enableMinappPreload } = useSettings()
     const { isLeftNavbar } = useNavbarPosition()
 
     const setRef = (appid: string) => {
@@ -85,12 +85,13 @@ const WebviewContainer = memo(
         ref={setRef(appid)}
         style={WebviewStyle}
         allowpopups={'true' as any}
-        partition="persist:webview"
+        partition={enableMinappPreload ? `persist:${appid}` : 'persist:webview'}
         useragent={
           appid === 'google'
             ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
             : undefined
         }
+        {...(enableMinappPreload && { preload: './preload/minapp.js' })}
       />
     )
   }

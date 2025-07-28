@@ -632,6 +632,7 @@
     "enabled": "Ενεργοποιημένο",
     "error": "σφάλμα",
     "expand": "Επεκτάση",
+    "experimental": "[to be translated]:实验性功能",
     "footnote": "Παραπομπή",
     "footnotes": "Παραπομπές",
     "fullscreen": "Εισήχθη σε πλήρη οθόνη, πατήστε F11 για να έξω",
@@ -2850,6 +2851,10 @@
       "disabled": "Απόκρυψη μικροπρογράμματος",
       "display_title": "Ρυθμίσεις Εμφάνισης Μικροπρογράμματος",
       "empty": "Σύρετε το μικροπρόγραμμα που θέλετε να αποκρύψετε από την αριστερή πλευρά σε αυτήν την περιοχή",
+      "enable_preload": {
+        "description": "[to be translated]:通过加载伪装脚本实现Cloudflare验证的正常进行，可能存在风险，请谨慎开启",
+        "title": "[to be translated]:加载伪装脚本"
+      },
       "open_link_external": {
         "title": "Άνοιγμα νέου παραθύρου σύνδεσης στον περιηγητή"
       },
@@ -2887,6 +2892,10 @@
           "label": "Όνομα μοντέλου",
           "placeholder": "Για παράδειγμα GPT-3.5",
           "tooltip": "Για παράδειγμα GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "[to be translated]:增量文本输出",
+          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "Κλειδί API",
@@ -2924,7 +2933,6 @@
           "label": "Προσθήκη μοντέλων από τη λίστα"
         },
         "add_whole_group": "Προσθήκη ολόκληρης ομάδας",
-        "models.manage.add_listed.confirm": "Θέλετε να προσθέσετε όλα τα μοντέλα στη λίστα;",
         "remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
         "remove_model": "Αφαίρεση Μοντέλου",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας"
@@ -3038,7 +3046,6 @@
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
-          "basic_auth.password.tip": ":",
           "label": "κωδικός πρόσβασης",
           "tip": "εισαγάγετε τον κωδικό πρόσβασης"
         },

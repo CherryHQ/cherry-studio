@@ -632,6 +632,7 @@
     "enabled": "Activado",
     "error": "error",
     "expand": "Expandir",
+    "experimental": "[to be translated]:实验性功能",
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
@@ -2850,6 +2851,10 @@
       "disabled": "Miniaplicaciones ocultas",
       "display_title": "Configuración de visualización de miniaplicaciones",
       "empty": "Arrastra aquí las miniaplicaciones que deseas ocultar desde la izquierda",
+      "enable_preload": {
+        "description": "[to be translated]:通过加载伪装脚本实现Cloudflare验证的正常进行，可能存在风险，请谨慎开启",
+        "title": "[to be translated]:加载伪装脚本"
+      },
       "open_link_external": {
         "title": "Abrir enlace en nueva ventana del navegador"
       },
@@ -2887,6 +2892,10 @@
           "label": "Nombre del modelo",
           "placeholder": "Por ejemplo, GPT-3.5",
           "tooltip": "Por ejemplo, GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "[to be translated]:增量文本输出",
+          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
         }
       },
       "api_key": "Clave API",
@@ -2921,8 +2930,7 @@
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista",
-          "models.manage.add_listed.confirm": "¿Desea agregar todos los modelos a la lista?"
+          "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
@@ -3038,7 +3046,6 @@
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "contraseña",
           "tip": "Introduzca la contraseña"
         },
