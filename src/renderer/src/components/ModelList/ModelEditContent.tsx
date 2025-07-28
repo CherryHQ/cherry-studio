@@ -88,13 +88,17 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
   useEffect(() => {
     if (showMoreSettings) {
-      const newModelCapabilities = selectedTypes.map((type) => {
-        const existingCapability = modelCapabilities?.find((m) => m.type === type)
-        return {
-          type: type as ModelType,
-          isUserSelected: existingCapability?.isUserSelected ?? undefined
-        }
-      })
+      const newModelCapabilities = getUnion(
+        selectedTypes.map((type) => {
+          const existingCapability = modelCapabilities?.find((m) => m.type === type)
+          return {
+            type: type as ModelType,
+            isUserSelected: existingCapability?.isUserSelected ?? undefined
+          }
+        }),
+        modelCapabilities?.filter((t) => t.isUserSelected === false),
+        (item) => item.type
+      )
 
       setModelCapabilities(newModelCapabilities)
     }
@@ -286,8 +290,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         return { ...t, isUserSelected: false }
                       }
                       if (
-                        (onUpdateType !== t && onUpdateType.type === 'rerank') ||
-                        (onUpdateType.type === 'embedding' && onUpdateType !== t && t.isUserSelected === false)
+                        ((onUpdateType !== t && onUpdateType.type === 'rerank') ||
+                          (onUpdateType.type === 'embedding' && onUpdateType !== t)) &&
+                        t.isUserSelected === false
                       ) {
                         if (changedTypesRef.current.includes(t.type)) {
                           return { ...t, isUserSelected: true }
