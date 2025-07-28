@@ -41,7 +41,6 @@ export interface RuntimeState {
   searching: boolean
   filesPath: string
   resourcesPath: string
-  activeRoute: string
   update: UpdateState
   export: ExportState
   chat: ChatState
@@ -63,7 +62,6 @@ const initialState: RuntimeState = {
   searching: false,
   filesPath: '',
   resourcesPath: '',
-  activeRoute: '/',
   update: {
     info: null,
     checking: false,
@@ -121,9 +119,6 @@ const runtimeSlice = createSlice({
     setResourcesPath: (state, action: PayloadAction<string>) => {
       state.resourcesPath = action.payload
     },
-    setActiveRoute: (state, action: PayloadAction<string>) => {
-      state.activeRoute = action.payload
-    },
     setUpdateState: (state, action: PayloadAction<Partial<UpdateState>>) => {
       state.update = { ...state.update, ...action.payload }
     },
@@ -174,7 +169,6 @@ export const {
   setSearching,
   setFilesPath,
   setResourcesPath,
-  setActiveRoute,
   setUpdateState,
   setExportState,
   // Chat related actions

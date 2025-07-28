@@ -11,8 +11,6 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveRoute } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
@@ -137,7 +135,6 @@ const MainMenus: FC = () => {
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
@@ -173,7 +170,6 @@ const MainMenus: FC = () => {
             hideMinappPopup()
             await modelGenerating()
             navigate(path)
-            dispatch(setActiveRoute(path))
           }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}

@@ -39,12 +39,7 @@ export default function useTranslate() {
 
     setTranslating(false)
 
-    const pathname = store.getState().runtime.activeRoute
-
-    if (pathname !== '/translate') {
-      // ALTERNATIVE: 也许可以改成通知的形式
-      window.message.success(t('translate.complete'))
-    }
+    window.message.success(t('translate.complete'))
   }
 
   const saveTranslateHistory = async (
