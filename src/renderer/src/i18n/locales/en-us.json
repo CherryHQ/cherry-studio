@@ -3413,6 +3413,9 @@
       "clear_description": "Clear history will delete all translation history, continue?",
       "delete": "Delete",
       "empty": "No translation history",
+      "error": {
+        "save": "Failed to save translation history"
+      },
       "title": "Translation History"
     },
     "input": {

@@ -2888,6 +2888,10 @@
           "label": "Nombre del modelo",
           "placeholder": "Por ejemplo, GPT-3.5",
           "tooltip": "Por ejemplo, GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "salida de texto incremental",
+          "tooltip": "Cuando el modelo no sea compatible, desactive este botón."
         }
       },
       "api_key": "Clave API",
@@ -2922,8 +2926,7 @@
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista",
-          "models.manage.add_listed.confirm": "¿Desea agregar todos los modelos a la lista?"
+          "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
@@ -3039,7 +3042,6 @@
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "contraseña",
           "tip": "Introduzca la contraseña"
         },
@@ -3411,6 +3413,9 @@
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
       "delete": "Eliminar",
       "empty": "Sin historial de traducciones por el momento",
+      "error": {
+        "save": "Error al guardar el historial de traducciones"
+      },
       "title": "Historial de traducciones"
     },
     "input": {

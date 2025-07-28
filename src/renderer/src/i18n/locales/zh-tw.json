@@ -3413,6 +3413,9 @@
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
       "delete": "刪除",
       "empty": "翻譯歷史為空",
+      "error": {
+        "save": "保存翻譯歷史失敗"
+      },
       "title": "翻譯歷史"
     },
     "input": {
