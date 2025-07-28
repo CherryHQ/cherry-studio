@@ -45,25 +45,19 @@ const BuiltinMCPServersSection: FC = () => {
               </ServerHeader>
               <Popover
                 content={
-
                   <PopoverContent>
-
                     {server.getBuiltinDescription
                       ? server.getBuiltinDescription()
                       : t('settings.mcp.builtinServersDescriptions.no')}
 
                     {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
                   </PopoverContent>
-
                 }
                 title={server.name}
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <ServerDescription>
-                  {server.description}
-                  <MoreIndicator>...</MoreIndicator>
-                </ServerDescription>
+                <ServerDescription>{server.description}</ServerDescription>
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
