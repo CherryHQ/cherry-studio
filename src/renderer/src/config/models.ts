@@ -1195,6 +1195,30 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4.5'
     },
     {
+      id: 'glm-4.5-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIR',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-airx',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIRX',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-x',
+      provider: 'zhipu',
+      name: 'GLM-4.5-X',
+      group: 'GLM-4.5'
+    },
+    {
       id: 'glm-z1-air',
       provider: 'zhipu',
       name: 'GLM-Z1-AIR',
@@ -2735,7 +2759,12 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   return baseName.includes('glm-4.5')
 }
 
-export const isZhipuReasoningModel = isSupportedThinkingTokenZhipuModel
+export const isZhipuReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenZhipuModel(model) || model.id.toLowerCase().includes('glm-z1')
+}
 
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
@@ -2764,7 +2793,6 @@ export function isReasoningModel(model?: Model): boolean {
     isHunyuanReasoningModel(model) ||
     isPerplexityReasoningModel(model) ||
     isZhipuReasoningModel(model) ||
-    model.id.toLowerCase().includes('glm-z1') ||
     model.id.toLowerCase().includes('magistral') ||
     model.id.toLowerCase().includes('minimax-m1') ||
     model.id.toLowerCase().includes('pangu-pro-moe')
