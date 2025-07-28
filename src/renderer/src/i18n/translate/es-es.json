@@ -822,7 +822,8 @@
     "empty": "Sin bases de conocimientos",
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
-      "failed_to_edit": "Error al editar la base de conocimientos"
+      "failed_to_edit": "Error al editar la base de conocimientos",
+      "model_deleted": "El modelo ha sido eliminado"
     },
     "file_hint": "Formatos soportados: {{file_types}}",
     "index_all": "Indexar todo",
@@ -2887,6 +2888,10 @@
           "label": "Nombre del modelo",
           "placeholder": "Por ejemplo, GPT-3.5",
           "tooltip": "Por ejemplo, GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "salida de texto incremental",
+          "tooltip": "Cuando el modelo no lo admita, desactive este botón"
         }
       },
       "api_key": "Clave API",
@@ -2921,8 +2926,7 @@
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
-          "label": "Agregar modelo en la lista",
-          "models.manage.add_listed.confirm": "¿Desea agregar todos los modelos a la lista?"
+          "label": "Agregar modelo en la lista"
         },
         "add_whole_group": "Agregar todo el grupo",
         "remove_listed": "Eliminar modelo de la lista",
@@ -3038,7 +3042,6 @@
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "contraseña",
           "tip": "Introduzca la contraseña"
         },

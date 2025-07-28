@@ -822,7 +822,8 @@
     "empty": "Aucune base de connaissances pour le moment",
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
-      "failed_to_edit": "Erreur lors de la modification de la base de connaissances"
+      "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
+      "model_deleted": "Le modèle a été supprimé"
     },
     "file_hint": "Format supporté : {{file_types}}",
     "index_all": "Indexer tout",
@@ -2887,6 +2888,10 @@
           "label": "Nom du modèle",
           "placeholder": "Par exemple, GPT-3.5",
           "tooltip": "Par exemple GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "sortie de texte incrémentielle",
+          "tooltip": "Lorsque le modèle n'est pas pris en charge, désactivez ce bouton"
         }
       },
       "api_key": "Clé API",
@@ -2921,8 +2926,7 @@
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste",
-          "models.manage.add_listed.confirm": "Voulez-vous ajouter tous les modèles à la liste ?"
+          "label": "Ajouter le modèle dans la liste"
         },
         "add_whole_group": "Ajouter tout le groupe",
         "remove_listed": "Supprimer un modèle de la liste",
@@ -3038,7 +3042,6 @@
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
-          "basic_auth.password.tip": "",
           "label": "mot de passe",
           "tip": "Entrer le mot de passe"
         },
