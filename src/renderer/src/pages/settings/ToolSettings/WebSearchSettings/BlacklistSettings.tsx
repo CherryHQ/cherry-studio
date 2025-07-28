@@ -255,6 +255,7 @@ const BlacklistSettings: FC = () => {
             columns={columns}
             dataSource={dataSource}
             pagination={{ position: ['none'] }}
+            tableLayout="fixed"
           />
           <SettingRow style={{ height: 50 }}>
             <Button
