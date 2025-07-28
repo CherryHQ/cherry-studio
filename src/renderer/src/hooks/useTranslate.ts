@@ -8,6 +8,7 @@ import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/t
 import { Language, LanguageCode, TranslateAssistant, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
+import { throttle } from 'lodash'
 
 /**
  * 翻译页面的核心钩子函数
@@ -70,9 +71,7 @@ export default function useTranslate() {
         await fetchTranslate({
           content: text,
           assistant,
-          onResponse: (text) => {
-            setTranslatedContent(text)
-          }
+          onResponse: throttle(setTranslatedContent, 100)
         })
       } catch (e) {
         logger.error('Failed to translate text', e as Error)
