@@ -9,6 +9,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isDoubaoThinkingAutoModel,
+  isQwen3235BA22BThinkingModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
@@ -69,7 +70,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const isGeminiModel = isSupportedThinkingTokenGeminiModel(model)
   const isGeminiFlashModel = GEMINI_FLASH_MODEL_REGEX.test(model.id)
   const isQwenModel = isSupportedThinkingTokenQwenModel(model)
-  const isQwen3235BA22BThinkingModel = model.id.includes('qwen3-235b-a22b-thinking')
+  const isQwen3235BA22BThinking = isQwen3235BA22BThinkingModel(model)
   const isDoubaoModel = isSupportedThinkingTokenDoubaoModel(model)
   const isHunyuanModel = isSupportedThinkingTokenHunyuanModel(model)
   const isPerplexityModel = isSupportedReasoningEffortPerplexityModel(model)
@@ -90,7 +91,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     }
     if (isGrokModel) return 'grok'
     if (isQwenModel) {
-      if (isQwen3235BA22BThinkingModel) {
+      if (isQwen3235BA22BThinking) {
         return 'qwen_3235ba22b_thinking'
       }
       return 'qwen'
@@ -108,7 +109,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     isGeminiFlashModel,
     isHunyuanModel,
     isPerplexityModel,
-    isQwen3235BA22BThinkingModel,
+    isQwen3235BA22BThinking,
     isZhipuModel
   ])
 

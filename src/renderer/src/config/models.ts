@@ -2703,6 +2703,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   )
 }
 
+export function isQwen3235BA22BThinkingModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('qwen3-235b-a22b-thinking')
+}
+
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
   if (!model) {
     return false
