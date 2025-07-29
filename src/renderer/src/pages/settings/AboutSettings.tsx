@@ -10,7 +10,7 @@ import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
-import { compareVersions, runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
@@ -96,7 +96,8 @@ const AboutSettings: FC = () => {
     })
   }
 
-  const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
+  // don't support downgrade, so we only check if the version is different
+  const hasNewVersion = update?.info?.version && version ? update.info.version !== version : false
 
   const currentChannelByVersion =
     [

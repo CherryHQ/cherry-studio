@@ -148,25 +148,6 @@ export function hasPath(url: string): boolean {
 }
 
 /**
- * 比较两个版本号字符串。
- * @param {string} v1 第一个版本号
- * @param {string} v2 第二个版本号
- * @returns {number} 比较结果，1 表示 v1 大于 v2，-1 表示 v1 小于 v2，0 表示相等
- */
-export const compareVersions = (v1: string, v2: string): number => {
-  const v1Parts = v1.split('.').map(Number)
-  const v2Parts = v2.split('.').map(Number)
-
-  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-    const v1Part = v1Parts[i] || 0
-    const v2Part = v2Parts[i] || 0
-    if (v1Part > v2Part) return 1
-    if (v1Part < v2Part) return -1
-  }
-  return 0
-}
-
-/**
  * 显示确认模态框。
  * @param {ModalFuncProps} params 模态框参数
  * @returns {Promise<boolean>} 用户确认返回 true，取消返回 false
