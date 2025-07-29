@@ -247,3 +247,16 @@ export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPToo
 
   return userSystemPrompt
 }
+
+export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {
+  if (tools && tools.length > 0) {
+    return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
+      .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
+      .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
+  }
+  return userSystemPrompt
+}
+
+export const buildSystemPromptWithThinkTool = (userSystemPrompt: string): string => {
+  return THINK_TOOL_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
+}
