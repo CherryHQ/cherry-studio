@@ -37,7 +37,9 @@ import styled from 'styled-components'
 
 const logger = loggerService.withContext('TranslatePage')
 
+// cache variables
 let _text = ''
+let _sourceLanguage: Language | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
 const TranslateSettings: FC<{
@@ -296,7 +298,7 @@ const TranslatePage: FC = () => {
   ])
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
+  const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
@@ -316,6 +318,7 @@ const TranslatePage: FC = () => {
   }, [_translateHistory])
 
   _text = text
+  _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
   const handleModelChange = (model: Model) => {
