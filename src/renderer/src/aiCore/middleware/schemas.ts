@@ -23,7 +23,7 @@ export interface CompletionsParams {
    * 'generate': 生成
    * 'check': API检查
    */
-  callType?: 'chat' | 'translate' | 'summary' | 'search' | 'generate' | 'check'
+  callType?: 'chat' | 'translate' | 'summary' | 'search' | 'generate' | 'check' | 'test'
 
   // 基础对话数据
   messages: Message[] | string // 联合类型方便判断是否为空
@@ -49,11 +49,13 @@ export interface CompletionsParams {
   // 功能开关
   streamOutput: boolean
   enableWebSearch?: boolean
+  enableUrlContext?: boolean
   enableReasoning?: boolean
   enableGenerateImage?: boolean
 
   // 上下文控制
   contextCount?: number
+  topicId?: string // 主题ID，用于关联上下文
 
   _internal?: ProcessingState
 }

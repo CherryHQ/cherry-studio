@@ -1,6 +1,5 @@
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
@@ -18,7 +17,6 @@ const spinnerVariants = {
 }
 
 export default function Spinner({ text }: Props) {
-  const { t } = useTranslation()
   return (
     <Searching
       variants={spinnerVariants}
@@ -31,7 +29,7 @@ export default function Spinner({ text }: Props) {
         ease: 'easeInOut'
       }}>
       <Search size={16} style={{ color: 'unset' }} />
-      <span>{t(text)}</span>
+      <span>{text}</span>
     </Searching>
   )
 }

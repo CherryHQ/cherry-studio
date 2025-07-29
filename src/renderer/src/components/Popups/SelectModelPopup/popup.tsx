@@ -7,7 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { classNames } from '@renderer/utils/style'
+import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -34,13 +34,15 @@ const ITEM_HEIGHT = 36
 
 interface PopupParams {
   model?: Model
+  modelFilter?: (model: Model) => boolean
 }
 
 interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
+  modelFilter?: (model: Model) => boolean
 }
 
-const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -100,27 +102,19 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
-        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-        models = models.filter((m) => {
-          const fullName = provider.isSystem
-            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
-            : `${m.name} ${provider.name}`
-
-          const lowerFullName = fullName.toLowerCase()
-          return keywords.every((keyword) => lowerFullName.includes(keyword))
-        })
+        models = filterModelsByKeywords(searchText, models, provider)
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t]
+    [searchText]
   )
 
   // 创建模型列表项
   const createModelItem = useCallback(
     (model: Model, provider: any, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
-      const groupName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
+      const groupName = getFancyProviderName(provider)
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
@@ -146,7 +140,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
         isSelected: modelId === currentModelId
       }
     },
-    [t, currentModelId]
+    [currentModelId]
   )
 
   // 构建扁平化列表数据
@@ -156,7 +150,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((p) =>
-        p.models.filter((m) => pinnedModels.includes(getModelUniqId(m))).map((m) => createModelItem(m, p, true))
+        p.models
+          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+          .filter(modelFilter ? modelFilter : () => true)
+          .map((m) => createModelItem(m, p, true))
       )
 
       if (pinnedItems.length > 0) {
@@ -174,9 +171,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      const filteredModels = getFilteredModels(p).filter(
-        (m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m))
-      )
+      const filteredModels = getFilteredModels(p)
+        .filter((m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m)))
+        .filter(modelFilter ? modelFilter : () => true)
 
       if (filteredModels.length === 0) return
 
@@ -184,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       items.push({
         key: `provider-${p.id}`,
         type: 'group',
-        name: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        name: getFancyProviderName(p),
         isSelected: false
       })
 
@@ -199,7 +196,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       firstGroupRef.current = null
     }
     return items
-  }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
+  }, [searchText.length, pinnedModels, providers, modelFilter, createModelItem, t, getFilteredModels])
 
   // 获取可选择的模型项（过滤掉分组标题）
   const modelItems = useMemo(() => {

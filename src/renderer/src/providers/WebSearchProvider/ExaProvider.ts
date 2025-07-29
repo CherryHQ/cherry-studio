@@ -1,9 +1,11 @@
 import { ExaClient } from '@agentic/exa'
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
+const logger = loggerService.withContext('ExaProvider')
 export default class ExaProvider extends BaseWebSearchProvider {
   private exa: ExaClient
 
@@ -35,20 +37,15 @@ export default class ExaProvider extends BaseWebSearchProvider {
       return {
         query: response.autopromptString,
         results: response.results.slice(0, websearch.maxResults).map((result) => {
-          let content = result.text || ''
-          if (websearch.contentLimit && content.length > websearch.contentLimit) {
-            content = content.slice(0, websearch.contentLimit) + '...'
-          }
-
           return {
             title: result.title || 'No title',
-            content: content,
+            content: result.text || '',
             url: result.url || ''
           }
         })
       }
     } catch (error) {
-      console.error('Exa search failed:', error)
+      logger.error('Exa search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

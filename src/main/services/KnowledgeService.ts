@@ -16,34 +16,42 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@cherrystudio/embedjs'
+import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import Embeddings from '@main/embeddings/Embeddings'
-import { addFileLoader } from '@main/loader'
-import Reranker from '@main/reranker/Reranker'
+import { loggerService } from '@logger'
+import Embeddings from '@main/knowledge/embeddings/Embeddings'
+import { addFileLoader } from '@main/knowledge/loader'
+import { NoteLoader } from '@main/knowledge/loader/noteLoader'
+import OcrProvider from '@main/knowledge/ocr/OcrProvider'
+import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
+import Reranker from '@main/knowledge/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
-import Logger from 'electron-log'
+import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('KnowledgeService')
 
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload?: boolean
+  userId?: string
 }
 
 interface KnowledgeBaseAddItemOptionsNonNullableAttribute {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload: boolean
+  userId: string
 }
 
 interface EvaluateTaskWorkload {
@@ -89,16 +97,26 @@ const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
 
 class KnowledgeService {
   private storageDir = path.join(getDataPath(), 'KnowledgeBase')
+  private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete.json')
   // Byte based
   private workload = 0
   private processingItemCount = 0
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
+  private ragApplications: Map<string, RAGApplication> = new Map()
+  private dbInstances: Map<string, LibSqlDb> = new Map()
   private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
-  private static ERROR_LOADER_RETURN: LoaderReturn = { entriesAdded: 0, uniqueId: '', uniqueIds: [''], loaderType: '' }
+  private static ERROR_LOADER_RETURN: LoaderReturn = {
+    entriesAdded: 0,
+    uniqueId: '',
+    uniqueIds: [''],
+    loaderType: '',
+    status: 'failed'
+  }
 
   constructor() {
     this.initStorageDir()
+    this.cleanupOnStartup()
   }
 
   private initStorageDir = (): void => {
@@ -107,32 +125,139 @@ class KnowledgeService {
     }
   }
 
+  /**
+   * Clean up knowledge base resources (RAG applications and database connections in memory)
+   */
+  private cleanupKnowledgeResources = async (id: string): Promise<void> => {
+    try {
+      // Remove RAG application instance
+      if (this.ragApplications.has(id)) {
+        const ragApp = this.ragApplications.get(id)!
+        await ragApp.reset()
+        this.ragApplications.delete(id)
+        logger.debug(`Cleaned up RAG application for id: ${id}`)
+      }
+
+      // Remove database instance reference
+      if (this.dbInstances.has(id)) {
+        this.dbInstances.delete(id)
+        logger.debug(`Removed database instance reference for id: ${id}`)
+      }
+    } catch (error) {
+      logger.warn(`Failed to cleanup resources for id: ${id}`, error as Error)
+    }
+  }
+
+  /**
+   * Delete knowledge base file
+   */
+  private deleteKnowledgeFile = (id: string): boolean => {
+    const dbPath = path.join(this.storageDir, id)
+    if (fs.existsSync(dbPath)) {
+      try {
+        fs.rmSync(dbPath, { recursive: true })
+        logger.debug(`Deleted knowledge base file with id: ${id}`)
+        return true
+      } catch (error) {
+        logger.warn(`Failed to delete knowledge base file with id: ${id}: ${error}`)
+        return false
+      }
+    }
+    return true // File does not exist, consider deletion successful
+  }
+
+  /**
+   * Manage persistent deletion list
+   */
+  private pendingDeleteManager = {
+    load: (): string[] => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          return JSON.parse(fs.readFileSync(this.pendingDeleteFile, 'utf-8')) as string[]
+        }
+      } catch (error) {
+        logger.warn('Failed to load pending delete IDs:', error as Error)
+      }
+      return []
+    },
+
+    save: (ids: string[]): void => {
+      try {
+        fs.writeFileSync(this.pendingDeleteFile, JSON.stringify(ids, null, 2))
+        logger.debug(`Total ${ids.length} knowledge bases pending delete`)
+      } catch (error) {
+        logger.warn('Failed to save pending delete IDs:', error as Error)
+      }
+    },
+
+    add: (id: string): void => {
+      const existingIds = this.pendingDeleteManager.load()
+      const allIds = [...new Set([...existingIds, id])]
+      this.pendingDeleteManager.save(allIds)
+    },
+
+    clear: (): void => {
+      try {
+        if (fs.existsSync(this.pendingDeleteFile)) {
+          fs.unlinkSync(this.pendingDeleteFile)
+        }
+      } catch (error) {
+        logger.warn('Failed to clear pending delete file:', error as Error)
+      }
+    }
+  }
+
+  /**
+   * Clean up databases marked for deletion on startup
+   */
+  private cleanupOnStartup = (): void => {
+    const pendingDeleteIds = this.pendingDeleteManager.load()
+    if (pendingDeleteIds.length === 0) return
+
+    logger.info(`Found ${pendingDeleteIds.length} knowledge bases pending deletion from previous session`)
+
+    let deletedCount = 0
+    pendingDeleteIds.forEach((id) => {
+      if (this.deleteKnowledgeFile(id)) {
+        deletedCount++
+      } else {
+        logger.warn(`Failed to delete knowledge base ${id}, please delete it manually`)
+      }
+    })
+
+    this.pendingDeleteManager.clear()
+    logger.info(`Startup cleanup completed: ${deletedCount}/${pendingDeleteIds.length} knowledge bases deleted`)
+  }
+
   private getRagApplication = async ({
     id,
-    model,
-    provider,
-    apiKey,
-    apiVersion,
-    baseURL,
-    dimensions
+    embedApiClient,
+    dimensions,
+    documentCount
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
+    if (this.ragApplications.has(id)) {
+      return this.ragApplications.get(id)!
+    }
+
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
-      model,
-      provider,
-      apiKey,
-      apiVersion,
-      baseURL,
+      embedApiClient,
       dimensions
-    } as KnowledgeBaseParams)
+    })
     try {
+      const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, id) })
+      // Save database instance for later closing
+      this.dbInstances.set(id, libSqlDb)
+
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')
         .setEmbeddingModel(embeddings)
-        .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
+        .setVectorDatabase(libSqlDb)
+        .setSearchResultCount(documentCount || 30)
         .build()
+      this.ragApplications.set(id, ragApplication)
     } catch (e) {
-      Logger.error(e)
+      logger.error('Failed to create RAGApplication:', e as Error)
       throw new Error(`Failed to create RAGApplication: ${e}`)
     }
 
@@ -140,18 +265,25 @@ class KnowledgeService {
   }
 
   public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
-    this.getRagApplication(base)
+    await this.getRagApplication(base)
   }
 
-  public reset = async (_: Electron.IpcMainInvokeEvent, { base }: { base: KnowledgeBaseParams }): Promise<void> => {
+  public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
     await ragApplication.reset()
   }
 
-  public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
-    const dbPath = path.join(this.storageDir, id)
-    if (fs.existsSync(dbPath)) {
-      fs.rmSync(dbPath, { recursive: true })
+  public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
+    logger.debug(`delete id: ${id}`)
+
+    await this.cleanupKnowledgeResources(id)
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    // Try to delete database file immediately
+    if (!this.deleteKnowledgeFile(id)) {
+      logger.debug(`Will delete knowledge base ${id} on next startup`)
+      this.pendingDeleteManager.add(id)
     }
   }
 
@@ -161,28 +293,49 @@ class KnowledgeService {
       this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
     )
   }
-
   private fileTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
-    const { base, item, forceReload } = options
-    const file = item.content as FileType
+    const { base, item, forceReload, userId } = options
+    const file = item.content as FileMetadata
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            addFileLoader(ragApplication, file, base, forceReload)
-              .then((result) => {
-                loaderTask.loaderDoneReturn = result
-                return result
-              })
-              .catch((err) => {
-                Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+          task: async () => {
+            try {
+              // Add preprocessing logic
+              const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
+
+              // Use processed file for loading
+              return addFileLoader(ragApplication, fileToProcess, base, forceReload)
+                .then((result) => {
+                  loaderTask.loaderDoneReturn = result
+                  return result
+                })
+                .catch((e) => {
+                  logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
+                  const errorResult: LoaderReturn = {
+                    ...KnowledgeService.ERROR_LOADER_RETURN,
+                    message: e.message,
+                    messageSource: 'embedding'
+                  }
+                  loaderTask.loaderDoneReturn = errorResult
+                  return errorResult
+                })
+            } catch (e: any) {
+              logger.error(`Preprocessing failed for ${file.name}: ${e}`)
+              const errorResult: LoaderReturn = {
+                ...KnowledgeService.ERROR_LOADER_RETURN,
+                message: e.message,
+                messageSource: 'preprocess'
+              }
+              loaderTask.loaderDoneReturn = errorResult
+              return errorResult
+            }
+          },
           evaluateTaskWorkload: { workload: file.size }
         }
       ],
@@ -191,7 +344,6 @@ class KnowledgeService {
 
     return loaderTask
   }
-
   private directoryTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
@@ -230,8 +382,12 @@ class KnowledgeService {
               return result
             })
             .catch((err) => {
-              Logger.error(err)
-              return KnowledgeService.ERROR_LOADER_RETURN
+              logger.error('Failed to add dir loader:', err)
+              return {
+                ...KnowledgeService.ERROR_LOADER_RETURN,
+                message: `Failed to add dir loader: ${err.message}`,
+                messageSource: 'embedding'
+              }
             }),
         evaluateTaskWorkload: { workload: file.size }
       })
@@ -276,8 +432,12 @@ class KnowledgeService {
                 return result
               })
               .catch((err) => {
-                Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                logger.error('Failed to add url loader:', err)
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add url loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               })
           },
           evaluateTaskWorkload: { workload: 2 * MB }
@@ -316,8 +476,12 @@ class KnowledgeService {
                 return result
               })
               .catch((err) => {
-                Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                logger.error('Failed to add sitemap loader:', err)
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add sitemap loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               }),
           evaluateTaskWorkload: { workload: 20 * MB }
         }
@@ -333,6 +497,7 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
+    const sourceUrl = (item as any).sourceUrl
 
     const encoder = new TextEncoder()
     const contentBytes = encoder.encode(content)
@@ -342,7 +507,12 @@ class KnowledgeService {
           state: LoaderTaskItemState.PENDING,
           task: () => {
             const loaderReturn = ragApplication.addLoader(
-              new TextLoader({ text: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }),
+              new NoteLoader({
+                text: content,
+                sourceUrl,
+                chunkSize: base.chunkSize,
+                chunkOverlap: base.chunkOverlap
+              }),
               forceReload
             ) as Promise<LoaderReturn>
 
@@ -356,8 +526,12 @@ class KnowledgeService {
                 }
               })
               .catch((err) => {
-                Logger.error(err)
-                return KnowledgeService.ERROR_LOADER_RETURN
+                logger.error('Failed to add note loader:', err)
+                return {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: `Failed to add note loader: ${err.message}`,
+                  messageSource: 'embedding'
+                }
               })
           },
           evaluateTaskWorkload: { workload: contentBytes.length }
@@ -425,8 +599,8 @@ class KnowledgeService {
 
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
-      const { base, item, forceReload = false } = options
-      const optionsNonNullableAttribute = { base, item, forceReload }
+      const { base, item, forceReload = false, userId = '' } = options
+      const optionsNonNullableAttribute = { base, item, forceReload, userId }
       this.getRagApplication(base)
         .then((ragApplication) => {
           const task = (() => {
@@ -452,43 +626,117 @@ class KnowledgeService {
             })
             this.processingQueueHandle()
           } else {
-            resolve(KnowledgeService.ERROR_LOADER_RETURN)
+            resolve({
+              ...KnowledgeService.ERROR_LOADER_RETURN,
+              message: 'Unsupported item type',
+              messageSource: 'embedding'
+            })
           }
         })
         .catch((err) => {
-          Logger.error(err)
-          resolve(KnowledgeService.ERROR_LOADER_RETURN)
+          logger.error('Failed to add item:', err)
+          resolve({
+            ...KnowledgeService.ERROR_LOADER_RETURN,
+            message: `Failed to add item: ${err.message}`,
+            messageSource: 'embedding'
+          })
         })
     })
   }
 
-  public remove = async (
+  @TraceMethod({ spanName: 'remove', tag: 'Knowledge' })
+  public async remove(
     _: Electron.IpcMainInvokeEvent,
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
-  ): Promise<void> => {
+  ): Promise<void> {
     const ragApplication = await this.getRagApplication(base)
-    Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
+    logger.debug(`Remove Item UniqueId: ${uniqueId}`)
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }
   }
 
-  public search = async (
+  @TraceMethod({ spanName: 'RagSearch', tag: 'Knowledge' })
+  public async search(
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
-  ): Promise<ExtractChunkData[]> => {
+  ): Promise<ExtractChunkData[]> {
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
   }
 
-  public rerank = async (
+  @TraceMethod({ spanName: 'rerank', tag: 'Knowledge' })
+  public async rerank(
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
-  ): Promise<ExtractChunkData[]> => {
+  ): Promise<ExtractChunkData[]> {
     if (results.length === 0) {
       return results
     }
     return await new Reranker(base).rerank(search, results)
+  }
+
+  public getStorageDir = (): string => {
+    return this.storageDir
+  }
+
+  private preprocessing = async (
+    file: FileMetadata,
+    base: KnowledgeBaseParams,
+    item: KnowledgeItem,
+    userId: string
+  ): Promise<FileMetadata> => {
+    let fileToProcess: FileMetadata = file
+    if (base.preprocessOrOcrProvider && file.ext.toLowerCase() === '.pdf') {
+      try {
+        let provider: PreprocessProvider | OcrProvider
+        if (base.preprocessOrOcrProvider.type === 'preprocess') {
+          provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
+        } else {
+          provider = new OcrProvider(base.preprocessOrOcrProvider.provider)
+        }
+        // Check if file has already been preprocessed
+        const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
+        if (alreadyProcessed) {
+          logger.debug(`File already preprocess processed, using cached result: ${file.path}`)
+          return alreadyProcessed
+        }
+
+        // Execute preprocessing
+        logger.debug(`Starting preprocess processing for scanned PDF: ${file.path}`)
+        const { processedFile, quota } = await provider.parseFile(item.id, file)
+        fileToProcess = processedFile
+        const mainWindow = windowService.getMainWindow()
+        mainWindow?.webContents.send('file-preprocess-finished', {
+          itemId: item.id,
+          quota: quota
+        })
+      } catch (err) {
+        logger.error(`Preprocess processing failed: ${err}`)
+        // If preprocessing fails, use original file
+        // fileToProcess = file
+        throw new Error(`Preprocess processing failed: ${err}`)
+      }
+    }
+
+    return fileToProcess
+  }
+
+  public checkQuota = async (
+    _: Electron.IpcMainInvokeEvent,
+    base: KnowledgeBaseParams,
+    userId: string
+  ): Promise<number> => {
+    try {
+      if (base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess') {
+        const provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
+        return await provider.checkQuota()
+      }
+      throw new Error('No preprocess provider configured')
+    } catch (err) {
+      logger.error(`Failed to check quota: ${err}`)
+      throw new Error(`Failed to check quota: ${err}`)
+    }
   }
 }
 

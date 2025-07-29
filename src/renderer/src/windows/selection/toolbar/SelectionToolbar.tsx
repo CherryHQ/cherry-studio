@@ -1,5 +1,6 @@
 import '@renderer/assets/styles/selection-toolbar.scss'
 
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -15,11 +16,13 @@ import { useTranslation } from 'react-i18next'
 import { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('SelectionToolbar')
+
 //tell main the actual size of the content
 const updateWindowSize = () => {
   const rootElement = document.getElementById('root')
   if (!rootElement) {
-    console.error('SelectionToolbar: Root element not found')
+    logger.error('Root element not found')
     return
   }
   window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
@@ -107,6 +110,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
 
   // listen to selectionService events
   useEffect(() => {
@@ -115,6 +120,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
+        isFullScreen.current = selectionData.isFullscreen ?? false
         setTimeout(() => {
           //make sure the animation is active
           setAnimateKey((prev) => prev + 1)
@@ -132,8 +138,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         }
       }
     )
-
-    if (!demo) updateWindowSize()
 
     return () => {
       textSelectionListenRemover()
@@ -159,7 +163,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
 
     if (customCss) {
-      const newCustomCss = customCss.replace(/background(-image|-color)?\s*:[^;]+;/gi, '')
+      const newCustomCss = customCss.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
 
       customCssElement = document.createElement('style')
       customCssElement.id = 'user-defined-custom-css'
@@ -234,7 +238,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }
 
   const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()
   }
 
@@ -259,33 +264,36 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 const Container = styled.div`
   display: inline-flex;
   flex-direction: row;
-  align-items: center;
-  border-radius: 6px;
-  background-color: var(--color-selection-toolbar-background);
-  border-color: var(--color-selection-toolbar-border);
-  box-shadow: 0px 2px 3px var(--color-selection-toolbar-shadow);
-  padding: 2px;
-  margin: 2px 3px 5px 3px;
+  align-items: stretch;
+  height: var(--selection-toolbar-height);
+  border-radius: var(--selection-toolbar-border-radius);
+  border: var(--selection-toolbar-border);
+  box-shadow: var(--selection-toolbar-box-shadow);
+  background: var(--selection-toolbar-background);
+  padding: var(--selection-toolbar-padding) !important;
+  margin: var(--selection-toolbar-margin) !important;
   user-select: none;
-  border-width: 1px;
-  border-style: solid;
-  height: 36px;
-  padding-right: 4px;
   box-sizing: border-box;
+  overflow: hidden;
 `
 
 const LogoWrapper = styled.div<{ $draggable: boolean }>`
-  display: flex;
+  display: var(--selection-toolbar-logo-display);
   align-items: center;
   justify-content: center;
-  margin-left: 5px;
-  background-color: transparent;
-  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'}
+  margin: var(--selection-toolbar-logo-margin);
+  padding: var(--selection-toolbar-logo-padding);
+  background-color: var(--selection-toolbar-logo-background);
+  border-width: var(--selection-toolbar-logo-border-width);
+  border-style: var(--selection-toolbar-logo-border-style);
+  border-color: var(--selection-toolbar-logo-border-color);
+  border-radius: var(--selection-toolbar-border-radius) 0 0 var(--selection-toolbar-border-radius);
+  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'};
 `
 
 const Logo = styled(Avatar)`
-  height: 22px;
-  width: 22px;
+  height: var(--selection-toolbar-logo-size);
+  width: var(--selection-toolbar-logo-size);
   &.animate {
     animation: rotate 1s ease;
   }
@@ -310,45 +318,55 @@ const ActionWrapper = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-left: 3px;
   background-color: transparent;
+  border-width: var(--selection-toolbar-buttons-border-width);
+  border-style: var(--selection-toolbar-buttons-border-style);
+  border-color: var(--selection-toolbar-buttons-border-color);
+  border-radius: var(--selection-toolbar-buttons-border-radius);
 `
 const ActionButton = styled.div`
+  height: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin: 0 2px;
-  background-color: transparent;
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 4px 6px;
+  gap: 2px;
+  cursor: pointer !important;
+  margin: var(--selection-toolbar-button-margin);
+  padding: var(--selection-toolbar-button-padding);
+  background-color: var(--selection-toolbar-button-bgcolor);
+  border-radius: var(--selection-toolbar-button-border-radius);
+  border: var(--selection-toolbar-button-border);
+  box-shadow: var(--selection-toolbar-button-box-shadow);
   transition: all 0.1s ease-in-out;
   will-change: color, background-color;
+  &:last-child {
+    border-radius: 0 var(--selection-toolbar-border-radius) var(--selection-toolbar-border-radius) 0;
+    padding: var(--selection-toolbar-button-last-padding);
+  }
 
   .btn-icon {
-    width: 16px;
-    height: 16px;
-    color: var(--color-selection-toolbar-text);
+    width: var(--selection-toolbar-button-icon-size);
+    height: var(--selection-toolbar-button-icon-size);
+    color: var(--selection-toolbar-button-icon-color);
     background-color: transparent;
     transition: color 0.1s ease-in-out;
     will-change: color;
   }
   .btn-title {
-    color: var(--color-selection-toolbar-text);
-    --font-size: 14px;
+    color: var(--selection-toolbar-button-text-color);
     transition: color 0.1s ease-in-out;
     will-change: color;
+    line-height: 1.1;
   }
   &:hover {
-    color: var(--color-primary);
     .btn-icon {
-      color: var(--color-primary);
+      color: var(--selection-toolbar-button-icon-color-hover);
     }
     .btn-title {
-      color: var(--color-primary);
+      color: var(--selection-toolbar-button-text-color-hover);
     }
-    background-color: var(--color-selection-toolbar-hover-bg);
+    background-color: var(--selection-toolbar-button-bgcolor-hover);
   }
 `
 const ActionIcon = styled.div`
@@ -356,8 +374,8 @@ const ActionIcon = styled.div`
   align-items: center;
   justify-content: center;
   position: relative;
-  height: 16px;
-  width: 16px;
+  height: var(--selection-toolbar-button-icon-size);
+  width: var(--selection-toolbar-button-icon-size);
   background-color: transparent;
 
   .btn-icon {
@@ -372,11 +390,11 @@ const ActionIcon = styled.div`
   }
 
   .icon-fail {
-    color: var(--color-error);
+    color: var(--selection-toolbar-color-error);
   }
 
   .icon-success {
-    color: var(--color-primary);
+    color: var(--selection-toolbar-color-primary);
   }
 
   .icon-scale-in {
@@ -436,12 +454,12 @@ const ActionIcon = styled.div`
   }
 `
 const ActionTitle = styled.span`
-  font-size: 14px;
+  font-size: var(--selection-toolbar-font-size);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-left: 3px;
+  margin: var(--selection-toolbar-button-text-margin);
   background-color: transparent;
 `
 

@@ -1,12 +1,12 @@
 import FileManager from '@renderer/services/FileManager'
-import { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import { isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
 
 import { useKnowledgeBases } from './useKnowledge'
 
 export const useKnowledgeFiles = () => {
-  const [knowledgeFiles, setKnowledgeFiles] = useState<FileType[]>([])
+  const [knowledgeFiles, setKnowledgeFiles] = useState<FileMetadata[]>([])
   const { bases, updateKnowledgeBases } = useKnowledgeBases()
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export const useKnowledgeFiles = () => {
       .filter((item) => item.type === 'file')
       .filter((item) => item.processingStatus === 'completed')
 
-    const files = fileItems.map((item) => item.content as FileType)
+    const files = fileItems.map((item) => item.content as FileMetadata)
 
     !isEmpty(files) && setKnowledgeFiles(files)
   }, [bases])
@@ -31,7 +31,7 @@ export const useKnowledgeFiles = () => {
           ? {
               ...item,
               content: {
-                ...(item.content as FileType),
+                ...(item.content as FileMetadata),
                 size: 0
               }
             }

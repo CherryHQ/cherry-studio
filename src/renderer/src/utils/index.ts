@@ -1,8 +1,9 @@
-import Logger from '@renderer/config/logger'
-import { Model } from '@renderer/types'
-import { ModalFuncProps } from 'antd/es/modal/interface'
-// @ts-ignore next-line`
+import { loggerService } from '@logger'
+import { Language, Model, ModelType, Provider } from '@renderer/types'
+import { ModalFuncProps } from 'antd'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('Utils')
 
 /**
  * 异步执行一个函数。
@@ -57,16 +58,6 @@ export const uuid = () => uuidv4()
 
 export function isFreeModel(model: Model) {
   return (model.id + model.name).toLocaleLowerCase().includes('free')
-}
-
-export async function isProduction() {
-  const { isPackaged } = await window.api.getAppInfo()
-  return isPackaged
-}
-
-export async function isDev() {
-  const isProd = await isProduction()
-  return !isProd
 }
 
 /**
@@ -150,7 +141,7 @@ export function hasPath(url: string): boolean {
     const parsedUrl = new URL(url)
     return parsedUrl.pathname !== '/' && parsedUrl.pathname !== ''
   } catch (error) {
-    console.error('Invalid URL:', error)
+    logger.error('Invalid URL:', error as Error)
     return false
   }
 }
@@ -221,15 +212,48 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
         }
       }
     } catch (e) {
-      Logger.log('getMcpConfigSampleFromReadme', e)
+      logger.error('getMcpConfigSampleFromReadme', e as Error)
     }
   }
   return null
 }
 
+/**
+ * 判断是否为 OpenAI 兼容的提供商
+ * @param {Provider} provider 提供商对象
+ * @returns {boolean} 是否为 OpenAI 兼容提供商
+ */
+export function isOpenAIProvider(provider: Provider): boolean {
+  return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
+}
+
+/**
+ * 判断模型是否为用户手动选择
+ * @param {Model} model 模型对象
+ * @param {ModelType} type 模型类型
+ * @returns {boolean} 是否为用户手动选择
+ */
+export function isUserSelectedModelType(model: Model, type: ModelType): boolean | undefined {
+  const t = model.capabilities?.find((t) => t.type === type)
+  return t ? t.isUserSelected : undefined
+}
+
+export function mapLanguageToQwenMTModel(language: Language): string {
+  if (language.langCode === 'zh-cn') {
+    return 'Chinese'
+  }
+  if (language.langCode === 'zh-tw') {
+    return 'Traditional Chinese'
+  }
+  return language.value
+}
+
+export * from './api'
+export * from './collection'
 export * from './file'
 export * from './image'
 export * from './json'
+export * from './match'
 export * from './naming'
 export * from './sort'
 export * from './style'

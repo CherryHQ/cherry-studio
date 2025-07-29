@@ -1,46 +1,45 @@
 <!doctype html>
 <html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' 'unsafe-inline' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
+    <title>Cherry Studio</title>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="initial-scale=1, width=device-width" />
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' 'unsafe-inline' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
-  <title>Cherry Studio</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+      }
 
-  <style>
-    html,
-    body {
-      margin: 0;
-    }
+      #spinner {
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        display: flex;
+      }
 
-    #spinner {
-      position: fixed;
-      width: 100vw;
-      height: 100vh;
-      flex-direction: row;
-      justify-content: center;
-      align-items: center;
-      display: flex;
-    }
+      #spinner img {
+        width: 100px;
+        border-radius: 50px;
+      }
+    </style>
+  </head>
 
-    #spinner img {
-      width: 100px;
-      border-radius: 50px;
-    }
-  </style>
-</head>
-
-<body>
-  <div id="root"></div>
-  <div id="spinner">
-    <img src="/src/assets/images/logo.png" />
-  </div>
-  <script>
-    console.time('init')
-  </script>
-  <script type="module" src="/src/init.ts"></script>
-  <script type="module" src="/src/entryPoint.tsx"></script>
-</body>
-
+  <body>
+    <div id="root"></div>
+    <div id="spinner">
+      <img src="/src/assets/images/logo.png" />
+    </div>
+    <script>
+      console.time('init')
+    </script>
+    <script type="module" src="/src/init.ts"></script>
+    <script type="module" src="/src/entryPoint.tsx"></script>
+  </body>
 </html>

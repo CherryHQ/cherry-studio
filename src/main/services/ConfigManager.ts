@@ -1,4 +1,4 @@
-import { defaultLanguage, FeedUrl, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
@@ -16,14 +16,18 @@ export enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  FeedUrl = 'feedUrl',
+  TestPlan = 'testPlan',
+  TestChannel = 'testChannel',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
   SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
   SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
-  SelectionAssistantFilterList = 'selectionAssistantFilterList'
+  SelectionAssistantFilterList = 'selectionAssistantFilterList',
+  DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  Proxy = 'proxy',
+  EnableDeveloperMode = 'enableDeveloperMode'
 }
 
 export class ConfigManager {
@@ -142,12 +146,20 @@ export class ConfigManager {
     this.set(ConfigKeys.AutoUpdate, value)
   }
 
-  getFeedUrl(): string {
-    return this.get<string>(ConfigKeys.FeedUrl, FeedUrl.PRODUCTION)
+  getTestPlan(): boolean {
+    return this.get<boolean>(ConfigKeys.TestPlan, false)
   }
 
-  setFeedUrl(value: FeedUrl) {
-    this.set(ConfigKeys.FeedUrl, value)
+  setTestPlan(value: boolean) {
+    this.set(ConfigKeys.TestPlan, value)
+  }
+
+  getTestChannel(): UpgradeChannel {
+    return this.get<UpgradeChannel>(ConfigKeys.TestChannel)
+  }
+
+  setTestChannel(value: UpgradeChannel) {
+    this.set(ConfigKeys.TestChannel, value)
   }
 
   getEnableDataCollection(): boolean {
@@ -209,8 +221,24 @@ export class ConfigManager {
     this.setAndNotify(ConfigKeys.SelectionAssistantFilterList, value)
   }
 
+  getDisableHardwareAcceleration(): boolean {
+    return this.get<boolean>(ConfigKeys.DisableHardwareAcceleration, false)
+  }
+
+  setDisableHardwareAcceleration(value: boolean) {
+    this.set(ConfigKeys.DisableHardwareAcceleration, value)
+  }
+
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)
+  }
+
+  getEnableDeveloperMode(): boolean {
+    return this.get<boolean>(ConfigKeys.EnableDeveloperMode, false)
+  }
+
+  setEnableDeveloperMode(value: boolean) {
+    this.set(ConfigKeys.EnableDeveloperMode, value)
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

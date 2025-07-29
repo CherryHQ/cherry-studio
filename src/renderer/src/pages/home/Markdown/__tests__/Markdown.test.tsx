@@ -17,7 +17,11 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => mockUseTranslation()
+  useTranslation: () => mockUseTranslation(),
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  }
 }))
 
 // Mock services

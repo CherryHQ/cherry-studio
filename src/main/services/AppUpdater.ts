@@ -1,30 +1,35 @@
+import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { FeedUrl } from '@shared/config/constant'
+import { generateUserAgent } from '@main/utils/systemInfo'
+import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
-import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
 
+const logger = loggerService.withContext('AppUpdater')
+
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
   private releaseInfo: UpdateInfo | undefined
+  private cancellationToken: CancellationToken = new CancellationToken()
+  private updateCheckResult: UpdateCheckResult | null = null
 
   constructor(mainWindow: BrowserWindow) {
-    logger.transports.file.level = 'info'
-
-    autoUpdater.logger = logger
+    autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
-    autoUpdater.setFeedURL(configManager.getFeedUrl())
+    autoUpdater.requestHeaders = {
+      ...autoUpdater.requestHeaders,
+      'User-Agent': generateUserAgent()
+    }
 
-    // 检测下载错误
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
       logger.error('更新异常', {
@@ -42,6 +47,12 @@ export default class AppUpdater {
 
     // 检测到不需要更新时
     autoUpdater.on('update-not-available', () => {
+      if (configManager.getTestPlan() && this.autoUpdater.channel !== UpgradeChannel.LATEST) {
+        logger.info('test plan is enabled, but update is not available, do not send update not available event')
+        // will not send update not available event, because will check for updates with latest channel
+        return
+      }
+
       mainWindow.webContents.send(IpcChannel.UpdateNotAvailable)
     })
 
@@ -64,6 +75,34 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
+  private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
+    try {
+      logger.info(`get pre release version from github: ${channel}`)
+      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      })
+      const data = (await responses.json()) as GithubReleaseInfo[]
+      const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
+        return item.prerelease && item.tag_name.includes(`-${channel}.`)
+      })
+
+      if (!release) {
+        return null
+      }
+
+      logger.info(`prerelease url is ${release.tag_name}, set channel to ${channel}`)
+
+      return `https://github.com/CherryHQ/cherry-studio/releases/download/${release.tag_name}`
+    } catch (error) {
+      logger.error('Failed to get latest not draft version from github:', error as Error)
+      return null
+    }
+  }
+
   private async _getIpCountry() {
     try {
       // add timeout using AbortController
@@ -83,7 +122,7 @@ export default class AppUpdater {
       const data = await ipinfo.json()
       return data.country || 'CN'
     } catch (error) {
-      logger.error('Failed to get ipinfo:', error)
+      logger.error('Failed to get ipinfo:', error as Error)
       return 'CN'
     }
   }
@@ -93,9 +132,78 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  public setFeedUrl(feedUrl: FeedUrl) {
-    autoUpdater.setFeedURL(feedUrl)
-    configManager.setFeedUrl(feedUrl)
+  private _getChannelByVersion(version: string) {
+    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
+      return UpgradeChannel.BETA
+    }
+    if (version.includes(`-${UpgradeChannel.RC}.`)) {
+      return UpgradeChannel.RC
+    }
+    return UpgradeChannel.LATEST
+  }
+
+  private _getTestChannel() {
+    const currentChannel = this._getChannelByVersion(app.getVersion())
+    const savedChannel = configManager.getTestChannel()
+
+    if (currentChannel === UpgradeChannel.LATEST) {
+      return savedChannel || UpgradeChannel.RC
+    }
+
+    if (savedChannel === currentChannel) {
+      return savedChannel
+    }
+
+    // if the upgrade channel is not equal to the current channel, use the latest channel
+    return UpgradeChannel.LATEST
+  }
+
+  private _setChannel(channel: UpgradeChannel, feedUrl: string) {
+    this.autoUpdater.channel = channel
+    this.autoUpdater.setFeedURL(feedUrl)
+
+    // disable downgrade after change the channel
+    this.autoUpdater.allowDowngrade = false
+    // github and gitcode don't support multiple range download
+    this.autoUpdater.disableDifferentialDownload = true
+  }
+
+  private async _setFeedUrl() {
+    const testPlan = configManager.getTestPlan()
+    if (testPlan) {
+      const channel = this._getTestChannel()
+
+      if (channel === UpgradeChannel.LATEST) {
+        this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
+        return
+      }
+
+      const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
+      if (preReleaseUrl) {
+        logger.info(`prerelease url is ${preReleaseUrl}, set channel to ${channel}`)
+        this._setChannel(channel, preReleaseUrl)
+        return
+      }
+
+      // if no prerelease url, use github latest to avoid error
+      this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
+      return
+    }
+
+    this._setChannel(UpgradeChannel.LATEST, FeedUrl.PRODUCTION)
+    const ipCountry = await this._getIpCountry()
+    logger.info(`ipCountry is ${ipCountry}, set channel to ${UpgradeChannel.LATEST}`)
+    if (ipCountry.toLowerCase() !== 'cn') {
+      this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
+    }
+  }
+
+  public cancelDownload() {
+    this.cancellationToken.cancel()
+    this.cancellationToken = new CancellationToken()
+    if (this.autoUpdater.autoDownload) {
+      this.updateCheckResult?.cancellationToken?.cancel()
+    }
   }
 
   public async checkForUpdates() {
@@ -106,26 +214,38 @@ export default class AppUpdater {
       }
     }
 
-    const ipCountry = await this._getIpCountry()
-    logger.info('ipCountry', ipCountry)
-    if (ipCountry !== 'CN') {
-      this.autoUpdater.setFeedURL(FeedUrl.EARLY_ACCESS)
-    }
-
     try {
-      const update = await this.autoUpdater.checkForUpdates()
-      if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
+      await this._setFeedUrl()
+
+      this.updateCheckResult = await this.autoUpdater.checkForUpdates()
+      logger.info(
+        `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${this.autoUpdater.channel}, currentVersion: ${this.autoUpdater.currentVersion}`
+      )
+
+      // if the update is not available, and the test plan is enabled, set the feed url to the github latest
+      if (
+        !this.updateCheckResult?.isUpdateAvailable &&
+        configManager.getTestPlan() &&
+        this.autoUpdater.channel !== UpgradeChannel.LATEST
+      ) {
+        logger.info('test plan is enabled, but update is not available, set channel to latest')
+        this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
+        this.updateCheckResult = await this.autoUpdater.checkForUpdates()
+      }
+
+      if (this.updateCheckResult?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
-        this.autoUpdater.downloadUpdate()
+        logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
+        this.autoUpdater.downloadUpdate(this.cancellationToken)
       }
 
       return {
         currentVersion: this.autoUpdater.currentVersion,
-        updateInfo: update?.updateInfo
+        updateInfo: this.updateCheckResult?.updateInfo
       }
     } catch (error) {
-      logger.error('Failed to check for update:', error)
+      logger.error('Failed to check for update:', error as Error)
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
@@ -178,7 +298,11 @@ export default class AppUpdater {
     return releaseNotes.map((note) => note.note).join('\n')
   }
 }
-
+interface GithubReleaseInfo {
+  draft: boolean
+  prerelease: boolean
+  tag_name: string
+}
 interface ReleaseNoteInfo {
   readonly version: string
   readonly note: string | null

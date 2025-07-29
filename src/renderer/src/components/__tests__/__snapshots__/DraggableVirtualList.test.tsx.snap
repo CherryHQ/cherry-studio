@@ -1,0 +1,91 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DraggableVirtualList > snapshot > should match snapshot with custom styles 1`] = `
+<div>
+  <div
+    class="custom-class draggable-virtual-list"
+    style="height: 100%; border: 1px solid red;"
+  >
+    <div
+      data-testid="drag-drop-context"
+    >
+      <div
+        data-testid="droppable"
+      >
+        <div
+          style="background: blue;"
+        >
+          <div>
+            Item A
+          </div>
+        </div>
+        <div
+          class="virtual-scroller"
+          data-testid="scrollbar"
+          style="height: 100%; width: 100%; overflow-y: auto; position: relative;"
+        >
+          <div
+            class="virtual-list"
+            style="height: 150px; width: 100%; position: relative;"
+          >
+            <div
+              data-testid="draggable-0-0"
+            >
+              <div
+                class="draggable-item"
+                data-index="0"
+                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(0px);"
+              >
+                <div
+                  class="draggable-content"
+                  style="background: blue;"
+                >
+                  <div>
+                    Item A
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              data-testid="draggable-1-1"
+            >
+              <div
+                class="draggable-item"
+                data-index="1"
+                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(50px);"
+              >
+                <div
+                  class="draggable-content"
+                  style="background: blue;"
+                >
+                  <div>
+                    Item B
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              data-testid="draggable-2-2"
+            >
+              <div
+                class="draggable-item"
+                data-index="2"
+                style="position: absolute; top: 0px; left: 0px; width: 100%; transform: translateY(100px);"
+              >
+                <div
+                  class="draggable-content"
+                  style="background: blue;"
+                >
+                  <div>
+                    Item C
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

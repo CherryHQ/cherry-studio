@@ -17,7 +17,8 @@ const LMStudioSettings: FC = () => {
       <InputNumber
         style={{ width: '100%' }}
         value={keepAliveMinutes}
-        onChange={(e) => setKeepAliveMinutes(Number(e))}
+        min={0}
+        onChange={(e) => setKeepAliveMinutes(Math.floor(Number(e)))}
         onBlur={() => setKeepAliveTime(keepAliveMinutes)}
         suffix={t('lmstudio.keep_alive_time.placeholder')}
         step={5}

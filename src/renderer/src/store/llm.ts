@@ -79,7 +79,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
     name: 'PPIO',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.ppinfra.com/v3/openai',
+    apiHost: 'https://api.ppinfra.com/v3/openai/',
     models: SYSTEM_MODELS.ppio,
     isSystem: true,
     enabled: false
@@ -165,6 +165,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'ph8',
+    name: 'PH8',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ph8.co',
+    models: SYSTEM_MODELS.ph8,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     type: 'openai',
@@ -181,6 +191,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'http://localhost:11434',
     models: SYSTEM_MODELS.ollama,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'new-api',
+    name: 'New API',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:3000',
+    models: SYSTEM_MODELS['new-api'],
     isSystem: true,
     enabled: false
   },
@@ -217,7 +237,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'azure-openai',
     name: 'Azure OpenAI',
-    type: 'openai',
+    type: 'azure-openai',
     apiKey: '',
     apiHost: '',
     apiVersion: '',
@@ -594,8 +614,11 @@ const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
-    updateProvider: (state, action: PayloadAction<Provider>) => {
-      state.providers = state.providers.map((p) => (p.id === action.payload.id ? { ...p, ...action.payload } : p))
+    updateProvider: (state, action: PayloadAction<Partial<Provider> & { id: string }>) => {
+      const index = state.providers.findIndex((p) => p.id === action.payload.id)
+      if (index !== -1) {
+        Object.assign(state.providers[index], action.payload)
+      }
     },
     updateProviders: (state, action: PayloadAction<Provider[]>) => {
       state.providers = action.payload

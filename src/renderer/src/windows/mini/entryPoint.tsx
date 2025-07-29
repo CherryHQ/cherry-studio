@@ -2,10 +2,13 @@ import '@renderer/assets/styles/index.scss'
 import '@ant-design/v5-patch-for-react-19'
 
 import KeyvStorage from '@kangfenmao/keyv-storage'
+import { loggerService } from '@logger'
 import storeSyncService from '@renderer/services/StoreSyncService'
 import { createRoot } from 'react-dom/client'
 
 import MiniWindowApp from './MiniWindowApp'
+
+loggerService.initWindowSource('MiniWindow')
 
 /**
  *  This function is required for model API

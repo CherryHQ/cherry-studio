@@ -5,9 +5,24 @@ import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
 import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { uuid } from '@renderer/utils'
-import { DmxapiPainting } from '@types'
+import { t } from 'i18next'
 
-import { generationModeType } from '../../../types'
+import { DmxapiPainting, generationModeType } from '../../../types'
+
+// 模型数据类型
+export type DMXApiModelData = {
+  id: string
+  provider: string
+  name: string
+  price: string
+}
+
+// 模型分组类型
+export type DMXApiModelGroups = {
+  TEXT_TO_IMAGES?: Record<string, DMXApiModelData[]>
+  IMAGE_EDIT?: Record<string, DMXApiModelData[]>
+  IMAGE_MERGE?: Record<string, DMXApiModelData[]>
+}
 
 export const STYLE_TYPE_OPTIONS = [
   { label: '吉卜力', value: '吉卜力' },
@@ -37,30 +52,6 @@ export const STYLE_TYPE_OPTIONS = [
   { label: '迷幻', value: '迷幻' },
   { label: '国风工笔', value: '国风工笔' },
   { label: '巴洛克', value: '巴洛克' }
-]
-
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'seedream-3.0',
-    provider: 'DMXAPI',
-    name: ' 即梦 seedream-3.0'
-  }
-]
-
-export const IMAGE_EDIT_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
-  }
-]
-
-export const IMAGE_MERGE_MODELS = [
-  {
-    id: 'gpt-image-1',
-    provider: 'DMXAPI',
-    name: 'OpenAI：gpt-image-1'
-  }
 ]
 
 export const IMAGE_SIZES = [
@@ -108,7 +99,7 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
   n: 1,
   seed: '',
   style_type: '',
-  model: TEXT_TO_IMAGES_MODELS[0].id,
+  model: '', // 将在运行时动态设置
   autoCreate: false,
   generationMode: generationModeType.GENERATION
 }
@@ -118,3 +109,25 @@ export const MODEOPTIONS = [
   { label: '改图', value: generationModeType.EDIT },
   { label: '合并图', value: generationModeType.MERGE }
 ]
+
+// 获取模型分组数据
+export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
+  try {
+    const response = await fetch('https://dmxapi.cn/cherry_painting_models.json')
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (data) {
+        return data
+      }
+    }
+  } catch {
+    /* empty */
+  }
+  window.message.error({
+    content: t('paintings.req_error_model')
+  })
+
+  return {}
+}

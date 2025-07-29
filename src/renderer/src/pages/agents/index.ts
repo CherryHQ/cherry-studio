@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
 import { Agent } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useSystemAgents')
 
 let _agents: Agent[] = []
 
@@ -41,7 +44,7 @@ export function useSystemAgents() {
             setAgents(agentsData)
             return
           } catch (error) {
-            console.error('Failed to load remote agents:', error)
+            logger.error('Failed to load remote agents:', error as Error)
             // 远程加载失败，继续尝试加载本地数据
           }
         }
@@ -66,7 +69,7 @@ export function useSystemAgents() {
 
         setAgents(_agents)
       } catch (error) {
-        console.error('Failed to load agents:', error)
+        logger.error('Failed to load agents:', error as Error)
         // 发生错误时使用已加载的本地 agents
         setAgents(_agents)
       }

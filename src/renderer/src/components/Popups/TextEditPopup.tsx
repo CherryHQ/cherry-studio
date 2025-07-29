@@ -1,8 +1,10 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Modal, ModalProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { TextAreaProps } from 'antd/lib/input'
@@ -13,6 +15,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('TextEditPopup')
 
 interface ShowParams {
   text: string
@@ -111,13 +115,13 @@ const PopupContainer: React.FC<Props> = ({
     }
 
     try {
-      const assistant = getDefaultTranslateAssistant(targetLanguage, textValue)
+      const assistant = getDefaultTranslateAssistant(getLanguageByLangcode(targetLanguage), textValue)
       const translatedText = await fetchTranslate({ content: textValue, assistant })
       if (isMounted.current) {
         setTextValue(translatedText)
       }
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

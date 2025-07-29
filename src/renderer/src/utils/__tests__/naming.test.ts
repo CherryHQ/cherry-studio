@@ -8,6 +8,7 @@ import {
   getDefaultGroupName,
   getFirstCharacter,
   getLeadingEmoji,
+  getLowerBaseModelName,
   isEmoji,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName
@@ -187,6 +188,35 @@ describe('naming', () => {
       // 验证连续分隔符的情况
       expect(getBaseModelName('model//name')).toBe('name')
       expect(getBaseModelName('model///name')).toBe('name')
+    })
+  })
+
+  describe('getLowerBaseModelName', () => {
+    it('should convert base model name to lowercase', () => {
+      // 验证将基础模型名称转换为小写
+      expect(getLowerBaseModelName('DeepSeek/DeepSeek-R1')).toBe('deepseek-r1')
+      expect(getLowerBaseModelName('openai/GPT-4.1')).toBe('gpt-4.1')
+      expect(getLowerBaseModelName('Anthropic/Claude-3.5-Sonnet')).toBe('claude-3.5-sonnet')
+    })
+
+    it('should handle multiple levels of paths', () => {
+      // 验证处理多层路径
+      expect(getLowerBaseModelName('Pro/DeepSeek-AI/DeepSeek-R1')).toBe('deepseek-r1')
+      expect(getLowerBaseModelName('Org/Team/Group/Model')).toBe('model')
+    })
+
+    it('should return lowercase original id if no delimiter found', () => {
+      // 验证没有分隔符时返回小写原始ID
+      expect(getLowerBaseModelName('DeepSeek-R1')).toBe('deepseek-r1')
+      expect(getLowerBaseModelName('GPT-4:Free')).toBe('gpt-4:free')
+    })
+
+    it('should handle edge cases', () => {
+      // 验证边缘情况
+      expect(getLowerBaseModelName('')).toBe('')
+      expect(getLowerBaseModelName('Model/')).toBe('')
+      expect(getLowerBaseModelName('/Model')).toBe('model')
+      expect(getLowerBaseModelName('Model//Name')).toBe('name')
     })
   })
 

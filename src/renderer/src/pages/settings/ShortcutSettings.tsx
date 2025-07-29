@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import { Shortcut } from '@renderer/types'
@@ -24,7 +25,7 @@ const ShortcutSettings: FC = () => {
 
   //if shortcut is not available on all the platforms, block the shortcut here
   let shortcuts = originalShortcuts
-  if (!isWin) {
+  if (!isWin && !isMac) {
     //Selection Assistant only available on Windows now
     const excludedShortcuts = ['selection_assistant_toggle', 'selection_assistant_select_text']
     shortcuts = shortcuts.filter((s) => !excludedShortcuts.includes(s.key))
@@ -64,8 +65,14 @@ const ShortcutSettings: FC = () => {
   }
 
   const isValidShortcut = (keys: string[]): boolean => {
-    const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
-    const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+    // const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+    // const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+
+    // NEW WAY FOR MODIFIER KEYS
+    const hasModifier = keys.some((key) => ['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
+    const hasNonModifier = keys.some((key) => !['CommandOrControl', 'Ctrl', 'Alt', 'Meta', 'Shift'].includes(key))
+
     const hasFnKey = keys.some((key) => /^F\d+$/.test(key))
 
     return (hasModifier && hasNonModifier && keys.length >= 2) || hasFnKey
@@ -77,22 +84,44 @@ const ShortcutSettings: FC = () => {
     )
   }
 
+  // how the shortcut is displayed in the UI
   const formatShortcut = (shortcut: string[]): string => {
     return shortcut
       .map((key) => {
         switch (key) {
-          case 'Control':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Ctrl':
-            return isMac ? '⌃' : 'Ctrl'
-          case 'Command':
-            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
-          case 'Alt':
-            return isMac ? '⌥' : 'Alt'
-          case 'Shift':
-            return isMac ? '⇧' : 'Shift'
+          // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+          // case 'Control':
+          //   return isMac ? '⌃' : 'Ctrl'
+          // case 'Ctrl':
+          //   return isMac ? '⌃' : 'Ctrl'
+          // case 'Command':
+          //   return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+          // case 'Alt':
+          //   return isMac ? '⌥' : 'Alt'
+          // case 'Shift':
+          //   return isMac ? '⇧' : 'Shift'
+          // case 'CommandOrControl':
+          //   return isMac ? '⌘' : 'Ctrl'
+
+          // new way for modifier keys
           case 'CommandOrControl':
             return isMac ? '⌘' : 'Ctrl'
+          case 'Ctrl':
+            return isMac ? '⌃' : 'Ctrl'
+          case 'Alt':
+            return isMac ? '⌥' : 'Alt'
+          case 'Meta':
+            return isMac ? '⌘' : isWin ? 'Win' : 'Super'
+          case 'Shift':
+            return isMac ? '⇧' : 'Shift'
+
+          // for backward compatibility with old data
+          case 'Command':
+          case 'Cmd':
+            return isMac ? '⌘' : 'Ctrl'
+          case 'Control':
+            return isMac ? '⌃' : 'Ctrl'
+
           case 'ArrowUp':
             return '↑'
           case 'ArrowDown':
@@ -239,10 +268,21 @@ const ShortcutSettings: FC = () => {
     e.preventDefault()
 
     const keys: string[] = []
-    if (e.ctrlKey) keys.push(isMac ? 'Control' : 'Ctrl')
-    if (e.metaKey) keys.push('Command')
+
+    // OLD WAY FOR MODIFIER KEYS, KEEP THEM HERE FOR REFERENCE
+    // if (e.ctrlKey) keys.push(isMac ? 'Control' : 'Ctrl')
+    // if (e.metaKey) keys.push('Command')
+    // if (e.altKey) keys.push('Alt')
+    // if (e.shiftKey) keys.push('Shift')
+
+    // NEW WAY FOR MODIFIER KEYS
+    // for capability across platforms, we transform the modifier keys to the really meaning keys
+    // mainly consider the habit of users on different platforms
+    if (e.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl') // for win&linux, ctrl key is almost the same as command key in macOS
     if (e.altKey) keys.push('Alt')
+    if (e.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta') // for macOS, meta(Command) key is almost the same as Ctrl key in win&linux
     if (e.shiftKey) keys.push('Shift')
+
     const endKey = usableEndKeys(e)
     if (endKey) {
       keys.push(endKey)
@@ -268,14 +308,15 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  // 由于启用了showHeader = false，不再需要title字段
   const columns: ColumnsType<Shortcut> = [
     {
-      title: t('settings.shortcuts.action'),
+      // title: t('settings.shortcuts.action'),
       dataIndex: 'name',
       key: 'name'
     },
     {
-      title: t('settings.shortcuts.key'),
+      // title: t('settings.shortcuts.label'),
       dataIndex: 'shortcut',
       key: 'shortcut',
       align: 'right',
@@ -315,7 +356,7 @@ const ShortcutSettings: FC = () => {
       }
     },
     {
-      title: t('settings.shortcuts.actions'),
+      // title: t('settings.shortcuts.actions'),
       key: 'actions',
       align: 'right',
       width: '70px',
@@ -343,7 +384,7 @@ const ShortcutSettings: FC = () => {
       )
     },
     {
-      title: t('settings.shortcuts.enabled'),
+      // title: t('settings.shortcuts.enabled'),
       key: 'enabled',
       align: 'right',
       width: '50px',
@@ -360,7 +401,7 @@ const ShortcutSettings: FC = () => {
         <SettingDivider style={{ marginBottom: 0 }} />
         <Table
           columns={columns as ColumnsType<unknown>}
-          dataSource={shortcuts.map((s) => ({ ...s, name: t(`settings.shortcuts.${s.key}`) }))}
+          dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
           pagination={false}
           size="middle"
           showHeader={false}

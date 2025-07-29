@@ -16,6 +16,8 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
   - Only accepts documentation updates and bug fixes
   - Thoroughly tested before production deployment
 
+For details about the `testplan` branch used in the Test Plan, please refer to the [Test Plan](testplan-en.md).
+
 ## Contributing Branches
 
 When contributing to Cherry Studio, please follow these guidelines:

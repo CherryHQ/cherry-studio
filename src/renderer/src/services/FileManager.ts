@@ -1,18 +1,20 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
 
+const logger = loggerService.withContext('FileManager')
+
 class FileManager {
-  static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileType[] | null> {
+  static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
     const files = await window.api.file.select(options)
     return files
   }
 
-  static async addFile(file: FileType): Promise<FileType> {
+  static async addFile(file: FileMetadata): Promise<FileMetadata> {
     const fileRecord = await db.files.get(file.id)
 
     if (fileRecord) {
@@ -25,22 +27,22 @@ class FileManager {
     return file
   }
 
-  static async addFiles(files: FileType[]): Promise<FileType[]> {
+  static async addFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
-  static async readBinaryImage(file: FileType): Promise<Buffer> {
+  static async readBinaryImage(file: FileMetadata): Promise<Buffer> {
     const fileData = await window.api.file.binaryImage(file.id + file.ext)
     return fileData.data
   }
 
-  static async readBase64File(file: FileType): Promise<string> {
+  static async readBase64File(file: FileMetadata): Promise<string> {
     const fileData = await window.api.file.base64File(file.id + file.ext)
     return fileData.data
   }
 
-  static async addBase64File(file: FileType): Promise<FileType> {
-    Logger.log(`[FileManager] Adding base64 file: ${JSON.stringify(file)}`)
+  static async addBase64File(file: FileMetadata): Promise<FileMetadata> {
+    logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
     const base64File = await window.api.file.base64File(file.id + file.ext)
     const fileRecord = await db.files.get(base64File.id)
@@ -55,10 +57,11 @@ class FileManager {
     return base64File
   }
 
-  static async uploadFile(file: FileType): Promise<FileType> {
-    Logger.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
+  static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
+    logger.info(`Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
+    logger.info('Uploaded file:', uploadFile)
     const fileRecord = await db.files.get(uploadFile.id)
 
     if (fileRecord) {
@@ -71,11 +74,11 @@ class FileManager {
     return uploadFile
   }
 
-  static async uploadFiles(files: FileType[]): Promise<FileType[]> {
+  static async uploadFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
     return Promise.all(files.map((file) => this.uploadFile(file)))
   }
 
-  static async getFile(id: string): Promise<FileType | undefined> {
+  static async getFile(id: string): Promise<FileMetadata | undefined> {
     const file = await db.files.get(id)
 
     if (file) {
@@ -86,7 +89,7 @@ class FileManager {
     return file
   }
 
-  static getFilePath(file: FileType) {
+  static getFilePath(file: FileMetadata) {
     const filesPath = store.getState().runtime.filesPath
     return filesPath + '/' + file.id + file.ext
   }
@@ -94,7 +97,7 @@ class FileManager {
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
-    Logger.log('[FileManager] Deleting file:', file)
+    logger.info('Deleting file:', file)
 
     if (!file) {
       return
@@ -112,32 +115,32 @@ class FileManager {
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      Logger.error('[FileManager] Failed to delete file:', error)
+      logger.error('Failed to delete file:', error as Error)
     }
   }
 
-  static async deleteFiles(files: FileType[]): Promise<void> {
+  static async deleteFiles(files: FileMetadata[]): Promise<void> {
     await Promise.all(files.map((file) => this.deleteFile(file.id)))
   }
 
-  static async allFiles(): Promise<FileType[]> {
+  static async allFiles(): Promise<FileMetadata[]> {
     return db.files.toArray()
   }
 
-  static isDangerFile(file: FileType) {
+  static isDangerFile(file: FileMetadata) {
     return ['.sh', '.bat', '.cmd', '.ps1', '.vbs', 'reg'].includes(file.ext)
   }
 
-  static getSafePath(file: FileType) {
+  static getSafePath(file: FileMetadata) {
     return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 
-  static getFileUrl(file: FileType) {
+  static getFileUrl(file: FileMetadata) {
     const filesPath = store.getState().runtime.filesPath
     return 'file://' + filesPath + '/' + file.name
   }
 
-  static async updateFile(file: FileType) {
+  static async updateFile(file: FileMetadata) {
     if (!file.origin_name.includes(file.ext)) {
       file.origin_name = file.origin_name + file.ext
     }
@@ -145,7 +148,7 @@ class FileManager {
     await db.files.update(file.id, file)
   }
 
-  static formatFileName(file: FileType) {
+  static formatFileName(file: FileMetadata) {
     if (!file || !file.origin_name) {
       return ''
     }

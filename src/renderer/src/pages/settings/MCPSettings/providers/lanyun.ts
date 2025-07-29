@@ -1,5 +1,8 @@
+import { loggerService } from '@logger'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
+
+const logger = loggerService.withContext('TokenLanYunSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'tokenLanyunToken'
@@ -122,7 +125,7 @@ export const syncTokenLanYunServers = async (
 
     // Transform Token servers to MCP servers format
     const addedServers: MCPServer[] = []
-    console.log('TokenLanYun servers:', servers)
+    logger.debug('TokenLanYun servers:', servers)
     for (const server of servers) {
       try {
         if (!server.operationalUrls?.[0]?.url) continue
@@ -157,7 +160,7 @@ export const syncTokenLanYunServers = async (
 
         addedServers.push(mcpServer)
       } catch (err) {
-        console.error('Error processing LanYun server:', err)
+        logger.error('Error processing LanYun server:', err as Error)
       }
     }
 
@@ -167,7 +170,7 @@ export const syncTokenLanYunServers = async (
       addedServers
     }
   } catch (error) {
-    console.error('TokenLanyun sync error:', error)
+    logger.error('TokenLanyun sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

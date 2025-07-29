@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
@@ -6,6 +7,8 @@ import { isAbortError } from '@renderer/utils/error'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
+
+const logger = loggerService.withContext('LocalSearchProvider')
 
 export interface SearchItem {
   title: string
@@ -55,11 +58,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
         // Logger.log(`Fetching content for ${item.url}...`)
-        const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, httpOptions)
-        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
-          result.content = result.content.slice(0, websearch.contentLimit) + '...'
-        }
-        return result
+        return await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, httpOptions)
       })
 
       // Wait for all fetches to complete
@@ -73,7 +72,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       if (isAbortError(error)) {
         throw error
       }
-      console.error('Local search failed:', error)
+      logger.error('Local search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       await window.api.searchService.closeSearchWindow(uid)

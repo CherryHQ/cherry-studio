@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { PaintingProvider } from '@renderer/types'
@@ -6,10 +7,13 @@ import { Route, Routes, useParams } from 'react-router-dom'
 
 import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
+import NewApiPage from './NewApiPage'
 import SiliconPage from './SiliconPage'
 import TokenFluxPage from './TokenFluxPage'
 
-const Options = ['aihubmix', 'silicon', 'dmxapi', 'tokenflux']
+const logger = loggerService.withContext('PaintingsRoutePage')
+
+const Options = ['aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'new-api']
 
 const PaintingsRoutePage: FC = () => {
   const params = useParams()
@@ -17,7 +21,7 @@ const PaintingsRoutePage: FC = () => {
   const dispatch = useAppDispatch()
 
   useEffect(() => {
-    console.debug('defaultPaintingProvider', provider)
+    logger.debug(`defaultPaintingProvider: ${provider}`)
     if (provider && Options.includes(provider)) {
       dispatch(setDefaultPaintingProvider(provider as PaintingProvider))
     }
@@ -30,6 +34,7 @@ const PaintingsRoutePage: FC = () => {
       <Route path="/silicon" element={<SiliconPage Options={Options} />} />
       <Route path="/dmxapi" element={<DmxapiPage Options={Options} />} />
       <Route path="/tokenflux" element={<TokenFluxPage Options={Options} />} />
+      <Route path="/new-api" element={<NewApiPage Options={Options} />} />
     </Routes>
   )
 }

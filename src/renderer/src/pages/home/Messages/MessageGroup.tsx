@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -11,6 +12,7 @@ import { Popover } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
+import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
@@ -24,12 +26,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
+  const messageLength = messages.length
 
-  const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
+  const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
 
-  const messageLength = messages.length
+  // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
+  const multiModelMessageStyle = useMemo(
+    () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
+    [_multiModelMessageStyle, messageLength]
+  )
+
   const prevMessageLengthRef = useRef(messageLength)
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
@@ -172,7 +180,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
           key={message.id}
           className={classNames([
             {
-              [multiModelMessageStyle]: message.role === 'assistant',
+              [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
               selected: message.id === selectedMessageId
             }
           ])}>
@@ -190,7 +198,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                 className={classNames([
                   'in-popover',
                   {
-                    [multiModelMessageStyle]: message.role === 'assistant',
+                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
                     selected: message.id === selectedMessageId
                   }
                 ])}>
@@ -209,14 +217,17 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, selectedMessageId, gridPopoverTrigger]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
   )
+
+  const maxWidth = useChatMaxWidth()
 
   return (
     <MessageEditingProvider>
       <GroupContainer
         id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
+        style={{ maxWidth }}>
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
@@ -244,6 +255,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 }
 
 const GroupContainer = styled.div`
+  [navbar-position='left'] & {
+    max-width: calc(100vw - var(--sidebar-width) - var(--assistants-width) - 20px);
+  }
   &.horizontal,
   &.grid {
     padding: 4px 10px;
@@ -257,14 +271,14 @@ const GroupContainer = styled.div`
   }
 `
 
-const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
+const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
   overflow-y: visible;
   gap: 16px;
   &.horizontal {
     padding-bottom: 4px;
-    grid-template-columns: repeat(${({ $count }) => $count}, minmax(480px, 1fr));
+    grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
     overflow-x: auto;
   }
   &.fold,
@@ -283,6 +297,9 @@ const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
+    .grid {
+      height: auto;
+    }
     .message {
       border: 0.5px solid var(--color-border);
       border-radius: 10px;
@@ -304,12 +321,15 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
+    padding-right: 1px;
     overflow-y: auto;
     .message {
+      height: 100%;
       border: 0.5px solid var(--color-border);
       border-radius: 10px;
     }
     .message-content-container {
+      flex: 1;
       padding-left: 0;
       max-height: calc(100vh - 350px);
       overflow-y: auto !important;
@@ -327,6 +347,20 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;
+    .message {
+      height: 100%;
+    }
+    .message-content-container {
+      overflow: hidden;
+      padding-left: 0;
+      flex: 1;
+      pointer-events: none;
+    }
+    .MessageFooter {
+      margin-left: 0;
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
   }
   &.in-popover {
     height: auto;
@@ -336,6 +370,7 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     cursor: default;
     .message-content-container {
       padding-left: 0;
+      pointer-events: auto;
     }
     .MessageFooter {
       margin-left: 0;

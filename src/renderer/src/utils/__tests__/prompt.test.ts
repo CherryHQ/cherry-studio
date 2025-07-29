@@ -1,204 +1,258 @@
-import type { MCPTool } from '@renderer/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { configureStore } from '@reduxjs/toolkit'
+import { type Assistant, type MCPTool, type Model } from '@renderer/types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AvailableTools, buildSystemPrompt, containsSupportedVariables, promptVariableReplacer } from '../prompt'
-
-// 直接 mock store，避免复杂的 hooks 依赖链
-const mockStore = vi.hoisted(() => ({
-  getState: vi.fn()
-}))
-
-vi.mock('@renderer/store', () => ({
-  default: mockStore
-}))
+import {
+  AvailableTools,
+  buildSystemPrompt,
+  buildSystemPromptWithThinkTool,
+  buildSystemPromptWithTools,
+  SYSTEM_PROMPT,
+  THINK_TOOL_PROMPT,
+  ToolUseExamples
+} from '../prompt'
 
 // Mock window.api
-const mockWindowApi = {
+const mockApi = {
   system: {
-    getDeviceType: vi.fn().mockResolvedValue('Windows')
+    getDeviceType: vi.fn()
   },
-  getAppInfo: vi.fn().mockResolvedValue({ arch: 'x64' })
+  getAppInfo: vi.fn()
 }
 
+vi.mock('@renderer/store', () => {
+  const mockStore = configureStore({
+    reducer: {
+      settings: (
+        state = {
+          language: 'zh-CN',
+          userName: 'MockUser'
+        }
+      ) => state
+    }
+  })
+  return {
+    default: mockStore,
+    __esModule: true
+  }
+})
+
+// Helper to create a mock MCPTool
+const createMockTool = (id: string, description: string, inputSchema: any = {}): MCPTool => ({
+  id,
+  serverId: 'test-server',
+  serverName: 'Test Server',
+  name: id,
+  description,
+  inputSchema: {
+    type: 'object',
+    title: `${id}-schema`,
+    properties: {},
+    ...inputSchema
+  }
+})
+
+// Helper to create a mock Assistant
+const createMockAssistant = (name: string, modelName: string): Assistant => ({
+  id: 'asst_mock_123',
+  name,
+  prompt: 'You are a helpful assistant.',
+  topics: [],
+  type: 'assistant',
+  model: {
+    id: modelName,
+    name: modelName,
+    provider: 'mock'
+  } as unknown as Model
+})
+
+// 设置全局 mocks
 Object.defineProperty(window, 'api', {
-  value: mockWindowApi,
-  configurable: true
+  value: mockApi,
+  writable: true
 })
 
 describe('prompt', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  const mockDate = new Date('2024-01-01T12:00:00Z')
 
-    // 设置默认 mock store state
-    mockStore.getState.mockReturnValue({
-      settings: {
-        userName: 'TestUser',
-        language: 'en-US'
-      },
-      llm: {
-        defaultModel: {
-          name: 'default-model'
-        }
-      }
-    })
+  beforeEach(() => {
+    // 重置所有 mocks
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(mockDate)
+
+    // 设置默认的 mock 返回值
+    mockApi.system.getDeviceType.mockResolvedValue('macOS')
+    mockApi.getAppInfo.mockResolvedValue({ arch: 'darwin64' })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
   })
 
   describe('AvailableTools', () => {
-    it('should generate XML format for tools', () => {
-      const tools = [
-        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
-      ]
+    it('should generate XML format for tools with strict equality', () => {
+      const tools = [createMockTool('test-tool', 'Test tool description')]
       const result = AvailableTools(tools)
+      const expectedXml = `<tools>
 
-      expect(result).toContain('<tools>')
-      expect(result).toContain('</tools>')
-      expect(result).toContain('<tool>')
-      expect(result).toContain('test-tool')
-      expect(result).toContain('Test tool description')
-      expect(result).toContain('{"type":"object"}')
+<tool>
+  <name>test-tool</name>
+  <description>Test tool description</description>
+  <arguments>
+    {"type":"object","title":"test-tool-schema","properties":{}}
+  </arguments>
+</tool>
+
+</tools>`
+      expect(result).toEqual(expectedXml)
     })
 
-    it('should handle empty tools array', () => {
+    it('should handle empty tools array and return just the container tags', () => {
       const result = AvailableTools([])
+      const expectedXml = `<tools>
 
-      expect(result).toContain('<tools>')
-      expect(result).toContain('</tools>')
-      expect(result).not.toContain('<tool>')
+</tools>`
+      expect(result).toEqual(expectedXml)
     })
   })
 
   describe('buildSystemPrompt', () => {
-    it('should build prompt with tools', async () => {
-      const userPrompt = 'Custom user system prompt'
-      const tools = [
-        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
-      ]
-      const result = await buildSystemPrompt(userPrompt, tools)
-
-      expect(result).toContain(userPrompt)
-      expect(result).toContain('test-tool')
-      expect(result).toContain('Test tool description')
+    it('should replace all variables correctly with strict equality', async () => {
+      const userPrompt = `
+以下是一些辅助信息:
+  - 日期和时间: {{datetime}};
+  - 操作系统: {{system}};
+  - 中央处理器架构: {{arch}};
+  - 语言: {{language}};
+  - 模型名称: {{model_name}};
+  - 用户名称: {{username}};
+`
+      const assistant = createMockAssistant('MyAssistant', 'Super-Model-X')
+      const result = await buildSystemPrompt(userPrompt, assistant)
+      const expectedPrompt = `
+以下是一些辅助信息:
+  - 日期和时间: ${mockDate.toLocaleString()};
+  - 操作系统: macOS;
+  - 中央处理器架构: darwin64;
+  - 语言: zh-CN;
+  - 模型名称: Super-Model-X;
+  - 用户名称: MockUser;
+`
+      expect(result).toEqual(expectedPrompt)
     })
 
-    it('should return user prompt without tools', async () => {
-      const userPrompt = 'Custom user system prompt'
-      const result = await buildSystemPrompt(userPrompt, [])
+    it('should handle API errors gracefully and use fallback values', async () => {
+      mockApi.system.getDeviceType.mockRejectedValue(new Error('API Error'))
+      mockApi.getAppInfo.mockRejectedValue(new Error('API Error'))
 
-      expect(result).toBe(userPrompt)
+      const userPrompt = 'System: {{system}}, Architecture: {{arch}}'
+      const result = await buildSystemPrompt(userPrompt)
+      const expectedPrompt = 'System: Unknown System, Architecture: Unknown Architecture'
+      expect(result).toEqual(expectedPrompt)
     })
 
-    it('should handle null or undefined user prompt', async () => {
-      const tools = [
-        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
-      ]
-
-      // 测试 userPrompt 为 null 的情况
-      const resultNull = buildSystemPrompt(null as any, tools)
-      expect(resultNull).toBeDefined()
-      expect(resultNull).not.toContain('{{ USER_SYSTEM_PROMPT }}')
-
-      // 测试 userPrompt 为 undefined 的情况
-      const resultUndefined = buildSystemPrompt(undefined as any, tools)
-      expect(resultUndefined).toBeDefined()
-      expect(resultUndefined).not.toContain('{{ USER_SYSTEM_PROMPT }}')
-    })
-  })
-
-  describe('promptVariableReplacer', () => {
-    it('should replace store-based variables', async () => {
-      const prompt = 'User: {{username}}, Language: {{language}}'
-      const result = await promptVariableReplacer(prompt)
-      expect(result).toBe('User: TestUser, Language: en-US')
-    })
-
-    it('should replace date/time variables', async () => {
-      const prompt = 'Date: {{date}}, Time: {{time}}, DateTime: {{datetime}}'
-      const result = await promptVariableReplacer(prompt)
-
-      // 验证变量被替换，而不需要检查具体格式
-      expect(result).not.toContain('{{date}}')
-      expect(result).not.toContain('{{time}}')
-      expect(result).not.toContain('{{datetime}}')
-    })
-
-    it('should replace system info variables', async () => {
-      const prompt = 'System: {{system}}, Arch: {{arch}}'
-      const result = await promptVariableReplacer(prompt)
-
-      expect(result).toBe('System: Windows, Arch: x64')
-      expect(mockWindowApi.system.getDeviceType).toHaveBeenCalled()
-      expect(mockWindowApi.getAppInfo).toHaveBeenCalled()
-    })
-
-    it('should handle model_name variable', async () => {
-      // 测试提供 modelName 参数
-      let result = await promptVariableReplacer('Model: {{model_name}}', 'gpt-4')
-      expect(result).toBe('Model: gpt-4')
-
-      // 测试使用默认 model
-      result = await promptVariableReplacer('Model: {{model_name}}')
-      expect(result).toBe('Model: default-model')
-    })
-
-    it('should handle multiple variables without double-processing', async () => {
-      const prompt = 'User {{username}} uses {{model_name}} in {{language}}'
-      const result = await promptVariableReplacer(prompt, 'gpt-4')
-
-      expect(result).toBe('User TestUser uses gpt-4 in en-US')
-      // 确保用户名只出现一次（不会重复处理）
-      expect(result.split('TestUser').length - 1).toBe(1)
-    })
-
-    it('should handle fallback values', async () => {
-      mockStore.getState.mockReturnValue({
-        settings: { userName: '', language: 'en-US' },
-        llm: { defaultModel: { name: 'default-model' } }
-      })
-
-      const result = await promptVariableReplacer('Hello {{username}}')
-      expect(result).toBe('Hello User')
-    })
-
-    it('should handle edge cases', async () => {
-      // 空字符串
-      expect(await promptVariableReplacer('')).toBe('')
-
-      // 无变量的文本
-      const plainText = 'Plain text without variables'
-      expect(await promptVariableReplacer(plainText)).toBe(plainText)
-    })
-
-    it('should handle errors gracefully', async () => {
-      mockStore.getState.mockImplementation(() => {
-        throw new Error('Store error')
-      })
-
-      const result = await promptVariableReplacer('Hello {{username}} and {{language}}')
-      expect(result).toBe('Hello Unknown Username and Unknown System Language')
-    })
-
-    it('should handle special characters in values', async () => {
-      mockStore.getState.mockReturnValue({
-        settings: { userName: 'Test@User#123', language: 'en-US' },
-        llm: { defaultModel: { name: 'default-model' } }
-      })
-
-      const result = await promptVariableReplacer('Hello {{username}}')
-      expect(result).toBe('Hello Test@User#123')
+    it('should handle non-string input gracefully', async () => {
+      const result = await buildSystemPrompt(null as any)
+      expect(result).toBe(null)
     })
   })
 
-  describe('containsSupportedVariables', () => {
-    it('should detect supported variables', () => {
-      expect(containsSupportedVariables('Hello {{username}}')).toBe(true)
-      expect(containsSupportedVariables('{{username}} and {{date}}')).toBe(true)
-      expect(containsSupportedVariables('Model: {{model_name}}')).toBe(true)
+  describe('Tool prompt composition', () => {
+    let basePrompt: string
+    let expectedBasePrompt: string
+    let tools: MCPTool[]
+
+    beforeEach(async () => {
+      const initialPrompt = `
+        System Information:
+        - Date: {{date}}
+        - User: {{username}}
+
+        Instructions: Be helpful.
+      `
+      const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
+      basePrompt = await buildSystemPrompt(initialPrompt, assistant)
+      expectedBasePrompt = `
+        System Information:
+        - Date: ${mockDate.toLocaleDateString()}
+        - User: MockUser
+
+        Instructions: Be helpful.
+      `
+      tools = [createMockTool('web_search', 'Search the web')]
     })
 
-    it('should return false for unsupported variables', () => {
-      expect(containsSupportedVariables('Hello {{unsupported}}')).toBe(false)
-      expect(containsSupportedVariables('Plain text')).toBe(false)
-      expect(containsSupportedVariables('')).toBe(false)
+    it('should build a full prompt for "prompt" toolUseMode', () => {
+      const finalPrompt = buildSystemPromptWithTools(basePrompt, tools)
+      const expectedFinalPrompt = SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', expectedBasePrompt)
+        .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
+        .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
+
+      expect(finalPrompt).toEqual(expectedFinalPrompt)
+      expect(finalPrompt).toContain('## Tool Use Formatting')
+    })
+
+    it('should build a think-only prompt for native function calling mode', () => {
+      const finalPrompt = buildSystemPromptWithThinkTool(basePrompt)
+      const expectedFinalPrompt = THINK_TOOL_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', expectedBasePrompt)
+
+      expect(finalPrompt).toEqual(expectedFinalPrompt)
+      expect(finalPrompt).not.toContain('## Tool Use Formatting')
+      expect(finalPrompt).toContain('## Using the think tool')
+    })
+
+    it('should return the original prompt if no tools are provided to buildSystemPromptWithTools', () => {
+      const result = buildSystemPromptWithTools(basePrompt, [])
+      expect(result).toBe(basePrompt)
+    })
+  })
+
+  describe('buildSystemPromptWithTools', () => {
+    it('should build a full prompt for "prompt" toolUseMode', async () => {
+      const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
+      const basePrompt = await buildSystemPrompt('Be helpful.', assistant)
+      const tools = [createMockTool('web_search', 'Search the web')]
+
+      const finalPrompt = buildSystemPromptWithTools(basePrompt, tools)
+      const expectedFinalPrompt = SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', basePrompt)
+        .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
+        .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
+
+      expect(finalPrompt).toEqual(expectedFinalPrompt)
+      expect(finalPrompt).toContain('## Tool Use Formatting')
+    })
+  })
+
+  describe('buildSystemPromptWithThinkTool', () => {
+    it('should combine a template prompt with think tool instructions for native function calling', async () => {
+      // 1. 创建一个带变量的模板提示词，并处理它
+      const initialPrompt = `
+        System Information:
+        - Date: {{date}}
+        - User: {{username}}
+
+        Instructions: Be helpful.
+      `
+      const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
+      const basePrompt = await buildSystemPrompt(initialPrompt, assistant)
+      const expectedBasePrompt = `
+        System Information:
+        - Date: ${mockDate.toLocaleDateString()}
+        - User: MockUser
+
+        Instructions: Be helpful.
+      `
+
+      // 2. 将处理过的提示词与思考工具结合
+      const finalPrompt = buildSystemPromptWithThinkTool(basePrompt)
+      const expectedFinalPrompt = THINK_TOOL_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', expectedBasePrompt)
+
+      // 3. 验证结果
+      expect(finalPrompt).toEqual(expectedFinalPrompt)
+      expect(finalPrompt).not.toContain('## Tool Use Formatting') // 验证不包含工具定义
+      expect(finalPrompt).toContain('## Using the think tool') // 验证包含思考指令
     })
   })
 })

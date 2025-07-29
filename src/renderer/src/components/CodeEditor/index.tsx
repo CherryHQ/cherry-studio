@@ -1,7 +1,7 @@
 import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension, keymap } from '@uiw/react-codemirror'
+import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 import {
   ChevronsDownUp,
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLanguageExtensions } from './hook'
+import { useBlurHandler, useLanguageExtensions, useSaveKeymap } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
@@ -25,10 +25,12 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
+  onBlur?: (newContent: string) => void
   setTools?: (value: React.SetStateAction<CodeTool[]>) => void
   height?: string
   minHeight?: string
   maxHeight?: string
+  fontSize?: string
   /** 用于覆写编辑器的某些设置 */
   options?: {
     stream?: boolean // 用于流式响应场景，默认 false
@@ -41,6 +43,7 @@ interface Props {
   extensions?: Extension[]
   /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
   style?: React.CSSProperties
+  editable?: boolean
 }
 
 /**
@@ -54,16 +57,19 @@ const CodeEditor = ({
   language,
   onSave,
   onChange,
+  onBlur,
   setTools,
   height,
   minHeight,
   maxHeight,
+  fontSize,
   options,
   extensions,
-  style
+  style,
+  editable = true
 }: Props) => {
   const {
-    fontSize,
+    fontSize: _fontSize,
     codeShowLineNumbers: _lineNumbers,
     codeCollapsible: _collapsible,
     codeWrappable: _wrappable,
@@ -81,6 +87,8 @@ const CodeEditor = ({
       ...(options as BasicSetupOptions)
     }
   }, [codeEditor, _lineNumbers, options])
+
+  const customFontSize = useMemo(() => fontSize ?? `${_fontSize - 1}px`, [fontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
@@ -133,7 +141,7 @@ const CodeEditor = ({
     registerTool({
       ...TOOL_SPECS.save,
       icon: <SaveIcon className="icon" />,
-      tooltip: t('code_block.edit.save'),
+      tooltip: t('code_block.edit.save.label'),
       onClick: handleSave
     })
 
@@ -166,28 +174,18 @@ const CodeEditor = ({
     setIsUnwrapped(!wrappable)
   }, [wrappable])
 
-  // 保存功能的快捷键
-  const saveKeymap = useMemo(() => {
-    return keymap.of([
-      {
-        key: 'Mod-s',
-        run: () => {
-          handleSave()
-          return true
-        },
-        preventDefault: true
-      }
-    ])
-  }, [handleSave])
+  const saveKeymapExtension = useSaveKeymap({ onSave, enabled: enableKeymap })
+  const blurExtension = useBlurHandler({ onBlur })
 
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
       ...langExtensions,
       ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
-      ...(enableKeymap ? [saveKeymap] : [])
-    ]
-  }, [extensions, langExtensions, isUnwrapped, enableKeymap, saveKeymap])
+      saveKeymapExtension,
+      blurExtension
+    ].flat()
+  }, [extensions, langExtensions, isUnwrapped, saveKeymapExtension, blurExtension])
 
   return (
     <CodeMirror
@@ -198,7 +196,7 @@ const CodeEditor = ({
       height={height}
       minHeight={minHeight}
       maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
-      editable={true}
+      editable={editable}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}
@@ -227,7 +225,7 @@ const CodeEditor = ({
         ...customBasicSetup // override basicSetup
       }}
       style={{
-        fontSize: `${fontSize - 1}px`,
+        fontSize: customFontSize,
         marginTop: 0,
         borderRadius: 'inherit',
         ...style

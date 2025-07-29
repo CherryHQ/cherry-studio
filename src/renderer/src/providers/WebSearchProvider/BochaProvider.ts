@@ -1,8 +1,11 @@
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
+
+const logger = loggerService.withContext('BochaProvider')
 
 export default class BochaProvider extends BaseWebSearchProvider {
   constructor(provider: WebSearchProvider) {
@@ -26,15 +29,13 @@ export default class BochaProvider extends BaseWebSearchProvider {
         Authorization: `Bearer ${this.apiKey}`
       }
 
-      const contentLimit = websearch.contentLimit
-
       const params: BochaSearchParams = {
         query,
         count: websearch.maxResults,
         exclude: websearch.excludeDomains.join(','),
         freshness: websearch.searchWithTime ? 'oneDay' : 'noLimit',
-        summary: false,
-        page: contentLimit ? Math.ceil(contentLimit / websearch.maxResults) : 1
+        summary: true,
+        page: 1
       }
 
       const response = await fetch(`${this.apiHost}/v1/web-search`, {
@@ -58,12 +59,13 @@ export default class BochaProvider extends BaseWebSearchProvider {
         query: resp.data.queryContext.originalQuery,
         results: resp.data.webPages.value.map((result) => ({
           title: result.name,
-          content: result.snippet,
+          // 优先使用 summary（更详细），如果没有则使用 snippet
+          content: result.summary || result.snippet || '',
           url: result.url
         }))
       }
     } catch (error) {
-      console.error('Bocha search failed:', error)
+      logger.error('Bocha search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

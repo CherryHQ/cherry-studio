@@ -30,6 +30,8 @@ export const useShortcut = (
         switch (key.toLowerCase()) {
           case 'command':
             return 'meta'
+          case 'commandorcontrol':
+            return isMac ? 'meta' : 'ctrl'
           default:
             return key.toLowerCase()
         }

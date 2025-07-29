@@ -1,16 +1,17 @@
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
-import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import { FileType, Model } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, Plus } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -21,12 +22,21 @@ export interface MentionModelsButtonRef {
 
 interface Props {
   ref?: React.RefObject<MentionModelsButtonRef | null>
-  mentionModels: Model[]
+  mentionedModels: Model[]
   onMentionModel: (model: Model) => void
+  couldMentionNotVisionModel: boolean
+  files: FileType[]
   ToolbarButton: any
 }
 
-const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, ToolbarButton }) => {
+const MentionModelsButton: FC<Props> = ({
+  ref,
+  mentionedModels,
+  onMentionModel,
+  couldMentionNotVisionModel,
+  files,
+  ToolbarButton
+}) => {
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -49,10 +59,11 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
         p.models
           .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
           .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+          .filter((m) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(m)))
           .map((m) => ({
             label: (
               <>
-                <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+                <ProviderName>{getFancyProviderName(p)}</ProviderName>
                 <span style={{ opacity: 0.8 }}> | {m.name}</span>
               </>
             ),
@@ -62,9 +73,9 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
                 {first(m.name)}
               </Avatar>
             ),
-            filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
+            filterText: getFancyProviderName(p) + m.name,
             action: () => onMentionModel(m),
-            isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+            isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
       )
 
@@ -77,14 +88,15 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
       const providerModels = sortBy(
         p.models
           .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
-          .filter((m) => !pinnedModels.includes(getModelUniqId(m))),
+          .filter((m) => !pinnedModels.includes(getModelUniqId(m)))
+          .filter((m) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(m))),
         ['group', 'name']
       )
 
       const providerModelItems = providerModels.map((m) => ({
         label: (
           <>
-            <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+            <ProviderName>{getFancyProviderName(p)}</ProviderName>
             <span style={{ opacity: 0.8 }}> | {m.name}</span>
           </>
         ),
@@ -94,9 +106,9 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
             {first(m.name)}
           </Avatar>
         ),
-        filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
+        filterText: getFancyProviderName(p) + m.name,
         action: () => onMentionModel(m),
-        isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+        isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
       }))
 
       if (providerModelItems.length > 0) {
@@ -112,7 +124,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
     })
 
     return items
-  }, [providers, t, pinnedModels, mentionModels, onMentionModel, navigate])
+  }, [pinnedModels, providers, t, couldMentionNotVisionModel, mentionedModels, onMentionModel, navigate])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
@@ -134,12 +146,24 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
     }
   }, [openQuickPanel, quickPanel])
 
+  const filesRef = useRef(files)
+
+  useEffect(() => {
+    // 检查files是否变化
+    if (filesRef.current !== files) {
+      if (quickPanel.isVisible && quickPanel.symbol === '@') {
+        quickPanel.close()
+      }
+      filesRef.current = files
+    }
+  }, [files, quickPanel])
+
   useImperativeHandle(ref, () => ({
     openQuickPanel
   }))
 
   return (
-    <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
+    <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <AtSign size={18} />
       </ToolbarButton>

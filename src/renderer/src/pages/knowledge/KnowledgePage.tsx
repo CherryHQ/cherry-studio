@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import DragableList from '@renderer/components/DragableList'
+import { DraggableList } from '@renderer/components/DraggableList'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -14,8 +14,8 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AddKnowledgePopup from './components/AddKnowledgePopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import AddKnowledgeBasePopup from './components/AddKnowledgeBasePopup'
+import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
@@ -24,12 +24,19 @@ const KnowledgePage: FC = () => {
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
 
-  const handleAddKnowledge = async () => {
-    const newBase = await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+  const handleAddKnowledge = useCallback(async () => {
+    const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
     if (newBase) {
       setSelectedBase(newBase)
     }
-  }
+  }, [t])
+
+  const handleEditKnowledgeBase = useCallback(async (base: KnowledgeBase) => {
+    const newBase = await EditKnowledgeBasePopup.show({ base })
+    if (newBase && newBase?.id !== base.id) {
+      setSelectedBase(newBase)
+    }
+  }, [])
 
   useEffect(() => {
     const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
@@ -55,10 +62,10 @@ const KnowledgePage: FC = () => {
           }
         },
         {
-          label: t('knowledge.settings'),
+          label: t('knowledge.settings.title'),
           key: 'settings',
           icon: <SettingOutlined />,
-          onClick: () => KnowledgeSettingsPopup.show({ base })
+          onClick: () => handleEditKnowledgeBase(base)
         },
         { type: 'divider' },
         {
@@ -81,7 +88,7 @@ const KnowledgePage: FC = () => {
 
       return menus
     },
-    [deleteKnowledgeBase, renameKnowledgeBase, t]
+    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
   )
 
   useShortcut('search_message', () => {
@@ -96,9 +103,9 @@ const KnowledgePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <SideNav>
+        <KnowledgeSideNav>
           <ScrollContainer>
-            <DragableList
+            <DraggableList
               list={bases}
               onUpdate={updateKnowledgeBases}
               style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
@@ -116,7 +123,7 @@ const KnowledgePage: FC = () => {
                   </div>
                 </Dropdown>
               )}
-            </DragableList>
+            </DraggableList>
             {!isDragging && (
               <AddKnowledgeItem onClick={handleAddKnowledge}>
                 <AddKnowledgeName>
@@ -127,7 +134,7 @@ const KnowledgePage: FC = () => {
             )}
             <div style={{ minHeight: '10px' }}></div>
           </ScrollContainer>
-        </SideNav>
+        </KnowledgeSideNav>
         {bases.length === 0 ? (
           <MainContent>
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -162,7 +169,7 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
 `
 
-const SideNav = styled.div`
+export const KnowledgeSideNav = styled.div`
   min-width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   padding: 12px 10px;

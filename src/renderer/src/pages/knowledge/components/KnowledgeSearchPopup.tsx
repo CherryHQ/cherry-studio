@@ -1,12 +1,13 @@
 import { CopyOutlined } from '@ant-design/icons'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileType, KnowledgeBase } from '@renderer/types'
-import { Divider, Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
+import { FileMetadata, KnowledgeBase } from '@renderer/types'
+import { Divider, Input, InputRef, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,12 +21,15 @@ interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
+const logger = loggerService.withContext('KnowledgeSearchPopup')
+
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
+  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
+  const searchInputRef = useRef<InputRef>(null)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -40,7 +44,8 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       const searchResults = await searchKnowledgeBase(value, base)
       setResults(searchResults)
     } catch (error) {
-      console.error('Search failed:', error)
+      logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -77,10 +82,16 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       await navigator.clipboard.writeText(text)
       message.success(t('message.copied'))
     } catch (error) {
-      console.error('Failed to copy text:', error)
-      message.error(t('message.copyError') || 'Failed to copy text')
+      logger.error('Failed to copy text:', error as Error)
+      window.message.error(t('message.error.copy') || 'Failed to copy text')
     }
   }
+
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [])
 
   return (
     <Modal
@@ -109,6 +120,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       }}>
       <HStack style={{ padding: '0 12px', marginTop: 8 }}>
         <Input
+          ref={searchInputRef}
           prefix={
             <SearchIcon>
               <Search size={15} />
@@ -140,14 +152,17 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
               <List.Item>
                 <ResultItem>
                   <MetadataContainer>
-                    <Text type="secondary" ellipsis>
+                    <Text type="secondary">
                       {t('knowledge.source')}:{' '}
                       {item.file ? (
                         <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
                           {item.file.origin_name}
                         </a>
                       ) : (
-                        item.metadata.source
+                        // item.metadata.source
+                        <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
+                          {item.metadata.source.split('/').pop() || item.metadata.source}
+                        </a>
                       )}
                     </Text>
                     <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>

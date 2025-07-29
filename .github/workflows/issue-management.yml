@@ -1,8 +1,8 @@
-name: "Stale Issue Management"
+name: 'Stale Issue Management'
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 env:
@@ -24,18 +24,18 @@ jobs:
         uses: actions/stale@v9
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          only-labels: "needs-more-info"
+          only-labels: 'needs-more-info'
           days-before-stale: ${{ env.daysBeforeStale }}
-          days-before-close: 0  # Close immediately after stale
-          stale-issue-label: "inactive"
-          close-issue-label: "closed:no-response"
+          days-before-close: 0 # Close immediately after stale
+          stale-issue-label: 'inactive'
+          close-issue-label: 'closed:no-response'
           stale-issue-message: |
             This issue has been labeled as needing more information and has been inactive for ${{ env.daysBeforeStale }} days. 
             It will be closed now due to lack of additional information.
-            
+
             该问题被标记为"需要更多信息"且已经 ${{ env.daysBeforeStale }} 天没有任何活动，将立即关闭。
           operations-per-run: 50
-          exempt-issue-labels: "pending, Dev Team"
+          exempt-issue-labels: 'pending, Dev Team'
           days-before-pr-stale: -1
           days-before-pr-close: -1
 
@@ -45,11 +45,11 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           days-before-stale: ${{ env.daysBeforeStale }}
           days-before-close: ${{ env.daysBeforeClose }}
-          stale-issue-label: "inactive"
+          stale-issue-label: 'inactive'
           stale-issue-message: |
             This issue has been inactive for a prolonged period and will be closed automatically in ${{ env.daysBeforeClose }} days.
             该问题已长时间处于闲置状态，${{ env.daysBeforeClose }} 天后将自动关闭。
-          exempt-issue-labels: "pending, Dev Team, kind/enhancement"
+          exempt-issue-labels: 'pending, Dev Team, kind/enhancement'
           days-before-pr-stale: -1 # Completely disable stalling for PRs
           days-before-pr-close: -1 # Completely disable closing for PRs
 

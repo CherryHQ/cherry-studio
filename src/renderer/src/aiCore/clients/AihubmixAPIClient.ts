@@ -66,6 +66,13 @@ export class AihubmixAPIClient extends BaseApiClient {
     this.currentClient = this.defaultClient as BaseApiClient
   }
 
+  override getBaseURL(): string {
+    if (!this.currentClient) {
+      return this.provider.apiHost
+    }
+    return this.currentClient.getBaseURL()
+  }
+
   /**
    * 类型守卫：确保client是BaseApiClient的实例
    */
@@ -96,7 +103,12 @@ export class AihubmixAPIClient extends BaseApiClient {
     }
 
     // gemini开头 且不以-nothink、-search结尾
-    if ((id.startsWith('gemini') || id.startsWith('imagen')) && !id.endsWith('-nothink') && !id.endsWith('-search')) {
+    if (
+      (id.startsWith('gemini') || id.startsWith('imagen')) &&
+      !id.endsWith('-nothink') &&
+      !id.endsWith('-search') &&
+      !id.includes('embedding')
+    ) {
       const client = this.clients.get('gemini')
       if (!client || !this.isValidClient(client)) {
         throw new Error('Gemini client not properly initialized')
@@ -122,6 +134,18 @@ export class AihubmixAPIClient extends BaseApiClient {
   public getClientForModel(model: Model): BaseApiClient {
     this.currentClient = this.getClient(model)
     return this.currentClient
+  }
+
+  /**
+   * 重写基类方法，返回内部实际使用的客户端类型
+   */
+  public override getClientCompatibilityType(model?: Model): string[] {
+    if (!model) {
+      return [this.constructor.name]
+    }
+
+    const actualClient = this.getClient(model)
+    return actualClient.getClientCompatibilityType(model)
   }
 
   // ============ BaseApiClient 抽象方法实现 ============

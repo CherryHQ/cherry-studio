@@ -6,13 +6,16 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Progress, Row, Switch, Tag, Tooltip } from 'antd'
+import { UpgradeChannel } from '@shared/config/constant'
+import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
+import { BadgeQuestionMark } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -25,7 +28,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -95,15 +98,86 @@ const AboutSettings: FC = () => {
 
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
+  const currentChannelByVersion =
+    [
+      { pattern: `-${UpgradeChannel.BETA}.`, channel: UpgradeChannel.BETA },
+      { pattern: `-${UpgradeChannel.RC}.`, channel: UpgradeChannel.RC }
+    ].find(({ pattern }) => version.includes(pattern))?.channel || UpgradeChannel.LATEST
+
+  const handleTestChannelChange = async (value: UpgradeChannel) => {
+    if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
+      window.message.warning(t('settings.general.test_plan.version_channel_not_match'))
+    }
+    setTestChannel(value)
+    // Clear update info when switching upgrade channel
+    dispatch(
+      setUpdateState({
+        available: false,
+        info: null,
+        downloaded: false,
+        checking: false,
+        downloading: false,
+        downloadProgress: 0
+      })
+    )
+  }
+
+  // Get available test version options based on current version
+  const getAvailableTestChannels = () => {
+    return [
+      {
+        tooltip: t('settings.general.test_plan.rc_version_tooltip'),
+        label: t('settings.general.test_plan.rc_version'),
+        value: UpgradeChannel.RC
+      },
+      {
+        tooltip: t('settings.general.test_plan.beta_version_tooltip'),
+        label: t('settings.general.test_plan.beta_version'),
+        value: UpgradeChannel.BETA
+      }
+    ]
+  }
+
+  const handleSetTestPlan = (value: boolean) => {
+    setTestPlan(value)
+    dispatch(
+      setUpdateState({
+        available: false,
+        info: null,
+        downloaded: false,
+        checking: false,
+        downloading: false,
+        downloadProgress: 0
+      })
+    )
+
+    if (value === true) {
+      setTestChannel(getTestChannel())
+    }
+  }
+
+  const getTestChannel = () => {
+    if (testChannel === UpgradeChannel.LATEST) {
+      return UpgradeChannel.RC
+    }
+    return testChannel
+  }
+
   useEffect(() => {
     runAsyncFunction(async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    setEarlyAccess(earlyAccess)
     setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, earlyAccess, setAutoCheckUpdate, setEarlyAccess])
+  }, [autoCheckUpdate, setAutoCheckUpdate])
+
+  const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
+    window.api.openWebsite(
+      isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
+    )
+  }
 
   return (
     <SettingContainer theme={theme}>
@@ -152,7 +226,7 @@ const AboutSettings: FC = () => {
                 ? t('settings.about.downloading')
                 : update.available
                   ? t('settings.about.checkUpdate.available')
-                  : t('settings.about.checkUpdate')}
+                  : t('settings.about.checkUpdate.label')}
             </CheckUpdateButton>
           )}
         </AboutHeader>
@@ -165,11 +239,30 @@ const AboutSettings: FC = () => {
             </SettingRow>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
+            {testPlan && (
+              <>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                  <Radio.Group
+                    size="small"
+                    buttonStyle="solid"
+                    value={getTestChannel()}
+                    onChange={(e) => handleTestChannelChange(e.target.value)}>
+                    {getAvailableTestChannels().map((option) => (
+                      <Tooltip key={option.value} title={option.tooltip}>
+                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                      </Tooltip>
+                    ))}
+                  </Radio.Group>
+                </SettingRow>
+              </>
+            )}
           </>
         )}
       </SettingGroup>
@@ -191,6 +284,14 @@ const AboutSettings: FC = () => {
         </SettingGroup>
       )}
       <SettingGroup theme={theme}>
+        <SettingRow>
+          <SettingRowTitle>
+            <BadgeQuestionMark size={18} />
+            {t('docs.title')}
+          </SettingRowTitle>
+          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
             <Rss size={18} />

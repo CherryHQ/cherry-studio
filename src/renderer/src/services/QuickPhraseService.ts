@@ -1,9 +1,29 @@
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { QuickPhrase } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
+const logger = loggerService.withContext('QuickPhraseService')
+
 export class QuickPhraseService {
+  private static _isInitialized: boolean = false
+
+  static async init() {
+    if (QuickPhraseService._isInitialized) {
+      return
+    }
+
+    try {
+      await db.open()
+      QuickPhraseService._isInitialized = true
+    } catch (error) {
+      logger.error('Failed to open Dexie database:', error as Error)
+    }
+  }
+
   static async getAll(): Promise<QuickPhrase[]> {
+    // Ensure database is initialized before
+    await QuickPhraseService.init()
     const phrases = await db.quick_phrases.toArray()
     return phrases.sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
   }
@@ -34,6 +54,7 @@ export class QuickPhraseService {
   }
 
   static async update(id: string, data: Pick<QuickPhrase, 'title' | 'content'>): Promise<void> {
+    await QuickPhraseService.init()
     await db.quick_phrases.update(id, {
       ...data,
       updatedAt: Date.now()
@@ -54,6 +75,7 @@ export class QuickPhraseService {
 
   static async updateOrder(phrases: QuickPhrase[]): Promise<void> {
     const now = Date.now()
+    await QuickPhraseService.init()
     await Promise.all(
       phrases.map((phrase, index) =>
         db.quick_phrases.update(phrase.id, {

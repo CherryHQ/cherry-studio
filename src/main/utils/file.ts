@@ -1,26 +1,17 @@
 import * as fs from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isPortable } from '@main/constant'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
-import { FileType, FileTypes } from '@types'
+import { loggerService } from '@logger'
+import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
+import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
+import iconv from 'iconv-lite'
+import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
-export function initAppDataDir() {
-  const appDataPath = getAppDataPathFromConfig()
-  if (appDataPath) {
-    app.setPath('userData', appDataPath)
-    return
-  }
-
-  if (isPortable) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
-    return
-  }
-}
+const logger = loggerService.withContext('Utils:File')
 
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileTypes>()
@@ -37,83 +28,58 @@ function initFileTypeMap() {
 // 初始化映射表
 initFileTypeMap()
 
-export function hasWritePermission(path: string) {
+export function untildify(pathWithTilde: string) {
+  if (pathWithTilde.startsWith('~')) {
+    const homeDirectory = os.homedir()
+    return pathWithTilde.replace(/^~(?=$|\/|\\)/, homeDirectory)
+  }
+  return pathWithTilde
+}
+
+export async function hasWritePermission(dir: string) {
   try {
-    fs.accessSync(path, fs.constants.W_OK)
+    logger.info(`Checking write permission for ${dir}`)
+    await fs.promises.access(dir, fs.constants.W_OK)
     return true
   } catch (error) {
     return false
   }
 }
 
-function getAppDataPathFromConfig() {
+/**
+ * Check if a path is inside another path (proper parent-child relationship)
+ * This function correctly handles edge cases that string.startsWith() cannot handle,
+ * such as distinguishing between '/root/test' and '/root/test aaa'
+ *
+ * @param childPath - The path that might be inside the parent path
+ * @param parentPath - The path that might contain the child path
+ * @returns true if childPath is inside parentPath, false otherwise
+ */
+export function isPathInside(childPath: string, parentPath: string): boolean {
   try {
-    const configPath = path.join(getConfigDir(), 'config.json')
-    if (!fs.existsSync(configPath)) {
-      return null
+    const resolvedChild = path.resolve(childPath)
+    const resolvedParent = path.resolve(parentPath)
+
+    // Normalize paths to handle different separators
+    const normalizedChild = path.normalize(resolvedChild)
+    const normalizedParent = path.normalize(resolvedParent)
+
+    // Check if they are the same path
+    if (normalizedChild === normalizedParent) {
+      return true
     }
 
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    // Get relative path from parent to child
+    const relativePath = path.relative(normalizedParent, normalizedChild)
 
-    if (!config.appDataPath) {
-      return null
-    }
-
-    let appDataPath = null
-    // 兼容旧版本
-    if (config.appDataPath && typeof config.appDataPath === 'string') {
-      appDataPath = config.appDataPath
-      // 将旧版本数据迁移到新版本
-      appDataPath && updateAppDataConfig(appDataPath)
-    } else {
-      appDataPath = config.appDataPath.find(
-        (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
-      )?.dataPath
-    }
-
-    if (appDataPath && fs.existsSync(appDataPath) && hasWritePermission(appDataPath)) {
-      return appDataPath
-    }
-
-    return null
+    // If relative path is empty, they are the same
+    // If relative path starts with '..', child is not inside parent
+    // If relative path is absolute, child is not inside parent
+    return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
   } catch (error) {
-    return null
+    logger.error('Failed to check path relationship:', error as Error)
+    return false
   }
-}
-
-export function updateAppDataConfig(appDataPath: string) {
-  const configDir = getConfigDir()
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true })
-  }
-
-  // config.json
-  // appDataPath: [{ executablePath: string, dataPath: string }]
-  const configPath = path.join(getConfigDir(), 'config.json')
-  if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ appDataPath: [{ executablePath: app.getPath('exe'), dataPath: appDataPath }] }, null, 2)
-    )
-    return
-  }
-
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  if (!config.appDataPath || (config.appDataPath && typeof config.appDataPath !== 'object')) {
-    config.appDataPath = []
-  }
-
-  const existingPath = config.appDataPath.find(
-    (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
-  )
-
-  if (existingPath) {
-    existingPath.dataPath = appDataPath
-  } else {
-    config.appDataPath.push({ executablePath: app.getPath('exe'), dataPath: appDataPath })
-  }
-
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
 
 export function getFileType(ext: string): FileTypes {
@@ -121,7 +87,19 @@ export function getFileType(ext: string): FileTypes {
   return fileTypeMap.get(ext) || FileTypes.OTHER
 }
 
-export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): FileType[] {
+export function getFileDir(filePath: string) {
+  return path.dirname(filePath)
+}
+
+export function getFileName(filePath: string) {
+  return path.basename(filePath)
+}
+
+export function getFileExt(filePath: string) {
+  return path.extname(filePath)
+}
+
+export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []): FileMetadata[] {
   const files = fs.readdirSync(dirPath)
 
   files.forEach((file) => {
@@ -143,7 +121,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
       const name = path.basename(file)
       const size = fs.statSync(fullPath).size
 
-      const fileItem: FileType = {
+      const fileItem: FileMetadata = {
         id: uuidv4(),
         name,
         path: fullPath,
@@ -180,4 +158,54 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
+}
+
+export function getMcpDir() {
+  return path.join(os.homedir(), '.cherrystudio', 'mcp')
+}
+
+/**
+ * 读取文件内容并自动检测编码格式进行解码
+ * @param filePath - 文件路径
+ * @returns 解码后的文件内容
+ */
+export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
+  // 读取前1MB以检测编码
+  const buffer = Buffer.alloc(1 * MB)
+  const fh = await open(filePath, 'r')
+  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
+  await fh.close()
+
+  // 获取文件编码格式，最多取前两个可能的编码
+  const encodings = jschardet
+    .detectAll(bufferRead)
+    .map((item) => ({
+      ...item,
+      encoding: item.encoding === 'ascii' ? 'UTF-8' : item.encoding
+    }))
+    .filter((item, index, array) => array.findIndex((prevItem) => prevItem.encoding === item.encoding) === index)
+    .slice(0, 2)
+
+  if (encodings.length === 0) {
+    logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    const data = await readFile(filePath)
+    return iconv.decode(data, 'UTF-8')
+  }
+
+  const data = await readFile(filePath)
+
+  for (const item of encodings) {
+    const encoding = item.encoding
+    const content = iconv.decode(data, encoding)
+    if (content.includes('\uFFFD')) {
+      logger.error(
+        `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
+      )
+    } else {
+      return content
+    }
+  }
+
+  logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  return iconv.decode(data, 'UTF-8')
 }

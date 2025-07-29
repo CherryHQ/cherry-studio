@@ -1,0 +1,42 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`EmojiIcon > should match snapshot 1`] = `
+.c0 {
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  position: relative;
+  overflow: hidden;
+  margin-right: 3px;
+}
+
+.c1 {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 200%;
+  transform: scale(1.5);
+  filter: blur(5px);
+  opacity: 0.4;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    🎉
+  </div>
+  🎉
+</div>
+`;

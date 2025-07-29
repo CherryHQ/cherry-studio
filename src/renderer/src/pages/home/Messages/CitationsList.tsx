@@ -1,5 +1,7 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -8,17 +10,6 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-export interface Citation {
-  number: number
-  url: string
-  title?: string
-  hostname?: string
-  content?: string
-  showFavicon?: boolean
-  type?: string
-  metadata?: Record<string, any>
-}
 
 interface CitationsListProps {
   citations: Citation[]
@@ -53,17 +44,27 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   if (!count) return null
 
   const popoverContent = (
-    <PopoverContent>
+    <PopoverContentContainer>
       {citations.map((citation) => (
-        <PopoverContentItem key={citation.url || citation.number}>
-          {citation.type === 'websearch' ? (
-            <WebSearchCitation citation={citation} />
-          ) : (
-            <KnowledgeCitation citation={citation} />
+        <PopoverContentItem key={citation.url || citation.number || citation.title}>
+          {citation.type === 'websearch' && (
+            <PopoverContent>
+              <WebSearchCitation citation={citation} />
+            </PopoverContent>
+          )}
+          {citation.type === 'memory' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={{ ...citation }} />
+            </KnowledgePopoverContent>
+          )}
+          {citation.type === 'knowledge' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={{ ...citation }} />
+            </KnowledgePopoverContent>
           )}
         </PopoverContentItem>
       ))}
-    </PopoverContent>
+    </PopoverContentContainer>
   )
 
   return (
@@ -83,7 +84,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           </div>
         }
         placement="right"
-        trigger="hover"
+        trigger="click"
         styles={{
           body: {
             padding: '0 0 8px 0'
@@ -124,7 +125,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        message.success(t('common.copied'))
+        window.message.success(t('common.copied'))
         setTimeout(() => setCopied(false), 2000)
       })
       .catch(() => {
@@ -178,15 +179,13 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         <WebSearchCardHeader>
           {citation.showFavicon && <FileSearch width={16} />}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-            {citation.title}
+            {/* example title: User/path/example.pdf */}
+            {citation.title?.split('/').pop()}
           </CitationLink>
-
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>
-        <WebSearchCardContent className="selectable-text">
-          {citation.content && truncateText(citation.content, 100)}
-        </WebSearchCardContent>
+        <WebSearchCardContent className="selectable-text">{citation.content && citation.content}</WebSearchCardContent>
       </WebSearchCard>
     </ContextMenu>
   )
@@ -317,11 +316,19 @@ const WebSearchCardContent = styled.div`
   }
 `
 
+const PopoverContentContainer = styled(Scrollbar)`
+  max-height: 70vh;
+`
+
 const PopoverContent = styled.div`
-  max-width: min(340px, 60vw);
-  max-height: 60vh;
+  max-width: min(400px, 60vw);
   padding: 0 12px;
 `
+
+const KnowledgePopoverContent = styled(PopoverContent)`
+  max-width: 600px;
+`
+
 const PopoverContentItem = styled.div`
   border-bottom: 0.5px solid var(--color-border);
   &:last-child {

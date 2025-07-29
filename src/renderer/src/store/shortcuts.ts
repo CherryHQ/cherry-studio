@@ -1,5 +1,4 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
 import { Shortcut } from '@renderer/types'
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 
@@ -12,7 +11,7 @@ const initialState: ShortcutsState = {
     ...ZOOM_SHORTCUTS,
     {
       key: 'show_settings',
-      shortcut: [isMac ? 'Command' : 'Ctrl', ','],
+      shortcut: ['CommandOrControl', ','],
       editable: false,
       enabled: true,
       system: true
@@ -26,7 +25,7 @@ const initialState: ShortcutsState = {
     },
     {
       key: 'mini_window',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+      shortcut: ['CommandOrControl', 'E'],
       editable: true,
       enabled: false,
       system: true
@@ -49,14 +48,14 @@ const initialState: ShortcutsState = {
     },
     {
       key: 'new_topic',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'N'],
+      shortcut: ['CommandOrControl', 'N'],
       editable: true,
       enabled: true,
       system: false
     },
     {
       key: 'toggle_show_assistants',
-      shortcut: [isMac ? 'Command' : 'Ctrl', '['],
+      shortcut: ['CommandOrControl', '['],
       editable: true,
       enabled: true,
       system: false
@@ -64,42 +63,42 @@ const initialState: ShortcutsState = {
 
     {
       key: 'toggle_show_topics',
-      shortcut: [isMac ? 'Command' : 'Ctrl', ']'],
+      shortcut: ['CommandOrControl', ']'],
       editable: true,
       enabled: true,
       system: false
     },
     {
       key: 'copy_last_message',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'Shift', 'C'],
+      shortcut: ['CommandOrControl', 'Shift', 'C'],
       editable: true,
       enabled: false,
       system: false
     },
     {
       key: 'search_message_in_chat',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+      shortcut: ['CommandOrControl', 'F'],
       editable: true,
       enabled: true,
       system: false
     },
     {
       key: 'search_message',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'Shift', 'F'],
+      shortcut: ['CommandOrControl', 'Shift', 'F'],
       editable: true,
       enabled: true,
       system: false
     },
     {
       key: 'clear_topic',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+      shortcut: ['CommandOrControl', 'L'],
       editable: true,
       enabled: true,
       system: false
     },
     {
       key: 'toggle_new_context',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'K'],
+      shortcut: ['CommandOrControl', 'K'],
       editable: true,
       enabled: true,
       system: false

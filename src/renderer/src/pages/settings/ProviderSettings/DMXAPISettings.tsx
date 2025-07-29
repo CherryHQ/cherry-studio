@@ -2,7 +2,6 @@ import DmxapiLogo from '@renderer/assets/images/providers/dmxapi-logo.webp'
 import DmxapiLogoDark from '@renderer/assets/images/providers/dmxapi-logo-dark.webp'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
 import { Radio, RadioChangeEvent, Space } from 'antd'
 import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,8 +10,7 @@ import styled from 'styled-components'
 import { SettingSubtitle } from '..'
 
 interface DMXAPISettingsProps {
-  provider: Provider
-  setApiKey: (apiKey: string) => void
+  providerId: string
 }
 
 // DMXAPI平台选项
@@ -22,6 +20,7 @@ enum PlatformType {
   OVERSEA = 'https://ssvip.DMXAPI.com'
 }
 
+// FIXME: always Chinese. take consider of i18n
 const PlatformOptions = [
   {
     label: 'www.DMXAPI.cn 人民币站',
@@ -40,8 +39,8 @@ const PlatformOptions = [
   }
 ]
 
-const DMXAPISettings: FC<DMXAPISettingsProps> = ({ provider: initialProvider }) => {
-  const { provider, updateProvider } = useProvider(initialProvider.id)
+const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
+  const { provider, updateProvider } = useProvider(providerId)
   const { theme } = useTheme()
 
   const { t } = useTranslation()

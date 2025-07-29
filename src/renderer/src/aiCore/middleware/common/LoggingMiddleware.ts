@@ -1,4 +1,8 @@
+import { loggerService } from '@logger'
+
 import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
+
+const logger = loggerService.withContext('LoggingMiddleware')
 
 export const MIDDLEWARE_NAME = 'GenericLoggingMiddlewares'
 
@@ -44,20 +48,20 @@ export const createGenericLoggingMiddleware: () => MethodMiddleware = () => {
   return (_: MiddlewareAPI<BaseContext, any[]>) => (next) => async (ctx, args) => {
     const methodName = ctx.methodName
     const logPrefix = `[${middlewareName} (${methodName})]`
-    console.log(`${logPrefix} Initiating. Args:`, stringifyArgsForLogging(args))
+    logger.debug(`${logPrefix} Initiating. Args: ${stringifyArgsForLogging(args)}`)
     const startTime = Date.now()
     try {
       const result = await next(ctx, args)
       const duration = Date.now() - startTime
       // Log successful completion of the method call with duration. /
       // 记录方法调用成功完成及其持续时间。
-      console.log(`${logPrefix} Successful. Duration: ${duration}ms`)
+      logger.debug(`${logPrefix} Successful. Duration: ${duration}ms`)
       return result
     } catch (error) {
       const duration = Date.now() - startTime
       // Log failure of the method call with duration and error information. /
       // 记录方法调用失败及其持续时间和错误信息。
-      console.error(`${logPrefix} Failed. Duration: ${duration}ms`, error)
+      logger.error(`${logPrefix} Failed. Duration: ${duration}ms`, error as Error)
       throw error // Re-throw the error to be handled by subsequent layers or the caller / 重新抛出错误，由后续层或调用者处理
     }
   }

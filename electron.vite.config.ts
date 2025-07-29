@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react-swc'
+import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -7,6 +8,9 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
 
+const isDev = process.env.NODE_ENV === 'development'
+const isProd = process.env.NODE_ENV === 'production'
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
@@ -14,39 +18,50 @@ export default defineConfig({
       alias: {
         '@main': resolve('src/main'),
         '@types': resolve('src/renderer/src/types'),
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/main/services/LoggerService'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
       }
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
-        output: {
-          // 彻底禁用代码分割 - 返回 null 强制单文件打包
-          manualChunks: undefined,
-          // 内联所有动态导入，这是关键配置
-          inlineDynamicImports: true
-        }
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
+        output: isProd
+          ? {
+              manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
+              inlineDynamicImports: true // 内联所有动态导入，这是关键配置
+            }
+          : undefined
       },
-      sourcemap: process.env.NODE_ENV === 'development'
+      sourcemap: isDev
     },
+    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
-      noDiscovery: process.env.NODE_ENV === 'development'
+      noDiscovery: isDev
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      react({
+        tsDecorators: true
+      }),
+      externalizeDepsPlugin()
+    ],
     resolve: {
       alias: {
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
       }
     },
     build: {
-      sourcemap: process.env.NODE_ENV === 'development'
+      sourcemap: isDev
     }
   },
   renderer: {
     plugins: [
       react({
+        tsDecorators: true,
         plugins: [
           [
             '@swc/plugin-styled-components',
@@ -59,12 +74,16 @@ export default defineConfig({
           ]
         ]
       }),
+      ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer')
     ],
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@logger': resolve('src/renderer/src/services/LoggerService'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web')
       }
     },
     optimizeDeps: {
@@ -83,9 +102,11 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
-          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
+          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
+          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html')
         }
       }
-    }
+    },
+    esbuild: isProd ? { legalComments: 'none' } : {}
   }
 })

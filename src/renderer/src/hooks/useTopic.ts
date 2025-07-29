@@ -1,5 +1,6 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
@@ -17,8 +18,10 @@ import { getStoreSetting } from './useSettings'
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
 
-export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
-  const { assistant } = useAssistant(_assistant.id)
+// const logger = loggerService.withContext('useTopic')
+
+export function useActiveTopic(assistantId: string, topic?: Topic) {
+  const { assistant } = useAssistant(assistantId)
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
 
   _activeTopic = activeTopic
@@ -33,7 +36,14 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
 
   useEffect(() => {
     // activeTopic not in assistant.topics
-    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
+    // 确保 assistant 和 assistant.topics 存在，避免在数据未完全加载时访问属性
+    if (
+      assistant &&
+      assistant.topics &&
+      Array.isArray(assistant.topics) &&
+      assistant.topics.length > 0 &&
+      !find(assistant.topics, { id: activeTopic?.id })
+    ) {
       setActiveTopic(assistant.topics[0])
     }
   }, [activeTopic?.id, assistant])
@@ -133,8 +143,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
       try {
         startTopicRenaming(topicId)
-
-        const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
         const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
         if (summaryText) {
           const data = { ...topic, name: summaryText }

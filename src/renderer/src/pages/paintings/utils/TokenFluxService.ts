@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import { CacheService } from '@renderer/services/CacheService'
-import { FileType, TokenFluxPainting } from '@renderer/types'
+import { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
+
+const logger = loggerService.withContext('TokenFluxService')
 
 export interface TokenFluxGenerationRequest {
   model: string
@@ -171,7 +174,7 @@ export class TokenFluxService {
           // Continue polling for other statuses (processing, queued, etc.)
           setTimeout(poll, intervalMs)
         } catch (error) {
-          console.error('Polling error:', error)
+          logger.error('Polling error:', error as Error)
           retryCount++
 
           if (retryCount >= maxRetries) {
@@ -215,7 +218,7 @@ export class TokenFluxService {
       urls.map(async (url) => {
         try {
           if (!url?.trim()) {
-            console.error('Image URL is empty')
+            logger.error('Image URL is empty')
             window.message.warning({
               content: 'Image URL is empty',
               key: 'empty-url-warning'
@@ -224,13 +227,13 @@ export class TokenFluxService {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          console.error('Failed to download image:', error)
+          logger.error('Failed to download image:', error as Error)
           return null
         }
       })
     )
 
-    return downloadedFiles.filter((file): file is FileType => file !== null)
+    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
   }
 }
 

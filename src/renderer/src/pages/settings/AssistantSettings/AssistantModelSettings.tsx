@@ -4,13 +4,12 @@ import EditableNumber from '@renderer/components/EditableNumber'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { ChevronDown } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -30,9 +29,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [toolUseMode, setToolUseMode] = useState(assistant?.settings?.toolUseMode ?? 'prompt')
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? true)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
 
   const customParametersRef = useRef(customParameters)
 
@@ -118,7 +119,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               { label: 'true', value: true },
               { label: 'false', value: false }
             ]}
-            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
         )
       case 'json':
@@ -153,20 +153,24 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
+    setEnableTemperature(true)
     setContextCount(DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setStreamOutput(true)
     setTopP(1)
+    setEnableTopP(true)
     setCustomParameters([])
     setToolUseMode('prompt')
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
+      enableTemperature: true,
       contextCount: DEFAULT_CONTEXTCOUNT,
       enableMaxTokens: false,
       maxTokens: 0,
       streamOutput: true,
       topP: 1,
+      enableTopP: true,
       customParameters: [],
       toolUseMode: 'prompt'
     })
@@ -182,8 +186,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         model: selectedModel,
         defaultModel: selectedModel
       })
+      // TODO: 需要根据配置来设置默认值
+      if (selectedModel.name.includes('kimi-k2')) {
+        setTemperature(0.6)
+        setTimeout(() => updateAssistantSettings({ temperature: 0.6 }), 500)
+      } else if (selectedModel.name.includes('moonshot')) {
+        setTemperature(0.3)
+        setTimeout(() => updateAssistantSettings({ temperature: 0.3 }), 500)
+      }
     }
-  }, [assistant, defaultModel, updateAssistant])
+  }, [assistant, defaultModel, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -220,92 +232,109 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </HStack>
       </HStack>
       <Divider style={{ margin: '10px 0' }} />
-      <Row align="middle">
-        <Col span={20}>
+
+      <SettingRow style={{ minHeight: 30 }}>
+        <HStack alignItems="center">
           <Label>
-            {t('chat.settings.temperature')}
+            {t('chat.settings.temperature.label')}
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <QuestionIcon />
             </Tooltip>
           </Label>
-        </Col>
-        <Col span={4}>
-          <EditableNumber
-            min={0}
-            max={2}
-            step={0.01}
-            precision={2}
-            value={temperature}
-            onChange={(value) => {
-              if (value !== null) {
-                setTemperature(value)
-                setTimeout(() => updateAssistantSettings({ temperature: value }), 500)
-              }
-            }}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle" gutter={24}>
-        <Col span={24}>
-          <Slider
-            min={0}
-            max={2}
-            onChange={setTemperature}
-            onChangeComplete={onTemperatureChange}
-            value={typeof temperature === 'number' ? temperature : 0}
-            marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
-          />
-        </Col>
-      </Row>
+        </HStack>
+        <Switch
+          checked={enableTemperature}
+          onChange={(enabled) => {
+            setEnableTemperature(enabled)
+            updateAssistantSettings({ enableTemperature: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTemperature && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={2}
+              onChange={setTemperature}
+              onChangeComplete={onTemperatureChange}
+              value={typeof temperature === 'number' ? temperature : 0}
+              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <EditableNumber
+              min={0}
+              max={2}
+              step={0.01}
+              value={temperature}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setTemperature(value)
+                  setTimeout(() => updateAssistantSettings({ temperature: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
+      <Divider style={{ margin: '10px 0' }} />
+
+      <SettingRow style={{ minHeight: 30 }}>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.top_p.label')}</Label>
+          <Tooltip title={t('chat.settings.top_p.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          checked={enableTopP}
+          onChange={(enabled) => {
+            setEnableTopP(enabled)
+            updateAssistantSettings({ enableTopP: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTopP && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={1}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              marks={{ 0: '0', 1: '1' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <EditableNumber
+              min={0}
+              max={1}
+              step={0.01}
+              value={topP}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setTopP(value)
+                  setTimeout(() => updateAssistantSettings({ topP: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
       <Divider style={{ margin: '10px 0' }} />
 
       <Row align="middle">
         <Col span={20}>
           <Label>
-            {t('chat.settings.top_p')}
-            <Tooltip title={t('chat.settings.top_p.tip')}>
-              <QuestionIcon />
-            </Tooltip>
-          </Label>
-        </Col>
-        <Col span={4}>
-          <EditableNumber
-            min={0}
-            max={1}
-            step={0.01}
-            value={topP}
-            changeOnBlur
-            onChange={(value) => {
-              if (!isNull(value)) {
-                setTopP(value)
-                setTimeout(() => updateAssistantSettings({ topP: value }), 500)
-              }
-            }}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle" gutter={24}>
-        <Col span={24}>
-          <Slider
-            min={0}
-            max={1}
-            onChange={setTopP}
-            onChangeComplete={onTopPChange}
-            value={typeof topP === 'number' ? topP : 1}
-            marks={{ 0: '0', 1: '1' }}
-            step={0.01}
-          />
-        </Col>
-      </Row>
-      <Divider style={{ margin: '10px 0' }} />
-
-      <Row align="middle">
-        <Col span={20}>
-          <Label>
-            {t('chat.settings.context_count')}{' '}
+            {t('chat.settings.context_count.label')}{' '}
             <Tooltip title={t('chat.settings.context_count.tip')}>
               <QuestionIcon />
             </Tooltip>
@@ -314,7 +343,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <EditableNumber
             min={0}
-            max={20}
+            max={MAX_CONTEXT_COUNT}
             step={1}
             value={contextCount}
             changeOnBlur
@@ -332,7 +361,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={24}>
           <Slider
             min={0}
-            max={100}
+            max={MAX_CONTEXT_COUNT}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
@@ -345,7 +374,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
+          <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>
@@ -403,7 +432,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <Label>{t('assistants.settings.tool_use_mode')}</Label>
+        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
         <Selector
           value={toolUseMode}
           options={[
@@ -437,8 +466,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Select
               value={param.type}
               onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}
-              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}>
+              style={{ width: '100%' }}>
               <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
               <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
               <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>

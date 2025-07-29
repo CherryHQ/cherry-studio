@@ -1,5 +1,4 @@
 import { languages } from '@shared/config/languages'
-import balanced from 'balanced-match'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
@@ -31,7 +30,7 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 // 检查是否包含潜在的 LaTeX 模式
-const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]|\$.*?\$|\\begin\{equation\}.*?\\end\{equation\}/
+const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
 
 /**
  * 转换 LaTeX 公式括号 `\[\]` 和 `\(\)` 为 Markdown 格式 `$$...$$` 和 `$...$`
@@ -41,7 +40,7 @@ const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]|\$.*?\$|\\begin\{equation\}.
  * 目前的实现：
  * - 保护代码块和链接，避免被 remark-math 处理
  * - 支持嵌套括号的平衡匹配
- * - 转义 `\\(x\\)` 会被处理为 `\$x\$`，`\\[x\\]` 会被处理为 `\$$x\$$`
+ * - 转义括号 `\\(\\)` 或 `\\[\\]` 不会被处理
  *
  * @see https://github.com/remarkjs/remark-math/issues/39
  * @param text 输入的 Markdown 文本
@@ -77,7 +76,7 @@ export const processLatexBrackets = (text: string) => {
     let remaining = content
 
     while (remaining.length > 0) {
-      const match = balanced(openDelim, closeDelim, remaining)
+      const match = findLatexMatch(remaining, openDelim, closeDelim)
       if (!match) {
         result += remaining
         break
@@ -107,6 +106,57 @@ export const processLatexBrackets = (text: string) => {
   })
 
   return result
+}
+
+/**
+ * 查找 LaTeX 数学公式的匹配括号对
+ *
+ * 使用平衡括号算法处理嵌套结构，正确识别转义字符
+ *
+ * @param text 要搜索的文本
+ * @param openDelim 开始分隔符 (如 '\[' 或 '\(')
+ * @param closeDelim 结束分隔符 (如 '\]' 或 '\)')
+ * @returns 匹配结果对象或 null
+ */
+const findLatexMatch = (text: string, openDelim: string, closeDelim: string) => {
+  // 统计连续反斜杠：奇数个表示转义，偶数个表示未转义
+  const escaped = (i: number) => {
+    let count = 0
+    while (--i >= 0 && text[i] === '\\') count++
+    return count & 1
+  }
+
+  // 查找第一个有效的开始标记
+  for (let i = 0, n = text.length; i <= n - openDelim.length; i++) {
+    // 没有找到开始分隔符或被转义，跳过
+    if (!text.startsWith(openDelim, i) || escaped(i)) continue
+
+    // 处理嵌套结构
+    for (let j = i + openDelim.length, depth = 1; j <= n - closeDelim.length && depth; j++) {
+      // 计算当前位置对深度的影响：+1(开始), -1(结束), 0(无关)
+      const delta =
+        text.startsWith(openDelim, j) && !escaped(j) ? 1 : text.startsWith(closeDelim, j) && !escaped(j) ? -1 : 0
+
+      if (delta) {
+        depth += delta
+
+        // 找到了匹配的结束位置
+        if (!depth)
+          return {
+            start: i,
+            end: j + closeDelim.length,
+            pre: text.slice(0, i),
+            body: text.slice(i + openDelim.length, j),
+            post: text.slice(j + closeDelim.length)
+          }
+
+        // 跳过已处理的分隔符字符，避免重复检查
+        j += (delta > 0 ? openDelim : closeDelim).length - 1
+      }
+    }
+  }
+
+  return null
 }
 
 /**
@@ -215,6 +265,47 @@ export function isValidPlantUML(code: string | null): boolean {
   const diagramType = code.match(/@start(\w+)/)?.[1]
 
   return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
+}
+
+/**
+ * 检查代码是否具有HTML特征
+ * @param code 输入的代码字符串
+ * @returns 是HTML代码 true，否则 false
+ */
+export function isHtmlCode(code: string | null): boolean {
+  if (!code || !code.trim()) {
+    return false
+  }
+
+  const trimmedCode = code.trim()
+
+  // 检查是否包含HTML文档类型声明
+  if (trimmedCode.includes('<!DOCTYPE html>') || trimmedCode.includes('<!doctype html>')) {
+    return true
+  }
+
+  // 检查是否包含html标签
+  if (trimmedCode.includes('<html') || trimmedCode.includes('</html>')) {
+    return true
+  }
+
+  // 检查是否包含head标签
+  if (trimmedCode.includes('<head>') || trimmedCode.includes('</head>')) {
+    return true
+  }
+
+  // 检查是否包含body标签
+  if (trimmedCode.includes('<body') || trimmedCode.includes('</body>')) {
+    return true
+  }
+
+  // 检查是否以HTML标签开头和结尾的完整HTML结构
+  const htmlTagPattern = /^\s*<html[^>]*>[\s\S]*<\/html>\s*$/i
+  if (htmlTagPattern.test(trimmedCode)) {
+    return true
+  }
+
+  return false
 }
 
 /**

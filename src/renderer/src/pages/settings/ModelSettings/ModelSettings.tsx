@@ -1,8 +1,9 @@
 import { RedoOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -15,9 +16,9 @@ import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
+import { find } from 'lodash'
 import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
-import { FC, useMemo } from 'react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,18 +40,10 @@ const ModelSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m))
-        .map((m) => ({
-          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-          value: getModelUniqId(m)
-        }))
-    }))
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
@@ -96,13 +89,13 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <ModelSelector
+            providers={providers}
+            predicate={modelPredicate}
             value={defaultModelValue}
             defaultValue={defaultModelValue}
             style={{ width: 360 }}
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
@@ -117,13 +110,13 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <ModelSelector
+            providers={providers}
+            predicate={modelPredicate}
             value={defaultTopicNamingModel}
             defaultValue={defaultTopicNamingModel}
             style={{ width: 360 }}
             onChange={(value) => setTopicNamingModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
@@ -138,13 +131,13 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <ModelSelector
+            providers={providers}
+            predicate={modelPredicate}
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
             style={{ width: 360 }}
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
@@ -233,7 +226,7 @@ const StyledButton = styled(Button)<{ selected: boolean }>`
   &:first-child {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
-    border-right-width: 0px; // No right border for the first button when not selected
+    border-right-width: 0; // No right border for the first button when not selected
   }
 
   &:last-child {
@@ -243,6 +236,7 @@ const StyledButton = styled(Button)<{ selected: boolean }>`
   }
 
   // Override Ant Design's default hover and focus styles for a cleaner look
+
   &:hover,
   &:focus {
     z-index: 1;

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { Center, VStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
@@ -7,6 +8,8 @@ import { Divider, Dropdown, Form, Input, Modal, Select, Upload } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('AddProviderPopup')
 
 interface Props {
   provider?: Provider
@@ -30,7 +33,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             setLogo(logoData)
           }
         } catch (error) {
-          console.error('Failed to load logo', error)
+          logger.error('Failed to load logo', error as Error)
         }
       }
       loadLogo()
@@ -175,7 +178,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>
-        <Form.Item label={t('settings.provider.add.name')} style={{ marginBottom: 8 }}>
+        <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value.trim())}
