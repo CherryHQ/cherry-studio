@@ -503,7 +503,9 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
       setStyledResult(result)
     }
 
-    highlight()
+    const timer = setTimeout(highlight, 0)
+
+    return () => clearTimeout(timer)
   }, [isExpanded, resultString, highlightCode])
 
   if (!isExpanded) {

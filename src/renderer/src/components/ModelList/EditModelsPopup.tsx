@@ -163,6 +163,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
 
   useEffect(() => {
     let timer: NodeJS.Timeout
+    let mounted = true
+
     runAsyncFunction(async () => {
       try {
         setLoading(true)
@@ -189,11 +191,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       } catch (error) {
         logger.error('Failed to fetch models', error as Error)
       } finally {
-        timer = setTimeout(() => setLoading(false), 300)
+        if (mounted) {
+          timer = setTimeout(() => setLoading(false), 300)
+        }
       }
     })
 
     return () => {
+      mounted = false
       if (timer) {
         clearTimeout(timer)
       }
