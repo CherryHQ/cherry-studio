@@ -254,44 +254,21 @@ describe('file', () => {
       const content = '这是一段GB18030编码的测试内容'
       const buffer = iconv.encode(content, 'GB18030')
 
-      // 创建模拟的 FileHandle 对象
-      const mockFileHandle = {
-        read: vi.fn().mockResolvedValue({
-          bytesRead: buffer.byteLength,
-          buffer: buffer
-        }),
-        close: vi.fn().mockResolvedValue(undefined)
-      }
-
-      // 模拟 open 方法
-      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
+      // 模拟文件读取和编码检测
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
     })
 
     it('should try to fix bad detected encoding', async () => {
-      const content = '这是一段GB18030编码的测试内容'
-      const buffer = iconv.encode(content, 'GB18030')
+      const content = '这是一段UTF-8编码的测试内容'
+      const buffer = iconv.encode(content, 'UTF-8')
 
-      // 创建模拟的 FileHandle 对象
-      const mockFileHandle = {
-        read: vi.fn().mockResolvedValue({
-          bytesRead: buffer.byteLength,
-          buffer: buffer
-        }),
-        close: vi.fn().mockResolvedValue(undefined)
-      }
-
-      // 模拟 fs.open 方法
-      vi.spyOn(fsPromises, 'open').mockResolvedValue(mockFileHandle as any)
+      // 模拟文件读取
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
-      // 模拟 chardet.analyse 方法
-      vi.spyOn(chardet, 'analyse').mockReturnValue([
-        { name: 'UTF-8', confidence: 0.9 },
-        { name: 'GB18030', confidence: 0.8 }
-      ])
+      vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
       expect(result).toBe(content)
