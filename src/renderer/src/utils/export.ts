@@ -169,7 +169,7 @@ const createBaseMarkdown = (
 ) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
-  const titleSection = `### ${roleText}`
+  const titleSection = `## ${roleText}`
   let reasoningSection = ''
 
   if (includeReasoning) {
