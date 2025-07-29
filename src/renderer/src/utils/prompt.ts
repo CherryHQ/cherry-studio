@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
 import { Assistant, MCPTool } from '@renderer/types'
 
@@ -236,7 +235,7 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{username}}')) {
     try {
-      const userName = (getStoreSetting('userName') as string) || 'User'
+      const userName = store.getState().settings.userName || 'Unknown Username'
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
     } catch (error) {
       logger.error('Failed to get username:', error as Error)
