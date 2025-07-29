@@ -1,8 +1,11 @@
-import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
+import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
@@ -16,21 +19,21 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
+  createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
   determineTargetLanguage,
   getLanguageByLangcode
 } from '@renderer/utils/translate'
 import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
-import { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { debounce, isEmpty } from 'lodash'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { find, isEmpty } from 'lodash'
+import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
 
@@ -292,8 +295,9 @@ const TranslatePage: FC = () => {
     LanguagesEnum.zhCN
   ])
   const [settingsVisible, setSettingsVisible] = useState(false)
+  const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
-  const [targetLanguage, setTargetLanguage] = useState<Language>()
+  const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -301,10 +305,10 @@ const TranslatePage: FC = () => {
   const { translatedContent, translating, translate, setTranslatedContent, clearHistory, deleteHistory } =
     useTranslate()
 
-  const _translateHistories = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
-  const translateHistories = useMemo(() => {
-    return _translateHistories?.map((item) => ({
+  const translateHistory = useMemo(() => {
+    return _translateHistory?.map((item) => ({
       ...item,
       _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
       _targetLanguage: getLanguageByLangcode(item.targetLanguage)
@@ -314,7 +318,7 @@ const TranslatePage: FC = () => {
   _text = text
   _targetLanguage = targetLanguage
 
-  const handleModelChange = async (model: Model) => {
+  const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
   }
@@ -382,22 +386,12 @@ const TranslatePage: FC = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = async (
-    history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
-  ) => {
+  const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setTranslatedContent(history.targetText)
     setSourceLanguage(history._sourceLanguage)
     setTargetLanguage(history._targetLanguage)
   }
-
-  const debouncedClear = useMemo(
-    () =>
-      debounce(() => {
-        isEmpty(text) && setResult('')
-      }, 300),
-    [text]
-  )
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -464,10 +458,19 @@ const TranslatePage: FC = () => {
     })
   }, [])
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isEnterPressed = e.key === 'Enter'
+    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      onTranslate()
+    }
+  }
+
+  const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
   // 获取当前语言状态显示
-  const LanguageDisplay = () => {
+  const getLanguageDisplay = () => {
     try {
       if (isBidirectional) {
         return (
@@ -515,7 +518,7 @@ const TranslatePage: FC = () => {
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
-            {!isEmpty(translateHistories) && (
+            {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
                 description={t('translate.history.clear_description')}
@@ -526,9 +529,9 @@ const TranslatePage: FC = () => {
               </Popconfirm>
             )}
           </OperationBar>
-          {translateHistories && translateHistories.length ? (
+          {translateHistory && translateHistory.length ? (
             <HistoryList>
-              {translateHistories.map((item) => (
+              {translateHistory.map((item) => (
                 <Dropdown
                   key={item.id}
                   trigger={['contextMenu']}
@@ -655,7 +658,7 @@ const TranslatePage: FC = () => {
         <OutputContainer>
           <OperationBar>
             <HStack alignItems="center" gap={5}>
-              <LanguageDisplay />
+              {getLanguageDisplay()}
             </HStack>
             <CopyButton
               onClick={onCopy}
@@ -707,6 +710,18 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   position: relative;
 `
 
+const InputContainer = styled.div`
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 10px;
+  padding-bottom: 5px;
+  padding-right: 2px;
+  margin-right: 15px;
+`
+
 const OperationBar = styled.div`
   display: flex;
   flex-direction: row;
@@ -714,6 +729,20 @@ const OperationBar = styled.div`
   justify-content: space-between;
   gap: 20px;
   padding: 10px 8px 10px 10px;
+`
+
+const Textarea = styled(TextArea)`
+  display: flex;
+  flex: 1;
+  font-size: 16px;
+  border-radius: 0;
+  .ant-input {
+    resize: none;
+    padding: 5px 16px;
+  }
+  .ant-input-clear-icon {
+    font-size: 16px;
+  }
 `
 
 const OutputContainer = styled.div`
@@ -746,6 +775,8 @@ const OutputText = styled.div`
     }
   }
 `
+
+const TranslateButton = styled(Button)``
 
 const CopyButton = styled(Button)``
 
