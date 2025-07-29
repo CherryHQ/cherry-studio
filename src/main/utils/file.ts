@@ -1,5 +1,5 @@
 import * as fs from 'node:fs'
-import { open, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -134,17 +134,10 @@ export function getMcpDir() {
  * @returns 解码后的文件内容
  */
 export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
-  // 读取前1MB以检测编码
-  const buffer = Buffer.alloc(MB)
-  const fh = await open(filePath, 'r')
-  const { buffer: bufferRead } = await fh.read(buffer, 0, MB, 0)
-  await fh.close()
-
-  const encoding = chardet.detect(bufferRead) || 'UTF-8'
+  const encoding = (await chardet.detectFile(filePath, { sampleSize: MB })) || 'UTF-8'
+  logger.debug(`File ${filePath} detected encoding: ${encoding}`)
 
   const encodings = [encoding, 'UTF-8']
-  logger.debug(`File ${filePath} encoding ${encoding}`)
-
   const data = await readFile(filePath)
 
   for (const encoding of encodings) {
@@ -153,7 +146,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
       if (!content.includes('\uFFFD')) {
         return content
       } else {
-        logger.error(
+        logger.warn(
           `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
         )
       }
