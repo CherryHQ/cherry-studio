@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { Model, ModelType, Provider } from '@renderer/types'
+import { Language, Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
+import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils')
@@ -236,6 +237,20 @@ export function isOpenAIProvider(provider: Provider): boolean {
 export function isUserSelectedModelType(model: Model, type: ModelType): boolean | undefined {
   const t = model.capabilities?.find((t) => t.type === type)
   return t ? t.isUserSelected : undefined
+}
+
+export function mapLanguageToQwenMTModel(language: Language): string {
+  if (language.langCode === 'zh-cn') {
+    return 'Chinese'
+  }
+  if (language.langCode === 'zh-tw') {
+    return 'Traditional Chinese'
+  }
+  return language.value
+}
+
+export function uniqueObjectArray<T>(array: T[]): T[] {
+  return array.filter((obj, index, self) => index === self.findIndex((t) => isEqual(t, obj)))
 }
 
 export * from './api'

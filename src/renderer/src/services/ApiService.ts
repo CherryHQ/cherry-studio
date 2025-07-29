@@ -30,6 +30,7 @@ import {
   MemoryItem,
   Model,
   Provider,
+  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -378,7 +379,7 @@ async function fetchExternalTool(
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
         if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
-          // 提示词模式：需要完整的工具定义和思考指令
+          // 提示词模式：需要完整的工具定义，思考工具返回会打乱提示词的返回（先去掉）
           assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
         } else {
           // 原生函数调用模式：仅需要注入思考指令
@@ -591,7 +592,7 @@ async function processConversationMemory(messages: Message[], assistant: Assista
 
 interface FetchTranslateProps {
   content: string
-  assistant: Assistant
+  assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
@@ -811,8 +812,8 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      throw new Error(i18n.t('message.error.enter.api.key'))
+      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 

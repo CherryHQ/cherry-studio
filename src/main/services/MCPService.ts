@@ -46,6 +46,7 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import getLoginShellEnvironment from './mcp/shell-env'
+import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -440,6 +441,10 @@ class McpService {
       // Set up progress notification handler
       client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
         logger.debug(`Progress notification received for server: ${server.name}`, notification.params)
+        const mainWindow = windowService.getMainWindow()
+        if (mainWindow) {
+          mainWindow.webContents.send('mcp-progress', notification.params.progress / (notification.params.total || 1))
+        }
       })
 
       // Set up cancelled notification handler
@@ -614,21 +619,27 @@ class McpService {
 
     const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
       try {
-        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`)
+        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`, server)
         if (typeof args === 'string') {
           try {
             args = JSON.parse(args)
           } catch (e) {
             logger.error('args parse error', args)
           }
+          if (args === '') {
+            args = {}
+          }
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
-            window.api.mcp.setProgress(process.progress / (process.total || 1))
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
+          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          resetTimeoutOnProgress: server.longRunning,
+          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
         return result as MCPCallToolResponse

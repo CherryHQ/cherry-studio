@@ -52,7 +52,7 @@ export const oauthWithAihubmix = async (setKey) => {
       } catch (error) {
         logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
-        window.message.error(i18n.t('oauth.error'))
+        window.message.error(i18n.t('settings.provider.oauth.error'))
       }
     }
   }
@@ -140,7 +140,7 @@ export const oauthWithTokenFlux = async () => {
   const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
   const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
   if (!resp.ok) {
-    window.message.error(i18n.t('oauth.error'))
+    window.message.error(i18n.t('settings.provider.oauth.error'))
     return
   }
   const data = await resp.json()

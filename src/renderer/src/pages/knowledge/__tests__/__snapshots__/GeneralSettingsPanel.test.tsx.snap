@@ -1,0 +1,201 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
+.c0 {
+  padding: 0 16px;
+}
+
+.c1 {
+  margin-bottom: 24px;
+}
+
+.c1 .settings-label {
+  font-size: 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      common.name
+    </div>
+    <input
+      data-testid="name-input"
+      placeholder="common.name"
+      value="Test Knowledge Base"
+    />
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      settings.tool.preprocess.title
+       / 
+      settings.tool.ocr.title
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="settings.tool.preprocessOrOcr.tooltip"
+      >
+        ℹ️
+      </span>
+    </div>
+    <select
+      data-allow-clear="true"
+      data-placeholder="settings.tool.preprocess.provider_placeholder"
+      data-testid="preprocess-select"
+    >
+      <option
+        value=""
+      >
+        Select option
+      </option>
+      <option
+        value="doc2x"
+      >
+        Doc2X
+      </option>
+      <option
+        value="mistral"
+      >
+        Mistral
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      models.embedding_model
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="models.embedding_model_tooltip"
+      >
+        ℹ️
+      </span>
+    </div>
+    <select
+      data-has-providers="true"
+      data-model-type="embedding"
+      data-placeholder="settings.models.empty"
+      data-testid="model-selector"
+    >
+      <option
+        value=""
+      >
+        Select model
+      </option>
+      <option
+        value="openai/text-embedding-3-small"
+      >
+        text-embedding-3-small
+      </option>
+      <option
+        value="openai/text-embedding-ada-002"
+      >
+        text-embedding-ada-002
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      knowledge.dimensions
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="knowledge.dimensions_size_tooltip"
+      >
+        ℹ️
+      </span>
+    </div>
+    <input
+      data-model="text-embedding-3-small"
+      data-testid="embedding-dimension-input"
+      type="number"
+      value=""
+    />
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      models.rerank_model
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="models.rerank_model_tooltip"
+      >
+        ℹ️
+      </span>
+    </div>
+    <select
+      data-allow-clear="true"
+      data-has-providers="true"
+      data-model-type="rerank"
+      data-placeholder="settings.models.empty"
+      data-testid="model-selector"
+    >
+      <option
+        value=""
+      >
+        Select model
+      </option>
+      <option
+        value="openai/rerank-model"
+      >
+        rerank-model
+      </option>
+      <option
+        value="cohere/rerank-english-v2.0"
+      >
+        rerank-english-v2.0
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      knowledge.document_count
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="knowledge.document_count_help"
+      >
+        ℹ️
+      </span>
+    </div>
+    <input
+      data-marks="{"1":"1","6":"knowledge.document_count_default","30":"30","50":"50"}"
+      data-testid="document-count-slider"
+      max="50"
+      min="1"
+      step="1"
+      type="range"
+      value="6"
+    />
+  </div>
+</div>
+`;

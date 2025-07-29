@@ -1,6 +1,13 @@
 import i18n from '@renderer/i18n'
 import { Language } from '@renderer/types'
 
+export const UNKNOWN: Language = {
+  value: 'Unknown',
+  langCode: 'unknown',
+  label: () => i18n.t('languages.unknown'),
+  emoji: '🏳️'
+}
+
 export const ENGLISH: Language = {
   value: 'English',
   langCode: 'en-us',
@@ -134,6 +141,13 @@ export const MALAY: Language = {
   emoji: '🇲🇾'
 }
 
+export const UKRAINIAN: Language = {
+  value: 'Ukrainian',
+  langCode: 'uk-ua',
+  label: () => i18n.t('languages.ukrainian'),
+  emoji: '🇺🇦'
+}
+
 export const LanguagesEnum = {
   enUS: ENGLISH,
   zhCN: CHINESE_SIMPLIFIED,
@@ -153,7 +167,8 @@ export const LanguagesEnum = {
   viVN: VIETNAMESE,
   idID: INDONESIAN,
   urPK: URDU,
-  msMY: MALAY
+  msMY: MALAY,
+  ukUA: UKRAINIAN
 } as const
 
 export const translateLanguageOptions: Language[] = Object.values(LanguagesEnum)

@@ -65,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const parsedConfig = JSON.parse(jsonConfig)
 
       if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
-        throw new Error(t('settings.mcp.invalidMcpFormat'))
+        throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 
       const serversArray: MCPServer[] = []

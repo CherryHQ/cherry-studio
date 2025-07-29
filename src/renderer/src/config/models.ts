@@ -108,6 +108,7 @@ import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
 import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
+import PanguModelLogo from '@renderer/assets/images/models/pangu.svg'
 import {
   default as PerplexityModelLogo,
   default as PerplexityModelLogoDark
@@ -172,6 +173,7 @@ const visionAllowedModels = [
   'qvq',
   'internvl2',
   'grok-vision-beta',
+  'grok-4(?:-[\\w-]+)?',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4.1(?:-[\\w-]+)?',
@@ -217,7 +219,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4)(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -241,6 +243,7 @@ export const FUNCTION_CALLING_MODELS = [
   'hunyuan',
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
+  'glm-4.5(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
@@ -254,7 +257,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1',
-  'gemini-1(?:\\.[\\w-]+)?'
+  'gemini-1(?:\\.[\\w-]+)?',
+  'qwen-mt(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -411,7 +415,8 @@ export function getModelLogo(modelId: string) {
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
-    'nomic-': NomicLogo
+    'nomic-': NomicLogo,
+    'pangu-': PanguModelLogo
   }
 
   for (const key in logoMap) {
@@ -1184,6 +1189,36 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
+      id: 'glm-4.5',
+      provider: 'zhipu',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIR',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-airx',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIRX',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-x',
+      provider: 'zhipu',
+      name: 'GLM-4.5-X',
+      group: 'GLM-4.5'
+    },
+    {
       id: 'glm-z1-air',
       provider: 'zhipu',
       name: 'GLM-Z1-AIR',
@@ -1551,6 +1586,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   grok: [
+    {
+      id: 'grok-4',
+      provider: 'grok',
+      name: 'Grok 4',
+      group: 'Grok'
+    },
     {
       id: 'grok-3',
       provider: 'grok',
@@ -1973,6 +2014,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'sonar',
       provider: 'perplexity',
       name: 'sonar',
+      group: 'Sonar'
+    },
+    {
+      id: 'sonar-deep-research',
+      provider: 'perplexity',
+      name: 'sonar-deep-research',
       group: 'Sonar'
     }
   ],
@@ -2405,7 +2452,13 @@ export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
-export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro']
+export const PERPLEXITY_SEARCH_MODELS = [
+  'sonar-pro',
+  'sonar',
+  'sonar-reasoning',
+  'sonar-reasoning-pro',
+  'sonar-deep-research'
+]
 
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
@@ -2537,7 +2590,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
-    isSupportedThinkingTokenHunyuanModel(model)
+    isSupportedThinkingTokenHunyuanModel(model) ||
+    isSupportedThinkingTokenZhipuModel(model)
   )
 }
 
@@ -2546,7 +2600,11 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
     return false
   }
 
-  return isSupportedReasoningEffortOpenAIModel(model) || isSupportedReasoningEffortGrokModel(model)
+  return (
+    isSupportedReasoningEffortOpenAIModel(model) ||
+    isSupportedReasoningEffortGrokModel(model) ||
+    isSupportedReasoningEffortPerplexityModel(model)
+  )
 }
 
 export function isGrokModel(model?: Model): boolean {
@@ -2682,6 +2740,32 @@ export const isHunyuanReasoningModel = (model?: Model): boolean => {
   return isSupportedThinkingTokenHunyuanModel(model) || model.id.toLowerCase().includes('hunyuan-t1')
 }
 
+export const isPerplexityReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return isSupportedReasoningEffortPerplexityModel(model) || baseName.includes('reasoning')
+}
+
+export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean => {
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('sonar-deep-research')
+}
+
+export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('glm-4.5')
+}
+
+export const isZhipuReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenZhipuModel(model) || model.id.toLowerCase().includes('glm-z1')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -2707,9 +2791,11 @@ export function isReasoningModel(model?: Model): boolean {
     isQwenReasoningModel(model) ||
     isGrokReasoningModel(model) ||
     isHunyuanReasoningModel(model) ||
-    model.id.toLowerCase().includes('glm-z1') ||
+    isPerplexityReasoningModel(model) ||
+    isZhipuReasoningModel(model) ||
     model.id.toLowerCase().includes('magistral') ||
-    model.id.toLowerCase().includes('minimax-m1')
+    model.id.toLowerCase().includes('minimax-m1') ||
+    model.id.toLowerCase().includes('pangu-pro-moe')
   ) {
     return true
   }
@@ -2730,7 +2816,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
     return true
   }
 
@@ -2975,6 +3061,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
+  'qwen3-235b-a22b-thinking(?:-[\\w-]+)$': { min: 0, max: 81_920 },
   'qwen-plus-.*$': { min: 0, max: 38912 },
   'qwen-turbo-.*$': { min: 0, max: 38912 },
   'qwen3-0\\.6b$': { min: 0, max: 30720 },
@@ -3024,4 +3111,25 @@ export const isAnthropicModel = (model?: Model): boolean => {
   }
 
   return getLowerBaseModelName(model.id).startsWith('claude')
+}
+
+export const isQwenMTModel = (model: Model): boolean => {
+  const name = getLowerBaseModelName(model.id)
+  return name.includes('qwen-mt')
+}
+
+export const isNotSupportedTextDelta = (model: Model): boolean => {
+  if (isQwenMTModel(model)) {
+    return true
+  }
+
+  return false
+}
+
+export const isNotSupportSystemMessageModel = (model: Model): boolean => {
+  if (isQwenMTModel(model) || isGemmaModel(model)) {
+    return true
+  }
+
+  return false
 }

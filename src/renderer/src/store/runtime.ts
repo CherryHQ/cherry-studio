@@ -29,6 +29,7 @@ export interface UpdateState {
 export interface RuntimeState {
   avatar: string
   generating: boolean
+  translating: boolean
   /** whether the minapp popup is shown */
   minappShow: boolean
   /** the minapps that are opened and should be keep alive */
@@ -53,6 +54,7 @@ export interface ExportState {
 const initialState: RuntimeState = {
   avatar: UserAvatar,
   generating: false,
+  translating: false,
   minappShow: false,
   openedKeepAliveMinapps: [],
   openedOneOffMinapp: null,
@@ -92,6 +94,9 @@ const runtimeSlice = createSlice({
     },
     setGenerating: (state, action: PayloadAction<boolean>) => {
       state.generating = action.payload
+    },
+    setTranslating: (state, action: PayloadAction<boolean>) => {
+      state.translating = action.payload
     },
     setMinappShow: (state, action: PayloadAction<boolean>) => {
       state.minappShow = action.payload
@@ -156,6 +161,7 @@ const runtimeSlice = createSlice({
 export const {
   setAvatar,
   setGenerating,
+  setTranslating,
   setMinappShow,
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp,

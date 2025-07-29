@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -62,7 +63,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined
     }
 
-    addModel(model)
+    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
 
     return true
   }
@@ -95,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       centered>
       <Form
         form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type')]) } }}
+        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -114,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
         }>
         <Form.Item
           name="id"
-          label={t('settings.models.add.model_id')}
+          label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Input
@@ -129,19 +130,19 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
         </Form.Item>
         <Form.Item
           name="name"
-          label={t('settings.models.add.model_name')}
+          label={t('settings.models.add.model_name.label')}
           tooltip={t('settings.models.add.model_name.placeholder')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
-          label={t('settings.models.add.group_name')}
+          label={t('settings.models.add.group_name.label')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="endpointType"
-          label={t('settings.models.add.endpoint_type')}
+          label={t('settings.models.add.endpoint_type.label')}
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
           rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>

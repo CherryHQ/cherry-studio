@@ -59,6 +59,9 @@ const api = {
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
+  resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
+  isPathInside: (childPath: string, parentPath: string) =>
+    ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
   setAppDataPath: (path: string) => ipcRenderer.invoke(IpcChannel.App_SetAppDataPath, path),
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
@@ -117,7 +120,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_ListLocalBackupFiles, localBackupDir),
     deleteLocalBackupFile: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
-    setLocalBackupDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.Backup_SetLocalBackupDir, dirPath),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
 
@@ -291,7 +293,6 @@ const api = {
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    setProgress: (progress: number) => ipcRenderer.invoke(IpcChannel.Mcp_SetProgress, progress),
     getServerVersion: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server)
   },
   python: {

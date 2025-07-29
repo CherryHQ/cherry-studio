@@ -56,13 +56,60 @@ export default defineConfig([
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*'],
     rules: {
       'no-restricted-syntax': [
-        'warn',
+        process.env.PRCI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
             '❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n'
         }
       ]
+    }
+  },
+  {
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module'
+    },
+    plugins: {
+      i18n: {
+        rules: {
+          'no-template-in-t': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
+                recommended: true
+              },
+              messages: {
+                noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
+              }
+            },
+            create(context) {
+              return {
+                CallExpression(node) {
+                  const { callee, arguments: args } = node
+                  const isTFunction =
+                    (callee.type === 'Identifier' && callee.name === 't') ||
+                    (callee.type === 'MemberExpression' &&
+                      callee.property.type === 'Identifier' &&
+                      callee.property.name === 't')
+
+                  if (isTFunction && args[0]?.type === 'TemplateLiteral') {
+                    context.report({
+                      node: args[0],
+                      messageId: 'noTemplateInT'
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'i18n/no-template-in-t': 'warn'
     }
   },
   {

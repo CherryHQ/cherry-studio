@@ -6,9 +6,10 @@ import {
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
+  isNotSupportSystemMessageModel,
+  isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
-  isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
@@ -17,6 +18,7 @@ import {
   isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
+  isSupportedThinkingTokenZhipuModel,
   isVisionModel
 } from '@renderer/config/models'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -32,6 +34,7 @@ import {
   Model,
   Provider,
   ToolCallResponse,
+  TranslateAssistant,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
@@ -44,6 +47,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -114,6 +118,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
       // 其他情况不带 thinking 字段
       return {}
+    }
+
+    if (isSupportedThinkingTokenZhipuModel(model)) {
+      if (!reasoningEffort) {
+        return { thinking: { type: 'disabled' } }
+      }
+      return { thinking: { type: 'enabled' } }
     }
 
     if (!reasoningEffort) {
@@ -195,15 +206,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
     }
 
-    // Grok models
-    if (isSupportedReasoningEffortGrokModel(model)) {
-      return {
-        reasoning_effort: reasoningEffort
-      }
-    }
-
-    // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
+    // Grok models/Perplexity models/OpenAI models
+    if (isSupportedReasoningEffortModel(model)) {
       return {
         reasoning_effort: reasoningEffort
       }
@@ -472,6 +476,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           streamOutput = true
         }
 
+        const extra_body: Record<string, any> = {}
+
+        if (isQwenMTModel(model)) {
+          const targetLanguage = (assistant as TranslateAssistant).targetLanguage
+          extra_body.translation_options = {
+            source_lang: 'auto',
+            target_lang: mapLanguageToQwenMTModel(targetLanguage!)
+          }
+        }
+
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
@@ -505,7 +519,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
+        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model) && model.provider !== 'dashscope') {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
           const currentContent = lastUserMsg.content
@@ -515,7 +529,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         // 4. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
-        if (!systemMessage.content) {
+        if (!systemMessage.content || isNotSupportSystemMessageModel(model)) {
           reqMessages = [...userMessages]
         } else {
           reqMessages = [systemMessage, ...userMessages].filter(Boolean) as OpenAISdkMessageParam[]
@@ -541,15 +555,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
           // OpenRouter usage tracking
-          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {})
+          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
+          ...(isQwenMTModel(model) ? extra_body : {})
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const mistralProviders = ['mistral']
+        const shouldIncludeStreamOptions = streamOutput && !mistralProviders.includes(this.provider.id)
+
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
               ...commonParams,
               stream: true,
-              stream_options: { include_usage: true }
+              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
             }
           : {
               ...commonParams,

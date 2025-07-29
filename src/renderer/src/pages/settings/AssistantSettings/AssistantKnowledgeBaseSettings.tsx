@@ -48,7 +48,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         }
       />
       <Row align="middle" style={{ marginTop: 10 }}>
-        <Label>{t('assistants.settings.knowledge_base.recognition')}</Label>
+        <Label>{t('assistants.settings.knowledge_base.recognition.label')}</Label>
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented
