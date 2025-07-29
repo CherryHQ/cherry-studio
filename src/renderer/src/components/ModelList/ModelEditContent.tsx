@@ -36,6 +36,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
   const [modelCapabilities, setModelCapabilities] = useState(model.capabilities || [])
   const originalModelCapabilities = cloneDeep(model.capabilities || [])
   const [supportedTextDelta, setSupportedTextDelta] = useState(model.supported_text_delta)
+  const [hasUserModified, setHasUserModified] = useState(false)
 
   const labelWidth = useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')])
 
@@ -274,6 +275,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               }
 
               const handleTypeChange = (types: string[]) => {
+                setHasUserModified(true) // 标记用户已进行修改
                 const diff = types.length > selectedTypes.length
                 if (diff) {
                   const newCapability = getDifference(types, selectedTypes) // checkbox的特性，确保了newCapability只有一个元素
@@ -320,6 +322,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
 
               const handleResetTypes = () => {
                 setModelCapabilities(originalModelCapabilities)
+                setHasUserModified(false) // 重置后清除修改标志
               }
 
               return (
@@ -361,9 +364,11 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                         }
                       ]}
                     />
-                    <Button size="small" onClick={handleResetTypes}>
-                      {t('common.reset')}
-                    </Button>
+                    {hasUserModified && (
+                      <Button size="small" onClick={handleResetTypes}>
+                        {t('common.reset')}
+                      </Button>
+                    )}
                   </Flex>
                 </div>
               )
