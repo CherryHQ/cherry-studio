@@ -392,7 +392,20 @@ const api = {
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
     addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
-  }
+  },
+
+  // Agent IPC Communication
+  agent: (() => {
+    const { agentIPC } = require('./agentIPC')
+    return {
+      sendMessage: agentIPC.sendMessage.bind(agentIPC),
+      sendStreamMessage: agentIPC.sendStreamMessage.bind(agentIPC),
+      onMessage: agentIPC.onMessage.bind(agentIPC),
+      onStreamData: agentIPC.onStreamData.bind(agentIPC),
+      onStreamEnd: agentIPC.onStreamEnd.bind(agentIPC),
+      onStreamError: agentIPC.onStreamError.bind(agentIPC)
+    }
+  })()
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
