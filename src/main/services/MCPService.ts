@@ -183,8 +183,7 @@ class McpService {
                 requestInit: {
                   headers: server.headers || {}
                 },
-                authProvider,
-                sessionId: server.sessionId
+                authProvider
               }
               logger.debug(`StreamableHTTPClientTransport options:`, options)
               return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
