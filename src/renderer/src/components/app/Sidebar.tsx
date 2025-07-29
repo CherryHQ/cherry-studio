@@ -15,6 +15,7 @@ import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
+  Bot,
   CircleHelp,
   FileSearch,
   Folder,
@@ -142,6 +143,7 @@ const MainMenus: FC = () => {
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
     agents: <Sparkle size={18} className="icon" />,
+    'ai-agent': <Bot size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
@@ -152,6 +154,7 @@ const MainMenus: FC = () => {
   const pathMap = {
     assistants: '/',
     agents: '/agents',
+    'ai-agent': '/ai-agent',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
