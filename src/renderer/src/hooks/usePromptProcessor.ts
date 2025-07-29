@@ -1,6 +1,8 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { containsSupportedVariables, promptVariableReplacer } from '@renderer/utils/prompt'
 import { useEffect, useState } from 'react'
+
+const logger = loggerService.withContext('usePromptProcessor')
 
 interface PromptProcessor {
   prompt: string
@@ -20,7 +22,7 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
           setProcessedPrompt(prompt)
         }
       } catch (error) {
-        Logger.error('Failed to process prompt variables, falling back:', error)
+        logger.error('Failed to process prompt variables, falling back:', error as Error)
         setProcessedPrompt(prompt)
       }
     }

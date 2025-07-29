@@ -197,6 +197,21 @@ ${availableTools}
 </tools>`
 }
 
+const supportedVariables = [
+  '{{username}}',
+  '{{date}}',
+  '{{time}}',
+  '{{datetime}}',
+  '{{system}}',
+  '{{language}}',
+  '{{arch}}',
+  '{{model_name}}'
+]
+
+export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
+  return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+}
+
 export const promptVariableReplacer = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string:', userSystemPrompt)
@@ -272,23 +287,8 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
   return userSystemPrompt
 }
 
-export const supportedVariables = [
-  '{{username}}',
-  '{{date}}',
-  '{{time}}',
-  '{{datetime}}',
-  '{{system}}',
-  '{{language}}',
-  '{{arch}}',
-  '{{model_name}}'
-]
-
-export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
-  return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
-}
-
 export const buildSystemPrompt = async (userSystemPrompt: string, assistant?: Assistant): Promise<string> => {
-  return await promptVariableReplacer(userSystemPrompt, assistant)
+  return await promptVariableReplacer(userSystemPrompt, assistant?.model?.name)
 }
 
 export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {
