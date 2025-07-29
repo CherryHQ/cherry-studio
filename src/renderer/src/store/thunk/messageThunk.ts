@@ -17,7 +17,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { buildSystemPrompt, containsSupportedVariables } from '@renderer/utils/prompt'
+import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { getTopicQueue } from '@renderer/utils/queue'
 import { waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
@@ -879,7 +879,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     // }
 
     if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
-      assistant.prompt = await buildSystemPrompt(assistant.prompt || '', assistant)
+      assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
     }
 
     callbacks = createCallbacks({

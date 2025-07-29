@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
-import { Assistant, MCPTool } from '@renderer/types'
+import { MCPTool } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:Prompt')
 
@@ -211,7 +211,7 @@ export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
   return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
 }
 
-export const promptVariableReplacer = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string:', userSystemPrompt)
     return userSystemPrompt
@@ -284,10 +284,6 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
   }
 
   return userSystemPrompt
-}
-
-export const buildSystemPrompt = async (userSystemPrompt: string, assistant?: Assistant): Promise<string> => {
-  return await promptVariableReplacer(userSystemPrompt, assistant?.model?.name)
 }
 
 export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {

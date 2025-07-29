@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { containsSupportedVariables, promptVariableReplacer } from '@renderer/utils/prompt'
+import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('usePromptProcessor')
@@ -16,7 +16,7 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
     const processPrompt = async () => {
       try {
         if (containsSupportedVariables(prompt)) {
-          const result = await promptVariableReplacer(prompt, modelName)
+          const result = await replacePromptVariables(prompt, modelName)
           setProcessedPrompt(result)
         } else {
           setProcessedPrompt(prompt)
