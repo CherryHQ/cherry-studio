@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
-import React, { MutableRefObject } from 'react'
+import React, { MutableRefObject, RefObject } from 'react'
 
 const logger = loggerService.withContext('Utils:translate')
 
@@ -207,8 +207,8 @@ export const handleScrollSync = (
  * 创建输入区域滚动处理函数
  */
 export const createInputScrollHandler = (
-  targetRef: MutableRefObject<HTMLDivElement | null>,
-  isProgrammaticScrollRef: MutableRefObject<boolean>,
+  targetRef: RefObject<HTMLDivElement | null>,
+  isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLTextAreaElement>) => {

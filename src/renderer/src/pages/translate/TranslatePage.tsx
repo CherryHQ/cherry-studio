@@ -1,4 +1,4 @@
-import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
@@ -7,43 +7,30 @@ import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/transl
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
-import {
-  createInputScrollHandler,
-  createOutputScrollHandler,
-  detectLanguage,
-  determineTargetLanguage,
-  getLanguageByLangcode
-} from '@renderer/utils/translate'
-import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { Language, Model, TranslateHistory } from '@renderer/types'
+import { runAsyncFunction } from '@renderer/utils'
+import { createOutputScrollHandler, getLanguageByLangcode } from '@renderer/utils/translate'
+import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space } from 'antd'
+import { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { debounce, isEmpty } from 'lodash'
-import { Settings2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import InputArea from './InputArea'
 import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
 
-let _text = ''
-let _result = ''
-let _targetLanguage = LanguagesEnum.enUS
-
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const { shikiMarkdownIt } = useCodeStyle()
-  const [text, setText] = useState(_text)
-  const [result, setResult] = useState(_result)
+  const [text, setText] = useState()
+  const [result, setResult] = useState()
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
@@ -54,9 +41,8 @@ const TranslatePage: FC = () => {
     LanguagesEnum.zhCN
   ])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>('auto')
-  const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
+  const [targetLanguage, setTargetLanguage] = useState<Language>()
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -72,30 +58,9 @@ const TranslatePage: FC = () => {
     }))
   }, [_translateHistories])
 
-  _text = text
-  _result = result
-  _targetLanguage = targetLanguage
-
   const handleModelChange = async (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
-  }
-
-  const saveTranslateHistory = async (
-    sourceText: string,
-    targetText: string,
-    sourceLanguage: LanguageCode,
-    targetLanguage: LanguageCode
-  ) => {
-    const history: TranslateHistory = {
-      id: uuid(),
-      sourceText,
-      targetText,
-      sourceLanguage,
-      targetLanguage,
-      createdAt: new Date().toISOString()
-    }
-    await db.translate_history.add(history)
   }
 
   const deleteHistory = async (id: string) => {
@@ -104,73 +69,6 @@ const TranslatePage: FC = () => {
 
   const clearHistory = async () => {
     db.translate_history.clear()
-  }
-
-  const onTranslate = async () => {
-    if (!text.trim()) return
-    if (!translateModel) {
-      window.message.error({
-        content: t('translate.error.not_configured'),
-        key: 'translate-message'
-      })
-      return
-    }
-
-    setLoading(true)
-    try {
-      // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
-      let actualSourceLanguage: Language
-      if (sourceLanguage === 'auto') {
-        actualSourceLanguage = await detectLanguage(text)
-        setDetectedLanguage(actualSourceLanguage)
-      } else {
-        actualSourceLanguage = sourceLanguage
-      }
-
-      const result = determineTargetLanguage(actualSourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
-      if (!result.success) {
-        let errorMessage = ''
-        if (result.errorType === 'same_language') {
-          errorMessage = t('translate.language.same')
-        } else if (result.errorType === 'not_in_pair') {
-          errorMessage = t('translate.language.not_pair')
-        }
-
-        window.message.warning({
-          content: errorMessage,
-          key: 'translate-message'
-        })
-        setLoading(false)
-        return
-      }
-
-      const actualTargetLanguage = result.language as Language
-      if (isBidirectional) {
-        setTargetLanguage(actualTargetLanguage)
-      }
-
-      const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-      let translatedText = ''
-      await fetchTranslate({
-        content: text,
-        assistant,
-        onResponse: (text) => {
-          translatedText = text.replace(/^\s*\n+/g, '')
-          setResult(translatedText)
-        }
-      })
-
-      await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
-      setLoading(false)
-    } catch (error) {
-      logger.error('Translation error:', error as Error)
-      window.message.error({
-        content: String(error),
-        key: 'translate-message'
-      })
-      setLoading(false)
-      return
-    }
   }
 
   const toggleBidirectional = async (value: boolean) => {
@@ -266,15 +164,6 @@ const TranslatePage: FC = () => {
     })
   }, [])
 
-  const onKeyDown = debounce((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = e.key === 'Enter'
-    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault()
-      onTranslate()
-    }
-  }, 300)
-
-  const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
   // 获取当前语言状态显示
@@ -379,89 +268,14 @@ const TranslatePage: FC = () => {
           )}
         </HistoryContainer>
 
-        <InputContainer>
-          <OperationBar>
-            <Flex align="center" gap={8}>
-              <Select
-                showSearch
-                value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
-                style={{ width: 180 }}
-                optionFilterProp="label"
-                onChange={(value: LanguageCode | 'auto') => {
-                  if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
-                  else setSourceLanguage('auto')
-                  db.settings.put({ id: 'translate:source:language', value })
-                }}
-                options={[
-                  {
-                    value: 'auto',
-                    label: detectedLanguage
-                      ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
-                      : t('translate.detected.language')
-                  },
-                  ...translateLanguageOptions.map((lang) => ({
-                    value: lang.langCode,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label()}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))
-                ]}
-              />
-              <Button
-                type="text"
-                icon={<Settings2 size={18} />}
-                onClick={() => setSettingsVisible(true)}
-                style={{ color: 'var(--color-text-2)', display: 'flex' }}
-              />
-              <Button
-                className="nodrag"
-                color="default"
-                variant={historyDrawerVisible ? 'filled' : 'text'}
-                type="text"
-                icon={<HistoryOutlined />}
-                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-              />
-            </Flex>
-
-            <Tooltip
-              mouseEnterDelay={0.5}
-              styles={{ body: { fontSize: '12px' } }}
-              title={
-                <div style={{ textAlign: 'center' }}>
-                  Enter: {t('translate.button.translate')}
-                  <br />
-                  Shift + Enter: {t('translate.tooltip.newline')}
-                </div>
-              }>
-              <TranslateButton
-                type="primary"
-                loading={loading}
-                onClick={onTranslate}
-                disabled={!text.trim()}
-                icon={<SendOutlined />}>
-                {t('translate.button.translate')}
-              </TranslateButton>
-            </Tooltip>
-          </OperationBar>
-
-          <Textarea
-            ref={textAreaRef}
-            variant="borderless"
-            placeholder={t('translate.input.placeholder')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            onScroll={handleInputScroll}
-            disabled={loading}
-            spellCheck={false}
-            allowClear
-          />
-        </InputContainer>
+        <InputArea
+          sourceLanguage={sourceLanguage}
+          setSourceLanguage={setSourceLanguage}
+          targetLanguage={targetLanguage}
+          outputTextRef={outputTextRef}
+          isProgrammaticScroll={isProgrammaticScroll}
+          setHistoryDrawerVisible={setHistoryDrawerVisible}
+        />
 
         <OutputContainer>
           <OperationBar>
@@ -518,18 +332,6 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   position: relative;
 `
 
-const InputContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
-  margin-right: 15px;
-`
-
 const OperationBar = styled.div`
   display: flex;
   flex-direction: row;
@@ -537,20 +339,6 @@ const OperationBar = styled.div`
   justify-content: space-between;
   gap: 20px;
   padding: 10px 8px 10px 10px;
-`
-
-const Textarea = styled(TextArea)`
-  display: flex;
-  flex: 1;
-  font-size: 16px;
-  border-radius: 0;
-  .ant-input {
-    resize: none;
-    padding: 5px 16px;
-  }
-  .ant-input-clear-icon {
-    font-size: 16px;
-  }
 `
 
 const OutputContainer = styled.div`
@@ -583,8 +371,6 @@ const OutputText = styled.div`
     }
   }
 `
-
-const TranslateButton = styled(Button)``
 
 const CopyButton = styled(Button)``
 
