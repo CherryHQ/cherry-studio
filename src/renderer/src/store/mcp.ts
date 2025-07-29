@@ -75,6 +75,7 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
+    reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.mcp_auto_install'),
     type: 'inMemory',
     command: 'npx',
@@ -85,6 +86,7 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/memory',
+    reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.memory'),
     type: 'inMemory',
     isActive: true,
@@ -126,7 +128,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    description: i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,

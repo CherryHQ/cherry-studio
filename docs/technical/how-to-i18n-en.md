@@ -84,15 +84,21 @@ Since the plugin cannot track such usages, developers must manually verify the e
 
 ### Recommended Approach
 
+To avoid missing keys, all dynamically translated texts should first maintain a `FooKeyMap`, then retrieve the translation text through a function.
+
+For example:
+
 ```ts
-const fruitLabels = {
-  apple: t('fruits.apple'),
-  banana: t('fruits.banana')
+// src/renderer/src/i18n/label.ts
+const themeModeKeyMap = {
+  dark: 'settings.theme.dark',
+  light: 'settings.theme.light',
+  system: 'settings.theme.system'
 } as const
 
-const fruit = getFruit()
-
-const label = fruitLabels[fruit]
+export const getThemeModeLabel = (key: string): string => {
+  return themeModeKeyMap[key] ? t(themeModeKeyMap[key]) : key
+}
 ```
 
 By avoiding template strings, you gain better developer experience, more reliable translation checks, and a more maintainable codebase.

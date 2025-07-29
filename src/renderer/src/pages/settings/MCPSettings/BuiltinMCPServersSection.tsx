@@ -49,6 +49,8 @@ const BuiltinMCPServersSection: FC = () => {
                     {server.getBuiltinDescription
                       ? server.getBuiltinDescription()
                       : t('settings.mcp.builtinServersDescriptions.no')}
+
+                    {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
                   </PopoverContent>
                 }
                 title={server.name}
@@ -56,11 +58,9 @@ const BuiltinMCPServersSection: FC = () => {
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
                 <ServerDescription>
-                  {/* {server.getBuiltinDescription ? server.getBuiltinDescription() : 'Invalid description'} */}
                   {server.getBuiltinDescription
                     ? server.getBuiltinDescription()
                     : t('settings.mcp.builtinServersDescriptions.no')}
-                  <MoreIndicator>...</MoreIndicator>
                 </ServerDescription>
               </Popover>
               <ServerFooter>
@@ -137,27 +137,17 @@ const ServerDescription = styled.div`
   color: var(--color-text-2);
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   width: 100%;
   word-break: break-word;
-  height: 50px;
+  max-height: calc(1.4em * 2);
   cursor: pointer;
   position: relative;
 
   &:hover {
     color: var(--color-text-1);
   }
-`
-
-const MoreIndicator = styled.span`
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  background: var(--color-background);
-  color: var(--color-primary);
-  font-weight: 500;
-  padding-left: 8px;
 `
 
 const PopoverContent = styled.div`
@@ -167,6 +157,22 @@ const PopoverContent = styled.div`
   color: var(--color-text-1);
   white-space: pre-wrap;
   word-break: break-word;
+`
+
+const ReferenceLink = styled.a`
+  max-width: 350px;
+  white-space: normal;
+  color: var(--color-primary);
+  text-decoration: none;
+  word-break: break-word;
+  line-height: 1.4;
+  display: inline-block;
+  margin-top: 8px;
+
+  &:hover {
+    color: var(--color-primary-hover);
+    text-decoration: underline;
+  }
 `
 
 const ServerFooter = styled.div`

@@ -5,6 +5,10 @@ import { FileMetadata } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:Input')
 
+export const getTextFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<string> => {
+  return e.dataTransfer.getData('text')
+}
+
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileMetadata[]> => {
   if (e.dataTransfer.files.length > 0) {
     // 使用新的API获取文件路径

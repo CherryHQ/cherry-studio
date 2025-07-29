@@ -1,3 +1,5 @@
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useShowTopics } from '@renderer/hooks/useStore'
 import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
@@ -126,6 +128,8 @@ const findRangesInTarget = (
 // eslint-disable-next-line @eslint-react/no-forward-ref
 export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
   ({ searchTarget, filter, includeUser = false, onIncludeUserChange }, ref) => {
+    const { topicPosition } = useSettings()
+    const { showTopics } = useShowTopics()
     const target: HTMLElement | null = (() => {
       if (searchTarget instanceof HTMLElement) {
         return searchTarget
@@ -333,10 +337,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       searchInputFocus()
     }
 
+    const isRightTopicsVisible = topicPosition === 'right' && showTopics
+
     return (
       <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
         <NarrowLayout style={{ width: '100%' }}>
-          <SearchBarContainer>
+          <SearchBarContainer $isRightTopicsVisible={isRightTopicsVisible}>
             <InputWrapper>
               <Input
                 ref={searchInputRef}
@@ -405,14 +411,18 @@ const Container = styled.div`
   z-index: 2;
 `
 
-const SearchBarContainer = styled.div`
+const SearchBarContainer = styled.div<{ $isRightTopicsVisible: boolean }>`
   border: 1px solid var(--color-primary);
   border-radius: 10px;
   transition: all 0.2s ease;
   position: fixed;
-  top: 15px;
-  left: 20px;
-  right: 20px;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: ${(props) =>
+    props.$isRightTopicsVisible
+      ? 'min(60%, calc(100vw - 400px))'
+      : 'min(60%, calc(100vw - 140px))'}; /* 容器2/3宽度，并考虑右侧避让 */
   margin-bottom: 5px;
   padding: 5px 15px;
   display: flex;
@@ -448,7 +458,7 @@ const ToolBar = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: tpx;
+  gap: 2px;
 `
 
 const Separator = styled.div`
@@ -463,8 +473,8 @@ const Separator = styled.div`
 const SearchResults = styled.div`
   display: flex;
   justify-content: center;
-  width: 80px;
-  margin: 0 2px;
+  width: 60px;
+  margin: 0 1px;
   flex: 0 0 auto;
   color: var(--color-text-1);
   font-size: 14px;

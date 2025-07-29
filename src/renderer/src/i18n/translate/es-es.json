@@ -875,7 +875,8 @@
     "empty": "Sin bases de conocimientos",
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
-      "failed_to_edit": "Error al editar la base de conocimientos"
+      "failed_to_edit": "Error al editar la base de conocimientos",
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
     },
     "file_hint": "Formatos soportados: {{file_types}}",
     "index_all": "Indexar todo",
@@ -965,6 +966,7 @@
     "thai": "tailandés",
     "turkish": "turco",
     "ukrainian": "ucraniano",
+    "unknown": "desconocido",
     "urdu": "urdu",
     "vietnamese": "vietnamita"
   },
@@ -2653,8 +2655,8 @@
         "dify_knowledge": "Implementación del servidor MCP de Dify, que proporciona una API sencilla para interactuar con Dify. Se requiere configurar la clave de Dify.",
         "fetch": "Servidor MCP para obtener el contenido de la página web de una URL",
         "filesystem": "Servidor Node.js que implementa el protocolo de contexto del modelo (MCP) para operaciones del sistema de archivos. Requiere configuración del directorio permitido para el acceso",
-        "mcp_auto_install": "Instalación automática del servicio MCP (versión beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
-        "memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "mcp_auto_install": "Instalación automática del servicio MCP (versión beta)",
+        "memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH.",
         "no": "sin descripción",
         "python": "Ejecuta código Python en un entorno sandbox seguro. Usa Pyodide para ejecutar Python, compatible con la mayoría de las bibliotecas estándar y paquetes de cálculo científico.",
         "sequentialthinking": "Una implementación de servidor MCP que proporciona herramientas para la resolución dinámica y reflexiva de problemas mediante un proceso de pensamiento estructurado"
@@ -2942,8 +2944,8 @@
           "tooltip": "Por ejemplo, GPT-4"
         },
         "supported_text_delta": {
-          "label": "[to be translated]:增量文本输出",
-          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
+          "label": "salida de texto incremental",
+          "tooltip": "Cuando el modelo no sea compatible, desactive este botón."
         }
       },
       "api_key": "Clave API",
@@ -3446,6 +3448,7 @@
     },
     "close": "Cerrar",
     "closed": "La traducción ha sido desactivada",
+    "complete": "traducción completada",
     "confirm": {
       "content": "La traducción reemplazará el texto original, ¿desea continuar?",
       "title": "Confirmación de traducción"
@@ -3457,13 +3460,17 @@
     "empty": "El contenido de traducción está vacío",
     "error": {
       "failed": "Fallo en la traducción",
-      "not_configured": "El modelo de traducción no está configurado"
+      "not_configured": "El modelo de traducción no está configurado",
+      "unknown": "Se produjo un error desconocido durante la traducción"
     },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
       "delete": "Eliminar",
       "empty": "Sin historial de traducciones por el momento",
+      "error": {
+        "save": "Error al guardar el historial de traducciones"
+      },
       "title": "Historial de traducciones"
     },
     "input": {

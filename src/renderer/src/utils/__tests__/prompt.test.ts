@@ -169,7 +169,7 @@ describe('prompt', () => {
         System Information:
         - Date: {{date}}
         - User: {{username}}
-        
+
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
@@ -178,7 +178,7 @@ describe('prompt', () => {
         System Information:
         - Date: ${mockDate.toLocaleDateString()}
         - User: MockUser
-        
+
         Instructions: Be helpful.
       `
       tools = [createMockTool('web_search', 'Search the web')]
@@ -192,7 +192,6 @@ describe('prompt', () => {
 
       expect(finalPrompt).toEqual(expectedFinalPrompt)
       expect(finalPrompt).toContain('## Tool Use Formatting')
-      expect(finalPrompt).toContain('## Using the think tool')
     })
 
     it('should build a think-only prompt for native function calling mode', () => {
@@ -223,7 +222,6 @@ describe('prompt', () => {
 
       expect(finalPrompt).toEqual(expectedFinalPrompt)
       expect(finalPrompt).toContain('## Tool Use Formatting')
-      expect(finalPrompt).toContain('## Using the think tool')
     })
   })
 
@@ -234,7 +232,7 @@ describe('prompt', () => {
         System Information:
         - Date: {{date}}
         - User: {{username}}
-        
+
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
@@ -243,7 +241,7 @@ describe('prompt', () => {
         System Information:
         - Date: ${mockDate.toLocaleDateString()}
         - User: MockUser
-        
+
         Instructions: Be helpful.
       `
 

@@ -902,7 +902,11 @@ export async function backupToLocal({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -917,7 +921,12 @@ export async function backupToLocal({
 
   store.dispatch(setLocalBackupSyncState({ syncing: true, lastSyncError: null }))
 
-  const { localBackupDir, localBackupMaxBackups, localBackupSkipBackupFile } = store.getState().settings
+  const {
+    localBackupDir: localBackupDirSetting,
+    localBackupMaxBackups,
+    localBackupSkipBackupFile
+  } = store.getState().settings
+  const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -1039,9 +1048,9 @@ export async function backupToLocal({
 }
 
 export async function restoreFromLocal(fileName: string) {
-  const { localBackupDir } = store.getState().settings
-
   try {
+    const { localBackupDir: localBackupDirSetting } = store.getState().settings
+    const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
     const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
     const data = JSON.parse(restoreData)
     await handleData(data)

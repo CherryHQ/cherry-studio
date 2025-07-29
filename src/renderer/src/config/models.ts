@@ -108,6 +108,7 @@ import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
 import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
+import PanguModelLogo from '@renderer/assets/images/models/pangu.svg'
 import {
   default as PerplexityModelLogo,
   default as PerplexityModelLogoDark
@@ -242,6 +243,7 @@ export const FUNCTION_CALLING_MODELS = [
   'hunyuan',
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
+  'glm-4.5(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
   'grok-3(?:-[\\w-]+)?',
@@ -413,7 +415,8 @@ export function getModelLogo(modelId: string) {
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
-    'nomic-': NomicLogo
+    'nomic-': NomicLogo,
+    'pangu-': PanguModelLogo
   }
 
   for (const key in logoMap) {
@@ -1185,6 +1188,36 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
+    {
+      id: 'glm-4.5',
+      provider: 'zhipu',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIR',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-airx',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AIRX',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-x',
+      provider: 'zhipu',
+      name: 'GLM-4.5-X',
+      group: 'GLM-4.5'
+    },
     {
       id: 'glm-z1-air',
       provider: 'zhipu',
@@ -2557,7 +2590,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
-    isSupportedThinkingTokenHunyuanModel(model)
+    isSupportedThinkingTokenHunyuanModel(model) ||
+    isSupportedThinkingTokenZhipuModel(model)
   )
 }
 
@@ -2720,6 +2754,18 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return baseName.includes('sonar-deep-research')
 }
 
+export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('glm-4.5')
+}
+
+export const isZhipuReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return isSupportedThinkingTokenZhipuModel(model) || model.id.toLowerCase().includes('glm-z1')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -2746,9 +2792,10 @@ export function isReasoningModel(model?: Model): boolean {
     isGrokReasoningModel(model) ||
     isHunyuanReasoningModel(model) ||
     isPerplexityReasoningModel(model) ||
-    model.id.toLowerCase().includes('glm-z1') ||
+    isZhipuReasoningModel(model) ||
     model.id.toLowerCase().includes('magistral') ||
-    model.id.toLowerCase().includes('minimax-m1')
+    model.id.toLowerCase().includes('minimax-m1') ||
+    model.id.toLowerCase().includes('pangu-pro-moe')
   ) {
     return true
   }
@@ -2769,7 +2816,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
     return true
   }
 

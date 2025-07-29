@@ -875,7 +875,8 @@
     "empty": "Sem repositório de conhecimento",
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
-      "failed_to_edit": "Falha ao editar o repositório de conhecimento"
+      "failed_to_edit": "Falha ao editar o repositório de conhecimento",
+      "model_invalid": "Modelo não selecionado ou eliminado"
     },
     "file_hint": "Formatos suportados: {{file_types}}",
     "index_all": "Índice total",
@@ -965,6 +966,7 @@
     "thai": "Tailandês",
     "turkish": "Turco",
     "ukrainian": "ucraniano",
+    "unknown": "desconhecido",
     "urdu": "Urdu",
     "vietnamese": "Vietnamita"
   },
@@ -2653,8 +2655,8 @@
         "dify_knowledge": "Implementação do servidor MCP do Dify, que fornece uma API simples para interagir com o Dify. Requer a configuração da chave Dify",
         "fetch": "servidor MCP para obter o conteúdo da página web do URL",
         "filesystem": "Servidor Node.js do protocolo de contexto de modelo (MCP) para implementar operações de sistema de ficheiros. Requer configuração do diretório permitido para acesso",
-        "mcp_auto_install": "Instalação automática do serviço MCP (beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
-        "memory": "Implementação base de memória persistente baseada em grafos de conhecimento locais. Isso permite que o modelo lembre informações relevantes do utilizador entre diferentes conversas. É necessário configurar a variável de ambiente MEMORY_FILE_PATH. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "mcp_auto_install": "Instalação automática do serviço MCP (beta)",
+        "memory": "Implementação base de memória persistente baseada em grafos de conhecimento locais. Isso permite que o modelo lembre informações relevantes do utilizador entre diferentes conversas. É necessário configurar a variável de ambiente MEMORY_FILE_PATH.",
         "no": "sem descrição",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
@@ -2942,8 +2944,8 @@
           "tooltip": "Por exemplo, GPT-4"
         },
         "supported_text_delta": {
-          "label": "[to be translated]:增量文本输出",
-          "tooltip": "[to be translated]:当模型不支持的时候，将该按钮关闭"
+          "label": "saída de texto incremental",
+          "tooltip": "Quando o modelo não for suportado, desative este botão"
         }
       },
       "api_key": "Chave API",
@@ -3446,6 +3448,7 @@
     },
     "close": "Fechar",
     "closed": "A tradução foi desativada",
+    "complete": "Tradução concluída",
     "confirm": {
       "content": "A tradução substituirá o texto original, deseja continuar?",
       "title": "Confirmação de Tradução"
@@ -3457,13 +3460,17 @@
     "empty": "O conteúdo de tradução está vazio",
     "error": {
       "failed": "Tradução falhou",
-      "not_configured": "Modelo de tradução não configurado"
+      "not_configured": "Modelo de tradução não configurado",
+      "unknown": "Ocorreu um erro desconhecido durante a tradução"
     },
     "history": {
       "clear": "Limpar Histórico",
       "clear_description": "Limpar histórico irá deletar todos os registros de tradução. Deseja continuar?",
       "delete": "Excluir",
       "empty": "Nenhum histórico de tradução disponível",
+      "error": {
+        "save": "Falha ao guardar o histórico de traduções"
+      },
       "title": "Histórico de Tradução"
     },
     "input": {

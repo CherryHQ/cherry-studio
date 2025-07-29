@@ -875,7 +875,8 @@
     "empty": "暫無知識庫",
     "error": {
       "failed_to_create": "知識庫創建失敗",
-      "failed_to_edit": "知識庫編輯失敗"
+      "failed_to_edit": "知識庫編輯失敗",
+      "model_invalid": "未選擇模型或已刪除"
     },
     "file_hint": "支援 {{file_types}} 格式",
     "index_all": "索引全部",
@@ -965,6 +966,7 @@
     "thai": "泰文",
     "turkish": "土耳其文",
     "ukrainian": "烏克蘭語",
+    "unknown": "未知",
     "urdu": "烏爾都文",
     "vietnamese": "越南文"
   },
@@ -2653,8 +2655,8 @@
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
         "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
-        "mcp_auto_install": "自動安裝 MCP 服務（測試版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
-        "memory": "基於本地知識圖譜的持久性記憶基礎實現。這使得模型能夠在不同對話間記住使用者的相關資訊。需要配置 MEMORY_FILE_PATH 環境變數。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "mcp_auto_install": "自動安裝 MCP 服務（測試版）",
+        "memory": "基於本地知識圖譜的持久性記憶基礎實現。這使得模型能夠在不同對話間記住使用者的相關資訊。需要配置 MEMORY_FILE_PATH 環境變數。",
         "no": "無描述",
         "python": "在安全的沙盒環境中執行 Python 代碼。使用 Pyodide 運行 Python，支援大多數標準庫和科學計算套件",
         "sequentialthinking": "一個 MCP 伺服器實現，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
@@ -3446,6 +3448,7 @@
     },
     "close": "關閉",
     "closed": "翻譯已關閉",
+    "complete": "翻譯完成",
     "confirm": {
       "content": "翻譯後將覆蓋原文，是否繼續？",
       "title": "翻譯確認"
@@ -3457,13 +3460,17 @@
     "empty": "翻譯內容為空",
     "error": {
       "failed": "翻譯失敗",
-      "not_configured": "翻譯模型未設定"
+      "not_configured": "翻譯模型未設定",
+      "unknown": "翻譯過程中遇到未知錯誤"
     },
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
       "delete": "刪除",
       "empty": "翻譯歷史為空",
+      "error": {
+        "save": "保存翻譯歷史失敗"
+      },
       "title": "翻譯歷史"
     },
     "input": {

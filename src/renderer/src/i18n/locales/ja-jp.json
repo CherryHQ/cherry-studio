@@ -875,7 +875,8 @@
     "empty": "ナレッジベースが見つかりません",
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
-      "failed_to_edit": "ナレッジベースの編集に失敗しました"
+      "failed_to_edit": "ナレッジベースの編集に失敗しました",
+      "model_invalid": "モデルが選択されていないか、削除されています"
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "index_all": "すべてをインデックス",
@@ -965,6 +966,7 @@
     "thai": "タイ語",
     "turkish": "トルコ語",
     "ukrainian": "ウクライナ語",
+    "unknown": "未知",
     "urdu": "ウルドゥー語",
     "vietnamese": "ベトナム語"
   },
@@ -2653,8 +2655,8 @@
         "dify_knowledge": "DifyのMCPサーバー実装は、Difyと対話するためのシンプルなAPIを提供します。Dify Keyの設定が必要です。",
         "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
         "filesystem": "Node.jsサーバーによるファイルシステム操作を実現するモデルコンテキストプロトコル（MCP）。アクセスを許可するディレクトリの設定が必要です",
-        "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
-        "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
+        "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
         "no": "説明なし",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
@@ -3446,6 +3448,7 @@
     },
     "close": "閉じる",
     "closed": "翻訳は閉じられました",
+    "complete": "翻訳完了",
     "confirm": {
       "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
       "title": "翻訳確認"
@@ -3457,13 +3460,17 @@
     "empty": "翻訳内容が空です",
     "error": {
       "failed": "翻訳に失敗しました",
-      "not_configured": "翻訳モデルが設定されていません"
+      "not_configured": "翻訳モデルが設定されていません",
+      "unknown": "翻訳中に不明なエラーが発生しました"
     },
     "history": {
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
       "delete": "削除",
       "empty": "翻訳履歴がありません",
+      "error": {
+        "save": "保存翻訳履歴に失敗しました"
+      },
       "title": "翻訳履歴"
     },
     "input": {
