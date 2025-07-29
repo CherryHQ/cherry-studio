@@ -39,18 +39,22 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
     setIsVisible(true)
 
     // 延迟过渡
-    const timer = setTimeout(() => {
+    let innerTimer: NodeJS.Timeout
+    const outerTimer = setTimeout(() => {
       // 先淡出
       setIsVisible(false)
 
       // 切换内容并淡入
-      setTimeout(() => {
+      innerTimer = setTimeout(() => {
         setDisplayText(processedPrompt)
         setIsVisible(true)
       }, 300)
     }, 300)
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(outerTimer)
+      clearTimeout(innerTimer)
+    }
   }, [prompt, processedPrompt])
 
   if (!prompt && !topicPrompt) {
