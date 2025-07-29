@@ -17,6 +17,7 @@ import { find } from 'lodash'
 import { ChevronDown, HelpCircle, TriangleAlert } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 const TranslateSettings: FC<{
   visible: boolean
@@ -244,7 +245,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div style={{ display: showPrompt ? 'block' : 'none' }}>
-          <Input.TextArea
+          <Textarea
             rows={8}
             value={localPrompt}
             onChange={(e) => setLocalPrompt(e.target.value)}
@@ -258,3 +259,17 @@ const TranslateSettings: FC<{
 }
 
 export default memo(TranslateSettings)
+
+const Textarea = styled(Input.TextArea)`
+  display: flex;
+  flex: 1;
+  font-size: 16px;
+  border-radius: 0;
+  .ant-input {
+    resize: none;
+    padding: 5px 16px;
+  }
+  .ant-input-clear-icon {
+    font-size: 16px;
+  }
+`
