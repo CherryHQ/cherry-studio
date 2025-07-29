@@ -80,6 +80,7 @@ const Text = styled.div<{ $isVisible: boolean }>`
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  user-select: none;
 
   opacity: ${(props) => (props.$isVisible ? 1 : 0)};
   transition: opacity 0.3s ease-in-out;
