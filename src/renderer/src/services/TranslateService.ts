@@ -38,7 +38,19 @@ export const translateText = async (
   return trimmedText
 }
 
-export const addCustomLanguage = async (value: string, emoji: string, langCode: string) => {
+/**
+ * 添加自定义翻译语言
+ * @param value - 语言名称
+ * @param emoji - 语言对应的emoji图标
+ * @param langCode - 语言代码
+ * @returns {Promise<CustomTranslateLanguage>} 返回新添加的自定义语言对象
+ * @throws {Error} 当语言已存在或添加失败时抛出错误
+ */
+export const addCustomLanguage = async (
+  value: string,
+  emoji: string,
+  langCode: string
+): Promise<CustomTranslateLanguage> => {
   // 按langcode判重
   const existing = await db.translate_languages.where('langCode').equals(value).first()
   if (existing) {
@@ -61,6 +73,11 @@ export const addCustomLanguage = async (value: string, emoji: string, langCode: 
   }
 }
 
+/**
+ * 删除自定义翻译语言
+ * @param id - 要删除的自定义语言ID
+ * @throws {Error} 删除自定义语言失败时抛出错误
+ */
 export const deleteCustomLanguage = async (id: string) => {
   try {
     await db.translate_languages.delete(id)
@@ -70,6 +87,14 @@ export const deleteCustomLanguage = async (id: string) => {
   }
 }
 
+/**
+ * 更新自定义翻译语言
+ * @param old - 原有的自定义语言对象
+ * @param value - 新的语言名称
+ * @param emoji - 新的语言emoji图标
+ * @param langCode - 新的语言代码
+ * @throws {Error} 更新自定义语言失败时抛出错误
+ */
 export const updateCustomLanguage = async (
   old: CustomTranslateLanguage,
   value: string,
@@ -91,7 +116,7 @@ export const updateCustomLanguage = async (
 
 /**
  * 获取所有自定义语言
- * @returns Promise<CustomTranslateLanguage[]>
+ * @throws {Error} 获取自定义语言失败时抛出错误
  */
 export const getAllCustomLanguages = async () => {
   try {
