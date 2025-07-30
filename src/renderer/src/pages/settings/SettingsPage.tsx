@@ -182,6 +182,7 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  height: calc(100vh - var(--navbar-height));
 `
 
 const SettingMenus = styled.ul`
