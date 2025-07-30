@@ -3429,6 +3429,7 @@
           }
         },
         "langCode": {
+          "label": "语言代码",
           "placeholder": "zh-CN"
         },
         "success": {
@@ -3442,6 +3443,7 @@
           }
         },
         "value": {
+          "label": "语言名称",
           "placeholder": "中文"
         }
       },

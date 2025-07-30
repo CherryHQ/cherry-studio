@@ -72,11 +72,11 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
         dataIndex: 'emoji'
       },
       {
-        title: 'Value',
+        title: t('settings.translate.custom.value.label'),
         dataIndex: 'value'
       },
       {
-        title: 'langCode',
+        title: t('settings.translate.custom.langCode.label'),
         dataIndex: 'langCode'
       },
       {
