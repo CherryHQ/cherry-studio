@@ -1,4 +1,4 @@
-import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
@@ -17,16 +17,15 @@ import {
   determineTargetLanguage,
   getLanguageByLangcode
 } from '@renderer/utils/translate'
-import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
+import { Button, Flex, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
 import { Settings2 } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
@@ -59,18 +58,7 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const { translatedContent, translating, translate, setTranslatedContent, clearHistory, deleteHistory } =
-    useTranslate()
-
-  const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
-
-  const translateHistory = useMemo(() => {
-    return _translateHistory?.map((item) => ({
-      ...item,
-      _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
-      _targetLanguage: getLanguageByLangcode(item.targetLanguage)
-    }))
-  }, [_translateHistory])
+  const { translatedContent, translating, translate, setTranslatedContent } = useTranslate()
 
   _text = text
   _sourceLanguage = sourceLanguage
@@ -273,62 +261,7 @@ const TranslatePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
-          <OperationBar>
-            <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
-            {!isEmpty(translateHistory) && (
-              <Popconfirm
-                title={t('translate.history.clear')}
-                description={t('translate.history.clear_description')}
-                onConfirm={clearHistory}>
-                <Button type="text" size="small" danger icon={<DeleteOutlined />}>
-                  {t('translate.history.clear')}
-                </Button>
-              </Popconfirm>
-            )}
-          </OperationBar>
-          {translateHistory && translateHistory.length ? (
-            <HistoryList>
-              {translateHistory.map((item) => (
-                <Dropdown
-                  key={item.id}
-                  trigger={['contextMenu']}
-                  menu={{
-                    items: [
-                      {
-                        key: 'delete',
-                        label: t('translate.history.delete'),
-                        icon: <DeleteOutlined />,
-                        danger: true,
-                        onClick: () => deleteHistory(item.id)
-                      }
-                    ]
-                  }}>
-                  <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                    <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-                      <Flex align="center" justify="space-between" style={{ flex: 1 }}>
-                        <Flex align="center" gap={6}>
-                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
-                        </Flex>
-                        <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
-                      </Flex>
-                      <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                      <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
-                        {item.targetText}
-                      </HistoryListItemTitle>
-                    </Flex>
-                  </HistoryListItem>
-                </Dropdown>
-              ))}
-            </HistoryList>
-          ) : (
-            <Flex justify="center" align="center" style={{ flex: 1 }}>
-              <Empty description={t('translate.history.empty')} />
-            </Flex>
-          )}
-        </HistoryContainer>
-
+        {historyDrawerVisible && <TranslateHistoryList onHistoryItemClick={onHistoryItemClick} />}
         <InputContainer>
           <OperationBar>
             <Flex align="center" gap={8}>
@@ -461,8 +394,8 @@ const Container = styled.div`
 
 const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   height: calc(100vh - var(--navbar-height));
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  display: flex;
+  gap: 15px;
   flex: 1;
   padding: 20px 15px;
   position: relative;
@@ -477,7 +410,6 @@ const InputContainer = styled.div`
   border-radius: 10px;
   padding-bottom: 5px;
   padding-right: 2px;
-  margin-right: 15px;
 `
 
 const OperationBar = styled.div`
@@ -508,6 +440,7 @@ const OutputContainer = styled.div`
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1;
   background-color: var(--color-background-soft);
   border-radius: 10px;
   padding-bottom: 5px;
@@ -546,82 +479,6 @@ const BidirectionalLanguageDisplay = styled.div`
   font-size: 14px;
   width: 100%;
   text-align: center;
-`
-
-const HistoryContainer = styled.div<{ $historyDrawerVisible: boolean }>`
-  width: ${({ $historyDrawerVisible }) => ($historyDrawerVisible ? '300px' : '0')};
-  height: calc(100vh - var(--navbar-height) - 40px);
-  transition:
-    width 0.2s,
-    opacity 0.2s;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 10px;
-  margin-right: 15px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding-right: 2px;
-  padding-bottom: 5px;
-
-  ${({ $historyDrawerVisible }) =>
-    !$historyDrawerVisible &&
-    `
-    border: none;
-    margin-right: 0;
-    opacity: 0;
-  `}
-`
-
-const HistoryList = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-`
-
-const HistoryListItem = styled.div`
-  width: 100%;
-  padding: 5px 10px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  position: relative;
-
-  button {
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  &:hover {
-    background-color: var(--color-background-mute);
-    button {
-      opacity: 1;
-    }
-  }
-
-  border-top: 1px dashed var(--color-border-soft);
-
-  &:last-child {
-    border-bottom: 1px dashed var(--color-border-soft);
-  }
-`
-
-const HistoryListItemTitle = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-`
-
-const HistoryListItemDate = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-const HistoryListItemLanguage = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
 `
 
 export default TranslatePage
