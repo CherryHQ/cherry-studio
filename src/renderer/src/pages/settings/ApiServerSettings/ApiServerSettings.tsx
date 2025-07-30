@@ -164,7 +164,6 @@ const ControlSection = styled.div`
   align-items: center;
   gap: 12px;
 
-
   .restart-btn {
     opacity: 0;
     transform: translateX(10px);
