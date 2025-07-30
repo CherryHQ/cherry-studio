@@ -312,33 +312,27 @@ async function fetchExternalTool(
     let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    if (shouldWebSearch || shouldKnowledgeSearch) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
-      ])
+    if (shouldWebSearch) {
+      webSearchResponseFromSearch = await searchTheWeb(extractResults, parentSpanId)
+    }
+
+    if (shouldKnowledgeSearch) {
+      knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
     }
 
     if (shouldSearchMemory) {
-      searchMemory()
-        .then((results) => {
-          memorySearchReferences = results
-          if (lastUserMessage && memorySearchReferences) {
-            window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
-          }
-        })
-        .catch((error) => {
-          logger.error('Background memory search failed:', error)
-        })
+      memorySearchReferences = await searchMemory()
     }
 
-    // 存储搜索结果
     if (lastUserMessage) {
       if (webSearchResponseFromSearch) {
         window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
       }
       if (knowledgeReferencesFromSearch) {
         window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
+      }
+      if (memorySearchReferences) {
+        window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
       }
     }
 
