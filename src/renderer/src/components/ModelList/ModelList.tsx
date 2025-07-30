@@ -17,7 +17,7 @@ import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useState, useTransition } from 'react'
+import React, { memo, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SvgSpinners180Ring from '../Icons/SvgSpinners180Ring'
@@ -46,8 +46,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [searchText, _setSearchText] = useState('')
-  const [isPending, startTransition] = useTransition()
-  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups>({})
+  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(null)
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
 
@@ -128,7 +127,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
         </HStack>
       </SettingSubtitle>
-      {isPending ? (
+      {displayedModelGroups === null ? (
         <Flex align="center" justify="center" style={{ minHeight: '8rem' }}>
           <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
         </Flex>
