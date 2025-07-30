@@ -96,9 +96,6 @@ const AboutSettings: FC = () => {
     })
   }
 
-  // don't support downgrade, so we only check if the version is different
-  const hasNewVersion = update?.info?.version && version ? update.info.version !== version : false
-
   const currentChannelByVersion =
     [
       { pattern: `-${UpgradeChannel.BETA}.`, channel: UpgradeChannel.BETA },
@@ -267,7 +264,7 @@ const AboutSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-      {hasNewVersion && update.info && (
+      {update.info && update.available && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>

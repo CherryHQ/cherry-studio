@@ -62,8 +62,8 @@ export function useAppInit() {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
-        const { updateInfo } = await window.api.checkForUpdate()
-        dispatch(setUpdateState({ info: updateInfo }))
+        const { updateInfo, isUpdateAvailable } = await window.api.checkForUpdate()
+        dispatch(setUpdateState({ info: updateInfo, available: isUpdateAvailable }))
       }
     })
   }, [dispatch, autoCheckUpdate])
