@@ -1,5 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import CustomLanguageTable from '@renderer/pages/settings/TranslateSettings/CustomLanguageTable'
+import CustomLanguageSettings from '@renderer/pages/settings/TranslateSettings/CustomLanguageSettings'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Spin } from 'antd'
@@ -25,7 +25,7 @@ const TranslateSettings = () => {
         <TranslatePromptSettings />
         <SettingGroup theme={theme}>
           <Suspense fallback={<CustomLanguagesSettingsFallback />}>
-            <CustomLanguageTable dataPromise={dataPromise} />
+            <CustomLanguageSettings dataPromise={dataPromise} />
           </Suspense>
         </SettingGroup>
       </SettingContainer>
@@ -38,7 +38,7 @@ const CustomLanguagesSettingsFallback = () => {
     <div
       style={{
         width: '100%',
-        height: 200,
+        height: 250,
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center'

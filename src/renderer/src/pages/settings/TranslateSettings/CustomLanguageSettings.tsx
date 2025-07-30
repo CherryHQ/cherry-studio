@@ -1,19 +1,20 @@
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { deleteCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Popconfirm, Table, TableProps } from 'antd'
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { memo, startTransition, use, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { deleteCustomLanguage } from '@renderer/services/TranslateService'
-import { SettingRowTitle } from '..'
 import styled from 'styled-components'
+
+import { SettingRowTitle } from '..'
 import CustomLanguageModal from './CustomLanguageModal'
 
 type Props = {
   dataPromise: Promise<CustomTranslateLanguage[]>
 }
 
-const CustomLanguageTable = ({ dataPromise }: Props) => {
+const CustomLanguageSettings = ({ dataPromise }: Props) => {
   const { t } = useTranslation()
   const [displayedItems, setDisplayedItems] = useState<CustomTranslateLanguage[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -106,7 +107,7 @@ const CustomLanguageTable = ({ dataPromise }: Props) => {
 
   return (
     <>
-      <CustomLanguageSettings>
+      <CustomLanguageSettingsContainer>
         <HStack justifyContent="space-between" style={{ padding: '4px 0' }}>
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
           <Button type="primary" icon={<PlusOutlined size={16} />} onClick={onClickAdd}>
@@ -118,7 +119,7 @@ const CustomLanguageTable = ({ dataPromise }: Props) => {
           pagination={{ position: ['bottomCenter'] }}
           dataSource={displayedItems}
         />
-      </CustomLanguageSettings>
+      </CustomLanguageSettingsContainer>
       <CustomLanguageModal
         isOpen={isModalOpen}
         editingCustomLanguage={editingCustomLanguage}
@@ -130,11 +131,11 @@ const CustomLanguageTable = ({ dataPromise }: Props) => {
   )
 }
 
-const CustomLanguageSettings = styled.div`
+const CustomLanguageSettingsContainer = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
 `
 
-export default memo(CustomLanguageTable)
+export default memo(CustomLanguageSettings)
