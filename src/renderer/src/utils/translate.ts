@@ -1,5 +1,10 @@
 import { loggerService } from '@logger'
-import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import {
+  builtinTranslateLanguageOptions as builtinTranslateLanguages,
+  LanguagesEnum,
+  UNKNOWN
+} from '@renderer/config/translate'
+import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { MutableRefObject, RefObject } from 'react'
@@ -248,4 +253,17 @@ export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
     return UNKNOWN
   }
   return result
+}
+
+/**
+ * 获取所有可用的翻译语言选项。如果获取自定义语言失败，将只返回内置语言选项。
+ * @returns 返回内置语言选项和自定义语言选项的组合数组
+ */
+export const getTranslateOptions = async () => {
+  try {
+    const customLanguages = await getAllCustomLanguages()
+    return [...builtinTranslateLanguages, ...customLanguages]
+  } catch (e) {
+    return builtinTranslateLanguages
+  }
 }
