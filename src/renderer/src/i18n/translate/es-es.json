@@ -1647,6 +1647,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Antropológico",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Nube Qiánfān",
@@ -3088,6 +3089,16 @@
         "tip": "Separar múltiples claves con comas"
       },
       "api_version": "Versión API",
+      "aws-bedrock": {
+        "access_key_id": "ID de clave de acceso de AWS",
+        "access_key_id_help": "Su ID de clave de acceso de AWS, utilizado para acceder al servicio AWS Bedrock",
+        "description": "AWS Bedrock es un servicio de modelos básicos completamente administrado proporcionado por Amazon que admite varios modelos avanzados de lenguaje de gran tamaño.",
+        "region": "Región de AWS",
+        "region_help": "su región de servicio de AWS, por ejemplo, us-east-1",
+        "secret_access_key": "Claves de acceso de AWS",
+        "secret_access_key_help": "Su clave de acceso de AWS, guárdela de forma segura",
+        "title": "Configuración de AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Versión de la API de Azure OpenAI; si desea usar la API de respuesta, ingrese una versión de vista previa"
@@ -3463,6 +3474,7 @@
       "not_configured": "El modelo de traducción no está configurado",
       "unknown": "Se produjo un error desconocido durante la traducción"
     },
+    "exchange": "Intercambiar idioma de origen e idioma de destino",
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",

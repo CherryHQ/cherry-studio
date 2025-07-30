@@ -1,9 +1,9 @@
-import { CheckOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckOutlined, HistoryOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
-import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
+import { LanguagesEnum, translateLanguageOptions, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -21,7 +21,7 @@ import { Button, Flex, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
 import { Settings2 } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -136,9 +136,25 @@ const TranslatePage: FC = () => {
   const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
     setTranslatedContent(history.targetText)
-    setSourceLanguage(history._sourceLanguage)
+    if (history._sourceLanguage === UNKNOWN) {
+      setSourceLanguage('auto')
+    } else {
+      setSourceLanguage(history._sourceLanguage)
+    }
     setTargetLanguage(history._targetLanguage)
   }
+
+  const couldExchange = useMemo(() => sourceLanguage !== 'auto', [sourceLanguage])
+
+  const handleExchange = useCallback(() => {
+    if (sourceLanguage === 'auto') {
+      return
+    }
+    const source = sourceLanguage
+    const target = targetLanguage
+    setSourceLanguage(target)
+    setTargetLanguage(source)
+  }, [sourceLanguage, targetLanguage])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -349,6 +365,14 @@ const TranslatePage: FC = () => {
           </InputTextAreaContainer>
         </InputContainer>
 
+        <ExchangeContainer>
+          <OperationBar>
+            <Tooltip title={t('translate.exchange.label')} placement="bottom">
+              <Button icon={<SwapOutlined />} onClick={handleExchange} disabled={!couldExchange}></Button>
+            </Tooltip>
+          </OperationBar>
+        </ExchangeContainer>
+
         <OutputContainer>
           <OperationBar>
             <HStack alignItems="center" gap={5}>
@@ -437,6 +461,8 @@ const Textarea = styled(TextArea)`
     font-size: 16px;
   }
 `
+
+const ExchangeContainer = styled.div``
 
 const OutputContainer = styled.div`
   min-height: 0;

@@ -1647,6 +1647,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
@@ -3088,6 +3089,16 @@
         "tip": "Χωριστά με κόμμα περισσότερα κλειδιά API"
       },
       "api_version": "Έκδοση API",
+      "aws-bedrock": {
+        "access_key_id": "Αναγνωριστικό κλειδιού πρόσβασης AWS",
+        "access_key_id_help": "Το ID του κλειδιού πρόσβασής σας στο AWS, το οποίο χρησιμοποιείται για την πρόσβαση στην υπηρεσία AWS Bedrock",
+        "description": "Η AWS Bedrock είναι μια πλήρως διαχειριζόμενη υπηρεσία βασικών μοντέλων που παρέχεται από την Amazon και υποστηρίζει πολλά προηγμένα μεγάλα γλωσσικά μοντέλα.",
+        "region": "Περιοχή AWS",
+        "region_help": "η περιοχή υπηρεσίας AWS σας, π.χ. us-east-1",
+        "secret_access_key": "Κλειδιά πρόσβασης AWS",
+        "secret_access_key_help": "Το κλειδί πρόσβασης AWS σας, φυλάξτε το με ασφάλεια",
+        "title": "Ρύθμιση AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια προεπισκόπηση έκδοσης"
@@ -3463,6 +3474,7 @@
       "not_configured": "Το μοντέλο μετάφρασης δεν είναι ρυθμισμένο",
       "unknown": "κατά τη μετάφραση παρουσιάστηκε άγνωστο σφάλμα"
     },
+    "exchange": "να ανταλλάξει τη γλώσσα πηγής με τη γλώσσα προορισμού",
     "history": {
       "clear": "Καθαρισμός ιστορικού",
       "clear_description": "Η διαγραφή του ιστορικού θα διαγράψει όλα τα απομνημονεύματα μετάφρασης. Θέλετε να συνεχίσετε;",

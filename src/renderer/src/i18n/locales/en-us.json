@@ -3474,6 +3474,7 @@
       "not_configured": "Translation model is not configured",
       "unknown": "An unknown error occurred during translation"
     },
+    "exchange": "Swap source and target languages",
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
