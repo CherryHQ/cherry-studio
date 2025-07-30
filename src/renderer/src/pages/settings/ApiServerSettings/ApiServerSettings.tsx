@@ -164,11 +164,6 @@ const ControlSection = styled.div`
   align-items: center;
   gap: 12px;
 
-  .ant-switch {
-    &.ant-switch-checked {
-      background: #52c41a;
-    }
-  }
 
   .restart-btn {
     opacity: 0;
