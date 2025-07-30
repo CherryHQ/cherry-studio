@@ -29,6 +29,16 @@ interface ModelListProps {
 }
 
 type ModelGroups = Record<string, Model[]>
+const MODEL_COUNT_THRESHOLD = 100
+
+const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
+  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
+  const grouped = groupBy(filteredModels, 'group')
+  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+    acc[key] = value
+    return acc
+  }, {})
+}
 
 /**
  * 模型列表组件，用于 CRUD 操作和健康检查
@@ -45,7 +55,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const modelsWebsite = providerConfig?.websites?.models
 
   const [searchText, _setSearchText] = useState('')
-  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(null)
+  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
+    if (models.length > MODEL_COUNT_THRESHOLD) {
+      return null
+    }
+    return calculateModelGroups(models, '')
+  })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
 
@@ -56,15 +71,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [])
 
   useEffect(() => {
-    startTransition(() => {
-      const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
-      const grouped = groupBy(filteredModels, 'group')
-      const sorted = sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
-        acc[key] = value
-        return acc
-      }, {})
-      setDisplayedModelGroups(sorted)
-    })
+    if (models.length > MODEL_COUNT_THRESHOLD || searchText) {
+      startTransition(() => {
+        setDisplayedModelGroups(calculateModelGroups(models, searchText))
+      })
+    } else {
+      setDisplayedModelGroups(calculateModelGroups(models, searchText))
+    }
   }, [models, searchText])
 
   const onManageModel = useCallback(() => {
