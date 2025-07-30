@@ -40,7 +40,7 @@ import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState,
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const logger = loggerService.withContext('EditModelsPopup')
+const logger = loggerService.withContext('ManageModelsPopup')
 
 interface ShowParams {
   provider: Provider
@@ -502,10 +502,12 @@ const ModelHeaderTitle = styled.div`
   margin-right: 10px;
 `
 
-export default class EditModelsPopup {
+const TopViewKey = 'ManageModelsPopup'
+
+export default class ManageModelsPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('EditModelsPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
@@ -517,7 +519,7 @@ export default class EditModelsPopup {
             this.hide()
           }}
         />,
-        'EditModelsPopup'
+        TopViewKey
       )
     })
   }

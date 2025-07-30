@@ -2,8 +2,8 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
-import EditModelsPopup from '@renderer/components/ModelList/EditModelsPopup'
-import ModelEditContent from '@renderer/components/ModelList/ModelEditContent'
+import EditModelPopup from '@renderer/components/ModelList/EditModelPopup'
+import ManageModelsPopup from '@renderer/components/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -44,7 +44,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
 
-  const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(null)
 
@@ -69,7 +68,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [models, searchText])
 
   const onManageModel = useCallback(() => {
-    EditModelsPopup.show({ provider })
+    ManageModelsPopup.show({ provider })
   }, [provider])
 
   const onAddModel = useCallback(() => {
@@ -79,10 +78,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
-
-  const onEditModel = useCallback((model: Model) => {
-    setEditingModel(model)
-  }, [])
 
   const onUpdateModel = useCallback(
     (updatedModel: Model) => {
@@ -106,6 +101,16 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       }
     },
     [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
+  )
+
+  const onEditModel = useCallback(
+    async (model: Model) => {
+      const updatedModel = await EditModelPopup.show({ provider, model })
+      if (updatedModel) {
+        onUpdateModel(updatedModel)
+      }
+    },
+    [provider, onUpdateModel]
   )
 
   return (
@@ -176,16 +181,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           {t('button.add')}
         </Button>
       </Flex>
-      {editingModel && (
-        <ModelEditContent
-          provider={provider}
-          model={editingModel}
-          onUpdateModel={onUpdateModel}
-          open={true}
-          onClose={() => setEditingModel(null)}
-          key={editingModel.id}
-        />
-      )}
     </>
   )
 }
