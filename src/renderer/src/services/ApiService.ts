@@ -312,13 +312,24 @@ async function fetchExternalTool(
     let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
+    if (shouldWebSearch || shouldKnowledgeSearch) {
+      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
         searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
-        searchMemory()
+        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
       ])
+    }
+
+    if (shouldSearchMemory) {
+      searchMemory()
+        .then((results) => {
+          memorySearchReferences = results
+          if (lastUserMessage && memorySearchReferences) {
+            window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
+          }
+        })
+        .catch((error) => {
+          logger.error('Background memory search failed:', error)
+        })
     }
 
     // 存储搜索结果
@@ -328,9 +339,6 @@ async function fetchExternalTool(
       }
       if (knowledgeReferencesFromSearch) {
         window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
-      }
-      if (memorySearchReferences) {
-        window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
       }
     }
 
@@ -492,7 +500,7 @@ export async function fetchChatCompletion({
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
-    await processConversationMemory(messages, assistant)
+    processConversationMemory(messages, assistant)
   }
 
   return await AI.completionsForTrace(completionsParams, requestOptions)
