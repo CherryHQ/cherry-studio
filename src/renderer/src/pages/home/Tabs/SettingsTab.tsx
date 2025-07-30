@@ -1,4 +1,5 @@
 import EditableNumber from '@renderer/components/EditableNumber'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -13,7 +14,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -74,7 +74,6 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const { translateOptions } = useTranslate()
 
   const { t } = useTranslation()
 
@@ -625,12 +624,10 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
-            <Selector
+            <LanguageSelect
+              style={{ width: 150 }}
               value={targetLanguage}
               onChange={(value) => setTargetLanguage(value)}
-              options={translateOptions.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
-              })}
             />
           </SettingRow>
           <SettingDivider />

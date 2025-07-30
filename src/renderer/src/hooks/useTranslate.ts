@@ -34,7 +34,7 @@ const logger = loggerService.withContext('useTranslate')
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
-  const [translateOptions, setTranslateOptions] = useState<Language[]>([])
+  const [translateLanguages, setTranslateLanguages] = useState<Language[]>([])
 
   const dispatch = useAppDispatch()
 
@@ -157,13 +157,13 @@ export default function useTranslate() {
   useEffect(() => {
     runAsyncFunction(async () => {
       const options = await getTranslateOptions()
-      setTranslateOptions(options)
+      setTranslateLanguages(options)
     })
   }, [])
 
   const getLanguageByLangcode = useCallback(
     (langCode: string) => {
-      const result = translateOptions.find((item) => item.langCode === langCode)
+      const result = translateLanguages.find((item) => item.langCode === langCode)
       if (result) {
         return result
       } else {
@@ -171,7 +171,7 @@ export default function useTranslate() {
         return UNKNOWN
       }
     },
-    [translateOptions]
+    [translateLanguages]
   )
 
   return {
@@ -183,7 +183,7 @@ export default function useTranslate() {
     saveTranslateHistory,
     deleteHistory,
     clearHistory,
-    translateOptions,
+    translateLanguages,
     getLanguageByLangcode
   }
 }

@@ -1,4 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
@@ -7,7 +8,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Language, Model } from '@renderer/types'
-import { Button, Flex, Input, Modal, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Flex, Input, Modal, Space, Switch, Tooltip } from 'antd'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +44,7 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
-  const { translateOptions, getLanguageByLangcode } = useTranslate()
+  const { getLanguageByLangcode } = useTranslate()
 
   useEffect(() => {
     setLocalPair(bidirectionalPair)
@@ -118,38 +119,16 @@ const TranslateSettings: FC<{
           {isBidirectional && (
             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
               <Flex align="center" justify="space-between" gap={10}>
-                <Select
+                <LanguageSelect
                   style={{ flex: 1 }}
                   value={localPair[0].langCode}
                   onChange={(value) => setLocalPair([getLanguageByLangcode(value), localPair[1]])}
-                  options={translateOptions.map((lang) => ({
-                    value: lang.langCode,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label()}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))}
                 />
                 <span>⇆</span>
-                <Select
+                <LanguageSelect
                   style={{ flex: 1 }}
                   value={localPair[1].langCode}
                   onChange={(value) => setLocalPair([localPair[0], getLanguageByLangcode(value)])}
-                  options={translateOptions.map((lang) => ({
-                    value: lang.langCode,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <div style={{ textAlign: 'left', flex: 1 }}>{lang.label()}</div>
-                      </Space.Compact>
-                    )
-                  }))}
                 />
               </Flex>
             </Space>

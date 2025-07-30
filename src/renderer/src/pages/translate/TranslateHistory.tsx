@@ -3,7 +3,6 @@ import VirtualList from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { Language, TranslateHistory } from '@renderer/types'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Button, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -25,7 +24,7 @@ const ITEM_HEIGHT = 120
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick }) => {
   const { t } = useTranslation()
-  const { clearHistory, deleteHistory } = useTranslate()
+  const { clearHistory, deleteHistory, getLanguageByLangcode } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
   const translateHistory: DisplayedTranslateHistory[] = useMemo(() => {
@@ -36,7 +35,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick })
       _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
       _targetLanguage: getLanguageByLangcode(item.targetLanguage)
     }))
-  }, [_translateHistory])
+  }, [_translateHistory, getLanguageByLangcode])
 
   const historyItemRenderer = useCallback(
     (item: DisplayedTranslateHistory) => (

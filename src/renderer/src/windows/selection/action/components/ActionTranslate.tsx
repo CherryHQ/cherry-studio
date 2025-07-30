@@ -1,5 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import CopyButton from '@renderer/components/CopyButton'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -13,7 +14,7 @@ import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { Select, Space, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,7 +41,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
-  const { translateOptions, getLanguageByLangcode } = useTranslate()
+  const { getLanguageByLangcode } = useTranslate()
 
   // Use useRef for values that shouldn't trigger re-renders
   const initialized = useRef(false)
@@ -167,46 +168,24 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </Tooltip>
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
           <Tooltip placement="bottom" title={t('translate.target_language')} arrow>
-            <Select
+            <LanguageSelect
               value={targetLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
               listHeight={160}
               title={t('translate.target_language')}
               optionFilterProp="label"
-              options={translateOptions.map((lang) => ({
-                value: lang.langCode,
-                label: (
-                  <Space.Compact direction="horizontal" block>
-                    <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                      {lang.emoji}
-                    </span>
-                    <Space.Compact block>{lang.label()}</Space.Compact>
-                  </Space.Compact>
-                )
-              }))}
               onChange={(value) => handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)}
               disabled={isLoading}
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
           <Tooltip placement="bottom" title={t('translate.alter_language')} arrow>
-            <Select
+            <LanguageSelect
               value={alterLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
               listHeight={160}
               title={t('translate.alter_language')}
               optionFilterProp="label"
-              options={translateOptions.map((lang) => ({
-                value: lang.langCode,
-                label: (
-                  <Space.Compact direction="horizontal" block>
-                    <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                      {lang.emoji}
-                    </span>
-                    <Space.Compact block>{lang.label()}</Space.Compact>
-                  </Space.Compact>
-                )
-              }))}
               onChange={(value) => handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))}
               disabled={isLoading}
             />

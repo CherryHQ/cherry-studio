@@ -1,7 +1,8 @@
 import { SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { builtinTranslateLanguageOptions, LanguagesEnum } from '@renderer/config/translate'
+import { LanguagesEnum } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -93,15 +94,11 @@ const Translate: FC<Props> = ({ text }) => {
           options={[{ label: t('translate.any.language'), value: 'any' }]}
         />
         <SwapOutlined />
-        <Select
+        <LanguageSelect
           showSearch
           value={targetLanguage.langCode}
           style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
-          options={builtinTranslateLanguageOptions.map((option) => ({
-            value: option.langCode,
-            label: option.emoji + ' ' + option.label()
-          }))}
           onChange={async (value) => {
             await db.settings.put({ id: 'translate:target:language', value })
             setTargetLanguage(getLanguageByLangcode(value))

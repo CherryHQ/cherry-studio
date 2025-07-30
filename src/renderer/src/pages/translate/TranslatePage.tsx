@@ -2,6 +2,7 @@ import { CheckOutlined, HistoryOutlined, SendOutlined, SwapOutlined } from '@ant
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -20,7 +21,7 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Flex, Select, Space, Tooltip } from 'antd'
+import { Button, Flex, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { find, isEmpty } from 'lodash'
 import { Settings2 } from 'lucide-react'
@@ -63,8 +64,7 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const { translatedContent, translating, translate, setTranslatedContent, getLanguageByLangcode, translateOptions } =
-    useTranslate()
+  const { translatedContent, translating, translate, setTranslatedContent, getLanguageByLangcode } = useTranslate()
 
   _text = text
   _sourceLanguage = sourceLanguage
@@ -255,24 +255,13 @@ const TranslatePage: FC = () => {
     }
 
     return (
-      <Select
+      <LanguageSelect
         style={{ width: 160 }}
         value={targetLanguage.langCode}
         onChange={(value) => {
           setTargetLanguage(getLanguageByLangcode(value))
           db.settings.put({ id: 'translate:target:language', value })
         }}
-        options={translateOptions.map((lang) => ({
-          value: lang.langCode,
-          label: (
-            <Space.Compact direction="horizontal" block>
-              <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                {lang.emoji}
-              </span>
-              <Space.Compact block>{lang.label()}</Space.Compact>
-            </Space.Compact>
-          )
-        }))}
       />
     )
   }
@@ -290,6 +279,16 @@ const TranslatePage: FC = () => {
     [translateModel]
   )
 
+  const couldTranslate = useMemo(() => {
+    return (
+      !text.trim() ||
+      (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
+      targetLanguage.langCode === UNKNOWN.langCode ||
+      (isBidirectional &&
+        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode))
+    )
+  }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
+
   return (
     <Container id="translate-page">
       <Navbar>
@@ -300,7 +299,7 @@ const TranslatePage: FC = () => {
         <InputContainer>
           <OperationBar>
             <Flex align="center" gap={8}>
-              <Select
+              <LanguageSelect
                 showSearch
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
                 style={{ width: 180 }}
@@ -310,24 +309,13 @@ const TranslatePage: FC = () => {
                   else setSourceLanguage('auto')
                   db.settings.put({ id: 'translate:source:language', value })
                 }}
-                options={[
+                extraOptionsBefore={[
                   {
                     value: 'auto',
                     label: detectedLanguage
                       ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
                       : t('translate.detected.language')
-                  },
-                  ...translateOptions.map((lang) => ({
-                    value: lang.langCode,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label()}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))
+                  }
                 ]}
               />
               <ModelSelector
@@ -373,7 +361,7 @@ const TranslatePage: FC = () => {
                 type="primary"
                 loading={translating}
                 onClick={onTranslate}
-                disabled={!text.trim()}
+                disabled={couldTranslate}
                 icon={<SendOutlined />}>
                 {t('translate.button.translate')}
               </TranslateButton>
