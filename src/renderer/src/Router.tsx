@@ -8,6 +8,7 @@ import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
 import AgentsPage from './pages/agents/AgentsPage'
+import CommandPocPage from './pages/command-poc/CommandPocPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
@@ -25,6 +26,7 @@ const Router: FC = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/command-poc" element={<CommandPocPage />} />
         <Route path="/paintings/*" element={<PaintingsRoutePage />} />
         <Route path="/translate" element={<TranslatePage />} />
         <Route path="/files" element={<FilesPage />} />

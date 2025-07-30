@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python CLI Web Interface</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Python CLI Web Interface</h1>
+            <div class="status">
+                <span id="status-indicator" class="status-disconnected">●</span>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <div class="chat-container">
+            <div id="output" class="output-area"></div>
+            
+            <div class="input-area">
+                <div class="command-input-container">
+                    <input type="text" id="command-input" placeholder="Enter Python command (e.g., python script.py)" autocomplete="off">
+                    <button id="run-btn">Run</button>
+                    <button id="kill-btn" disabled>Kill</button>
+                </div>
+                
+                <div class="user-input-container" id="user-input-container" style="display: none;">
+                    <input type="text" id="user-input" placeholder="Enter input for Python script..." autocomplete="off">
+                    <button id="send-btn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

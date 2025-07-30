@@ -1,0 +1,207 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+header {
+    background-color: #2d2d2d;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid #404040;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-connected {
+    color: #4caf50;
+}
+
+.status-disconnected {
+    color: #f44336;
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.output-area {
+    flex: 1;
+    padding: 1rem 2rem;
+    overflow-y: auto;
+    background-color: #1e1e1e;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.message {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+
+.message.command {
+    background-color: #0d7377;
+    color: white;
+    margin-left: auto;
+    margin-right: 0;
+    text-align: right;
+}
+
+.message.output {
+    background-color: #2d2d2d;
+    border-left: 4px solid #4caf50;
+}
+
+.message.error {
+    background-color: #2d2d2d;
+    border-left: 4px solid #f44336;
+}
+
+.message.system {
+    background-color: #2d2d2d;
+    border-left: 4px solid #ff9800;
+    font-style: italic;
+}
+
+.message pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.input-area {
+    background-color: #2d2d2d;
+    padding: 1rem 2rem;
+    border-top: 1px solid #404040;
+}
+
+.command-input-container,
+.user-input-container {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.user-input-container {
+    margin-top: 0.5rem;
+}
+
+input[type="text"] {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    background-color: #1e1e1e;
+    color: #ffffff;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: #0d7377;
+    box-shadow: 0 0 0 2px rgba(13, 115, 119, 0.2);
+}
+
+button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#run-btn {
+    background-color: #4caf50;
+    color: white;
+}
+
+#run-btn:hover:not(:disabled) {
+    background-color: #45a049;
+}
+
+#run-btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+#kill-btn {
+    background-color: #f44336;
+    color: white;
+}
+
+#kill-btn:hover:not(:disabled) {
+    background-color: #da190b;
+}
+
+#kill-btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+#send-btn {
+    background-color: #2196f3;
+    color: white;
+}
+
+#send-btn:hover:not(:disabled) {
+    background-color: #1976d2;
+}
+
+.timestamp {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 0.25rem;
+}
+
+/* Scrollbar styling for webkit browsers */
+.output-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+.output-area::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+.output-area::-webkit-scrollbar-thumb {
+    background: #404040;
+    border-radius: 4px;
+}
+
+.output-area::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
