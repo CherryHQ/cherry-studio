@@ -1,5 +1,7 @@
-import React, { useState, useCallback, KeyboardEvent } from 'react'
+import React, { KeyboardEvent, useCallback, useState } from 'react'
 import styled from 'styled-components'
+
+import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 
 const InputContainer = styled.div`
   display: flex;
@@ -69,37 +71,66 @@ const Hint = styled.div`
 interface PocCommandInputProps {
   onSendCommand?: (command: string) => void
   disabled?: boolean
+  commandHistory?: ReturnType<typeof useCommandHistory>
 }
 
 const PocCommandInput: React.FC<PocCommandInputProps> = ({ 
   onSendCommand = () => {}, 
-  disabled = false 
+  disabled = false,
+  commandHistory 
 }) => {
   const [input, setInput] = useState('')
+  
+  // Use the provided command history or create a default one
+  const history = commandHistory || useCommandHistory()
 
   const handleSend = useCallback(() => {
     const trimmedInput = input.trim()
     if (trimmedInput && !disabled) {
       onSendCommand(trimmedInput)
       setInput('')
+      // Reset navigation when sending command
+      history.resetNavigation()
     }
-  }, [input, disabled, onSendCommand])
+  }, [input, disabled, onSendCommand, history])
 
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-    // TODO: Add arrow key history navigation
-  }, [handleSend])
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSend()
+      } else {
+        // Handle history navigation
+        const navigationResult = history.handleKeyNavigation(e.nativeEvent, input)
+        if (navigationResult !== null) {
+          setInput(navigationResult)
+        }
+      }
+    },
+    [handleSend, history, input]
+  )
+
+  // Handle input changes - reset navigation when user types
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value
+      setInput(newValue)
+      
+      // Reset navigation if user starts typing and is not navigating
+      if (!history.isNavigating) {
+        history.resetNavigation()
+      }
+    },
+    [history]
+  )
 
   return (
     <InputContainer>
       <InputWrapper>
-        <Hint>Enter shell commands (e.g., ls, pwd, echo "hello")</Hint>
+        <Hint>Enter shell commands (e.g., ls, pwd, echo "hello") • Use ↑/↓ for history</Hint>
         <Input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a shell command..."
           disabled={disabled}

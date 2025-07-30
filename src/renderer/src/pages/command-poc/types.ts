@@ -5,7 +5,7 @@ export interface PocMessage {
   type: 'user-command' | 'output' | 'error' | 'system'
   content: string
   timestamp: number
-  commandId?: string  // Links output to originating command
+  commandId?: string // Links output to originating command
   isComplete: boolean // For streaming messages
 }
 

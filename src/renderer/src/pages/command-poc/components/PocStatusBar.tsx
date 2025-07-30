@@ -35,11 +35,14 @@ const StatusIndicator = styled.div<{ $status: 'idle' | 'running' | 'error' }>`
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: ${props => {
+    background: ${(props) => {
       switch (props.$status) {
-        case 'running': return '#22c55e'
-        case 'error': return '#ef4444'
-        default: return '#6b7280'
+        case 'running':
+          return '#22c55e'
+        case 'error':
+          return '#ef4444'
+        default:
+          return '#6b7280'
       }
     }};
   }
@@ -51,11 +54,7 @@ interface PocStatusBarProps {
   commandCount?: number
 }
 
-const PocStatusBar: React.FC<PocStatusBarProps> = ({ 
-  status = 'idle', 
-  activeCommand,
-  commandCount = 0 
-}) => {
+const PocStatusBar: React.FC<PocStatusBarProps> = ({ status = 'idle', activeCommand, commandCount = 0 }) => {
   const getStatusText = () => {
     switch (status) {
       case 'running':
@@ -70,9 +69,7 @@ const PocStatusBar: React.FC<PocStatusBarProps> = ({
   return (
     <StatusContainer>
       <StatusLeft>
-        <StatusIndicator $status={status}>
-          {getStatusText()}
-        </StatusIndicator>
+        <StatusIndicator $status={status}>{getStatusText()}</StatusIndicator>
       </StatusLeft>
       <StatusRight>
         <div>Commands executed: {commandCount}</div>

@@ -5,7 +5,7 @@ import { PocMessage } from '../types'
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
-  justify-content: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+  justify-content: ${(props) => (props.$isUser ? 'flex-end' : 'flex-start')};
   margin-bottom: 8px;
 `
 
@@ -50,16 +50,24 @@ const OutputPre = styled.pre`
 const LoadingDots = styled.div`
   display: inline-block;
   margin-left: 8px;
-  
+
   &::after {
     content: '...';
     animation: loading 1.5s infinite;
   }
 
   @keyframes loading {
-    0%, 20% { content: '.'; }
-    40% { content: '..'; }
-    60%, 100% { content: '...'; }
+    0%,
+    20% {
+      content: '.';
+    }
+    40% {
+      content: '..';
+    }
+    60%,
+    100% {
+      content: '...';
+    }
   }
 `
 

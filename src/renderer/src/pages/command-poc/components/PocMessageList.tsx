@@ -1,8 +1,8 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
-import PocMessageBubble from './PocMessageBubble'
 import { PocMessage } from '../types'
+import PocMessageBubble from './PocMessageBubble'
 
 const MessageContainer = styled.div`
   flex: 1;
@@ -28,9 +28,29 @@ interface PocMessageListProps {
 }
 
 const PocMessageList: React.FC<PocMessageListProps> = ({ messages = [] }) => {
+  const messageContainerRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScrollRef = useRef(true)
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && messageContainerRef.current) {
+      const container = messageContainerRef.current
+      container.scrollTop = container.scrollHeight
+    }
+  }, [messages])
+
+  // Handle scroll to detect if user has scrolled up (disable auto-scroll)
+  const handleScroll = () => {
+    if (messageContainerRef.current) {
+      const container = messageContainerRef.current
+      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50
+      shouldAutoScrollRef.current = isAtBottom
+    }
+  }
+
   if (messages.length === 0) {
     return (
-      <MessageContainer>
+      <MessageContainer ref={messageContainerRef} onScroll={handleScroll}>
         <EmptyState>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>💻</div>
           <h3>Command POC Interface</h3>
@@ -44,8 +64,8 @@ const PocMessageList: React.FC<PocMessageListProps> = ({ messages = [] }) => {
   }
 
   return (
-    <MessageContainer>
-      {messages.map(message => (
+    <MessageContainer ref={messageContainerRef} onScroll={handleScroll}>
+      {messages.map((message) => (
         <PocMessageBubble key={message.id} message={message} />
       ))}
     </MessageContainer>

@@ -29,8 +29,12 @@ const Controls = styled.div`
   gap: 8px;
 `
 
-const PocHeader: React.FC = () => {
-  const workingDir = process.cwd() // This will be replaced with actual working directory
+interface PocHeaderProps {
+  currentWorkingDirectory?: string
+}
+
+const PocHeader: React.FC<PocHeaderProps> = ({ currentWorkingDirectory }) => {
+  const workingDir = currentWorkingDirectory || process.cwd()
 
   return (
     <HeaderContainer>
@@ -38,9 +42,7 @@ const PocHeader: React.FC = () => {
         <Title>Command POC</Title>
         <WorkingDirectory>📁 {workingDir}</WorkingDirectory>
       </div>
-      <Controls>
-        {/* Future: Add session controls */}
-      </Controls>
+      <Controls>{/* Future: Add session controls */}</Controls>
     </HeaderContainer>
   )
 }
