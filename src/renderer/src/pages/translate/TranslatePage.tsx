@@ -417,7 +417,9 @@ const TranslatePage: FC = () => {
           <OutputTextAreaContainer>
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
-                <div style={{ color: 'var(--color-text-3)' }}>{t('translate.output.placeholder')}</div>
+                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
+                  {t('translate.output.placeholder')}
+                </div>
               ) : enableMarkdown ? (
                 <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
               ) : (
