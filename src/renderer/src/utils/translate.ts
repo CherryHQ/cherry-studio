@@ -1,9 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  builtinTranslateLanguageOptions as builtinTranslateLanguages,
-  LanguagesEnum,
-  UNKNOWN
-} from '@renderer/config/translate'
+import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
@@ -270,8 +266,8 @@ export const getTranslateOptions = async () => {
       emoji: item.emoji,
       langCode: item.langCode
     }))
-    return [...builtinTranslateLanguages, ...transformedCustomLangs]
+    return [...builtinLanguages, ...transformedCustomLangs]
   } catch (e) {
-    return builtinTranslateLanguages
+    return builtinLanguages
   }
 }

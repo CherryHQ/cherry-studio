@@ -171,6 +171,6 @@ export const LanguagesEnum = {
   ukUA: UKRAINIAN
 } as const
 
-export const builtinTranslateLanguageOptions: Language[] = Object.values(LanguagesEnum)
+export const builtinLanguages: Language[] = Object.values(LanguagesEnum)
 
-export const builtinLangCodeList = builtinTranslateLanguageOptions.map((lang) => lang.langCode)
+export const builtinLangCodeList = builtinLanguages.map((lang) => lang.langCode)

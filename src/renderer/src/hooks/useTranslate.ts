@@ -1,4 +1,4 @@
-import { UNKNOWN } from '@renderer/config/translate'
+import { builtinLanguages, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
@@ -34,7 +34,7 @@ const logger = loggerService.withContext('useTranslate')
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
-  const [translateLanguages, setTranslateLanguages] = useState<Language[]>([])
+  const [translateLanguages, setTranslateLanguages] = useState<Language[]>(builtinLanguages)
 
   const dispatch = useAppDispatch()
 
