@@ -3409,6 +3409,10 @@
         "time": "显示话题时间"
       }
     },
+    "translate": {
+      "prompt": "翻译提示词",
+      "title": "翻译设置"
+    },
     "tray": {
       "onclose": "关闭时最小化到托盘",
       "show": "显示托盘图标",
@@ -3465,11 +3469,20 @@
       "title": "翻译确认"
     },
     "copied": "翻译内容已复制",
+    "custom": {
+      "label": "自定义语言"
+    },
     "detected": {
       "language": "自动检测"
     },
     "empty": "翻译内容为空",
     "error": {
+      "custom": {
+        "delete": "删除失败",
+        "exist": "该语言已存在",
+        "list": "读取自定义语言列表失败",
+        "update": "更新失败"
+      },
       "failed": "翻译失败",
       "not_configured": "翻译模型未配置",
       "unknown": "翻译过程中遇到未知错误"
@@ -3514,6 +3527,12 @@
       "preview": "Markdown 预览",
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
+    },
+    "success": {
+      "custom": {
+        "delete": "删除成功",
+        "update": "更新成功"
+      }
     },
     "target_language": "目标语言",
     "title": "翻译",
