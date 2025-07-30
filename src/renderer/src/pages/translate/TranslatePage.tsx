@@ -3,11 +3,15 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { LanguagesEnum, translateLanguageOptions, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useProviders } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
@@ -19,7 +23,7 @@ import {
 } from '@renderer/utils/translate'
 import { Button, Flex, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import { isEmpty } from 'lodash'
+import { find, isEmpty } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -272,6 +276,19 @@ const TranslatePage: FC = () => {
     )
   }
 
+  const { providers } = useProviders()
+  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
+
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
+
+  const defaultTranslateModel = useMemo(
+    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
+    [translateModel]
+  )
+
   return (
     <Container id="translate-page">
       <Navbar>
@@ -311,6 +328,19 @@ const TranslatePage: FC = () => {
                     )
                   }))
                 ]}
+              />
+              <ModelSelector
+                providers={providers}
+                predicate={modelPredicate}
+                style={{ width: '100%' }}
+                value={defaultTranslateModel}
+                placeholder={t('settings.models.empty')}
+                onChange={(value) => {
+                  const selectedModel = find(allModels, JSON.parse(value)) as Model
+                  if (selectedModel) {
+                    handleModelChange(selectedModel)
+                  }
+                }}
               />
               <Button
                 type="text"
@@ -410,7 +440,6 @@ const TranslatePage: FC = () => {
         bidirectionalPair={bidirectionalPair}
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
-        onModelChange={handleModelChange}
       />
     </Container>
   )

@@ -1,21 +1,16 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import ModelSelector from '@renderer/components/ModelSelector'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Language, Model } from '@renderer/types'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Button, Flex, Input, Modal, Select, Space, Switch, Tooltip } from 'antd'
-import { find } from 'lodash'
-import { ChevronDown, HelpCircle, TriangleAlert } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, HelpCircle } from 'lucide-react'
+import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,7 +26,6 @@ const TranslateSettings: FC<{
   bidirectionalPair: [Language, Language]
   setBidirectionalPair: (value: [Language, Language]) => void
   translateModel: Model | undefined
-  onModelChange: (model: Model) => void
 }> = ({
   visible,
   onClose,
@@ -42,9 +36,7 @@ const TranslateSettings: FC<{
   enableMarkdown,
   setEnableMarkdown,
   bidirectionalPair,
-  setBidirectionalPair,
-  translateModel,
-  onModelChange
+  setBidirectionalPair
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -52,19 +44,6 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
-
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
-
-  const modelPredicate = useCallback(
-    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
-    []
-  )
-
-  const defaultTranslateModel = useMemo(
-    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
-    [translateModel]
-  )
 
   useEffect(() => {
     setLocalPair(bidirectionalPair)
@@ -108,40 +87,6 @@ const TranslateSettings: FC<{
       ]}
       width={420}>
       <Flex vertical gap={16} style={{ marginTop: 16 }}>
-        <div>
-          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-            {t('translate.settings.model')}
-            <Tooltip title={t('translate.settings.model_desc')}>
-              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
-                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-              </span>
-            </Tooltip>
-          </div>
-          <HStack alignItems="center" gap={5}>
-            <ModelSelector
-              providers={providers}
-              predicate={modelPredicate}
-              style={{ width: '100%' }}
-              value={defaultTranslateModel}
-              placeholder={t('settings.models.empty')}
-              onChange={(value) => {
-                const selectedModel = find(allModels, JSON.parse(value)) as Model
-                if (selectedModel) {
-                  onModelChange(selectedModel)
-                }
-              }}
-            />
-          </HStack>
-          {!translateModel && (
-            <div style={{ marginTop: 8, color: 'var(--color-warning)' }}>
-              <HStack alignItems="center" gap={5}>
-                <TriangleAlert size={14} />
-                <span style={{ fontSize: 12 }}>{t('translate.settings.no_model_warning')}</span>
-              </HStack>
-            </div>
-          )}
-        </div>
-
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
