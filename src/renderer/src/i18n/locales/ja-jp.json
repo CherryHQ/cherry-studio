@@ -76,6 +76,59 @@
     },
     "title": "エージェント"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "コピー",
+      "regenerate": "再生成",
+      "restart": {
+        "button": "再起動",
+        "tooltip": "サーバーを再起動"
+      }
+    },
+    "authHeaderText": "認証ヘッダーで使用：",
+    "configuration": "設定",
+    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
+    "documentation": {
+      "title": "API ドキュメント",
+      "unavailable": {
+        "description": "インタラクティブドキュメントを表示するには API サーバーを開始してください",
+        "title": "API ドキュメントが利用できません"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "API キーをコピー",
+        "label": "API キー",
+        "placeholder": "API キーは自動生成されます"
+      },
+      "port": {
+        "helpText": "ポートを変更するにはサーバーを停止してください",
+        "label": "ポート"
+      },
+      "url": {
+        "copyTooltip": "URL をコピー",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API キーがクリップボードにコピーされました",
+      "apiKeyRegenerated": "API キーが再生成されました",
+      "operationFailed": "API サーバーの操作に失敗しました：",
+      "restartError": "API サーバーの再起動に失敗しました：",
+      "restartFailed": "API サーバーの再起動に失敗しました：",
+      "restartSuccess": "API サーバーが正常に再起動されました",
+      "startError": "API サーバーの開始に失敗しました：",
+      "startSuccess": "API サーバーが正常に開始されました",
+      "stopError": "API サーバーの停止に失敗しました：",
+      "stopSuccess": "API サーバーが正常に停止されました",
+      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+    },
+    "status": {
+      "running": "実行中",
+      "stopped": "停止中"
+    },
+    "title": "API サーバー"
+  },
   "assistants": {
     "abbr": "アシスタント",
     "clear": {
@@ -1594,6 +1647,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "百川",
     "baidu-cloud": "Baidu Cloud",
@@ -3035,6 +3089,16 @@
         "tip": "複数のキーはカンマまたはスペースで区切ります"
       },
       "api_version": "APIバージョン",
+      "aws-bedrock": {
+        "access_key_id": "AWS アクセスキー ID",
+        "access_key_id_help": "あなたの AWS アクセスキー ID は、AWS Bedrock サービスへのアクセスに使用されます",
+        "description": "AWS Bedrock は、Amazon が提供する完全に管理されたベースモデルサービスで、さまざまな最先端の大言語モデルをサポートしています",
+        "region": "AWS リージョン",
+        "region_help": "あなたの AWS サービスリージョン、例：us-east-1",
+        "secret_access_key": "AWS アクセスキー",
+        "secret_access_key_help": "あなたの AWS アクセスキー、安全に保管してください",
+        "title": "AWS Bedrock 設定"
+      },
       "azure": {
         "apiversion": {
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"

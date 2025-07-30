@@ -17,6 +17,7 @@ import {
 } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -26,6 +27,8 @@ import {
   ChatCompletionMessageToolCall,
   ChatCompletionTool
 } from 'openai/resources'
+
+import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
 
 const logger = loggerService.withContext('Utils:MCPTools')
 
@@ -533,7 +536,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: num
       parsedArgs = toolArgs
     }
     // Logger.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
-    const mcpTool = mcpTools.find((tool) => tool.id === toolName)
+    const mcpTool = mcpTools.find((tool) => tool.id === toolName || tool.name === toolName)
     if (!mcpTool) {
       logger.error(`Tool "${toolName}" not found in MCP tools`)
       window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
@@ -830,6 +833,163 @@ export function mcpToolCallResponseToGeminiMessage(
       })
     }
     message.parts = parts
+  }
+
+  return message
+}
+
+export function mcpToolsToAwsBedrockTools(mcpTools: MCPTool[]): Array<AwsBedrockSdkTool> {
+  return mcpTools.map((tool) => ({
+    toolSpec: {
+      name: tool.id,
+      description: tool.description,
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: tool.inputSchema?.properties
+            ? Object.fromEntries(
+                Object.entries(tool.inputSchema.properties).map(([key, value]) => [
+                  key,
+                  {
+                    type:
+                      typeof value === 'object' && value !== null && 'type' in value ? (value as any).type : 'string',
+                    description:
+                      typeof value === 'object' && value !== null && 'description' in value
+                        ? (value as any).description
+                        : undefined
+                  }
+                ])
+              )
+            : {},
+          required: tool.inputSchema?.required || []
+        }
+      }
+    }
+  }))
+}
+
+export function awsBedrockToolUseToMcpTool(
+  mcpTools: MCPTool[] | undefined,
+  toolCall: AwsBedrockSdkToolCall
+): MCPTool | undefined {
+  if (!toolCall) return undefined
+  if (!mcpTools) return undefined
+  const tool = mcpTools.find((tool) => tool.id === toolCall.name || tool.name === toolCall.name)
+  if (!tool) {
+    return undefined
+  }
+  return tool
+}
+
+export function mcpToolCallResponseToAwsBedrockMessage(
+  mcpToolResponse: MCPToolResponse,
+  resp: MCPCallToolResponse,
+  model: Model
+): AwsBedrockSdkMessageParam {
+  const message: AwsBedrockSdkMessageParam = {
+    role: 'user',
+    content: []
+  }
+
+  const toolUseId =
+    'toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId
+      ? mcpToolResponse.toolUseId
+      : 'toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId
+        ? mcpToolResponse.toolCallId
+        : 'unknown-tool-id'
+
+  if (resp.isError) {
+    message.content = [
+      {
+        toolResult: {
+          toolUseId: toolUseId,
+          content: [
+            {
+              text: `Error: ${JSON.stringify(resp.content)}`
+            }
+          ],
+          status: 'error'
+        }
+      }
+    ]
+  } else {
+    const toolResultContent: Array<{
+      json?: any
+      text?: string
+      image?: {
+        format: 'png' | 'jpeg' | 'gif' | 'webp'
+        source: {
+          bytes?: Uint8Array
+          s3Location?: {
+            uri: string
+            bucketOwner?: string
+          }
+        }
+      }
+    }> = []
+
+    if (isVisionModel(model)) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            toolResultContent.push({
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            if (item.data && item.mimeType) {
+              const awsImage = convertBase64ImageToAwsBedrockFormat(item.data, item.mimeType)
+              if (awsImage) {
+                toolResultContent.push({ image: awsImage })
+              } else {
+                toolResultContent.push({
+                  text: `[Image received: ${item.mimeType}, size: ${item.data?.length || 0} bytes]`
+                })
+              }
+            } else {
+              toolResultContent.push({
+                text: '[Image received but no data available]'
+              })
+            }
+            break
+          default:
+            toolResultContent.push({
+              text: `Unsupported content type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      // 对于非视觉模型，将所有内容合并为文本
+      const textContent = resp.content
+        .map((item) => {
+          if (item.type === 'text') {
+            return item.text
+          } else {
+            // 对于非文本内容，尝试转换为JSON格式
+            try {
+              return JSON.stringify(item)
+            } catch {
+              return `[${item.type} content]`
+            }
+          }
+        })
+        .join('\n')
+
+      toolResultContent.push({
+        text: textContent || 'Tool execution completed with no output'
+      })
+    }
+
+    message.content = [
+      {
+        toolResult: {
+          toolUseId: toolUseId,
+          content: toolResultContent,
+          status: 'success'
+        }
+      }
+    ]
   }
 
   return message

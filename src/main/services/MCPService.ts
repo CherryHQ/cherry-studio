@@ -19,6 +19,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
+  type GetPromptResult,
   LoggingMessageNotificationSchema,
   ProgressNotificationSchema,
   PromptListChangedNotificationSchema,
@@ -27,15 +28,7 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import type {
-  GetMCPPromptResponse,
-  GetResourceResponse,
-  MCPCallToolResponse,
-  MCPPrompt,
-  MCPResource,
-  MCPServer,
-  MCPTool
-} from '@types'
+import type { GetResourceResponse, MCPCallToolResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
@@ -192,6 +185,7 @@ class McpService {
                 },
                 authProvider
               }
+              logger.debug(`StreamableHTTPClientTransport options:`, options)
               return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
@@ -568,6 +562,7 @@ class McpService {
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     logger.debug(`Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
+    logger.debug(`Client for server: ${server.name}`, client)
     try {
       const { tools } = await client.listTools()
       const serverTools: MCPTool[] = []
@@ -705,11 +700,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(
-    server: MCPServer,
-    name: string,
-    args?: Record<string, any>
-  ): Promise<GetMCPPromptResponse> {
+  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.initClient(server)
     return await client.getPrompt({ name, arguments: args })
@@ -722,8 +713,8 @@ class McpService {
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
-  ): Promise<GetMCPPromptResponse> {
-    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetMCPPromptResponse>(
+  ): Promise<GetPromptResult> {
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
         const serverKey = this.getServerKey(server)

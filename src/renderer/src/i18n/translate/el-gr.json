@@ -76,6 +76,59 @@
     },
     "title": "Ειδικοί"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Αντιγραφή",
+      "regenerate": "Αναδημιουργία",
+      "restart": {
+        "button": "Επανεκκίνηση",
+        "tooltip": "Επανεκκίνηση Διακομιστή"
+      }
+    },
+    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
+    "configuration": "Διαμόρφωση",
+    "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
+    "documentation": {
+      "title": "Τεκμηρίωση API",
+      "unavailable": {
+        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση",
+        "title": "Τεκμηρίωση API Μη Διαθέσιμη"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Αντιγραφή Κλειδιού API",
+        "label": "Κλειδί API",
+        "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
+      },
+      "port": {
+        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
+        "label": "Θύρα"
+      },
+      "url": {
+        "copyTooltip": "Αντιγραφή URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
+      "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
+      "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
+      "restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
+      "restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
+      "restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",
+      "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
+      "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
+      "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
+      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
+      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
+    },
+    "status": {
+      "running": "Εκτελείται",
+      "stopped": "Σταματημένος"
+    },
+    "title": "Διακομιστής API"
+  },
   "assistants": {
     "abbr": "Βοηθός",
     "clear": {

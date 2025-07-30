@@ -31,17 +31,12 @@ export default class AppUpdater {
     }
 
     autoUpdater.on('error', (error) => {
-      // 简单记录错误信息和时间戳
-      logger.error('更新异常', {
-        message: error.message,
-        stack: error.stack,
-        time: new Date().toISOString()
-      })
+      logger.error('update error', error as Error)
       mainWindow.webContents.send(IpcChannel.UpdateError, error)
     })
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
-      logger.info('检测到新版本', releaseInfo)
+      logger.info('update available', releaseInfo)
       mainWindow.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
     })
 
@@ -65,7 +60,7 @@ export default class AppUpdater {
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
       mainWindow.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
       this.releaseInfo = releaseInfo
-      logger.info('下载完成', releaseInfo)
+      logger.info('update downloaded', releaseInfo)
     })
 
     if (isWin) {
@@ -242,7 +237,7 @@ export default class AppUpdater {
 
       return {
         currentVersion: this.autoUpdater.currentVersion,
-        updateInfo: this.updateCheckResult?.updateInfo
+        updateInfo: this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult?.updateInfo : null
       }
     } catch (error) {
       logger.error('Failed to check for update:', error as Error)
