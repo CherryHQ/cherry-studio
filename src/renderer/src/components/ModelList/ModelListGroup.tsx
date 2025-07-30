@@ -72,7 +72,10 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               type="text"
               className="toolbar-item"
               icon={<MinusOutlined />}
-              onClick={onRemoveGroup}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemoveGroup()
+              }}
               disabled={disabled}
             />
           </Tooltip>
