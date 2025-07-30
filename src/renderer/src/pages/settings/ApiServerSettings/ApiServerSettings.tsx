@@ -164,7 +164,6 @@ const ControlSection = styled.div`
   align-items: center;
   gap: 12px;
 
-
   .restart-btn {
     opacity: 0;
     transform: translateX(10px);
@@ -267,7 +266,7 @@ const ApiServerSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <SettingContainer theme={theme}>
       {/* Header Section */}
       <div style={{ marginBottom: 32 }}>
         <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
@@ -408,7 +407,7 @@ const ApiServerSettings: FC = () => {
             style={{
               width: '100%',
               border: 'none',
-              height: 'calc(100vh - 500px)'
+              height: '100vh'
             }}
             title="API Documentation"
             sandbox="allow-scripts allow-forms"

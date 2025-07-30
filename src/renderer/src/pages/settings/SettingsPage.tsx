@@ -85,12 +85,6 @@ const SettingsPage: FC = () => {
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/memory">
             <MenuItem className={isRoute('/settings/memory')}>
               <Brain size={18} />
