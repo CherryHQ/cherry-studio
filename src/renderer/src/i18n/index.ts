@@ -1,4 +1,4 @@
-import { loggerService } from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { defaultLanguage } from '@shared/config/constant'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'

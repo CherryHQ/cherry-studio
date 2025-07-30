@@ -2,6 +2,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -69,6 +70,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
   const { theme, setTheme } = useTheme()
+  const { hideMinappPopup } = useMinappPopup()
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -116,11 +118,18 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }
 
   const handleAddTab = () => {
+    hideMinappPopup()
     navigate('/launchpad')
   }
 
   const handleSettingsClick = () => {
+    hideMinappPopup()
     navigate(lastSettingsPath)
+  }
+
+  const handleTabClick = (tab: Tab) => {
+    hideMinappPopup()
+    navigate(tab.path)
   }
 
   return (
@@ -130,7 +139,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           .filter((tab) => !specialTabs.includes(tab.id))
           .map((tab) => {
             return (
-              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => navigate(tab.path)}>
+              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
                 <TabHeader>
                   {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
                   <TabTitle>{getTitleLabel(tab.id)}</TabTitle>

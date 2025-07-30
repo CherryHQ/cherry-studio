@@ -10,6 +10,7 @@ import {
   Package,
   PencilRuler,
   Rocket,
+  Server,
   Settings2,
   SquareTerminal,
   TextCursorInput,
@@ -22,6 +23,7 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
+import { ApiServerSettings } from './ApiServerSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
@@ -75,6 +77,18 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/mcp')}>
               <SquareTerminal size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/api-server">
+            <MenuItem className={isRoute('/settings/api-server')}>
+              <Server size={18} />
+              {t('apiServer.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/tool">
+            <MenuItem className={isRoute('/settings/tool')}>
+              <PencilRuler size={18} />
+              {t('settings.tool.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/memory">
@@ -133,6 +147,7 @@ const SettingsPage: FC = () => {
             <Route path="tool/*" element={<ToolSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
             <Route path="memory" element={<MemorySettings />} />
+            <Route path="api-server" element={<ApiServerSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />

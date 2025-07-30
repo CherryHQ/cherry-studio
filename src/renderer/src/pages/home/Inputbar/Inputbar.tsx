@@ -709,7 +709,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [assistant, topic])
 
   useEffect(() => {
-    setTimeout(() => resizeTextArea(), 0)
+    const timerId = requestAnimationFrame(() => resizeTextArea())
+    return () => cancelAnimationFrame(timerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

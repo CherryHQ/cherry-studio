@@ -3,6 +3,7 @@ import { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
+import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
@@ -64,6 +65,9 @@ export class ApiClientFactory {
         break
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
+        break
+      case 'aws-bedrock':
+        instance = new AwsBedrockAPIClient(provider) as BaseApiClient
         break
       default:
         logger.debug(`Using default OpenAIApiClient for provider: ${provider.id}`)

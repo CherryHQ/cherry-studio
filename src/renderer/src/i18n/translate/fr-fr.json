@@ -76,6 +76,59 @@
     },
     "title": "Agent intelligent"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copier",
+      "regenerate": "Régénérer",
+      "restart": {
+        "button": "Redémarrer",
+        "tooltip": "Redémarrer le Serveur"
+      }
+    },
+    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
+    "configuration": "Configuration",
+    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
+    "documentation": {
+      "title": "Documentation API",
+      "unavailable": {
+        "description": "Démarrez le serveur API pour voir la documentation interactive",
+        "title": "Documentation API Indisponible"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copier la Clé API",
+        "label": "Clé API",
+        "placeholder": "La clé API sera générée automatiquement"
+      },
+      "port": {
+        "helpText": "Arrêtez le serveur pour changer le port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copier l'URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
+      "apiKeyRegenerated": "Clé API régénérée",
+      "operationFailed": "Opération du Serveur API échouée : ",
+      "restartError": "Échec du redémarrage du Serveur API : ",
+      "restartFailed": "Redémarrage du Serveur API échoué : ",
+      "restartSuccess": "Serveur API redémarré avec succès",
+      "startError": "Échec du démarrage du Serveur API : ",
+      "startSuccess": "Serveur API démarré avec succès",
+      "stopError": "Échec de l'arrêt du Serveur API : ",
+      "stopSuccess": "Serveur API arrêté avec succès",
+      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+    },
+    "status": {
+      "running": "En cours d'exécution",
+      "stopped": "Arrêté"
+    },
+    "title": "Serveur API"
+  },
   "assistants": {
     "abbr": "Aide",
     "clear": {

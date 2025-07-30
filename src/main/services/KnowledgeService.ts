@@ -38,7 +38,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('KnowledgeService')
+const logger = loggerService.withContext('MainKnowledgeService')
 
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams

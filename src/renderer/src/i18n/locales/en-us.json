@@ -76,6 +76,59 @@
     },
     "title": "Agents"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copy",
+      "regenerate": "Regenerate",
+      "restart": {
+        "button": "Restart",
+        "tooltip": "Restart Server"
+      }
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "configuration": "Configuration",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "documentation": {
+      "title": "API Documentation",
+      "unavailable": {
+        "description": "Start the API server to view the interactive documentation",
+        "title": "API Documentation Unavailable"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copy API Key",
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated"
+      },
+      "port": {
+        "helpText": "Stop server to change port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copy URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API Key copied to clipboard",
+      "apiKeyRegenerated": "API Key regenerated",
+      "operationFailed": "API Server operation failed: ",
+      "restartError": "Failed to restart API Server: ",
+      "restartFailed": "API Server restart failed: ",
+      "restartSuccess": "API Server restarted successfully",
+      "startError": "Failed to start API Server: ",
+      "startSuccess": "API Server started successfully",
+      "stopError": "Failed to stop API Server: ",
+      "stopSuccess": "API Server stopped successfully",
+      "urlCopied": "Server URL copied to clipboard"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "title": "API Server"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -1594,6 +1647,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
@@ -3035,6 +3089,16 @@
         "tip": "Multiple keys separated by commas or spaces"
       },
       "api_version": "API Version",
+      "aws-bedrock": {
+        "access_key_id": "AWS Access Key ID",
+        "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
+        "region": "AWS Region",
+        "region_help": "Your AWS service region, e.g., us-east-1",
+        "secret_access_key": "AWS Secret Access Key",
+        "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
+        "title": "AWS Bedrock Configuration"
+      },
       "azure": {
         "apiversion": {
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"

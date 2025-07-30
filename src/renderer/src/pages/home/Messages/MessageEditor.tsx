@@ -97,11 +97,13 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   }, [couldAddImageFile, couldAddTextFile])
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus({ cursor: 'end' })
       }
     }, 0)
+
+    return () => clearTimeout(timer)
   }, [])
 
   // 仅在打开时执行一次

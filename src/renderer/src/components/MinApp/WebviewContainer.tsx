@@ -23,7 +23,7 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const { enableSpellCheck } = useSettings()
-    const { isLeftNavbar } = useNavbarPosition()
+    const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -64,9 +64,9 @@ const WebviewContainer = memo(
       webviewRef.current.src = url
 
       return () => {
+        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
-        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,7 +74,7 @@ const WebviewContainer = memo(
 
     const WebviewStyle: React.CSSProperties = {
       width: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw',
-      height: 'calc(100vh - var(--navbar-height))',
+      height: isTopNavbar ? 'calc(100vh - var(--navbar-height) - var(--navbar-height))' : '100vh',
       backgroundColor: 'var(--color-background)',
       display: 'inline-flex'
     }

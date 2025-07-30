@@ -446,12 +446,16 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
 
   useEffect(() => {
     setLoading(true)
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const { nodes: flowNodes, edges: flowEdges } = buildConversationFlowData()
       setNodes([...flowNodes])
       setEdges([...flowEdges])
       setLoading(false)
     }, 500)
+
+    return () => {
+      clearTimeout(timer)
+    }
   }, [buildConversationFlowData, setNodes, setEdges])
 
   return (

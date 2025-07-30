@@ -162,6 +162,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
 
   useEffect(() => {
+    let timer: NodeJS.Timeout
+    let mounted = true
+
     runAsyncFunction(async () => {
       try {
         setLoading(true)
@@ -188,18 +191,32 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       } catch (error) {
         logger.error('Failed to fetch models', error as Error)
       } finally {
-        setTimeout(() => setLoading(false), 300)
+        if (mounted) {
+          timer = setTimeout(() => setLoading(false), 300)
+        }
       }
     })
+
+    return () => {
+      mounted = false
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (open && searchInputRef.current) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         searchInputRef.current?.focus()
       }, 350)
+
+      return () => {
+        clearTimeout(timer)
+      }
     }
+    return
   }, [open])
 
   const ModalHeader = () => {

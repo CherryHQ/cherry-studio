@@ -76,6 +76,59 @@
     },
     "title": "Agente"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copiar",
+      "regenerate": "Regenerar",
+      "restart": {
+        "button": "Reiniciar",
+        "tooltip": "Reiniciar Servidor"
+      }
+    },
+    "authHeaderText": "Usar no cabeçalho de autorização:",
+    "configuration": "Configuração",
+    "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
+    "documentation": {
+      "title": "Documentação API",
+      "unavailable": {
+        "description": "Inicie o servidor API para ver a documentação interativa",
+        "title": "Documentação API Indisponível"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copiar Chave API",
+        "label": "Chave API",
+        "placeholder": "A chave API será gerada automaticamente"
+      },
+      "port": {
+        "helpText": "Pare o servidor para alterar a porta",
+        "label": "Porta"
+      },
+      "url": {
+        "copyTooltip": "Copiar URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Chave API copiada para a área de transferência",
+      "apiKeyRegenerated": "Chave API regenerada",
+      "operationFailed": "Operação do Servidor API falhou: ",
+      "restartError": "Falha ao reiniciar o Servidor API: ",
+      "restartFailed": "Reinício do Servidor API falhou: ",
+      "restartSuccess": "Servidor API reiniciado com sucesso",
+      "startError": "Falha ao iniciar o Servidor API: ",
+      "startSuccess": "Servidor API iniciado com sucesso",
+      "stopError": "Falha ao parar o Servidor API: ",
+      "stopSuccess": "Servidor API parado com sucesso",
+      "urlCopied": "URL do servidor copiada para a área de transferência"
+    },
+    "status": {
+      "running": "A executar",
+      "stopped": "Parado"
+    },
+    "title": "Servidor API"
+  },
   "assistants": {
     "abbr": "Assistente",
     "clear": {

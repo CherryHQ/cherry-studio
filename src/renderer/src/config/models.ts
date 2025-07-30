@@ -2345,7 +2345,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'google'
     }
   ],
-  'new-api': []
+  'new-api': [],
+  'aws-bedrock': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2701,6 +2702,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-2025-07-15'
     ].includes(baseName)
   )
+}
+
+export function isQwen3235BA22BThinkingModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('qwen3-235b-a22b-thinking')
 }
 
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {

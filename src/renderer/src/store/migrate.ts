@@ -1907,9 +1907,32 @@ const migrateConfig = {
         updateModelTextDelta(state.assistants.defaultAssistant.defaultModel)
       }
 
+      addProvider(state, 'aws-bedrock')
+
+      // 初始化 awsBedrock 设置
+      if (!state.llm.settings.awsBedrock) {
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 124 error', error as Error)
+      return state
+    }
+  },
+  '125': (state: RootState) => {
+    try {
+      // Initialize API server configuration if not present
+      if (!state.settings.apiServer) {
+        state.settings.apiServer = {
+          host: 'localhost',
+          port: 23333,
+          apiKey: `cs-sk-${uuid()}`
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 125 error', error as Error)
       return state
     }
   }

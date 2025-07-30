@@ -76,6 +76,59 @@
     },
     "title": "智慧代理人"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "複製",
+      "regenerate": "重新生成",
+      "restart": {
+        "button": "重新啟動",
+        "tooltip": "重新啟動伺服器"
+      }
+    },
+    "authHeaderText": "在授權標頭中使用：",
+    "configuration": "配置",
+    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
+    "documentation": {
+      "title": "API 文件",
+      "unavailable": {
+        "description": "啟動 API 伺服器以檢視互動式文件",
+        "title": "API 文件無法使用"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "複製 API 金鑰",
+        "label": "API 金鑰",
+        "placeholder": "API 金鑰將自動生成"
+      },
+      "port": {
+        "helpText": "停止伺服器以變更連接埠",
+        "label": "連接埠"
+      },
+      "url": {
+        "copyTooltip": "複製 URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API 金鑰已複製到剪貼簿",
+      "apiKeyRegenerated": "API 金鑰已重新生成",
+      "operationFailed": "API 伺服器操作失敗：",
+      "restartError": "重新啟動 API 伺服器失敗：",
+      "restartFailed": "API 伺服器重新啟動失敗：",
+      "restartSuccess": "API 伺服器重新啟動成功",
+      "startError": "啟動 API 伺服器失敗：",
+      "startSuccess": "API 伺服器啟動成功",
+      "stopError": "停止 API 伺服器失敗：",
+      "stopSuccess": "API 伺服器停止成功",
+      "urlCopied": "伺服器 URL 已複製到剪貼簿"
+    },
+    "status": {
+      "running": "執行中",
+      "stopped": "已停止"
+    },
+    "title": "API 伺服器"
+  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -1594,6 +1647,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "百川",
     "baidu-cloud": "百度雲千帆",
@@ -3035,6 +3089,16 @@
         "tip": "多個金鑰使用逗號或空格分隔"
       },
       "api_version": "API 版本",
+      "aws-bedrock": {
+        "access_key_id": "AWS 存取密鑰 ID",
+        "access_key_id_help": "您的 AWS 存取密鑰 ID，用於存取 AWS Bedrock 服務",
+        "description": "AWS Bedrock 是亞馬遜提供的全托管基础模型服務，支持多種先進的大語言模型",
+        "region": "AWS 區域",
+        "region_help": "您的 AWS 服務區域，例如 us-east-1",
+        "secret_access_key": "AWS 存取密鑰",
+        "secret_access_key_help": "您的 AWS 存取密鑰，請妥善保管",
+        "title": "AWS Bedrock 設定"
+      },
       "azure": {
         "apiversion": {
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
