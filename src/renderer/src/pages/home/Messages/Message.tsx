@@ -264,7 +264,7 @@ const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`
   cursor: pointer;
   flex: 1;
 
-  ${({ isMultiSelectMode }) => isMultiSelectMode && 'user-select: none; cursor: default;'}
+  ${({ isMultiSelectMode }) => isMultiSelectMode && 'cursor: default;'}
 `
 
 export default memo(MessageItem)
