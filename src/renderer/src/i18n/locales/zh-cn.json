@@ -3410,6 +3410,41 @@
       }
     },
     "translate": {
+      "custom": {
+        "delete": {
+          "description": "确定要删除吗？",
+          "title": "删除自定义语言"
+        },
+        "error": {
+          "add": "添加失败",
+          "delete": "删除失败",
+          "langCode": {
+            "builtin": "该语言已内置支持",
+            "invalid": "无效的语言代码"
+          },
+          "update": "更新失败",
+          "value": {
+            "empty": "语言名不能为空",
+            "too_long": "语言名过长"
+          }
+        },
+        "langCode": {
+          "placeholder": "zh-CN"
+        },
+        "success": {
+          "add": "添加成功",
+          "delete": "删除成功",
+          "update": "更新成功"
+        },
+        "table": {
+          "action": {
+            "title": "操作"
+          }
+        },
+        "value": {
+          "placeholder": "中文"
+        }
+      },
       "prompt": "翻译提示词",
       "title": "翻译设置"
     },

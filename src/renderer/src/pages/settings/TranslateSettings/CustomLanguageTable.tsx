@@ -1,29 +1,140 @@
+import { HStack } from '@renderer/components/Layout'
 import { CustomTranslateLanguage } from '@renderer/types'
-import { Table } from 'antd'
-import { memo, use } from 'react'
+import { Button, Popconfirm, Table, TableProps } from 'antd'
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { memo, startTransition, use, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { deleteCustomLanguage } from '@renderer/services/TranslateService'
+import { SettingRowTitle } from '..'
+import styled from 'styled-components'
+import CustomLanguageModal from './CustomLanguageModal'
 
 type Props = {
   dataPromise: Promise<CustomTranslateLanguage[]>
 }
 
 const CustomLanguageTable = ({ dataPromise }: Props) => {
-  const columns = [
-    {
-      title: 'Emoji'
-    },
-    {
-      title: 'Value'
-    },
-    {
-      title: 'langCode'
+  const { t } = useTranslation()
+  const [displayedItems, setDisplayedItems] = useState<CustomTranslateLanguage[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingCustomLanguage, setEditingCustomLanguage] = useState<CustomTranslateLanguage>()
+
+  const onDelete = async (id: string) => {
+    try {
+      await deleteCustomLanguage(id)
+      setDisplayedItems(displayedItems.filter((item) => item.id !== id))
+      window.message.success(t('settings.translate.custom.success.delete'))
+    } catch (e) {
+      window.message.error(t('settings.translate.custom.error.delete'))
     }
-  ]
+  }
+
+  const onClickAdd = () => {
+    startTransition(async () => {
+      setEditingCustomLanguage(undefined)
+      setIsModalOpen(true)
+    })
+  }
+
+  const onClickEdit = (target: CustomTranslateLanguage) => {
+    startTransition(async () => {
+      setEditingCustomLanguage(target)
+      setIsModalOpen(true)
+    })
+  }
+
+  const onCancel = () => {
+    startTransition(async () => {
+      setIsModalOpen(false)
+    })
+  }
+
+  const onItemAdd = (target: CustomTranslateLanguage) => {
+    startTransition(async () => {
+      setDisplayedItems([...displayedItems, target])
+    })
+  }
+
+  const onItemEdit = (target: CustomTranslateLanguage) => {
+    startTransition(async () => {
+      setDisplayedItems(displayedItems.map((item) => (item.id === target.id ? target : item)))
+    })
+  }
+
+  const columns: TableProps<CustomTranslateLanguage>['columns'] = useMemo(
+    () => [
+      {
+        title: 'Emoji',
+        dataIndex: 'emoji'
+      },
+      {
+        title: 'Value',
+        dataIndex: 'value'
+      },
+      {
+        title: 'langCode',
+        dataIndex: 'langCode'
+      },
+      {
+        title: t('settings.translate.custom.table.action.title'),
+        key: 'action',
+        render: (_, record) => {
+          return (
+            <HStack>
+              <Button icon={<EditOutlined />} onClick={() => onClickEdit(record)}>
+                {t('common.edit')}
+              </Button>
+              <Popconfirm
+                title={t('settings.translate.custom.delete.title')}
+                description={t('settings.translate.custom.delete.description')}
+                onConfirm={() => onDelete(record.id)}>
+                <Button icon={<DeleteOutlined />}>{t('common.delete')}</Button>
+              </Popconfirm>
+            </HStack>
+          )
+        }
+      }
+    ],
+    []
+  )
 
   const data = use(dataPromise)
 
+  useEffect(() => {
+    setDisplayedItems(data)
+  }, [data])
+
   return (
-    <Table<CustomTranslateLanguage> columns={columns} pagination={{ position: ['bottomCenter'] }} dataSource={data} />
+    <>
+      <CustomLanguageSettings>
+        <HStack justifyContent="space-between" style={{ padding: '4px 0' }}>
+          <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
+          <Button type="primary" icon={<PlusOutlined size={16} />} onClick={onClickAdd}>
+            {t('common.add')}
+          </Button>
+        </HStack>
+        <Table<CustomTranslateLanguage>
+          columns={columns}
+          pagination={{ position: ['bottomCenter'] }}
+          dataSource={displayedItems}
+        />
+      </CustomLanguageSettings>
+      <CustomLanguageModal
+        isOpen={isModalOpen}
+        editingCustomLanguage={editingCustomLanguage}
+        onAdd={onItemAdd}
+        onEdit={onItemEdit}
+        onCancel={onCancel}
+      />
+    </>
   )
 }
+
+const CustomLanguageSettings = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`
 
 export default memo(CustomLanguageTable)

@@ -95,7 +95,7 @@ db.version(9).stores({
   settings: '&id, value',
   knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
   translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
-  translate_languages: '&id, langcode',
+  translate_languages: '&id, langCode',
   quick_phrases: 'id',
   message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
 })

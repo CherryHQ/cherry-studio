@@ -46,12 +46,14 @@ export const addCustomLanguage = async (value: string, emoji: string, langCode: 
     throw new Error(`Custom language ${value} exists.`)
   } else {
     try {
-      db.translate_languages.add({
+      const item = {
         id: uuid(),
         value,
         langCode,
         emoji
-      })
+      }
+      db.translate_languages.add(item)
+      return item
     } catch (e) {
       logger.error('Failed to add custom language.', e as Error)
       throw e
