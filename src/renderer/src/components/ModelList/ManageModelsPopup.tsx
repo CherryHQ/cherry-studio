@@ -1,5 +1,6 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
 import { TopView } from '@renderer/components/TopView'
@@ -331,7 +332,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       <ListContainer>
         {loading || isFilterTypePending || isSearchPending ? (
           <Flex justify="center" align="center" style={{ height: '70%' }}>
-            <Spin size="large" />
+            <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
           </Flex>
         ) : (
           <ManageModelsList
