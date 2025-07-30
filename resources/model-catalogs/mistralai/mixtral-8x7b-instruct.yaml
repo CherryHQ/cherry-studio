@@ -1,0 +1,46 @@
+id: mistralai/mixtral-8x7b-instruct
+canonical_slug: mistralai/mixtral-8x7b-instruct
+hugging_face_id: mistralai/Mixtral-8x7B-Instruct-v0.1
+name: 'Mistral: Mixtral 8x7B Instruct'
+type: chat
+created: 1702166400
+description: |-
+  Mixtral 8x7B Instruct is a pretrained generative Sparse Mixture of Experts, by Mistral AI, for chat and instruction use. Incorporates 8 experts (feed-forward networks) for a total of 47 billion parameters.
+
+  Instruct model fine-tuned by Mistral. #moe
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.00000008'
+  completion: '0.00000024'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - seed
+model_provider: mistralai

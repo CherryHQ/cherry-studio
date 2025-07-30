@@ -1,0 +1,36 @@
+id: thedrummer/anubis-pro-105b-v1
+canonical_slug: thedrummer/anubis-pro-105b-v1
+hugging_face_id: TheDrummer/Anubis-Pro-105B-v1
+name: 'TheDrummer: Anubis Pro 105B V1'
+type: chat
+created: 1741642290
+description: Anubis Pro 105B v1 is an expanded and refined variant of Meta’s Llama 3.3 70B, featuring 50% additional layers and further fine-tuning to leverage its increased capacity. Designed for advanced narrative, roleplay, and instructional tasks, it demonstrates enhanced emotional intelligence, creativity, nuanced character portrayal, and superior prompt adherence compared to smaller models. Its larger parameter count allows for deeper contextual understanding and extended reasoning capabilities, optimized for engaging, intelligent, and coherent interactions.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000008'
+  completion: '0.000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - presence_penalty
+  - frequency_penalty
+  - repetition_penalty
+  - top_k
+model_provider: thedrummer

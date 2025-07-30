@@ -1,0 +1,45 @@
+id: cohere/command-r-03-2024
+canonical_slug: cohere/command-r-03-2024
+hugging_face_id: ''
+name: 'Cohere: Command R (03-2024)'
+type: chat
+created: 1709341200
+description: |-
+  Command-R is a 35B parameter model that performs conversational language tasks at a higher quality, more reliably, and with a longer context than previous models. It can be used for complex workflows like code generation, retrieval augmented generation (RAG), tool use, and agents.
+
+  Read the launch post [here](https://txt.cohere.com/command-r/).
+
+  Use of this model is subject to Cohere's [Usage Policy](https://docs.cohere.com/docs/usage-policy) and [SaaS Agreement](https://cohere.com/saas-agreement).
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Cohere
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.0000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: cohere

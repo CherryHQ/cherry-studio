@@ -1,0 +1,49 @@
+id: deepseek/deepseek-chat
+canonical_slug: deepseek/deepseek-chat-v3
+hugging_face_id: deepseek-ai/DeepSeek-V3
+name: 'DeepSeek: DeepSeek V3'
+type: chat
+created: 1735241320
+description: |-
+  DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations reveal that the model outperforms other open-source models and rivals leading closed-source models.
+
+  For model details, please visit [the DeepSeek-V3 repo](https://github.com/deepseek-ai/DeepSeek-V3) for more information, or see the [launch announcement](https://api-docs.deepseek.com/news/news1226).
+context_length: 163840
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: DeepSeek
+  instruct_type: null
+pricing:
+  prompt: '0.00000038'
+  completion: '0.00000089'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - structured_outputs
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - seed
+  - min_p
+model_provider: deepseek

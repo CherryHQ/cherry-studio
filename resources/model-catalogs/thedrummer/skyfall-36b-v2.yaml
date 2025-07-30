@@ -1,0 +1,36 @@
+id: thedrummer/skyfall-36b-v2
+canonical_slug: thedrummer/skyfall-36b-v2
+hugging_face_id: TheDrummer/Skyfall-36B-v2
+name: 'TheDrummer: Skyfall 36B V2'
+type: chat
+created: 1741636566
+description: Skyfall 36B v2 is an enhanced iteration of Mistral Small 2501, specifically fine-tuned for improved creativity, nuanced writing, role-playing, and coherent storytelling.
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.0000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - presence_penalty
+  - frequency_penalty
+  - repetition_penalty
+  - top_k
+model_provider: thedrummer

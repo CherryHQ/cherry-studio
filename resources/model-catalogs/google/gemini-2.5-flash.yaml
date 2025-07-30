@@ -1,0 +1,44 @@
+id: google/gemini-2.5-flash
+canonical_slug: google/gemini-2.5-flash
+hugging_face_id: ''
+name: 'Google: Gemini 2.5 Flash'
+type: chat
+created: 1750172488
+description: "Gemini 2.5 Flash is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks. It includes built-in \"thinking\" capabilities, enabling it to provide responses with greater accuracy and nuanced context handling. \n\nAdditionally, Gemini 2.5 Flash is configurable through the \"max tokens for reasoning\" parameter, as described in the documentation (https://openrouter.ai/docs/use-cases/reasoning-tokens#max-tokens-for-reasoning)."
+context_length: 1048576
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - file
+    - image
+    - text
+  output_modalities:
+    - text
+  tokenizer: Gemini
+  instruct_type: null
+pricing:
+  prompt: '0.0000003'
+  completion: '0.0000025'
+  input_cache_read: '0.000000075'
+  input_cache_write: '0.0000003833'
+  request: '0'
+  image: '0.001238'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - structured_outputs
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+model_provider: google

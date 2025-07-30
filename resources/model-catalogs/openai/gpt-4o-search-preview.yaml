@@ -1,0 +1,33 @@
+id: openai/gpt-4o-search-preview
+canonical_slug: openai/gpt-4o-search-preview-2025-03-11
+hugging_face_id: ''
+name: 'OpenAI: GPT-4o Search Preview'
+type: chat
+created: 1741817949
+description: GPT-4o Search Previewis a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.0000025'
+  completion: '0.00001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0.035'
+  image: '0.003613'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - web_search_options
+  - max_tokens
+  - response_format
+  - structured_outputs
+model_provider: openai

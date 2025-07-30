@@ -1,0 +1,51 @@
+id: mistralai/mistral-nemo
+canonical_slug: mistralai/mistral-nemo
+hugging_face_id: mistralai/Mistral-Nemo-Instruct-2407
+name: 'Mistral: Mistral Nemo'
+type: chat
+created: 1721347200
+description: |-
+  A 12B parameter model with a 128k token context length built by Mistral in collaboration with NVIDIA.
+
+  The model is multilingual, supporting English, French, German, Spanish, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, and Hindi.
+
+  It supports function calling and is released under the Apache 2.0 license.
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.00000001'
+  completion: '0.000000019'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - min_p
+  - seed
+  - response_format
+  - tools
+  - tool_choice
+  - structured_outputs
+model_provider: mistralai

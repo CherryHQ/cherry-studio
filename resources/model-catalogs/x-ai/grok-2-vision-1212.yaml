@@ -1,0 +1,43 @@
+id: x-ai/grok-2-vision-1212
+canonical_slug: x-ai/grok-2-vision-1212
+hugging_face_id: ''
+name: 'xAI: Grok 2 Vision 1212'
+type: chat
+created: 1734237338
+description: |-
+  Grok 2 Vision 1212 advances image-based AI with stronger visual comprehension, refined instruction-following, and multilingual support. From object recognition to style analysis, it empowers developers to build more intuitive, visually aware applications. Its enhanced steerability and reasoning establish a robust foundation for next-generation image solutions.
+
+  To read more about this model, check out [xAI's announcement](https://x.ai/blog/grok-1212).
+context_length: 32768
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Grok
+  instruct_type: null
+pricing:
+  prompt: '0.000002'
+  completion: '0.00001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.0036'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: x-ai

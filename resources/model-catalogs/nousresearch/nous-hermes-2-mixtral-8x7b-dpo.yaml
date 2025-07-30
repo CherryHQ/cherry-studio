@@ -1,0 +1,45 @@
+id: nousresearch/nous-hermes-2-mixtral-8x7b-dpo
+canonical_slug: nousresearch/nous-hermes-2-mixtral-8x7b-dpo
+hugging_face_id: NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO
+name: 'Nous: Hermes 2 Mixtral 8x7B DPO'
+type: chat
+created: 1705363200
+description: |-
+  Nous Hermes 2 Mixtral 8x7B DPO is the new flagship Nous Research model trained over the [Mixtral 8x7B MoE LLM](/models/mistralai/mixtral-8x7b).
+
+  The model was trained on over 1,000,000 entries of primarily [GPT-4](/models/openai/gpt-4) generated data, as well as other high quality data from open datasets across the AI landscape, achieving state of the art performance on a variety of tasks.
+
+  #moe
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: chatml
+pricing:
+  prompt: '0.0000006'
+  completion: '0.0000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+model_provider: nousresearch
