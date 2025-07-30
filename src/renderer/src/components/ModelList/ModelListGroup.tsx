@@ -2,8 +2,9 @@ import { MinusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Flex, Tooltip } from 'antd'
-import React, { memo } from 'react'
+import React, { memo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,6 +32,16 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   onRemoveGroup
 }) => {
   const { t } = useTranslation()
+  const scrollerRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: models.length,
+    getScrollElement: () => scrollerRef.current,
+    estimateSize: () => 52,
+    overscan: 5
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
 
   return (
     <CustomCollapseWrapper>
@@ -52,18 +63,45 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             />
           </Tooltip>
         }>
-        <Flex gap={10} vertical style={{ marginTop: 10 }}>
-          {models.map((model) => (
-            <ModelListItem
-              key={model.id}
-              model={model}
-              modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
-              onEdit={onEditModel}
-              onRemove={onRemoveModel}
-              disabled={disabled}
-            />
-          ))}
-        </Flex>
+        <ScrollContainer ref={scrollerRef}>
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative'
+            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
+              }}>
+              {virtualItems.map((virtualItem) => {
+                const model = models[virtualItem.index]
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      /* 在这里调整 item 间距 */
+                      padding: '4px 0'
+                    }}>
+                    <ModelListItem
+                      model={model}
+                      modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
+                      onEdit={onEditModel}
+                      onRemove={onRemoveModel}
+                      disabled={disabled}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </ScrollContainer>
       </CustomCollapse>
     </CustomCollapseWrapper>
   )
@@ -79,6 +117,17 @@ const CustomCollapseWrapper = styled.div`
   &:hover .toolbar-item {
     opacity: 1;
   }
+
+  /* 移除 collapse 的 padding，转而在 scroller 内部调整 */
+  .ant-collapse-content-box {
+    padding: 0 !important;
+  }
+`
+
+const ScrollContainer = styled.div`
+  overflow-y: auto;
+  max-height: 390px;
+  padding: 4px 16px;
 `
 
 export default memo(ModelListGroup)
