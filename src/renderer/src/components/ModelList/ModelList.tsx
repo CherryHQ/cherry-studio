@@ -1,5 +1,7 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import CustomTag from '@renderer/components/CustomTag'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { HStack } from '@renderer/components/Layout'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
 import EditModelPopup from '@renderer/components/ModelList/EditModelPopup'
@@ -17,10 +19,9 @@ import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
-import React, { memo, startTransition, useCallback, useEffect, useState } from 'react'
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SvgSpinners180Ring from '../Icons/SvgSpinners180Ring'
 import ModelListGroup from './ModelListGroup'
 import { useHealthCheck } from './useHealthCheck'
 
@@ -80,6 +81,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [models, searchText])
 
+  const modelCount = useMemo(() => {
+    return Object.values(displayedModelGroups ?? {}).reduce((acc, group) => acc + group.length, 0)
+  }, [displayedModelGroups])
+
   const onManageModel = useCallback(() => {
     ManageModelsPopup.show({ provider })
   }, [provider])
@@ -132,6 +137,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+            {modelCount > 0 && (
+              <CustomTag color="#8c8c8c" size={10}>
+                {modelCount}
+              </CustomTag>
+            )}
             <CollapsibleSearchBar onSearch={setSearchText} />
           </HStack>
           <HStack>
