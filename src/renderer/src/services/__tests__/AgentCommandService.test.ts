@@ -91,10 +91,7 @@ describe('AgentCommandService', () => {
 
   it('should register IPC listener for command output', () => {
     // The IPC listener should be registered during service initialization
-    expect(mockElectron.ipcRenderer.on).toHaveBeenCalledWith(
-      'poc:command-output',
-      expect.any(Function)
-    )
+    expect(mockElectron.ipcRenderer.on).toHaveBeenCalledWith('poc:command-output', expect.any(Function))
   })
 
   it('should track running commands', async () => {
@@ -124,7 +121,7 @@ describe('AgentCommandService', () => {
     mockApi.executeCommand.mockResolvedValue(undefined)
 
     const commandId = await service.executeCommand('date', '/tmp')
-    
+
     // Simulate command completion
     const command = service.getCommand(commandId)
     if (command) {
@@ -133,16 +130,16 @@ describe('AgentCommandService', () => {
     }
 
     service.clearCompletedCommands()
-    
+
     expect(service.getCommand(commandId)).toBeUndefined()
   })
 
   it('should handle execute command error', async () => {
     mockApi.executeCommand.mockRejectedValue(new Error('Command failed'))
 
-    await expect(
-      service.executeCommand('invalid-command', '/tmp')
-    ).rejects.toThrow('Failed to execute command: Command failed')
+    await expect(service.executeCommand('invalid-command', '/tmp')).rejects.toThrow(
+      'Failed to execute command: Command failed'
+    )
   })
 
   it('should handle interrupt command error', async () => {

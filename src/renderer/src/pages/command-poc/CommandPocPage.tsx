@@ -1,9 +1,9 @@
+import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
+import { usePocCommand } from '@renderer/hooks/usePocCommand'
+import { usePocMessages } from '@renderer/hooks/usePocMessages'
 import React, { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
-import { usePocCommand } from '@renderer/hooks/usePocCommand'
-import { usePocMessages } from '@renderer/hooks/usePocMessages'
-import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import PocCommandInput from './components/PocCommandInput'
 import PocHeader from './components/PocHeader'
 import PocMessageList from './components/PocMessageList'
@@ -83,11 +83,7 @@ const CommandPocPage: React.FC = () => {
       <PocHeader currentWorkingDirectory={currentWorkingDirectory} />
       <ContentArea>
         <PocMessageList messages={messagesHook.messages} />
-        <PocStatusBar
-          status={getCommandStatus()}
-          activeCommand={getCurrentCommand()}
-          commandCount={commandCount}
-        />
+        <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
         <PocCommandInput
           onSendCommand={handleExecuteCommand}
           disabled={commandHook.isExecuting}
