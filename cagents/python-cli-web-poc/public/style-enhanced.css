@@ -1,0 +1,884 @@
+/* Cherry Studio Design System CSS Variables */
+:root {
+  /* Colors - Dark Theme (Default) */
+  --color-white: #ffffff;
+  --color-white-soft: rgba(255, 255, 255, 0.8);
+  --color-white-mute: rgba(255, 255, 255, 0.94);
+
+  --color-black: #181818;
+  --color-black-soft: #222222;
+  --color-black-mute: #333333;
+
+  --color-gray-1: #515c67;
+  --color-gray-2: #414853;
+  --color-gray-3: #32363f;
+
+  --color-text-1: rgba(255, 255, 245, 0.9);
+  --color-text-2: rgba(235, 235, 245, 0.6);
+  --color-text-3: rgba(235, 235, 245, 0.38);
+
+  --color-background: var(--color-black);
+  --color-background-soft: var(--color-black-soft);
+  --color-background-mute: var(--color-black-mute);
+  --color-background-opacity: rgba(34, 34, 34, 0.7);
+  --inner-glow-opacity: 0.3;
+
+  --color-primary: #00b96b;
+  --color-primary-soft: #00b96b99;
+  --color-primary-mute: #00b96b33;
+
+  --color-text: var(--color-text-1);
+  --color-text-secondary: rgba(235, 235, 245, 0.7);
+  --color-icon: #ffffff99;
+  --color-icon-white: #ffffff;
+  --color-border: #ffffff19;
+  --color-border-soft: #ffffff10;
+  --color-border-mute: #ffffff05;
+  --color-error: #f44336;
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-link: #338cff;
+  --color-code-background: #323232;
+  --color-hover: rgba(40, 40, 40, 1);
+  --color-active: rgba(55, 55, 55, 1);
+  --color-frame-border: #333;
+  --color-group-background: var(--color-background-soft);
+
+  --color-reference: #404040;
+  --color-reference-text: #ffffff;
+  --color-reference-background: #0b0e12;
+
+  --color-list-item: rgba(255, 255, 255, 0.1);
+  --color-list-item-hover: rgba(255, 255, 255, 0.05);
+
+  --modal-background: #111111;
+
+  --color-highlight: rgba(0, 0, 0, 1);
+  --color-background-highlight: rgba(255, 255, 0, 0.9);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.9);
+
+  --navbar-background-mac: rgba(20, 20, 20, 0.55);
+  --navbar-background: #1f1f1f;
+
+  /* Typography */
+  --font-family: Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, Oxygen, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-family-mono: 'Cascadia Code', 'Fira Code', 'Consolas', Menlo, Courier, monospace;
+  --font-family-serif: serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Ubuntu, Roboto, Oxygen, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Sizing */
+  --navbar-height: 44px;
+  --status-bar-height: 40px;
+  --input-bar-height: 100px;
+  --border-radius: 10px;
+  --border-radius-small: 6px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --scrollbar-width: 5px;
+
+  /* Chat styling */
+  --chat-background: transparent;
+  --chat-background-user: rgba(255, 255, 255, 0.08);
+  --chat-background-assistant: transparent;
+  --chat-text-user: var(--color-black);
+
+  --list-item-border-radius: 10px;
+
+  --color-status-success: #52c41a;
+  --color-status-error: #ff4d4f;
+  --color-status-warning: #faad14;
+
+  /* Scrollbar colors */
+  --color-scrollbar-thumb-dark: rgba(255, 255, 255, 0.15);
+  --color-scrollbar-thumb-dark-hover: rgba(255, 255, 255, 0.2);
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+}
+
+/* Light Theme */
+[theme-mode='light'] {
+  --color-white: #ffffff;
+  --color-white-soft: rgba(0, 0, 0, 0.04);
+  --color-white-mute: #eee;
+
+  --color-black: #1b1b1f;
+  --color-black-soft: #262626;
+  --color-black-mute: #363636;
+
+  --color-gray-1: #8e8e93;
+  --color-gray-2: #aeaeb2;
+  --color-gray-3: #c7c7cc;
+
+  --color-text-1: rgba(0, 0, 0, 1);
+  --color-text-2: rgba(0, 0, 0, 0.6);
+  --color-text-3: rgba(0, 0, 0, 0.38);
+
+  --color-background: var(--color-white);
+  --color-background-soft: var(--color-white-soft);
+  --color-background-mute: var(--color-white-mute);
+  --color-background-opacity: rgba(243, 243, 243, 1);
+  --inner-glow-opacity: 0.1;
+
+  --color-primary: #00b96b;
+  --color-primary-soft: #00b96b99;
+  --color-primary-mute: #00b96b33;
+
+  --color-text: var(--color-text-1);
+  --color-text-secondary: rgba(0, 0, 0, 0.75);
+  --color-icon: #00000099;
+  --color-icon-white: #000000;
+  --color-border: #00000019;
+  --color-border-soft: #00000010;
+  --color-border-mute: #00000005;
+  --color-error: #f44336;
+  --color-link: #1677ff;
+  --color-code-background: #e3e3e3;
+  --color-hover: var(--color-white-mute);
+  --color-active: var(--color-white-soft);
+  --color-frame-border: #ddd;
+  --color-group-background: var(--color-white);
+
+  --color-reference: #cfe1ff;
+  --color-reference-text: #000000;
+  --color-reference-background: #f1f7ff;
+
+  --color-list-item: #fff;
+  --color-list-item-hover: #fafafa;
+
+  --modal-background: var(--color-white);
+
+  --color-highlight: initial;
+  --color-background-highlight: rgba(255, 255, 0, 0.5);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.5);
+
+  --navbar-background-mac: rgba(255, 255, 255, 0.55);
+  --navbar-background: rgba(244, 244, 244);
+
+  --chat-background: transparent;
+  --chat-background-user: rgba(0, 0, 0, 0.045);
+  --chat-background-assistant: transparent;
+  --chat-text-user: var(--color-text);
+
+  /* Scrollbar colors for light theme */
+  --color-scrollbar-thumb-light: rgba(0, 0, 0, 0.15);
+  --color-scrollbar-thumb-light-hover: rgba(0, 0, 0, 0.2);
+  --color-scrollbar-thumb: var(--color-scrollbar-thumb-light);
+  --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-light-hover);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--color-background);
+    color: var(--color-text);
+    height: 100vh;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: relative;
+}
+
+header {
+    background-color: var(--navbar-background);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: var(--navbar-height);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: background-color var(--transition-slow) linear, border-color var(--transition-normal);
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 1px 0 var(--color-border-soft);
+}
+
+/* macOS specific header styling */
+body[os='darwin'] header {
+    background-color: var(--navbar-background-mac);
+}
+
+header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    transition: color var(--transition-slow) linear;
+    font-family: var(--font-family);
+    letter-spacing: -0.01em;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-md);
+    background-color: var(--color-background-opacity);
+    border-radius: var(--border-radius-small);
+    border: 1px solid var(--color-border-soft);
+    transition: all var(--transition-normal);
+}
+
+.status-connected {
+    color: var(--color-success);
+}
+
+.status-disconnected {
+    color: var(--color-error);
+}
+
+.status span:first-child {
+    font-size: 12px;
+    animation: pulse 2s infinite;
+}
+
+.status span:last-child {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+.output-area {
+    flex: 1;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    overflow-y: auto;
+    background-color: var(--color-background);
+    font-family: var(--font-family);
+    font-size: 14px;
+    line-height: 1.6;
+    scroll-behavior: smooth;
+    position: relative;
+}
+
+.message {
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--border-radius);
+    max-width: 100%;
+    word-wrap: break-word;
+    position: relative;
+    transition: all var(--transition-normal);
+    transform: translateZ(0);
+    will-change: transform;
+    animation: messageSlideIn 0.3s ease-out;
+    display: flow-root;
+}
+
+.message:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+[theme-mode='light'] .message:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.message + .message {
+    margin-top: var(--spacing-md);
+}
+
+/* User/Command Messages - styled like Cherry Studio user messages */
+.message.command {
+    background-color: var(--chat-background-user);
+    color: var(--color-text);
+    margin-left: auto;
+    margin-right: 0;
+    text-align: right;
+    max-width: 85%;
+    font-family: var(--font-family-mono);
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--color-border-soft);
+    align-self: flex-end;
+}
+
+[theme-mode='light'] .message.command {
+    color: var(--chat-text-user);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.message.command::before {
+    content: "$ ";
+    opacity: 0.7;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
+/* Assistant/Output Messages - styled like Cherry Studio assistant messages */
+.message.output {
+    background-color: var(--chat-background-assistant);
+    border-left: 4px solid var(--color-success);
+    border-radius: var(--border-radius);
+    font-family: var(--font-family-mono);
+    font-size: 14px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border-soft);
+    border-left: 4px solid var(--color-success);
+    padding-left: var(--spacing-xl);
+    color: var(--color-text);
+}
+
+.message.output::before {
+    content: "✓";
+    position: absolute;
+    left: -2px;
+    top: var(--spacing-md);
+    width: 16px;
+    height: 16px;
+    background-color: var(--color-success);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+    z-index: 1;
+}
+
+/* Error Messages */
+.message.error {
+    background-color: var(--chat-background-assistant);
+    border-left: 4px solid var(--color-error);
+    border-radius: var(--border-radius);
+    font-family: var(--font-family-mono);
+    font-size: 14px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(244, 67, 54, 0.1);
+    border: 1px solid var(--color-border-soft);
+    border-left: 4px solid var(--color-error);
+    padding-left: var(--spacing-xl);
+    color: var(--color-text);
+}
+
+.message.error::before {
+    content: "✕";
+    position: absolute;
+    left: -2px;
+    top: var(--spacing-md);
+    width: 16px;
+    height: 16px;
+    background-color: var(--color-error);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    font-weight: bold;
+    z-index: 1;
+}
+
+/* System Messages */
+.message.system {
+    background-color: var(--chat-background-assistant);
+    border-left: 4px solid var(--color-warning);
+    font-style: italic;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(255, 152, 0, 0.1);
+    border: 1px solid var(--color-border-soft);
+    border-left: 4px solid var(--color-warning);
+    color: var(--color-text-secondary);
+    padding-left: var(--spacing-xl);
+}
+
+.message.system::before {
+    content: "i";
+    position: absolute;
+    left: -2px;
+    top: var(--spacing-md);
+    width: 16px;
+    height: 16px;
+    background-color: var(--color-warning);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    font-weight: bold;
+    font-style: normal;
+    z-index: 1;
+}
+
+.message pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-family-mono);
+    font-size: 14px;
+    line-height: 1.5;
+    color: inherit;
+}
+
+.message pre code {
+    font-family: var(--font-family-mono);
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+}
+
+/* Consistent with Cherry Studio's code styling */
+code {
+    color: var(--color-text);
+    font-family: var(--font-family-mono);
+    background-color: var(--color-code-background);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.input-area {
+    background-color: var(--color-background-soft);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-top: 1px solid var(--color-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all var(--transition-normal);
+    position: relative;
+    z-index: 5;
+}
+
+.command-input-container,
+.user-input-container {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+    position: relative;
+}
+
+.user-input-container {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border-soft);
+}
+
+input[type="text"] {
+    flex: 1;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: var(--color-background-opacity);
+    color: var(--color-text);
+    font-size: 14px;
+    font-family: var(--font-family-mono);
+    transition: all var(--transition-normal);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-mute);
+    background-color: var(--color-background);
+    transform: translateY(-1px);
+}
+
+button {
+    padding: var(--spacing-md) var(--spacing-xl);
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+    font-family: var(--font-family);
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left var(--transition-slow);
+}
+
+button:hover::before {
+    left: 100%;
+}
+
+#run-btn {
+    background-color: var(--color-success);
+    color: white;
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.2);
+}
+
+#run-btn:hover:not(:disabled) {
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(82, 196, 26, 0.3);
+}
+
+#run-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(82, 196, 26, 0.2);
+}
+
+#run-btn:disabled {
+    background-color: var(--color-gray-3);
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
+#kill-btn {
+    background-color: var(--color-error);
+    color: white;
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.2);
+}
+
+#kill-btn:hover:not(:disabled) {
+    background-color: #da190b;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(244, 67, 54, 0.3);
+}
+
+#kill-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.2);
+}
+
+#kill-btn:disabled {
+    background-color: var(--color-gray-3);
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
+#send-btn {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: 0 2px 8px var(--color-primary-mute);
+}
+
+#send-btn:hover:not(:disabled) {
+    background-color: #00a55e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px var(--color-primary-soft);
+}
+
+#send-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px var(--color-primary-mute);
+}
+
+#send-btn:disabled {
+    background-color: var(--color-gray-3);
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
+.timestamp {
+    font-size: 11px;
+    color: var(--color-text-3);
+    margin-bottom: var(--spacing-xs);
+    font-family: var(--font-family-mono);
+    opacity: 0.8;
+    transition: color var(--transition-normal);
+}
+
+/* Cherry Studio Scrollbar Styling */
+::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    background: var(--color-scrollbar-thumb);
+    transition: background-color var(--transition-normal);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-thumb-hover);
+}
+
+/* Firefox scrollbar */
+.output-area {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar-thumb) transparent;
+}
+
+/* Hide scrollbar for screenshot capability */
+.hide-scrollbar,
+.hide-scrollbar * {
+    scrollbar-width: none !important;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-icon);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    font-size: 16px;
+    padding: 0;
+    min-width: 36px;
+}
+
+.theme-toggle:hover {
+    background-color: var(--color-hover);
+    color: var(--color-text);
+    transform: scale(1.1);
+}
+
+/* Loading states */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: loading-shine 1.5s infinite;
+}
+
+@keyframes loading-shine {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Cherry Studio Animation Effects */
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes animation-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.5);
+    }
+    70% {
+        box-shadow: 0 0 0 var(--pulse-size) rgba(var(--pulse-color), 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0);
+    }
+}
+
+.animation-pulse {
+    --pulse-color: 0, 185, 107;
+    --pulse-size: 8px;
+    animation: animation-pulse 1.5s infinite;
+}
+
+@keyframes flash {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loader {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--color-text);
+    box-shadow: 32px 0 var(--color-text), -32px 0 var(--color-text);
+    position: relative;
+    animation: flash 0.5s ease-out infinite alternate;
+}
+
+/* Empty state */
+.output-area:empty::before {
+    content: 'Welcome to Python CLI Web Interface\AStart by entering a Python command below';
+    white-space: pre;
+    display: block;
+    text-align: center;
+    color: var(--color-text-3);
+    font-style: italic;
+    margin-top: 25%;
+    line-height: 1.8;
+}
+
+/* Enhanced Focus Indicators for Accessibility */
+*:focus {
+    outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--border-radius);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    :root {
+        --color-border: #666;
+        --color-border-soft: #444;
+        --color-text-secondary: rgba(255, 255, 255, 0.9);
+    }
+    
+    [theme-mode='light'] {
+        --color-border: #999;
+        --color-border-soft: #bbb;
+        --color-text-secondary: rgba(0, 0, 0, 0.9);
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .message {
+        animation: none;
+    }
+    
+    button::before {
+        transition: none;
+    }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    header {
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+    
+    .output-area {
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+    
+    .input-area {
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+    
+    .command-input-container,
+    .user-input-container {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    button {
+        width: 100%;
+        order: 1;
+    }
+    
+    input[type="text"] {
+        order: 0;
+    }
+    
+    .message {
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .message.command {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1.1rem;
+    }
+    
+    .status {
+        font-size: 12px;
+    }
+    
+    button {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 13px;
+    }
+    
+    input[type="text"] {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 13px;
+    }
+}

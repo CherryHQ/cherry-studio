@@ -20,12 +20,17 @@ class PythonWebInterface {
     this.runBtn = document.getElementById('run-btn')
     this.killBtn = document.getElementById('kill-btn')
     this.sendBtn = document.getElementById('send-btn')
+    this.themeToggle = document.getElementById('theme-toggle')
+    
+    // Initialize theme
+    this.initializeTheme()
   }
 
   setupEventListeners() {
     this.runBtn.addEventListener('click', () => this.runCommand())
     this.killBtn.addEventListener('click', () => this.killSession())
     this.sendBtn.addEventListener('click', () => this.sendInput())
+    this.themeToggle.addEventListener('click', () => this.toggleTheme())
 
     this.commandInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter' && !this.isRunning) {
@@ -38,6 +43,16 @@ class PythonWebInterface {
         this.sendInput()
       }
     })
+    
+    // Listen for system theme changes
+    if (window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      mediaQuery.addEventListener('change', () => {
+        if (!localStorage.getItem('theme-preference')) {
+          this.updateTheme(mediaQuery.matches ? 'dark' : 'light')
+        }
+      })
+    }
   }
 
   connect() {
@@ -212,6 +227,51 @@ class PythonWebInterface {
 
   scrollToBottom() {
     this.output.scrollTop = this.output.scrollHeight
+  }
+  
+  // Theme Management - Cherry Studio Style
+  initializeTheme() {
+    const savedTheme = localStorage.getItem('theme-preference')
+    const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    
+    let theme
+    if (savedTheme) {
+      theme = savedTheme
+    } else {
+      theme = systemPrefersDark ? 'dark' : 'light'
+    }
+    
+    this.updateTheme(theme)
+  }
+  
+  toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('theme-mode') || 'dark'
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
+    
+    localStorage.setItem('theme-preference', newTheme)
+    this.updateTheme(newTheme)
+    
+    // Add feedback animation
+    this.themeToggle.style.transform = 'scale(0.9)'
+    setTimeout(() => {
+      this.themeToggle.style.transform = 'scale(1)'
+    }, 150)
+  }
+  
+  updateTheme(theme) {
+    document.documentElement.setAttribute('theme-mode', theme)
+    
+    // Update theme toggle icon
+    if (this.themeToggle) {
+      this.themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙'
+      this.themeToggle.setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`)
+      this.themeToggle.title = `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`
+    }
+    
+    // Detect OS for header styling
+    if (navigator.platform.includes('Mac')) {
+      document.body.setAttribute('os', 'darwin')
+    }
   }
 }
 
