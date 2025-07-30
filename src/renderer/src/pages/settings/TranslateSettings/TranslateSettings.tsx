@@ -23,7 +23,7 @@ const TranslateSettings = () => {
       <SettingContainer theme={theme}>
         <TranslateModelSettings />
         <TranslatePromptSettings />
-        <SettingGroup theme={theme}>
+        <SettingGroup theme={theme} style={{ flex: 1 }}>
           <Suspense fallback={<CustomLanguagesSettingsFallback />}>
             <CustomLanguageSettings dataPromise={dataPromise} />
           </Suspense>
