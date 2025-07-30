@@ -13,6 +13,8 @@ import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import { PocExecuteCommandRequest } from '../renderer/src/pages/command-poc/types'
+import { pocCommandExecutor } from './poc/commandExecutor'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -76,6 +78,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // Initialize Python service with main window
   pythonService.setMainWindow(mainWindow)
+
+  // Initialize POC command executor with main window
+  pocCommandExecutor.setMainWindow(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -606,6 +611,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return await pythonService.executeScript(script, context, timeout)
     }
   )
+
+  // Register POC command execution handlers
+  ipcMain.handle(IpcChannel.Poc_ExecuteCommand, async (_, request: PocExecuteCommandRequest) => {
+    await pocCommandExecutor.executeCommand(request)
+  })
+
+  ipcMain.handle(IpcChannel.Poc_InterruptCommand, (_, commandId: string) => {
+    return pocCommandExecutor.interruptCommand(commandId)
+  })
+
+  ipcMain.handle(IpcChannel.Poc_GetActiveProcesses, () => {
+    return pocCommandExecutor.getActiveProcesses()
+  })
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))

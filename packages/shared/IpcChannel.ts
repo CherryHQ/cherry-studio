@@ -279,5 +279,11 @@ export enum IpcChannel {
   ApiServer_Stop = 'api-server:stop',
   ApiServer_Restart = 'api-server:restart',
   ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_GetConfig = 'api-server:get-config'
+  ApiServer_GetConfig = 'api-server:get-config',
+
+  // POC Command Execution
+  Poc_ExecuteCommand = 'poc:execute-command',
+  Poc_CommandOutput = 'poc:command-output',
+  Poc_InterruptCommand = 'poc:interrupt-command',
+  Poc_GetActiveProcesses = 'poc:get-active-processes'
 }
