@@ -4,7 +4,7 @@ import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Flex, Tooltip } from 'antd'
-import React, { memo, useRef } from 'react'
+import React, { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,6 +33,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 }) => {
   const { t } = useTranslation()
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const [isExpanded, setIsExpanded] = useState(defaultOpen)
 
   const virtualizer = useVirtualizer({
     count: models.length,
@@ -43,10 +44,23 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 
   const virtualItems = virtualizer.getVirtualItems()
 
+  // 监听折叠面板状态变化，确保虚拟列表在展开时正确渲染
+  useEffect(() => {
+    if (isExpanded && scrollerRef.current) {
+      requestAnimationFrame(() => virtualizer.measure())
+    }
+  }, [isExpanded, virtualizer])
+
+  const handleCollapseChange = (activeKeys: string[] | string) => {
+    const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
+    setIsExpanded(isNowExpanded)
+  }
+
   return (
     <CustomCollapseWrapper>
       <CustomCollapse
         defaultActiveKey={defaultOpen ? ['1'] : []}
+        onChange={handleCollapseChange}
         label={
           <Flex align="center" gap={10}>
             <span style={{ fontWeight: 'bold' }}>{groupName}</span>
