@@ -14,18 +14,21 @@ import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Flex, Tooltip } from 'antd'
+import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
-import React, { memo, startTransition, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useEffect, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import SvgSpinners180Ring from '../Icons/SvgSpinners180Ring'
 import ModelListGroup from './ModelListGroup'
 import { useHealthCheck } from './useHealthCheck'
 
 interface ModelListProps {
   providerId: string
 }
+
+type ModelGroups = Record<string, Model[]>
 
 /**
  * 模型列表组件，用于 CRUD 操作和健康检查
@@ -43,6 +46,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [searchText, _setSearchText] = useState('')
+  const [isPending, startTransition] = useTransition()
+  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups>({})
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
 
@@ -52,17 +57,17 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     })
   }, [])
 
-  const modelGroups = useMemo(() => {
-    const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
-    return groupBy(filteredModels, 'group')
-  }, [searchText, models])
-
-  const sortedModelGroups = useMemo(() => {
-    return sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-      acc[key] = value
-      return acc
-    }, {})
-  }, [modelGroups])
+  useEffect(() => {
+    startTransition(() => {
+      const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
+      const grouped = groupBy(filteredModels, 'group')
+      const sorted = sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+        acc[key] = value
+        return acc
+      }, {})
+      setDisplayedModelGroups(sorted)
+    })
+  }, [models, searchText])
 
   const onManageModel = useCallback(() => {
     EditModelsPopup.show({ provider })
@@ -123,41 +128,47 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
         </HStack>
       </SettingSubtitle>
-      <Flex gap={12} vertical>
-        {Object.keys(sortedModelGroups).map((group, i) => (
-          <ModelListGroup
-            key={group}
-            groupName={group}
-            models={sortedModelGroups[group]}
-            modelStatuses={modelStatuses}
-            defaultOpen={i <= 5}
-            disabled={isHealthChecking}
-            onEditModel={onEditModel}
-            onRemoveModel={removeModel}
-            onRemoveGroup={() => modelGroups[group].forEach((model) => removeModel(model))}
-          />
-        ))}
-        {docsWebsite || modelsWebsite ? (
-          <SettingHelpTextRow>
-            <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-            {docsWebsite && (
-              <SettingHelpLink target="_blank" href={docsWebsite}>
-                {getProviderLabel(provider.id) + ' '}
-                {t('common.docs')}
-              </SettingHelpLink>
-            )}
-            {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
-            {modelsWebsite && (
-              <SettingHelpLink target="_blank" href={modelsWebsite}>
-                {t('common.models')}
-              </SettingHelpLink>
-            )}
-            <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-          </SettingHelpTextRow>
-        ) : (
-          <div style={{ height: 5 }} />
-        )}
-      </Flex>
+      {isPending ? (
+        <Flex align="center" justify="center" style={{ minHeight: '8rem' }}>
+          <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
+        </Flex>
+      ) : (
+        <Flex gap={12} vertical>
+          {Object.keys(displayedModelGroups).map((group, i) => (
+            <ModelListGroup
+              key={group}
+              groupName={group}
+              models={displayedModelGroups[group]}
+              modelStatuses={modelStatuses}
+              defaultOpen={i <= 5}
+              disabled={isHealthChecking}
+              onEditModel={onEditModel}
+              onRemoveModel={removeModel}
+              onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+            />
+          ))}
+          {docsWebsite || modelsWebsite ? (
+            <SettingHelpTextRow>
+              <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
+              {docsWebsite && (
+                <SettingHelpLink target="_blank" href={docsWebsite}>
+                  {getProviderLabel(provider.id) + ' '}
+                  {t('common.docs')}
+                </SettingHelpLink>
+              )}
+              {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
+              {modelsWebsite && (
+                <SettingHelpLink target="_blank" href={modelsWebsite}>
+                  {t('common.models')}
+                </SettingHelpLink>
+              )}
+              <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
+            </SettingHelpTextRow>
+          ) : (
+            <div style={{ height: 5 }} />
+          )}
+        </Flex>
+      )}
       <Flex gap={10} style={{ marginTop: 10 }}>
         <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
           {t('button.manage')}
