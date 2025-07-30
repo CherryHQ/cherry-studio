@@ -117,11 +117,13 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
             {t('common.add')}
           </Button>
         </HStack>
-        <Table<CustomTranslateLanguage>
-          columns={columns}
-          pagination={{ position: ['bottomCenter'] }}
-          dataSource={displayedItems}
-        />
+        <TableContainer>
+          <Table<CustomTranslateLanguage>
+            columns={columns}
+            pagination={{ position: ['bottomCenter'], defaultPageSize: 10 }}
+            dataSource={displayedItems}
+          />
+        </TableContainer>
       </CustomLanguageSettingsContainer>
       <CustomLanguageModal
         isOpen={isModalOpen}
@@ -137,8 +139,16 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
 const CustomLanguageSettingsContainer = styled.div`
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   width: 100%;
   height: 100%;
+`
+
+const TableContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  flex: 1;
 `
 
 export default memo(CustomLanguageSettings)
