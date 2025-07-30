@@ -372,6 +372,12 @@ const api = {
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  poc: {
+    executeCommand: (request: { id: string; command: string; workingDirectory: string }) =>
+      ipcRenderer.invoke(IpcChannel.Poc_ExecuteCommand, request),
+    interruptCommand: (commandId: string) => ipcRenderer.invoke(IpcChannel.Poc_InterruptCommand, commandId),
+    getActiveProcesses: () => ipcRenderer.invoke(IpcChannel.Poc_GetActiveProcesses)
+  },
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string, modelName?: string) =>
