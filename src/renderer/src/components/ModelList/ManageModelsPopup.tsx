@@ -1,15 +1,9 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import CustomCollapse from '@renderer/components/CustomCollapse'
-import CustomTag from '@renderer/components/CustomTag'
-import ExpandableText from '@renderer/components/ExpandableText'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import {
-  getModelLogo,
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -21,7 +15,6 @@ import {
   SYSTEM_MODELS
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
-import FileItem from '@renderer/pages/files/FileItem'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import {
@@ -31,14 +24,17 @@ import {
   isFreeModel,
   runAsyncFunction
 } from '@renderer/utils'
-import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
 import { Search } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import ManageModelsList from './ManageModelsList'
+import { isModelInProvider, isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
 
@@ -48,15 +44,6 @@ interface ShowParams {
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
-}
-
-// Check if the model exists in the provider's model list
-const isModelInProvider = (provider: Provider, modelId: string): boolean => {
-  return provider.models.some((m) => m.id === modelId)
-}
-
-const isValidNewApiModel = (model: Model): boolean => {
-  return !!(model.supported_endpoint_types && model.supported_endpoint_types.length > 0)
 }
 
 const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
@@ -286,50 +273,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     )
   }, [list, t, loading, provider, onRemoveModel, models, onAddModel])
 
-  const renderGroupTools = useCallback(
-    (group: string) => {
-      const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
-      return (
-        <Tooltip
-          destroyTooltipOnHide
-          title={
-            isAllInProvider
-              ? t('settings.models.manage.remove_whole_group')
-              : t('settings.models.manage.add_whole_group')
-          }
-          mouseLeaveDelay={0}
-          placement="top">
-          <Button
-            type="text"
-            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isAllInProvider) {
-                modelGroups[group].filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
-              } else {
-                const wouldAddModel = modelGroups[group].filter((model) => !isModelInProvider(provider, model.id))
-                if (provider.id === 'new-api') {
-                  if (wouldAddModel.every(isValidNewApiModel)) {
-                    wouldAddModel.forEach(onAddModel)
-                  } else {
-                    NewApiBatchAddModelPopup.show({
-                      title: t('settings.models.add.batch_add_models'),
-                      batchModels: wouldAddModel,
-                      provider
-                    })
-                  }
-                } else {
-                  wouldAddModel.forEach(onAddModel)
-                }
-              }
-            }}
-          />
-        </Tooltip>
-      )
-    },
-    [modelGroups, provider, onRemoveModel, onAddModel, t]
-  )
-
   return (
     <Modal
       title={<ModalHeader />}
@@ -391,35 +334,12 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             <Spin size="large" />
           </Flex>
         ) : (
-          Object.keys(modelGroups).map((group, i) => {
-            return (
-              <CustomCollapse
-                key={i}
-                defaultActiveKey={['1']}
-                styles={{ body: { padding: '0 10px' } }}
-                label={
-                  <Flex align="center" gap={10}>
-                    <span style={{ fontWeight: 600 }}>{group}</span>
-                    <CustomTag color="#02B96B" size={10}>
-                      {modelGroups[group].length}
-                    </CustomTag>
-                  </Flex>
-                }
-                extra={renderGroupTools(group)}>
-                <FlexColumn style={{ margin: '10px 0' }}>
-                  {modelGroups[group].map((model) => (
-                    <ModelListItem
-                      key={model.id}
-                      model={model}
-                      provider={provider}
-                      onAddModel={onAddModel}
-                      onRemoveModel={onRemoveModel}
-                    />
-                  ))}
-                </FlexColumn>
-              </CustomCollapse>
-            )
-          })
+          <ManageModelsList
+            modelGroups={modelGroups}
+            provider={provider}
+            onAddModel={onAddModel}
+            onRemoveModel={onRemoveModel}
+          />
         )}
         {!(loading || isFilterTypePending || isSearchPending) && isEmpty(list) && (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />
@@ -428,38 +348,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     </Modal>
   )
 }
-
-interface ModelListItemProps {
-  model: Model
-  provider: Provider
-  onAddModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
-}
-
-const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel }) => {
-  const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
-
-  return (
-    <FileItem
-      style={{
-        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-        border: 'none',
-        boxShadow: 'none'
-      }}
-      fileInfo={{
-        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-        name: <ModelIdWithTags model={model} />,
-        extra: model.description && <ExpandableText text={model.description} />,
-        ext: '.model',
-        actions: isAdded ? (
-          <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
-        ) : (
-          <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
-        )
-      }}
-    />
-  )
-})
 
 const SearchContainer = styled.div`
   display: flex;
@@ -480,19 +368,8 @@ const TopToolsWrapper = styled.div`
   margin-bottom: 0;
 `
 
-const ListContainer = styled(Scrollbar)`
+const ListContainer = styled.div`
   height: calc(100vh - 300px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-bottom: 30px;
-`
-
-const FlexColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
 `
 
 const ModelHeaderTitle = styled.div`
