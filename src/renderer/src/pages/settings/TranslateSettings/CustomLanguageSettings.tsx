@@ -3,7 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { deleteCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Popconfirm, Table, TableProps } from 'antd'
-import { memo, startTransition, use, useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,15 +20,18 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCustomLanguage, setEditingCustomLanguage] = useState<CustomTranslateLanguage>()
 
-  const onDelete = async (id: string) => {
-    try {
-      await deleteCustomLanguage(id)
-      setDisplayedItems(displayedItems.filter((item) => item.id !== id))
-      window.message.success(t('settings.translate.custom.success.delete'))
-    } catch (e) {
-      window.message.error(t('settings.translate.custom.error.delete'))
-    }
-  }
+  const onDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteCustomLanguage(id)
+        setDisplayedItems(displayedItems.filter((item) => item.id !== id))
+        window.message.success(t('settings.translate.custom.success.delete'))
+      } catch (e) {
+        window.message.error(t('settings.translate.custom.error.delete'))
+      }
+    },
+    [displayedItems, t]
+  )
 
   const onClickAdd = () => {
     startTransition(async () => {
@@ -96,7 +99,7 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
         }
       }
     ],
-    []
+    [onDelete, t]
   )
 
   const data = use(dataPromise)
