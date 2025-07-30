@@ -1,13 +1,12 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Language, Model } from '@renderer/types'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Button, Flex, Input, Modal, Select, Space, Switch, Tooltip } from 'antd'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
@@ -44,6 +43,7 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
+  const { translateOptions, getLanguageByLangcode } = useTranslate()
 
   useEffect(() => {
     setLocalPair(bidirectionalPair)
@@ -122,7 +122,7 @@ const TranslateSettings: FC<{
                   style={{ flex: 1 }}
                   value={localPair[0].langCode}
                   onChange={(value) => setLocalPair([getLanguageByLangcode(value), localPair[1]])}
-                  options={translateLanguageOptions.map((lang) => ({
+                  options={translateOptions.map((lang) => ({
                     value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>
@@ -139,7 +139,7 @@ const TranslateSettings: FC<{
                   style={{ flex: 1 }}
                   value={localPair[1].langCode}
                   onChange={(value) => setLocalPair([localPair[0], getLanguageByLangcode(value)])}
-                  options={translateLanguageOptions.map((lang) => ({
+                  options={translateOptions.map((lang) => ({
                     value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>

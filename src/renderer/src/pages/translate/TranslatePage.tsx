@@ -5,21 +5,20 @@ import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { LanguagesEnum, translateLanguageOptions, UNKNOWN } from '@renderer/config/translate'
+import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
+import type { Language, Model, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
-  determineTargetLanguage,
-  getLanguageByLangcode
+  determineTargetLanguage
 } from '@renderer/utils/translate'
 import { Button, Flex, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
@@ -59,11 +58,13 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
+
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const { translatedContent, translating, translate, setTranslatedContent } = useTranslate()
+  const { translatedContent, translating, translate, setTranslatedContent, getLanguageByLangcode, translateOptions } =
+    useTranslate()
 
   _text = text
   _sourceLanguage = sourceLanguage
@@ -223,7 +224,7 @@ const TranslatePage: FC = () => {
       const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
       setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
     })
-  }, [])
+  }, [getLanguageByLangcode])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
@@ -261,7 +262,7 @@ const TranslatePage: FC = () => {
           setTargetLanguage(getLanguageByLangcode(value))
           db.settings.put({ id: 'translate:target:language', value })
         }}
-        options={translateLanguageOptions.map((lang) => ({
+        options={translateOptions.map((lang) => ({
           value: lang.langCode,
           label: (
             <Space.Compact direction="horizontal" block>
@@ -304,7 +305,7 @@ const TranslatePage: FC = () => {
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
                 style={{ width: 180 }}
                 optionFilterProp="label"
-                onChange={(value: LanguageCode | 'auto') => {
+                onChange={(value) => {
                   if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
                   else setSourceLanguage('auto')
                   db.settings.put({ id: 'translate:source:language', value })
@@ -316,7 +317,7 @@ const TranslatePage: FC = () => {
                       ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
                       : t('translate.detected.language')
                   },
-                  ...translateLanguageOptions.map((lang) => ({
+                  ...translateOptions.map((lang) => ({
                     value: lang.langCode,
                     label: (
                       <Space.Compact direction="horizontal" block>

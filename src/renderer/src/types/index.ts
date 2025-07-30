@@ -368,9 +368,8 @@ export enum ThemeMode {
   system = 'system'
 }
 
+/** 有限的UI语言 */
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
-
-export type TranslateLanguageVarious = LanguageCode
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -512,28 +511,8 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type LanguageCode =
-  | 'unknown'
-  | 'en-us'
-  | 'zh-cn'
-  | 'zh-tw'
-  | 'ja-jp'
-  | 'ko-kr'
-  | 'fr-fr'
-  | 'de-de'
-  | 'it-it'
-  | 'es-es'
-  | 'pt-pt'
-  | 'ru-ru'
-  | 'pl-pl'
-  | 'ar-ar'
-  | 'tr-tr'
-  | 'th-th'
-  | 'vi-vn'
-  | 'id-id'
-  | 'ur-pk'
-  | 'ms-my'
-  | 'uk-ua'
+// 为了支持自定义语言，设置为string别名
+export type LanguageCode = string
 
 // langCode应当能够唯一确认一种语言
 export type Language = {
@@ -547,8 +526,8 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: LanguageCode
-  targetLanguage: LanguageCode
+  sourceLanguage: string // langCode
+  targetLanguage: string // langCode
   createdAt: string
 }
 

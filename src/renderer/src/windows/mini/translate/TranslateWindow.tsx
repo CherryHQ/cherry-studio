@@ -1,14 +1,14 @@
 import { SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
+import { builtinTranslateLanguageOptions, LanguagesEnum } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Assistant, Language } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -30,6 +30,7 @@ const Translate: FC<Props> = ({ text }) => {
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
+  const { getLanguageByLangcode } = useTranslate()
 
   _targetLanguage = targetLanguage
 
@@ -97,7 +98,7 @@ const Translate: FC<Props> = ({ text }) => {
           value={targetLanguage.langCode}
           style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
-          options={translateLanguageOptions.map((option) => ({
+          options={builtinTranslateLanguageOptions.map((option) => ({
             value: option.langCode,
             label: option.emoji + ' ' + option.label()
           }))}

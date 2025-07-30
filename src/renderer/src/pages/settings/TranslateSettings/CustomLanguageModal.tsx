@@ -3,7 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { builtinLangCodeList } from '@renderer/config/translate'
 import { loggerService } from '@renderer/services/LoggerService'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
-import { CustomTranslateLanguage, LanguageCode } from '@renderer/types'
+import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Input, Modal, Popover } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -52,7 +52,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       window.message.error(t('settings.translate.custom.error.langCode.invalid'))
       return false
     }
-    if (builtinLangCodeList.includes(langCode.toLowerCase() as LanguageCode)) {
+    if (builtinLangCodeList.includes(langCode.toLowerCase())) {
       window.message.error(t('settings.translate.custom.error.langCode.builtin'))
       return false
     }

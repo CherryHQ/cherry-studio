@@ -1,3 +1,4 @@
+import { UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
@@ -6,28 +7,36 @@ import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as _setTranslating } from '@renderer/store/runtime'
 import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
 import { Language, LanguageCode, TranslateAssistant, TranslateHistory } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { runAsyncFunction, uuid } from '@renderer/utils'
+import { getTranslateOptions } from '@renderer/utils/translate'
 import { t } from 'i18next'
 import { throttle } from 'lodash'
+import { useCallback, useEffect, useState } from 'react'
+
+const logger = loggerService.withContext('useTranslate')
 
 /**
- * 翻译页面的核心钩子函数
+ * 翻译相关功能的核心钩子函数
  * @returns 返回翻译相关的状态和方法
- * - translatedContent: 翻译后的内容
- * - translating: 是否正在翻译
- * - setTranslatedContent: 设置翻译后的内容
- * - setTranslating: 设置翻译状态
- * - translate: 执行翻译操作
- * - saveTranslateHistory: 保存翻译历史
- * - deleteHistory: 删除指定翻译历史
- * - clearHistory: 清空所有翻译历史
+ * - 翻译页面
+ *   - translatedContent: 翻译页面中翻译后的内容
+ *   - translating: 翻译页面是否正在翻译
+ *   - setTranslatedContent: 设置翻译后的内容
+ *   - setTranslating: 设置翻译状态
+ *   - translate: 执行翻译操作
+ *   - saveTranslateHistory: 保存翻译历史
+ *   - deleteHistory: 删除指定翻译历史
+ *   - clearHistory: 清空所有翻译历史
+ * - 通用
+ *   - translateOptions: 翻译选项
+ *   - getLanguageByLangcode: 从langCode获取Language对象
  */
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
+  const [translateOptions, setTranslateOptions] = useState<Language[]>([])
 
   const dispatch = useAppDispatch()
-  const logger = loggerService.withContext('useTranslate')
 
   const setTranslatedContent = (content: string) => {
     dispatch(_setTranslatedContent(content))
@@ -145,6 +154,26 @@ export default function useTranslate() {
     db.translate_history.clear()
   }
 
+  useEffect(() => {
+    runAsyncFunction(async () => {
+      const options = await getTranslateOptions()
+      setTranslateOptions(options)
+    })
+  }, [])
+
+  const getLanguageByLangcode = useCallback(
+    (langCode: string) => {
+      const result = translateOptions.find((item) => item.langCode === langCode)
+      if (result) {
+        return result
+      } else {
+        logger.warn(`Unkonwn language ${langCode}`)
+        return UNKNOWN
+      }
+    },
+    [translateOptions]
+  )
+
   return {
     translatedContent,
     translating,
@@ -153,6 +182,8 @@ export default function useTranslate() {
     translate,
     saveTranslateHistory,
     deleteHistory,
-    clearHistory
+    clearHistory,
+    translateOptions,
+    getLanguageByLangcode
   }
 }

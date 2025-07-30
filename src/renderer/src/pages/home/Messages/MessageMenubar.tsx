@@ -3,7 +3,6 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -17,7 +16,12 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Language, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
+import {
+  captureScrollableDivAsBlob,
+  captureScrollableDivAsDataURL,
+  classNames,
+  runAsyncFunction
+} from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -30,6 +34,7 @@ import {
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { getTranslateOptions } from '@renderer/utils/translate'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import {
@@ -46,7 +51,7 @@ import {
   ThumbsUp,
   Trash
 } from 'lucide-react'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -75,6 +80,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const [translateOptions, setTranslateOptions] = useState<Language[]>([])
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -429,6 +435,13 @@ const MessageMenubar: FC<Props> = (props) => {
   const showMessageTokens = !isBubbleStyle
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
+  useEffect(() => {
+    runAsyncFunction(async () => {
+      const translateOptions = await getTranslateOptions()
+      setTranslateOptions(translateOptions)
+    })
+  }, [])
+
   return (
     <>
       {showMessageTokens && <MessageTokens message={message} />}
@@ -491,7 +504,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 backgroundClip: 'border-box'
               },
               items: [
-                ...translateLanguageOptions.map((item) => ({
+                ...translateOptions.map((item) => ({
                   label: item.emoji + ' ' + item.label(),
                   key: item.langCode,
                   onClick: () => handleTranslate(item)

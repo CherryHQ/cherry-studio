@@ -239,8 +239,9 @@ export const createOutputScrollHandler = (
 
 /**
  * 根据语言代码获取对应的语言对象
+ * @deprecated
  * @param langcode - 语言代码
- * @returns 返回对应的语言对象，如果找不到则返回英语(enUS)
+ * @returns 返回对应的语言对象，如果找不到则返回未知语言
  * @example
  * ```typescript
  * const language = getLanguageByLangcode('zh-cn') // 返回中文语言对象
@@ -262,7 +263,14 @@ export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
 export const getTranslateOptions = async () => {
   try {
     const customLanguages = await getAllCustomLanguages()
-    return [...builtinTranslateLanguages, ...customLanguages]
+    // 转换为Language类型
+    const transformedCustomLangs: Language[] = customLanguages.map((item) => ({
+      value: item.value,
+      label: () => item.value,
+      emoji: item.emoji,
+      langCode: item.langCode
+    }))
+    return [...builtinTranslateLanguages, ...transformedCustomLangs]
   } catch (e) {
     return builtinTranslateLanguages
   }
