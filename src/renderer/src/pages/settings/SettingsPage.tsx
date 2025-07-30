@@ -8,7 +8,6 @@ import {
   Info,
   MonitorCog,
   Package,
-  PencilRuler,
   Rocket,
   Server,
   Settings2,
@@ -16,7 +15,6 @@ import {
   TextCursorInput,
   Zap
 } from 'lucide-react'
-// 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -85,22 +83,10 @@ const SettingsPage: FC = () => {
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/memory">
             <MenuItem className={isRoute('/settings/memory')}>
               <Brain size={18} />
               {t('memory.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
@@ -225,7 +211,6 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
-  border-right: 0.5px solid var(--color-border);
 `
 
 export default SettingsPage
