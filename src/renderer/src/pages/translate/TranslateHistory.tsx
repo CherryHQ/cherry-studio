@@ -32,7 +32,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick })
 
   return (
     <HistoryContainer>
-      <OperationBar>
+      <OperationBar style={{ paddingLeft: '10px', paddingRight: '8px' }}>
         <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
         {!isEmpty(translateHistory) && (
           <Popconfirm

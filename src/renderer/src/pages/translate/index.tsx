@@ -6,5 +6,5 @@ export const OperationBar = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 10px 8px 10px 10px;
+  padding: 10px 0px 10px 0px;
 `

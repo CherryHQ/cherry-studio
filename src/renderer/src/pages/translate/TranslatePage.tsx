@@ -25,6 +25,7 @@ import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { OperationBar } from '.'
 import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
@@ -332,18 +333,20 @@ const TranslatePage: FC = () => {
             </Tooltip>
           </OperationBar>
 
-          <Textarea
-            ref={textAreaRef}
-            variant="borderless"
-            placeholder={t('translate.input.placeholder')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            onScroll={handleInputScroll}
-            disabled={translating}
-            spellCheck={false}
-            allowClear
-          />
+          <InputTextAreaContainer>
+            <Textarea
+              ref={textAreaRef}
+              variant="borderless"
+              placeholder={t('translate.input.placeholder')}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+              onScroll={handleInputScroll}
+              disabled={translating}
+              spellCheck={false}
+              allowClear
+            />
+          </InputTextAreaContainer>
         </InputContainer>
 
         <OutputContainer>
@@ -357,16 +360,17 @@ const TranslatePage: FC = () => {
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
           </OperationBar>
-
-          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-            {!translatedContent ? (
-              t('translate.output.placeholder')
-            ) : enableMarkdown ? (
-              <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-            ) : (
-              <div className="plain">{translatedContent}</div>
-            )}
-          </OutputText>
+          <OutputTextAreaContainer>
+            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
+              {!translatedContent ? (
+                <div style={{ color: 'var(--color-text-3)' }}>{t('translate.output.placeholder')}</div>
+              ) : enableMarkdown ? (
+                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              ) : (
+                <div className="plain">{translatedContent}</div>
+              )}
+            </OutputText>
+          </OutputTextAreaContainer>
         </OutputContainer>
       </ContentContainer>
 
@@ -406,25 +410,24 @@ const InputContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
+  padding-bottom: 5px;
+  padding-right: 2px;
+`
+
+const InputTextAreaContainer = styled.div`
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
   padding-bottom: 5px;
   padding-right: 2px;
 `
 
-const OperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 10px 8px 10px 10px;
-`
-
 const Textarea = styled(TextArea)`
   display: flex;
   flex: 1;
-  font-size: 16px;
   border-radius: 0;
   .ant-input {
     resize: none;
@@ -436,6 +439,17 @@ const Textarea = styled(TextArea)`
 `
 
 const OutputContainer = styled.div`
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  border-radius: 10px;
+  padding-bottom: 5px;
+  padding-right: 2px;
+`
+
+const OutputTextAreaContainer = styled.div`
   min-height: 0;
   position: relative;
   display: flex;
