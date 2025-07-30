@@ -30,8 +30,11 @@ interface ModelListProps {
 }
 
 type ModelGroups = Record<string, Model[]>
-const MODEL_COUNT_THRESHOLD = 100
+const MODEL_COUNT_THRESHOLD = 10
 
+/**
+ * 根据搜索文本筛选模型、分组并排序
+ */
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
   const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
   const grouped = groupBy(filteredModels, 'group')
@@ -72,7 +75,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [])
 
   useEffect(() => {
-    if (models.length > MODEL_COUNT_THRESHOLD || searchText) {
+    if (models.length > MODEL_COUNT_THRESHOLD) {
       startTransition(() => {
         setDisplayedModelGroups(calculateModelGroups(models, searchText))
       })
