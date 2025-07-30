@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import VirtualList from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { Language, TranslateHistory } from '@renderer/types'
@@ -7,28 +8,69 @@ import { Button, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
-import { FC, useMemo } from 'react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { OperationBar } from '.'
 
+type DisplayedTranslateHistory = TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
+
 type TranslateHistoryProps = {
-  onHistoryItemClick: (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => void
+  onHistoryItemClick: (history: DisplayedTranslateHistory) => void
 }
+
+// px
+const ITEM_HEIGHT = 120
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick }) => {
   const { t } = useTranslation()
   const { clearHistory, deleteHistory } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
-  const translateHistory = useMemo(() => {
-    return _translateHistory?.map((item) => ({
+  const translateHistory: DisplayedTranslateHistory[] = useMemo(() => {
+    if (!_translateHistory) return []
+
+    return _translateHistory.map((item) => ({
       ...item,
       _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
       _targetLanguage: getLanguageByLangcode(item.targetLanguage)
     }))
   }, [_translateHistory])
+
+  const historyItemRenderer = useCallback(
+    (item: DisplayedTranslateHistory) => (
+      <Dropdown
+        key={item.id}
+        trigger={['contextMenu']}
+        menu={{
+          items: [
+            {
+              key: 'delete',
+              label: t('translate.history.delete'),
+              icon: <DeleteOutlined />,
+              danger: true,
+              onClick: () => deleteHistory(item.id)
+            }
+          ]
+        }}>
+        <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+          <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+            <Flex align="center" justify="space-between" style={{ flex: 1 }}>
+              <Flex align="center" gap={6}>
+                <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+              </Flex>
+              <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+            </Flex>
+            <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
+            <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>{item.targetText}</HistoryListItemTitle>
+          </Flex>
+        </HistoryListItem>
+      </Dropdown>
+    ),
+    [deleteHistory, onHistoryItemClick, t]
+  )
 
   return (
     <HistoryContainer>
@@ -47,38 +89,10 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick })
       </OperationBar>
       {translateHistory && translateHistory.length ? (
         <HistoryList>
-          {translateHistory.map((item) => (
-            <Dropdown
-              key={item.id}
-              trigger={['contextMenu']}
-              menu={{
-                items: [
-                  {
-                    key: 'delete',
-                    label: t('translate.history.delete'),
-                    icon: <DeleteOutlined />,
-                    danger: true,
-                    onClick: () => deleteHistory(item.id)
-                  }
-                ]
-              }}>
-              <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-                  <Flex align="center" justify="space-between" style={{ flex: 1 }}>
-                    <Flex align="center" gap={6}>
-                      <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                      <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
-                    </Flex>
-                    <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
-                  </Flex>
-                  <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                  <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
-                    {item.targetText}
-                  </HistoryListItemTitle>
-                </Flex>
-              </HistoryListItem>
-            </Dropdown>
-          ))}
+          <VirtualList
+            list={translateHistory}
+            itemRenderer={historyItemRenderer}
+            estimateSize={() => ITEM_HEIGHT}></VirtualList>
         </HistoryList>
       ) : (
         <Flex justify="center" align="center" style={{ flex: 1 }}>
@@ -112,11 +126,13 @@ const HistoryList = styled.div`
 `
 
 const HistoryListItem = styled.div`
+  height: ${ITEM_HEIGHT}px;
   width: 100%;
   padding: 5px 10px;
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
+  overflow: hidden;
 
   button {
     opacity: 0;
