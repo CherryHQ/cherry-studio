@@ -134,7 +134,15 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage className="clear-context-divider" onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
+      <NewContextMessage
+        isMultiSelectMode={isMultiSelectMode}
+        className="clear-context-divider"
+        onClick={() => {
+          if (isMultiSelectMode) {
+            return
+          }
+          EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+        }}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}
         </Divider>
@@ -252,9 +260,11 @@ const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plai
   margin-top: 8px;
 `
 
-const NewContextMessage = styled.div`
+const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`
   cursor: pointer;
   flex: 1;
+
+  ${({ isMultiSelectMode }) => isMultiSelectMode && 'user-select: none; cursor: default;'}
 `
 
 export default memo(MessageItem)

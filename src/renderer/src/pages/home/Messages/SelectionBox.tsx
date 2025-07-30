@@ -69,6 +69,9 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
         const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null
         const isAlreadySelected = checkbox?.checked || false
 
+        // 清除上下文这类消息也会被选中，所以需要跳过
+        if (!checkbox) return
+
         // 如果已经被记录为拖动选中，跳过
         if (dragSelectedIds.current.has(id)) return
 
