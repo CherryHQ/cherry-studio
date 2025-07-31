@@ -1,9 +1,12 @@
 import { UserOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { agentManagementService } from '@renderer/services/AgentManagementService'
+import { RootState } from '@renderer/store'
 import type { AgentResponse } from '@types'
 import { Form, Input, Modal, Select, Space, Upload } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentManagementModal')
@@ -16,46 +19,67 @@ interface AgentManagementModalProps {
   loading?: boolean
 }
 
-// Common model options based on the models.ts file
-const MODEL_OPTIONS = [
-  // Popular models from different providers
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  { value: 'deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  { value: 'qwen2.5-72b-instruct', label: 'Qwen 2.5 72B' },
-  { value: 'moonshot-v1-auto', label: 'Moonshot V1 Auto' },
-  { value: 'yi-lightning', label: 'Yi Lightning' },
-  { value: 'glm-4.5', label: 'GLM-4.5' },
-  { value: 'hunyuan-pro', label: 'Hunyuan Pro' },
-  { value: 'doubao-pro-32k-241215', label: 'Doubao Pro 32K' },
-  { value: 'abab6.5s-chat', label: 'Minimax ABAB 6.5s' },
-  { value: 'step-1-8k', label: 'Step 1 8K' },
-  { value: 'grok-2-1212', label: 'Grok 2' },
-  { value: 'llama-3.3-70b-instruct', label: 'Llama 3.3 70B' },
-  { value: 'mistral-large-latest', label: 'Mistral Large' }
-]
-
-// Common tools that can be enabled for agents
-const TOOL_OPTIONS = [
-  { value: 'web_search', label: 'Web Search' },
-  { value: 'code_interpreter', label: 'Code Interpreter' },
-  { value: 'file_search', label: 'File Search' },
-  { value: 'dall_e', label: 'DALL·E Image Generation' },
-  { value: 'python_execution', label: 'Python Execution' },
-  { value: 'browser_automation', label: 'Browser Automation' },
-  { value: 'api_calls', label: 'API Calls' },
-  { value: 'document_analysis', label: 'Document Analysis' }
-]
-
 const AgentManagementModal: FC<AgentManagementModalProps> = ({ visible, onClose, onSave, agent, loading = false }) => {
   const { t } = useTranslation()
   // loading parameter is reserved for future loading state implementation
   void loading
+
+  // API Server state with proper defaults
+  const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
+
+  const [tools, setTools] = useState<Array<{ value: string; label: string }>>([])
+  const [models, setModels] = useState<Array<{ value: string; label: string }>>([])
+
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        const res = await agentManagementService.fetchAvailableMCPTools(apiServerConfig)
+        logger.info('tools fetched successfully', { res })
+        if (res.success && res.data) {
+          const toolOptions = res.data.map((tool) => ({ value: tool.id, label: tool.name }))
+          setTools(toolOptions)
+        } else {
+          logger.warn('No tools data or fetch failed', { error: res.error })
+          setTools([])
+        }
+      } catch (error) {
+        logger.error('Failed to fetch tools:', error as Error)
+        setTools([])
+      }
+    }
+
+    if (apiServerConfig.enabled) {
+      fetchTools()
+    } else {
+      setTools([])
+    }
+  }, [apiServerConfig])
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const res = await agentManagementService.fetchAvailableModels(apiServerConfig)
+        logger.info('models fetched successfully', { res })
+        if (res.success && res.data) {
+          const modelOptions = res.data.map((model) => ({ value: model.id, label: model.name }))
+          setModels(modelOptions)
+        } else {
+          logger.warn('No models data or fetch failed', { error: res.error })
+          setModels([])
+        }
+      } catch (error) {
+        logger.error('Failed to fetch models:', error as Error)
+        setModels([])
+      }
+    }
+
+    if (apiServerConfig.enabled) {
+      fetchModels()
+    } else {
+      setModels([])
+    }
+  }, [apiServerConfig])
+
   const [form] = Form.useForm()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string>('')
@@ -268,7 +292,7 @@ const AgentManagementModal: FC<AgentManagementModalProps> = ({ visible, onClose,
             placeholder={t('agent.modal.model.placeholder', 'Select a language model')}
             showSearch
             optionFilterProp="label"
-            options={MODEL_OPTIONS}
+            options={models}
           />
         </Form.Item>
 
@@ -297,7 +321,7 @@ const AgentManagementModal: FC<AgentManagementModalProps> = ({ visible, onClose,
           <Select
             mode="multiple"
             placeholder={t('agent.modal.tools.placeholder', 'Select tools for your agent')}
-            options={TOOL_OPTIONS}
+            options={tools}
             maxTagCount="responsive"
           />
         </Form.Item>

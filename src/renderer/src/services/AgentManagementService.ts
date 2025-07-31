@@ -2,9 +2,12 @@ import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AgentResponse,
+  ApiServerConfig,
   CreateAgentInput,
   CreateSessionInput,
   CreateSessionLogInput,
+  FetchMCPToolResponse,
+  FetchModelResponse,
   ListAgentsOptions,
   ListResult,
   ListSessionLogsOptions,
@@ -343,6 +346,123 @@ export class AgentManagementService {
       return result
     } catch (error) {
       logger.error('Error clearing session logs', error as Error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  // ========== API SERVER OPERATIONS ==========
+
+  /**
+   * Fetch available models from API server
+   */
+  public async fetchAvailableModels(apiServerConfig: ApiServerConfig): Promise<ServiceResult<FetchModelResponse[]>> {
+    try {
+      logger.info('Fetching available models from API server', {
+        host: apiServerConfig.host,
+        port: apiServerConfig.port
+      })
+
+      if (!apiServerConfig.enabled) {
+        logger.warn('API server is not enabled')
+        return {
+          success: false,
+          error: 'API server is not enabled'
+        }
+      }
+
+      const url = `http://${apiServerConfig.host}:${apiServerConfig.port}/v1/models`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${apiServerConfig.apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('Failed to fetch models from API server', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
+        return {
+          success: false,
+          error: `HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
+        }
+      }
+
+      const data = await response.json()
+
+      return {
+        success: true,
+        data: data.data
+      }
+    } catch (error) {
+      logger.error('Error fetching models from API server', error as Error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  /**
+   * Fetch available MCP tools from API server
+   */
+  public async fetchAvailableMCPTools(
+    apiServerConfig: ApiServerConfig
+  ): Promise<ServiceResult<FetchMCPToolResponse[]>> {
+    try {
+      logger.info('Fetching available MCP tools from API server', {
+        host: apiServerConfig.host,
+        port: apiServerConfig.port
+      })
+
+      if (!apiServerConfig.enabled) {
+        logger.warn('API server is not enabled')
+        return {
+          success: false,
+          error: 'API server is not enabled'
+        }
+      }
+
+      const url = `http://${apiServerConfig.host}:${apiServerConfig.port}/v1/mcps`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${apiServerConfig.apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('Failed to fetch MCP tools from API server', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
+        return {
+          success: false,
+          error: `HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
+        }
+      }
+
+      const data = await response.json()
+      logger.info('Successfully fetched MCP tools from API server', {
+        serverCount: Object.keys(data.data || {}).length
+      })
+
+      return {
+        success: true,
+        data: data.data
+      }
+    } catch (error) {
+      logger.error('Error fetching MCP tools from API server', error as Error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

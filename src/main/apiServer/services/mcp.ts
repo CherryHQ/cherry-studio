@@ -27,10 +27,6 @@ interface McpServerDTO {
   url: string
 }
 
-interface McpServersResp {
-  servers: Record<string, McpServerDTO>
-}
-
 /**
  * MCPApiService - API layer for MCP server management
  *
@@ -82,22 +78,20 @@ class MCPApiService extends EventEmitter {
   }
 
   // get all activated servers
-  async getAllServers(req: Request): Promise<McpServersResp> {
+  async getAllServers(req: Request): Promise<McpServerDTO[]> {
     try {
       const servers = await this.getServersFromRedux()
       logger.silly(`Returning ${servers.length} servers`)
-      const resp: McpServersResp = {
-        servers: {}
-      }
+      const resp: McpServerDTO[] = []
       for (const server of servers) {
         if (server.isActive) {
-          resp.servers[server.id] = {
+          resp.push({
             id: server.id,
             name: server.name,
             type: 'streamableHttp',
             description: server.description,
             url: `${req.protocol}://${req.host}/v1/mcps/${server.id}/mcp`
-          }
+          })
         }
       }
       return resp

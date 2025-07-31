@@ -124,10 +124,28 @@ export interface ListSessionLogsOptions {
 }
 
 // Service result types
+
+export interface FetchMCPToolResponse {
+  id: string
+  name: string
+  type: string
+  url: string
+}
+
 export interface ServiceResult<T> {
   success: boolean
   data?: T
   error?: string
+}
+
+export interface FetchModelResponse {
+  id: string
+  object?: string
+  created?: number
+  owned_by?: string
+  provider_id: string
+  model_id: string
+  name: string
 }
 
 export interface ListResult<T> {
