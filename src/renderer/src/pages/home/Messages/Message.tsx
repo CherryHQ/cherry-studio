@@ -41,12 +41,24 @@ const logger = loggerService.withContext('MessageItem')
 
 const WrapperContainer = ({
   isMultiSelectMode,
+  messageId,
   children
 }: {
   isMultiSelectMode: boolean
+  messageId: string
   children: React.ReactNode
 }) => {
-  return isMultiSelectMode ? <label>{children}</label> : children
+  return isMultiSelectMode ? (
+    <label
+      htmlFor={`checkbox-${messageId}`}
+      style={{
+        cursor: 'pointer'
+      }}>
+      {children}
+    </label>
+  ) : (
+    children
+  )
 }
 
 const MessageItem: FC<Props> = ({
@@ -151,7 +163,7 @@ const MessageItem: FC<Props> = ({
   }
 
   return (
-    <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
+    <WrapperContainer isMultiSelectMode={isMultiSelectMode} messageId={message.id}>
       <MessageContainer
         key={message.id}
         className={classNames({

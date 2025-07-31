@@ -116,6 +116,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => 
       </UserWrap>
       {isMultiSelectMode && (
         <Checkbox
+          id={`checkbox-${message.id}`}
           checked={isSelected}
           onChange={(e) => handleSelectMessage(message.id, e.target.checked)}
           style={{ position: 'absolute', right: 0, top: 0 }}
