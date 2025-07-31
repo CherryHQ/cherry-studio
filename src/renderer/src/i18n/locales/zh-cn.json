@@ -83,25 +83,28 @@
       "restart": {
         "button": "重启",
         "tooltip": "重启服务器"
-      }
+      },
+      "start": "启动",
+      "stop": "停止"
+    },
+    "authHeader": {
+      "title": "授权标头"
     },
     "authHeaderText": "在授权标头中使用：",
     "configuration": "配置",
     "description": "通过 OpenAI 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
     "documentation": {
-      "title": "API 文档",
-      "unavailable": {
-        "description": "启动 API 服务器以查看交互式文档",
-        "title": "API 文档不可用"
-      }
+      "title": "API 文档"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "复制 API 密钥",
+        "description": "用于 API 访问的安全认证令牌",
         "label": "API 密钥",
         "placeholder": "API 密钥将自动生成"
       },
       "port": {
+        "description": "HTTP 服务器的 TCP 端口号 (1000-65535)",
         "helpText": "停止服务器以更改端口",
         "label": "端口"
       },

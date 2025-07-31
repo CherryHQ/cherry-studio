@@ -83,25 +83,28 @@
       "restart": {
         "button": "重新啟動",
         "tooltip": "重新啟動伺服器"
-      }
+      },
+      "start": "啟動",
+      "stop": "停止"
+    },
+    "authHeader": {
+      "title": "授權標頭"
     },
     "authHeaderText": "在授權標頭中使用：",
     "configuration": "配置",
     "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
     "documentation": {
-      "title": "API 文件",
-      "unavailable": {
-        "description": "啟動 API 伺服器以檢視互動式文件",
-        "title": "API 文件無法使用"
-      }
+      "title": "API 文件"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "複製 API 金鑰",
+        "description": "用於 API 訪問的安全認證令牌",
         "label": "API 金鑰",
         "placeholder": "API 金鑰將自動生成"
       },
       "port": {
+        "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
         "helpText": "停止伺服器以變更連接埠",
         "label": "連接埠"
       },
@@ -1574,7 +1577,7 @@
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入” 英文 “圖片描述，目前 Imagen 僅支持英文提示詞",
+    "prompt_placeholder_en": "輸入英文圖片描述，目前 Imagen 僅支持英文提示詞",
     "proxy_required": "打開代理並開啟”TUN 模式 “查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {

@@ -83,25 +83,28 @@
       "restart": {
         "button": "再起動",
         "tooltip": "サーバーを再起動"
-      }
+      },
+      "start": "開始",
+      "stop": "停止"
+    },
+    "authHeader": {
+      "title": "認証ヘッダー"
     },
     "authHeaderText": "認証ヘッダーで使用：",
     "configuration": "設定",
     "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
     "documentation": {
-      "title": "API ドキュメント",
-      "unavailable": {
-        "description": "インタラクティブドキュメントを表示するには API サーバーを開始してください",
-        "title": "API ドキュメントが利用できません"
-      }
+      "title": "API ドキュメント"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "API キーをコピー",
+        "description": "API アクセスのための安全な認証トークン",
         "label": "API キー",
         "placeholder": "API キーは自動生成されます"
       },
       "port": {
+        "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
         "helpText": "ポートを変更するにはサーバーを停止してください",
         "label": "ポート"
       },
@@ -1575,7 +1578,7 @@
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
     "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
-    "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
+    "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
