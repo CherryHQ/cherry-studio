@@ -204,6 +204,7 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
 
 /**
  * 构造带工具调用结果的消息内容
+ * @deprecated
  * @param blocks
  * @returns
  */
