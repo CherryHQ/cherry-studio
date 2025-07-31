@@ -1,0 +1,281 @@
+/* Agent Hub Page Styles */
+
+:root {
+  /* Agent Hub specific colors */
+  --agent-hub-bg: var(--color-background);
+  --agent-hub-border: var(--color-border);
+  --agent-hub-text: var(--color-text);
+  --agent-hub-text-soft: var(--color-text-soft);
+  --agent-hub-primary: var(--color-primary);
+  --agent-hub-primary-bg: var(--color-primary-bg);
+  --agent-hub-success: var(--color-success);
+  --agent-hub-warning: var(--color-warning);
+  --agent-hub-error: var(--color-error);
+  
+  /* Layout dimensions */
+  --agent-list-width: 300px;
+  --agent-hub-padding: 20px;
+  --agent-item-padding: 12px;
+  --agent-item-radius: 6px;
+  
+  /* Performance optimization */
+  --agent-hub-transition: all 0.2s ease-in-out;
+}
+
+/* Main Layout */
+.agent-hub-layout {
+  display: flex;
+  height: 100vh;
+  background-color: var(--agent-hub-bg);
+  font-family: var(--font-family);
+}
+
+.agent-list-column {
+  width: var(--agent-list-width);
+  min-width: var(--agent-list-width);
+  border-right: 1px solid var(--agent-hub-border);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-background-soft);
+}
+
+.agent-details-column {
+  flex: 1;
+  padding: var(--agent-hub-padding);
+  overflow-y: auto;
+  background-color: var(--agent-hub-bg);
+}
+
+/* Agent List Styles */
+.agent-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agent-list-container[data-virtualized="true"] {
+  /* Enable GPU acceleration for large lists */
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+/* Agent Item Styles */
+.agent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--agent-item-padding);
+  margin-bottom: 4px;
+  border-radius: var(--agent-item-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--agent-hub-transition);
+  background-color: transparent;
+}
+
+.agent-item:hover {
+  background-color: var(--color-background-soft);
+  border-color: var(--color-border-soft);
+}
+
+.agent-item.selected {
+  background-color: var(--agent-hub-primary-bg);
+  border-color: var(--agent-hub-primary);
+}
+
+.agent-item:focus {
+  outline: 2px solid var(--agent-hub-primary);
+  outline-offset: 2px;
+}
+
+/* Empty State Styles */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state h3 {
+  color: var(--agent-hub-text);
+  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.empty-state p {
+  color: var(--agent-hub-text-soft);
+  margin-bottom: 24px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.empty-state button {
+  background: var(--agent-hub-primary);
+  border-color: var(--agent-hub-primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--agent-hub-transition);
+}
+
+.empty-state button:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+/* Navigation Styles */
+.agent-hub-nav {
+  padding: 16px;
+  border-bottom: 1px solid var(--agent-hub-border);
+  display: flex;
+  gap: 8px;
+}
+
+.agent-hub-nav button {
+  padding: 8px 16px;
+  border: 1px solid var(--agent-hub-border);
+  border-radius: 4px;
+  background: var(--agent-hub-bg);
+  color: var(--agent-hub-text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: var(--agent-hub-transition);
+}
+
+.agent-hub-nav button:hover {
+  background: var(--color-background-soft);
+}
+
+.agent-hub-nav button:focus {
+  outline: 2px solid var(--agent-hub-primary);
+  outline-offset: 2px;
+}
+
+/* Status Indicators */
+.agent-status-idle::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--agent-hub-success);
+  margin-right: 6px;
+}
+
+.agent-status-running::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--agent-hub-warning);
+  margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+
+.agent-status-error::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--agent-hub-error);
+  margin-right: 6px;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* Loading States */
+.agent-list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+}
+
+.agent-list-loading::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--agent-hub-border);
+  border-top: 2px solid var(--agent-hub-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .agent-hub-layout {
+    flex-direction: column;
+  }
+  
+  .agent-list-column {
+    width: 100%;
+    max-height: 300px;
+    border-right: none;
+    border-bottom: 1px solid var(--agent-hub-border);
+  }
+  
+  .agent-details-column {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --agent-hub-padding: 12px;
+    --agent-item-padding: 8px;
+  }
+  
+  .agent-details-column {
+    padding: 12px;
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .agent-item {
+    border: 2px solid var(--agent-hub-border);
+  }
+  
+  .agent-item.selected {
+    border: 2px solid var(--agent-hub-primary);
+    background-color: var(--agent-hub-primary-bg);
+  }
+  
+  .agent-item:focus {
+    outline: 3px solid var(--agent-hub-primary);
+    outline-offset: 3px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .agent-status-running::before {
+    animation: none;
+  }
+}

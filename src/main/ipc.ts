@@ -697,6 +697,29 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       addStreamMessage(spanId, modelName, context, msg)
   )
 
+  // Agent IPC Communication
+  ipcMain.handle(IpcChannel.Agent_Send_Message, async (event, message) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) {
+      return { success: false, error: 'Window not found' }
+    }
+    
+    const { AgentIPCHandler } = await import('./ipc/AgentIPCHandler')
+    const handler = new AgentIPCHandler(window)
+    return handler.processMessage(message)
+  })
+
+  ipcMain.handle(IpcChannel.Agent_Stream_Message, async (event, message) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) {
+      return { success: false, error: 'Window not found' }
+    }
+    
+    const { AgentIPCHandler } = await import('./ipc/AgentIPCHandler')
+    const handler = new AgentIPCHandler(window)
+    return handler.processStreamMessage(message)
+  })
+
   // API Server
   apiServerService.registerIpcHandlers()
 }

@@ -76,6 +76,27 @@
     },
     "title": "Agents"
   },
+  "sidebar": {
+    "ai-agent": "AI Agent"
+  },
+  "ai_agent": {
+    "title": "AI Agent",
+    "button": {
+      "new": {
+        "agent": "New Agent"
+      }
+    },
+    "form": {
+      "name": {
+        "label": "Name",
+        "placeholder": "Enter agent name"
+      },
+      "description": {
+        "label": "Description",
+        "placeholder": "Enter agent description"
+      }
+    }
+  },
   "apiServer": {
     "actions": {
       "copy": "Copy",

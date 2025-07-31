@@ -32,5 +32,35 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  agent: {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    delete: vi.fn().mockResolvedValue({})
   }
+})
+
+// Mock styled-components globally
+vi.mock('styled-components', () => {
+  const createStyledComponent = (tag: string) => {
+    const StyledComponent = (templateStrings: any, ...interpolations: any[]) => {
+      const component = (props: any) => ({ 
+        type: tag, 
+        props: { ...props, 'data-styled': tag }, 
+        children: props.children 
+      })
+      component.withConfig = () => component
+      return component
+    }
+    return StyledComponent
+  }
+
+  const styled = new Proxy({}, {
+    get: (target, prop) => {
+      return createStyledComponent(prop.toString())
+    }
+  })
+  
+  return { default: styled }
 })

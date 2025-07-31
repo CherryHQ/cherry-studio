@@ -279,5 +279,14 @@ export enum IpcChannel {
   ApiServer_Stop = 'api-server:stop',
   ApiServer_Restart = 'api-server:restart',
   ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_GetConfig = 'api-server:get-config'
+  ApiServer_GetConfig = 'api-server:get-config',
+
+  // Agent IPC Communication
+  Agent_Send_Message = 'agent:send-message',
+  Agent_Stream_Message = 'agent:stream-message',
+  Agent_Message_Received = 'agent:message-received',
+  Agent_Stream_Data = 'agent:stream-data',
+  Agent_Stream_Error = 'agent:stream-error',
+  Agent_Stream_End = 'agent:stream-end',
+  Agent_Validate_Message = 'agent:validate-message'
 }
