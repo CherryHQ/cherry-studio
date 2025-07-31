@@ -99,6 +99,16 @@ const CherryAgentPage: React.FC = () => {
     setSidebarCollapsed((prev) => !prev)
   }, [])
 
+  // Mock session data
+  const mockSessions = [
+    { id: '1', name: 'Session 1', active: true },
+    { id: '2', name: 'Session 2', active: false },
+    { id: '3', name: 'Session 3', active: false },
+    { id: '4', name: 'Session 4', active: false }
+  ]
+
+  const [agentName, setAgentName] = useState('My Agent')
+
   return (
     <Container id="cherry-agent-page">
       <Navbar>
@@ -109,10 +119,21 @@ const CherryAgentPage: React.FC = () => {
         {!sidebarCollapsed && (
           <Sidebar>
             <SidebarHeader>
+              <HeaderLabel>header</HeaderLabel>
               <CollapseButton type="text" icon={<MenuFoldOutlined />} onClick={toggleSidebar} size="small" />
             </SidebarHeader>
-            <SidebarContent>{/* Sidebar content can be added here later */}</SidebarContent>
+            <SidebarContent>
+              <SessionsLabel>sessions</SessionsLabel>
+              <SessionsList>
+                {mockSessions.map((session) => (
+                  <SessionItem key={session.id} active={session.active}>
+                    {session.name}
+                  </SessionItem>
+                ))}
+              </SessionsList>
+            </SidebarContent>
             <SidebarFooter>
+              <FooterLabel>footer</FooterLabel>
               <ActionButton
                 type="text"
                 icon={<SettingOutlined />}
@@ -126,24 +147,34 @@ const CherryAgentPage: React.FC = () => {
 
         {/* Main Content Area */}
         <MainContent>
-          <MainContentHeader>
+          {/* Agent Info Header */}
+          <AgentHeader>
             {sidebarCollapsed && (
               <ToggleButton type="text" icon={<MenuUnfoldOutlined />} onClick={toggleSidebar} size="small" />
             )}
-          </MainContentHeader>
+            <AgentNameInput
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              placeholder="Agent Name & some Info"
+            />
+          </AgentHeader>
+
           <MessageArea>
             <PocMessageList messages={messagesHook.messages} />
           </MessageArea>
-          <EnhancedCommandInput
-            status={getCommandStatus()}
-            currentWorkingDirectory={currentWorkingDirectory}
-            activeCommand={getCurrentCommand()}
-            commandCount={commandCount}
-            onSendCommand={handleExecuteCommand}
-            onCancelCommand={commandHook.isExecuting ? handleCancelCommand : undefined}
-            onOpenSettings={handleOpenSettings}
-            disabled={commandHook.isExecuting}
-          />
+
+          <InputArea>
+            <EnhancedCommandInput
+              status={getCommandStatus()}
+              currentWorkingDirectory={currentWorkingDirectory}
+              activeCommand={getCurrentCommand()}
+              commandCount={commandCount}
+              onSendCommand={handleExecuteCommand}
+              onCancelCommand={commandHook.isExecuting ? handleCancelCommand : undefined}
+              onOpenSettings={handleOpenSettings}
+              disabled={commandHook.isExecuting}
+            />
+          </InputArea>
         </MainContent>
       </ContentContainer>
       <CherryAgentSettingsModal
@@ -176,34 +207,41 @@ const ContentContainer = styled.div`
 `
 
 const Sidebar = styled.div`
-  width: 240px;
-  min-width: 240px;
-  background-color: var(--color-background-soft);
-  border-right: 0.5px solid var(--color-border);
+  width: 260px;
+  min-width: 260px;
+  background-color: var(--color-background);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  box-shadow: 1px 0 4px rgba(0, 0, 0, 0.05);
 `
 
 const SidebarHeader = styled.div`
-  padding: 4px;
-  border-bottom: 0.5px solid var(--color-border);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 56px;
+  background-color: var(--color-background-soft);
 `
 
 const SidebarContent = styled.div`
   flex: 1;
-  padding: 8px;
+  padding: 20px;
   overflow-y: auto;
 `
 
 const SidebarFooter = styled.div`
-  padding: 4px;
-  border-top: 0.5px solid var(--color-border);
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border);
   display: flex;
   flex-direction: row;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  background-color: var(--color-background-soft);
 `
 
 const CollapseButton = styled(Button)`
@@ -213,25 +251,38 @@ const CollapseButton = styled(Button)`
   color: var(--color-text-secondary);
   width: 32px;
   height: 32px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 
   &:hover {
     color: var(--color-text);
-    background-color: var(--color-background);
+    background-color: var(--color-background-hover);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `
 
 const ActionButton = styled(Button)`
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   color: var(--color-text-secondary);
-  width: 100%;
+  width: 32px;
   height: 32px;
-  padding: 0 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 
   &:hover {
     color: var(--color-text);
-    background-color: var(--color-background);
+    background-color: var(--color-background-hover);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `
 
@@ -242,12 +293,15 @@ const MainContent = styled.div`
   overflow: hidden;
 `
 
-const MainContentHeader = styled.div`
-  padding: 4px 12px;
-  border-bottom: 0.5px solid var(--color-border);
+const AgentHeader = styled.div`
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  min-height: 32px;
+  gap: 16px;
+  min-height: 80px;
+  background: linear-gradient(135deg, var(--color-background) 0%, var(--color-background-soft) 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 `
 
 const ToggleButton = styled(Button)`
@@ -255,12 +309,19 @@ const ToggleButton = styled(Button)`
   align-items: center;
   justify-content: center;
   color: var(--color-text-secondary);
-  width: 16px;
-  height: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 
   &:hover {
     color: var(--color-text);
-    background-color: var(--color-background-soft);
+    background-color: var(--color-background-hover);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `
 
@@ -269,7 +330,102 @@ const MessageArea = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 24px;
+  background-color: var(--color-background);
+`
+
+const InputArea = styled.div`
+  padding: 16px 24px 20px 24px;
+  border-top: 1px solid var(--color-border);
+  background: linear-gradient(180deg, var(--color-background-soft) 0%, var(--color-background) 100%);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+`
+
+const HeaderLabel = styled.span`
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`
+
+const FooterLabel = styled.span`
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`
+
+const SessionsLabel = styled.div`
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+`
+
+const SessionsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const SessionItem = styled.div<{ active: boolean }>`
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-background-soft)')};
+  color: ${(props) => (props.active ? 'white' : 'var(--color-text)')};
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: ${(props) => (props.active ? '500' : '400')};
+  transition: all 0.2s ease;
+  border: ${(props) => (props.active ? 'none' : '1px solid transparent')};
+  box-shadow: ${(props) => (props.active ? '0 2px 8px rgba(24, 144, 255, 0.2)' : 'none')};
+
+  &:hover {
+    background-color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-background-hover)')};
+    border-color: ${(props) => (props.active ? 'transparent' : 'var(--color-border)')};
+    transform: translateY(-1px);
+    box-shadow: ${(props) => (props.active ? '0 4px 12px rgba(24, 144, 255, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)')};
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`
+
+const AgentNameInput = styled.input`
+  flex: 1;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  &:focus {
+    border-color: var(--color-primary);
+    box-shadow:
+      0 0 0 3px rgba(24, 144, 255, 0.1),
+      0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+
+  &:hover {
+    border-color: var(--color-primary-hover);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  &::placeholder {
+    color: var(--color-text-tertiary);
+    font-weight: 400;
+  }
 `
 
 export default CherryAgentPage
