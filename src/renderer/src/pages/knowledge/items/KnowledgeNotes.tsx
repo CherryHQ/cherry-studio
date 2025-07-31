@@ -8,7 +8,7 @@ import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,6 +34,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
 
+  const reversedItems = useMemo(() => [...noteItems].reverse(), [noteItems])
   const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
@@ -75,7 +76,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ItemFlexColumn>
         {noteItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
-          list={noteItems.reverse()}
+          list={reversedItems}
           estimateSize={estimateSize}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}

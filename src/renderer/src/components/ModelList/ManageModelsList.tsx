@@ -128,7 +128,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
     <DynamicVirtualList
       list={flatRows}
       estimateSize={useCallback(() => 60, [])}
-      isSticky={(index) => flatRows[index].type === 'group'}
+      isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
       overscan={5}
       scrollerStyle={{
         paddingRight: '10px'

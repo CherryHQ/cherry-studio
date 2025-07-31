@@ -9,7 +9,7 @@ import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,6 +46,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
 
+  const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
   const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
@@ -79,7 +80,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
       <ItemFlexColumn>
         {directoryItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
-          list={directoryItems.reverse()}
+          list={reversedItems}
           estimateSize={estimateSize}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}

@@ -103,7 +103,7 @@ const KnowledgePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <ScrollContainer>
+        <KnowledgeSideNav>
           <DraggableList
             list={bases}
             onUpdate={updateKnowledgeBases}
@@ -132,7 +132,7 @@ const KnowledgePage: FC = () => {
             </AddKnowledgeItem>
           )}
           <div style={{ minHeight: '10px' }}></div>
-        </ScrollContainer>
+        </KnowledgeSideNav>
         {bases.length === 0 ? (
           <MainContent>
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -167,7 +167,7 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
 `
 
-const ScrollContainer = styled(Scrollbar)`
+const KnowledgeSideNav = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
 
