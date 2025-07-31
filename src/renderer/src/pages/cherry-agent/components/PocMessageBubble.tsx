@@ -23,9 +23,9 @@ const CommandBubble = styled(BubbleBase)`
 `
 
 const OutputBubble = styled(BubbleBase)<{ $isError?: boolean }>`
-  background: ${props => props.$isError ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-background-soft)'};
-  color: ${props => props.$isError ? '#ef4444' : 'var(--color-text)'};
-  border: 1px solid ${props => props.$isError ? '#ef4444' : 'var(--color-border)'};
+  background: ${(props) => (props.$isError ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-background-soft)')};
+  color: ${(props) => (props.$isError ? '#ef4444' : 'var(--color-text)')};
+  border: 1px solid ${(props) => (props.$isError ? '#ef4444' : 'var(--color-border)')};
 `
 
 const CommandPrefix = styled.span`

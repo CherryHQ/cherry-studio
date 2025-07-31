@@ -1,10 +1,4 @@
-import {
-  BookOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  QuestionCircleOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
@@ -15,9 +9,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import CherryAgentSettingsModal from './components/CherryAgentSettingsModal'
-import PocCommandInput from './components/PocCommandInput'
+import EnhancedCommandInput from './components/EnhancedCommandInput'
 import PocMessageList from './components/PocMessageList'
-import PocStatusBar from './components/PocStatusBar'
 
 const CherryAgentPage: React.FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
@@ -97,7 +90,7 @@ const CherryAgentPage: React.FC = () => {
     if (commandHook.currentCommandId) {
       const success = await commandHook.interruptCommand(commandHook.currentCommandId)
       if (success) {
-        messagesHook.appendOutput(commandHook.currentCommandId, '\n[Command cancelled by user]', 'stderr', true)
+        messagesHook.appendOutput(commandHook.currentCommandId, '\n[Command cancelled by user]', 'error', true)
       }
     }
   }, [commandHook, messagesHook])
@@ -141,21 +134,16 @@ const CherryAgentPage: React.FC = () => {
           <MessageArea>
             <PocMessageList messages={messagesHook.messages} />
           </MessageArea>
-          <StatusArea>
-            <PocStatusBar
-              status={getCommandStatus()}
-              activeCommand={getCurrentCommand()}
-              commandCount={commandCount}
-              onCancelCommand={commandHook.isExecuting ? handleCancelCommand : undefined}
-            />
-          </StatusArea>
-          <InputArea>
-            <PocCommandInput
-              onSendCommand={handleExecuteCommand}
-              disabled={commandHook.isExecuting}
-              // commandHistory={historyHook}
-            />
-          </InputArea>
+          <EnhancedCommandInput
+            status={getCommandStatus()}
+            currentWorkingDirectory={currentWorkingDirectory}
+            activeCommand={getCurrentCommand()}
+            commandCount={commandCount}
+            onSendCommand={handleExecuteCommand}
+            onCancelCommand={commandHook.isExecuting ? handleCancelCommand : undefined}
+            onOpenSettings={handleOpenSettings}
+            disabled={commandHook.isExecuting}
+          />
         </MainContent>
       </ContentContainer>
       <CherryAgentSettingsModal
@@ -282,17 +270,6 @@ const MessageArea = styled.div`
   flex-direction: column;
   overflow: hidden;
   padding: 16px;
-`
-
-const StatusArea = styled.div`
-  padding: 0 16px 8px 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const InputArea = styled.div`
-  padding: 16px;
-  background-color: var(--color-background);
-  border-top: 0.5px solid var(--color-border);
 `
 
 export default CherryAgentPage
