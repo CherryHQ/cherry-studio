@@ -61,7 +61,7 @@ export const addCustomLanguage = async (
       const item = {
         id: uuid(),
         value,
-        langCode,
+        langCode: langCode.toLowerCase(),
         emoji
       }
       db.translate_languages.add(item)
@@ -105,7 +105,7 @@ export const updateCustomLanguage = async (
     await db.translate_languages.put({
       id: old.id,
       value,
-      langCode,
+      langCode: langCode.toLowerCase(),
       emoji
     })
   } catch (e) {

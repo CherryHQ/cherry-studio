@@ -56,6 +56,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -483,6 +484,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           extra_body.translation_options = {
             source_lang: 'auto',
             target_lang: mapLanguageToQwenMTModel(targetLanguage!)
+          }
+          if (!extra_body.translation_options.target_lang) {
+            throw new Error(t('translate.error.not_supported', { language: targetLanguage?.value }))
           }
         }
 

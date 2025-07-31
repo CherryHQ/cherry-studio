@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { UNKNOWN } from '@renderer/config/translate'
 import { Language, Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
@@ -220,14 +221,111 @@ export function isUserSelectedModelType(model: Model, type: ModelType): boolean 
   return t ? t.isUserSelected : undefined
 }
 
-export function mapLanguageToQwenMTModel(language: Language): string {
+const QwenMTMap = {
+  en: 'English',
+  ru: 'Russian',
+  ja: 'Japanese',
+  ko: 'Korean',
+  es: 'Spanish',
+  fr: 'French',
+  pt: 'Portuguese',
+  de: 'German',
+  it: 'Italian',
+  th: 'Thai',
+  vi: 'Vietnamese',
+  id: 'Indonesian',
+  ms: 'Malay',
+  ar: 'Arabic',
+  hi: 'Hindi',
+  he: 'Hebrew',
+  my: 'Burmese',
+  ta: 'Tamil',
+  ur: 'Urdu',
+  bn: 'Bengali',
+  pl: 'Polish',
+  nl: 'Dutch',
+  ro: 'Romanian',
+  tr: 'Turkish',
+  km: 'Khmer',
+  lo: 'Lao',
+  yue: 'Cantonese',
+  cs: 'Czech',
+  el: 'Greek',
+  sv: 'Swedish',
+  hu: 'Hungarian',
+  da: 'Danish',
+  fi: 'Finnish',
+  uk: 'Ukrainian',
+  bg: 'Bulgarian',
+  sr: 'Serbian',
+  te: 'Telugu',
+  af: 'Afrikaans',
+  hy: 'Armenian',
+  as: 'Assamese',
+  ast: 'Asturian',
+  eu: 'Basque',
+  be: 'Belarusian',
+  bs: 'Bosnian',
+  ca: 'Catalan',
+  ceb: 'Cebuano',
+  hr: 'Croatian',
+  arz: 'Egyptian Arabic',
+  et: 'Estonian',
+  gl: 'Galician',
+  ka: 'Georgian',
+  gu: 'Gujarati',
+  is: 'Icelandic',
+  jv: 'Javanese',
+  kn: 'Kannada',
+  kk: 'Kazakh',
+  lv: 'Latvian',
+  lt: 'Lithuanian',
+  lb: 'Luxembourgish',
+  mk: 'Macedonian',
+  mai: 'Maithili',
+  mt: 'Maltese',
+  mr: 'Marathi',
+  acm: 'Mesopotamian Arabic',
+  ary: 'Moroccan Arabic',
+  ars: 'Najdi Arabic',
+  ne: 'Nepali',
+  az: 'North Azerbaijani',
+  apc: 'North Levantine Arabic',
+  uz: 'Northern Uzbek',
+  nb: 'Norwegian Bokmål',
+  nn: 'Norwegian Nynorsk',
+  oc: 'Occitan',
+  or: 'Odia',
+  pag: 'Pangasinan',
+  scn: 'Sicilian',
+  sd: 'Sindhi',
+  si: 'Sinhala',
+  sk: 'Slovak',
+  sl: 'Slovenian',
+  ajp: 'South Levantine Arabic',
+  sw: 'Swahili',
+  tl: 'Tagalog',
+  acq: 'Ta’izzi-Adeni Arabic',
+  sq: 'Tosk Albanian',
+  aeb: 'Tunisian Arabic',
+  vec: 'Venetian',
+  war: 'Waray',
+  cy: 'Welsh',
+  fa: 'Western Persian'
+}
+
+export function mapLanguageToQwenMTModel(language: Language): string | undefined {
+  if (language.langCode === UNKNOWN.langCode) {
+    return undefined
+  }
   if (language.langCode === 'zh-cn') {
     return 'Chinese'
   }
   if (language.langCode === 'zh-tw') {
     return 'Traditional Chinese'
   }
-  return language.value
+  const shortLangCode = language.langCode.split('-')[0]
+  return QwenMTMap[shortLangCode]
 }
 
 export function uniqueObjectArray<T>(array: T[]): T[] {

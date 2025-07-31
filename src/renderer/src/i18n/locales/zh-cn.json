@@ -3522,6 +3522,7 @@
       },
       "failed": "翻译失败",
       "not_configured": "翻译模型未配置",
+      "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"
     },
     "exchange": {
