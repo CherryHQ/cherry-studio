@@ -8,6 +8,7 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -47,9 +48,16 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
 
@@ -139,29 +147,41 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     updatePainting('DMXAPIPaintings', updatedPainting)
   }
 
-  const getNewPainting = (params?: Partial<DmxapiPainting>) => {
-    clearImages()
-    const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
-    const modelGroups = getModelOptions(generationMode as generationModeType)
-    // 获取第一个非空分组的第一个模型
-    let firstModel = ''
+  const getFirstModelInfo = (v: generationModeType) => {
+    const newModelGroups = getModelOptions(v)
+    let model = ''
     let priceModel = ''
     let image_size = ''
-    for (const provider of Object.keys(modelGroups)) {
-      if (modelGroups[provider].length > 0) {
-        firstModel = modelGroups[provider][0].id
-        priceModel = modelGroups[provider][0].price
-        image_size = modelGroups[provider][0].image_sizes[0].value
+    for (const provider of Object.keys(newModelGroups)) {
+      if (newModelGroups[provider] && newModelGroups[provider].length > 0) {
+        model = newModelGroups[provider][0].id
+        priceModel = newModelGroups[provider][0].price
+        image_size = newModelGroups[provider][0].image_sizes[0].value
         break
       }
     }
+
+    return {
+      model,
+      priceModel,
+      image_size
+    }
+  }
+
+  const getNewPainting = (params?: Partial<DmxapiPainting>) => {
+    clearImages()
+
+    const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
+    const modelGroups = getModelOptions(generationMode as generationModeType)
+
+    const { model, priceModel, image_size } = getFirstModelInfo(modelGroups)
 
     return {
       ...DEFAULT_PAINTING,
       id: uuid(),
       seed: generateRandomSeed(),
       generationMode,
-      model: firstModel,
+      model,
       priceModel,
       image_size,
       ...params
@@ -278,26 +298,19 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerationModeChange = (v: generationModeType) => {
-    clearImages()
-    const newModelGroups = getModelOptions(v)
-    setModelOptions(newModelGroups)
-    let firstModel = ''
-    let priceModel = ''
-    let image_size = ''
-    for (const provider of Object.keys(newModelGroups)) {
-      if (newModelGroups[provider] && newModelGroups[provider].length > 0) {
-        firstModel = newModelGroups[provider][0].id
-        priceModel = newModelGroups[provider][0].price
-        image_size = newModelGroups[provider][0].image_sizes[0].value
-        break
-      }
+    if (isLoading) {
+      return
     }
+
+    clearImages()
+
+    const { model, priceModel, image_size } = getFirstModelInfo(v)
 
     // 如果有urls，创建新的painting
     if (Array.isArray(painting.urls) && painting.urls.length > 0) {
       const newPainting = getNewPainting({
         generationMode: v,
-        model: firstModel
+        model
       })
       const addedPainting = addPainting('DMXAPIPaintings', newPainting)
       setPainting(addedPainting)
@@ -305,7 +318,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 否则更新当前painting
       updatePaintingState({
         generationMode: v,
-        model: firstModel,
+        model: model,
         image_size: image_size,
         priceModel: priceModel
       })

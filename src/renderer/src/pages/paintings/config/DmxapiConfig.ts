@@ -57,7 +57,7 @@ export const STYLE_TYPE_OPTIONS = [
 
 export const COURSE_URL = 'http://seedream.dmxapi.cn/'
 
-export const TOP_UP_URL = 'http://seedream.dmxapi.cn/'
+export const TOP_UP_URL = 'https://www.dmxapi.cn/topup'
 
 export const DEFAULT_PAINTING: DmxapiPainting = {
   id: uuid(),
@@ -83,7 +83,7 @@ export const MODEOPTIONS = [
 // 获取模型分组数据
 export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   try {
-    const response = await fetch('https://dmxapi.cn/cherry_painting_models.json?23411')
+    const response = await fetch('https://dmxapi.cn/cherry_painting_models.json')
 
     if (response.ok) {
       const data = await response.json()
