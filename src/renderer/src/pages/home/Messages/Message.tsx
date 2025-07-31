@@ -40,22 +40,28 @@ interface Props {
 const logger = loggerService.withContext('MessageItem')
 
 const WrapperContainer = ({
-  isMultiSelectMode,
   messageId,
+  isMultiSelectMode,
+  isSelected,
+  handleSelectMessage,
   children
 }: {
-  isMultiSelectMode: boolean
   messageId: string
+  isMultiSelectMode: boolean
+  isSelected: boolean
+  handleSelectMessage: (messageId: string, selected: boolean) => void
   children: React.ReactNode
 }) => {
   return isMultiSelectMode ? (
-    <label
-      htmlFor={`checkbox-${messageId}`}
+    <div
+      onClick={() => {
+        handleSelectMessage(messageId, !isSelected)
+      }}
       style={{
         cursor: 'pointer'
       }}>
       {children}
-    </label>
+    </div>
   ) : (
     children
   )
@@ -72,7 +78,10 @@ const MessageItem: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
-  const { isMultiSelectMode } = useChatContext(topic)
+
+  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
+  const isSelected = selectedMessageIds?.includes(message.id)
+
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { messageFont, fontSize, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
@@ -163,7 +172,11 @@ const MessageItem: FC<Props> = ({
   }
 
   return (
-    <WrapperContainer isMultiSelectMode={isMultiSelectMode} messageId={message.id}>
+    <WrapperContainer
+      isMultiSelectMode={isMultiSelectMode}
+      messageId={message.id}
+      isSelected={isSelected}
+      handleSelectMessage={handleSelectMessage}>
       <MessageContainer
         key={message.id}
         className={classNames({
