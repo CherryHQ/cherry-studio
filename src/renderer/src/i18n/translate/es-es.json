@@ -76,6 +76,59 @@
     },
     "title": "Agente"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copiar",
+      "regenerate": "Regenerar",
+      "restart": {
+        "button": "Reiniciar",
+        "tooltip": "Reiniciar Servidor"
+      }
+    },
+    "authHeaderText": "Usar en el encabezado de autorización:",
+    "configuration": "Configuración",
+    "description": "Expone las capacidades de IA de Cherry Studio a través de APIs HTTP compatibles con OpenAI",
+    "documentation": {
+      "title": "Documentación API",
+      "unavailable": {
+        "description": "Inicia el servidor API para ver la documentación interactiva",
+        "title": "Documentación API No Disponible"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copiar Clave API",
+        "label": "Clave API",
+        "placeholder": "La clave API se generará automáticamente"
+      },
+      "port": {
+        "helpText": "Detén el servidor para cambiar el puerto",
+        "label": "Puerto"
+      },
+      "url": {
+        "copyTooltip": "Copiar URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Clave API copiada al portapapeles",
+      "apiKeyRegenerated": "Clave API regenerada",
+      "operationFailed": "Falló la operación del Servidor API: ",
+      "restartError": "Error al reiniciar el Servidor API: ",
+      "restartFailed": "Falló el reinicio del Servidor API: ",
+      "restartSuccess": "Servidor API reiniciado exitosamente",
+      "startError": "Error al iniciar el Servidor API: ",
+      "startSuccess": "Servidor API iniciado exitosamente",
+      "stopError": "Error al detener el Servidor API: ",
+      "stopSuccess": "Servidor API detenido exitosamente",
+      "urlCopied": "URL del servidor copiada al portapapeles"
+    },
+    "status": {
+      "running": "Ejecutándose",
+      "stopped": "Detenido"
+    },
+    "title": "Servidor API"
+  },
   "assistants": {
     "abbr": "Asistente",
     "clear": {
@@ -913,6 +966,7 @@
     "thai": "tailandés",
     "turkish": "turco",
     "ukrainian": "ucraniano",
+    "unknown": "desconocido",
     "urdu": "urdu",
     "vietnamese": "vietnamita"
   },
@@ -2891,7 +2945,7 @@
         },
         "supported_text_delta": {
           "label": "salida de texto incremental",
-          "tooltip": "Cuando el modelo no lo admita, desactive este botón"
+          "tooltip": "Cuando el modelo no sea compatible, desactive este botón."
         }
       },
       "api_key": "Clave API",
@@ -3394,6 +3448,7 @@
     },
     "close": "Cerrar",
     "closed": "La traducción ha sido desactivada",
+    "complete": "traducción completada",
     "confirm": {
       "content": "La traducción reemplazará el texto original, ¿desea continuar?",
       "title": "Confirmación de traducción"
@@ -3405,13 +3460,17 @@
     "empty": "El contenido de traducción está vacío",
     "error": {
       "failed": "Fallo en la traducción",
-      "not_configured": "El modelo de traducción no está configurado"
+      "not_configured": "El modelo de traducción no está configurado",
+      "unknown": "Se produjo un error desconocido durante la traducción"
     },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
       "delete": "Eliminar",
       "empty": "Sin historial de traducciones por el momento",
+      "error": {
+        "save": "Error al guardar el historial de traducciones"
+      },
       "title": "Historial de traducciones"
     },
     "input": {

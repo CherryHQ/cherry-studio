@@ -154,8 +154,12 @@ self.onmessage = async (event) => {
     error: null
   }
 
+  let globals
+
   try {
     const pyodide = await pyodidePromise
+    // 创建一个新的全局作用域
+    globals = pyodide.globals.get('dict')()
 
     // 载入需要的包
     try {
@@ -169,18 +173,18 @@ self.onmessage = async (event) => {
     try {
       // 注入 Matplotlib 垫片代码
       if (python.includes('matplotlib')) {
-        await pyodide.runPythonAsync(MATPLOTLIB_SHIM_CODE)
+        await pyodide.runPythonAsync(MATPLOTLIB_SHIM_CODE, { globals })
       }
 
-      output.result = await pyodide.runPythonAsync(python)
+      output.result = await pyodide.runPythonAsync(python, { globals })
+
       // 处理结果，确保安全序列化
       output.result = processResult(output.result)
 
       // 检查是否有 Matplotlib 图像输出
-      const image = pyodide.globals.get('pyodide_matplotlib_image')
+      const image = globals.get('pyodide_matplotlib_image')
       if (image) {
         output.image = image
-        pyodide.globals.delete('pyodide_matplotlib_image')
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -208,7 +212,7 @@ self.onmessage = async (event) => {
       error: errorMessage
     } as WorkerResponse)
   } finally {
-    // 统一发送处理后的输出对象
+    globals?.destroy()
     self.postMessage({ id, output } as WorkerResponse)
   }
 }

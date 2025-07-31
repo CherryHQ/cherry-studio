@@ -1,14 +1,14 @@
 import * as fs from 'node:fs'
-import { open, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
+import chardet from 'chardet'
 import { app } from 'electron'
 import iconv from 'iconv-lite'
-import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils:File')
@@ -170,39 +170,24 @@ export function getMcpDir() {
  * @returns 解码后的文件内容
  */
 export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
-  // 读取前1MB以检测编码
-  const buffer = Buffer.alloc(1 * MB)
-  const fh = await open(filePath, 'r')
-  const { buffer: bufferRead } = await fh.read(buffer, 0, 1 * MB, 0)
-  await fh.close()
+  const encoding = (await chardet.detectFile(filePath, { sampleSize: MB })) || 'UTF-8'
+  logger.debug(`File ${filePath} detected encoding: ${encoding}`)
 
-  // 获取文件编码格式，最多取前两个可能的编码
-  const encodings = jschardet
-    .detectAll(bufferRead)
-    .map((item) => ({
-      ...item,
-      encoding: item.encoding === 'ascii' ? 'UTF-8' : item.encoding
-    }))
-    .filter((item, index, array) => array.findIndex((prevItem) => prevItem.encoding === item.encoding) === index)
-    .slice(0, 2)
-
-  if (encodings.length === 0) {
-    logger.error('Failed to detect encoding. Use utf-8 to decode.')
-    const data = await readFile(filePath)
-    return iconv.decode(data, 'UTF-8')
-  }
-
+  const encodings = [encoding, 'UTF-8']
   const data = await readFile(filePath)
 
-  for (const item of encodings) {
-    const encoding = item.encoding
-    const content = iconv.decode(data, encoding)
-    if (content.includes('\uFFFD')) {
-      logger.error(
-        `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
-      )
-    } else {
-      return content
+  for (const encoding of encodings) {
+    try {
+      const content = iconv.decode(data, encoding)
+      if (!content.includes('\uFFFD')) {
+        return content
+      } else {
+        logger.warn(
+          `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
+        )
+      }
+    } catch (error) {
+      logger.error(`Failed to decode file ${filePath} with encoding ${encoding}: ${error}`)
     }
   }
 

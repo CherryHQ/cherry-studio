@@ -3,6 +3,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
@@ -22,10 +23,32 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
   const [keepAliveMinapps, setKeepAliveMinapps] = useState(openedKeepAliveMinapps)
 
   useEffect(() => {
-    setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
+    const timer = setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
+    return () => clearTimeout(timer)
   }, [openedKeepAliveMinapps])
 
-  const handleOnClick = (app) => {
+  // animation for minapp switch indicator
+  useEffect(() => {
+    const iconDefaultWidth = 30 // 22px icon + 8px gap
+    const iconDefaultOffset = 10 // initial offset
+    const container = document.querySelector('.TopNavContainer') as HTMLElement
+    const activeIcon = document.querySelector('.TopNavContainer .opened-active') as HTMLElement
+
+    let indicatorLeft = 0,
+      indicatorBottom = 0
+    if (minappShow && activeIcon && container) {
+      indicatorLeft = activeIcon.offsetLeft + activeIcon.offsetWidth / 2 - 4 // 4 is half of the indicator's width (8px)
+      indicatorBottom = 0
+    } else {
+      indicatorLeft =
+        ((keepAliveMinapps.length > 0 ? keepAliveMinapps.length : 1) / 2) * iconDefaultWidth + iconDefaultOffset - 4
+      indicatorBottom = -50
+    }
+    container?.style.setProperty('--indicator-left', `${indicatorLeft}px`)
+    container?.style.setProperty('--indicator-bottom', `${indicatorBottom}px`)
+  }, [currentMinappId, keepAliveMinapps, minappShow])
+
+  const handleOnClick = (app: MinAppType) => {
     if (minappShow && currentMinappId === app.id) {
       hideMinappPopup()
     } else {
@@ -41,7 +64,8 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
 
   return (
     <TopNavContainer
-      style={{ backgroundColor: keepAliveMinapps.length > 1 ? 'var(--color-list-item)' : 'transparent' }}>
+      className="TopNavContainer"
+      style={{ backgroundColor: keepAliveMinapps.length > 0 ? 'var(--color-list-item)' : 'transparent' }}>
       <TopNavMenus>
         {keepAliveMinapps.map((app) => {
           const menuItems: MenuProps['items'] = [
@@ -60,20 +84,21 @@ export const TopNavbarOpenedMinappTabs: FC = () => {
               }
             }
           ]
+
           const isActive = minappShow && currentMinappId === app.id
 
           return (
             <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="bottom">
-              <StyledLink>
-                <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                  <TopNavIcon
-                    theme={theme}
-                    onClick={() => handleOnClick(app)}
-                    className={`${isActive ? 'opened-active' : ''}`}>
+              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+                <TopNavItemContainer
+                  onClick={() => handleOnClick(app)}
+                  theme={theme}
+                  className={`${isActive ? 'opened-active' : ''}`}>
+                  <TopNavIcon theme={theme}>
                     <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
                   </TopNavIcon>
-                </Dropdown>
-              </StyledLink>
+                </TopNavItemContainer>
+              </Dropdown>
             </Tooltip>
           )
         })}
@@ -155,16 +180,14 @@ export const SidebarOpenedMinappTabs: FC = () => {
 
             return (
               <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
-                <StyledLink>
-                  <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                    <Icon
-                      theme={theme}
-                      onClick={() => handleOnClick(app)}
-                      className={`${isActive ? 'opened-active' : ''}`}>
-                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                    </Icon>
-                  </Dropdown>
-                </StyledLink>
+                <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+                  <Icon
+                    theme={theme}
+                    onClick={() => handleOnClick(app)}
+                    className={`${isActive ? 'opened-active' : ''}`}>
+                    <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                  </Icon>
+                </Dropdown>
               </Tooltip>
             )
           })}
@@ -198,16 +221,14 @@ export const SidebarPinnedApps: FC = () => {
         const isActive = minappShow && currentMinappId === app.id
         return (
           <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
-            <StyledLink>
-              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                <Icon
-                  theme={theme}
-                  onClick={() => openMinappKeepAlive(app)}
-                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                </Icon>
-              </Dropdown>
-            </StyledLink>
+            <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+              <Icon
+                theme={theme}
+                onClick={() => openMinappKeepAlive(app)}
+                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
+                <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+              </Icon>
+            </Dropdown>
           </Tooltip>
         )
       }}
@@ -236,16 +257,10 @@ const Icon = styled.div<{ theme: string }>`
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     cursor: pointer;
-    .icon {
-      color: var(--color-icon-white);
-    }
   }
   &.active {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
-    .icon {
-      color: var(--color-primary);
-    }
   }
 
   @keyframes borderBreath {
@@ -273,14 +288,6 @@ const Icon = styled.div<{ theme: string }>`
     border-radius: inherit;
     opacity: 0.3;
     border: 0.5px solid var(--color-primary);
-  }
-`
-
-const StyledLink = styled.div`
-  text-decoration: none;
-  -webkit-app-region: none;
-  &* {
-    user-select: none;
   }
 `
 
@@ -326,42 +333,46 @@ const TabsWrapper = styled.div`
 const TopNavContainer = styled.div`
   display: flex;
   align-items: center;
-  padding: 4px 2px;
-  gap: 6px;
+  padding: 2px;
+  gap: 4px;
   background-color: var(--color-list-item);
   border-radius: 20px;
   margin: 0 5px;
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: var(--indicator-left, 0);
+    bottom: var(--indicator-bottom, 0);
+    width: 8px;
+    height: 4px;
+    background-color: var(--color-primary);
+    transition:
+      left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      bottom 0.3s ease-in-out;
+    border-radius: 2px;
+  }
 `
 
 const TopNavMenus = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 2px;
   height: 100%;
 `
 
 const TopNavIcon = styled(Icon)`
   width: 22px;
   height: 22px;
+`
 
-  .icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
-    opacity: 0.8;
-    border-radius: 50%;
-  }
-
-  &.opened-active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
-    border: 0.5px solid var(--color-border);
-    border-radius: 50%;
-    .icon {
-      color: var(--color-primary);
-    }
-  }
+const TopNavItemContainer = styled.div`
+  display: flex;
+  transition: border 0.2s ease;
+  border-radius: 18px;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 2px;
 `

@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
@@ -204,6 +205,8 @@ export interface SettingsState {
   enableDeveloperMode: boolean
   // UI
   navbarPosition: 'left' | 'top'
+  // API Server
+  apiServer: ApiServerConfig
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -376,7 +379,14 @@ export const initialState: SettingsState = {
   // Developer mode
   enableDeveloperMode: false,
   // UI
-  navbarPosition: 'left'
+  navbarPosition: 'left',
+  // API Server
+  apiServer: {
+    enabled: false,
+    host: 'localhost',
+    port: 23333,
+    apiKey: `cs-sk-${uuid()}`
+  }
 }
 
 const settingsSlice = createSlice({
@@ -780,6 +790,25 @@ const settingsSlice = createSlice({
     },
     setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
       state.navbarPosition = action.payload
+    },
+    // API Server actions
+    setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        enabled: action.payload
+      }
+    },
+    setApiServerPort: (state, action: PayloadAction<number>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        port: action.payload
+      }
+    },
+    setApiServerApiKey: (state, action: PayloadAction<string>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        apiKey: action.payload
+      }
     }
   }
 })
@@ -902,7 +931,11 @@ export const {
   setS3,
   setS3Partial,
   setEnableDeveloperMode,
-  setNavbarPosition
+  setNavbarPosition,
+  // API Server actions
+  setApiServerEnabled,
+  setApiServerPort,
+  setApiServerApiKey
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

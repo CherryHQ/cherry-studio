@@ -187,6 +187,7 @@ export type ProviderType =
   | 'azure-openai'
   | 'vertexai'
   | 'mistral'
+  | 'aws-bedrock'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
@@ -512,6 +513,7 @@ export type GenerateImageResponse = {
 }
 
 export type LanguageCode =
+  | 'unknown'
   | 'en-us'
   | 'zh-cn'
   | 'zh-tw'
@@ -838,6 +840,13 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+
+export interface ApiServerConfig {
+  enabled: boolean
+  host: string
+  port: number
+  apiKey: string
+}
 
 // Memory Service Types
 // ========================================================================

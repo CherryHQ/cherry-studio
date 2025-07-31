@@ -262,7 +262,7 @@ describe('export', () => {
         { type: MessageBlockType.MAIN_TEXT, content: '' }
       ])
       const markdown = messageToMarkdown(msgWithEmptyContent)
-      expect(markdown).toContain('### 🧑‍💻 User')
+      expect(markdown).toContain('## 🧑‍💻 User')
       // Should handle empty content gracefully
       expect(markdown).toBeDefined()
       expect(markdown.split('\n\n').filter((s) => s.trim()).length).toBeGreaterThanOrEqual(1)
@@ -272,11 +272,11 @@ describe('export', () => {
       const msg = mockedMessages.find((m) => m.id === 'u1')
       expect(msg).toBeDefined()
       const markdown = messageToMarkdown(msg!)
-      expect(markdown).toContain('### 🧑‍💻 User')
+      expect(markdown).toContain('## 🧑‍💻 User')
       expect(markdown).toContain('hello user')
 
       // The format is: [titleSection, '', contentSection, citation].join('\n')
-      // When citation is empty, we get: "### 🧑‍💻 User\n\nhello user\n"
+      // When citation is empty, we get: "## 🧑‍💻 User\n\nhello user\n"
       const sections = markdown.split('\n\n')
       expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
     })
@@ -285,11 +285,11 @@ describe('export', () => {
       const msg = mockedMessages.find((m) => m.id === 'a1')
       expect(msg).toBeDefined()
       const markdown = messageToMarkdown(msg!)
-      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('hi assistant')
 
       // The format is: [titleSection, '', contentSection, citation].join('\n')
-      // When citation is empty, we get: "### 🤖 Assistant\n\nhi assistant\n"
+      // When citation is empty, we get: "## 🤖 Assistant\n\nhi assistant\n"
       const sections = markdown.split('\n\n')
       expect(sections.length).toBeGreaterThanOrEqual(2) // title section and content section
     })
@@ -298,7 +298,7 @@ describe('export', () => {
       const msg = createMessage({ role: 'user', id: 'u2' }, [])
       mockedMessages.push(msg)
       const markdown = messageToMarkdown(msg)
-      expect(markdown).toContain('### 🧑‍💻 User')
+      expect(markdown).toContain('## 🧑‍💻 User')
       // Check that it doesn't fail when no content exists
       expect(markdown).toBeDefined()
     })
@@ -309,7 +309,7 @@ describe('export', () => {
         { type: MessageBlockType.CITATION }
       ])
       const markdown = messageToMarkdown(msgWithCitation)
-      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main content')
       expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
     })
@@ -341,7 +341,7 @@ describe('export', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
       const markdown = messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('<summary>common.reasoning_content</summary>')
@@ -366,7 +366,7 @@ describe('export', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
       const markdown = messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
@@ -375,7 +375,7 @@ describe('export', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
       const markdown = messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
@@ -1015,7 +1015,7 @@ describe('Citation formatting in Markdown export', () => {
     const markdown = messageToMarkdown(msgWithCitations)
 
     // Should contain the title and content
-    expect(markdown).toContain('### 🤖 Assistant')
+    expect(markdown).toContain('## 🤖 Assistant')
     expect(markdown).toContain('Content with citations')
 
     // Should include citation content (mocked by getCitationContent)

@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
-import { loggerService } from '@renderer/services/LoggerService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,

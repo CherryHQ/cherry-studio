@@ -1,6 +1,13 @@
 import i18n from '@renderer/i18n'
 import { Language } from '@renderer/types'
 
+export const UNKNOWN: Language = {
+  value: 'Unknown',
+  langCode: 'unknown',
+  label: () => i18n.t('languages.unknown'),
+  emoji: '🏳️'
+}
+
 export const ENGLISH: Language = {
   value: 'English',
   langCode: 'en-us',

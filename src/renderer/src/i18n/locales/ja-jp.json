@@ -76,6 +76,62 @@
     },
     "title": "エージェント"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "コピー",
+      "regenerate": "再生成",
+      "restart": {
+        "button": "再起動",
+        "tooltip": "サーバーを再起動"
+      },
+      "start": "開始",
+      "stop": "停止"
+    },
+    "authHeader": {
+      "title": "認証ヘッダー"
+    },
+    "authHeaderText": "認証ヘッダーで使用：",
+    "configuration": "設定",
+    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
+    "documentation": {
+      "title": "API ドキュメント"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "API キーをコピー",
+        "description": "API アクセスのための安全な認証トークン",
+        "label": "API キー",
+        "placeholder": "API キーは自動生成されます"
+      },
+      "port": {
+        "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
+        "helpText": "ポートを変更するにはサーバーを停止してください",
+        "label": "ポート"
+      },
+      "url": {
+        "copyTooltip": "URL をコピー",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API キーがクリップボードにコピーされました",
+      "apiKeyRegenerated": "API キーが再生成されました",
+      "operationFailed": "API サーバーの操作に失敗しました：",
+      "restartError": "API サーバーの再起動に失敗しました：",
+      "restartFailed": "API サーバーの再起動に失敗しました：",
+      "restartSuccess": "API サーバーが正常に再起動されました",
+      "startError": "API サーバーの開始に失敗しました：",
+      "startSuccess": "API サーバーが正常に開始されました",
+      "stopError": "API サーバーの停止に失敗しました：",
+      "stopSuccess": "API サーバーが正常に停止されました",
+      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+    },
+    "status": {
+      "running": "実行中",
+      "stopped": "停止中"
+    },
+    "title": "API サーバー"
+  },
   "assistants": {
     "abbr": "アシスタント",
     "clear": {
@@ -913,6 +969,7 @@
     "thai": "タイ語",
     "turkish": "トルコ語",
     "ukrainian": "ウクライナ語",
+    "unknown": "未知",
     "urdu": "ウルドゥー語",
     "vietnamese": "ベトナム語"
   },
@@ -1521,7 +1578,7 @@
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
     "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
-    "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
+    "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
@@ -1593,6 +1650,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "百川",
     "baidu-cloud": "Baidu Cloud",
@@ -3034,6 +3092,16 @@
         "tip": "複数のキーはカンマまたはスペースで区切ります"
       },
       "api_version": "APIバージョン",
+      "aws-bedrock": {
+        "access_key_id": "AWS アクセスキー ID",
+        "access_key_id_help": "あなたの AWS アクセスキー ID は、AWS Bedrock サービスへのアクセスに使用されます",
+        "description": "AWS Bedrock は、Amazon が提供する完全に管理されたベースモデルサービスで、さまざまな最先端の大言語モデルをサポートしています",
+        "region": "AWS リージョン",
+        "region_help": "あなたの AWS サービスリージョン、例：us-east-1",
+        "secret_access_key": "AWS アクセスキー",
+        "secret_access_key_help": "あなたの AWS アクセスキー、安全に保管してください",
+        "title": "AWS Bedrock 設定"
+      },
       "azure": {
         "apiversion": {
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
@@ -3394,6 +3462,7 @@
     },
     "close": "閉じる",
     "closed": "翻訳は閉じられました",
+    "complete": "翻訳完了",
     "confirm": {
       "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
       "title": "翻訳確認"
@@ -3405,13 +3474,17 @@
     "empty": "翻訳内容が空です",
     "error": {
       "failed": "翻訳に失敗しました",
-      "not_configured": "翻訳モデルが設定されていません"
+      "not_configured": "翻訳モデルが設定されていません",
+      "unknown": "翻訳中に不明なエラーが発生しました"
     },
     "history": {
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
       "delete": "削除",
       "empty": "翻訳履歴がありません",
+      "error": {
+        "save": "保存翻訳履歴に失敗しました"
+      },
       "title": "翻訳履歴"
     },
     "input": {

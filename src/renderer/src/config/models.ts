@@ -2345,7 +2345,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'google'
     }
   ],
-  'new-api': []
+  'new-api': [],
+  'aws-bedrock': []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2703,6 +2704,14 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   )
 }
 
+export function isQwen3235BA22BThinkingModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('qwen3-235b-a22b-thinking')
+}
+
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2816,7 +2825,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
     return true
   }
 

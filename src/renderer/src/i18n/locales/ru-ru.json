@@ -76,6 +76,62 @@
     },
     "title": "Агенты"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Копировать",
+      "regenerate": "Перегенерировать",
+      "restart": {
+        "button": "Перезапустить",
+        "tooltip": "Перезапустить сервер"
+      },
+      "start": "Запустить",
+      "stop": "Остановить"
+    },
+    "authHeader": {
+      "title": "Авторизация"
+    },
+    "authHeaderText": "Использовать в заголовке авторизации:",
+    "configuration": "Конфигурация",
+    "description": "Предоставляет возможности ИИ Cherry Studio через HTTP API, совместимые с OpenAI",
+    "documentation": {
+      "title": "Документация API"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Копировать API ключ",
+        "description": "Безопасный токен для доступа к API",
+        "label": "API Ключ",
+        "placeholder": "API ключ будет сгенерирован автоматически"
+      },
+      "port": {
+        "description": "TCP порт для HTTP сервера (1000-65535)",
+        "helpText": "Остановите сервер для изменения порта",
+        "label": "Порт"
+      },
+      "url": {
+        "copyTooltip": "Копировать URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API ключ скопирован в буфер обмена",
+      "apiKeyRegenerated": "API ключ перегенерирован",
+      "operationFailed": "Операция API сервера не удалась: ",
+      "restartError": "Не удалось перезапустить API сервер: ",
+      "restartFailed": "Перезапуск API сервера не удался: ",
+      "restartSuccess": "API сервер успешно перезапущен",
+      "startError": "Не удалось запустить API сервер: ",
+      "startSuccess": "API сервер успешно запущен",
+      "stopError": "Не удалось остановить API сервер: ",
+      "stopSuccess": "API сервер успешно остановлен",
+      "urlCopied": "URL сервера скопирован в буфер обмена"
+    },
+    "status": {
+      "running": "Работает",
+      "stopped": "Остановлен"
+    },
+    "title": "API Сервер"
+  },
   "assistants": {
     "abbr": "Ассистент",
     "clear": {
@@ -913,6 +969,7 @@
     "thai": "Тайский",
     "turkish": "Туркменский",
     "ukrainian": "украинский язык",
+    "unknown": "неизвестно",
     "urdu": "Урду",
     "vietnamese": "Вьетнамский"
   },
@@ -1593,6 +1650,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
@@ -3034,6 +3092,16 @@
         "tip": "Несколько ключей, разделенных запятыми или пробелами"
       },
       "api_version": "Версия API",
+      "aws-bedrock": {
+        "access_key_id": "AWS Ключ доступа ID",
+        "access_key_id_help": "Ваш AWS Ключ доступа ID для доступа к AWS Bedrock",
+        "description": "AWS Bedrock — это полное управляемое сервисное предложение для моделей, поддерживающее различные современные модели языка",
+        "region": "AWS регион",
+        "region_help": "Ваш регион AWS, например us-east-1",
+        "secret_access_key": "AWS Ключ доступа",
+        "secret_access_key_help": "Ваш AWS Ключ доступа, пожалуйста, храните его в безопасности",
+        "title": "AWS Bedrock Конфигурация"
+      },
       "azure": {
         "apiversion": {
           "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview"
@@ -3394,6 +3462,7 @@
     },
     "close": "Закрыть",
     "closed": "Перевод закрыт",
+    "complete": "перевод завершен",
     "confirm": {
       "content": "Перевод заменит исходный текст, продолжить?",
       "title": "Перевод подтверждение"
@@ -3405,13 +3474,17 @@
     "empty": "Содержимое перевода пусто",
     "error": {
       "failed": "Перевод не удалось",
-      "not_configured": "Модель перевода не настроена"
+      "not_configured": "Модель перевода не настроена",
+      "unknown": "Во время перевода возникла неизвестная ошибка"
     },
     "history": {
       "clear": "Очистить историю",
       "clear_description": "Очистка истории удалит все записи переводов. Продолжить?",
       "delete": "Удалить",
       "empty": "История переводов отсутствует",
+      "error": {
+        "save": "Не удалось сохранить историю переводов"
+      },
       "title": "История переводов"
     },
     "input": {

@@ -31,6 +31,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const updateSelectedWebSearchProvider = useCallback(
     (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
+      // NOTE: 也许可以用startTransition优化卡顿问题
       setTimeout(() => {
         const currentWebSearchProviderId = assistant.webSearchProviderId
         const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId

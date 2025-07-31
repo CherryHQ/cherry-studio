@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_MAX_TOKENS,
@@ -19,6 +20,8 @@ import type {
   TranslateAssistant
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+
+const logger = loggerService.withContext('AssistantService')
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -49,6 +52,11 @@ export function getDefaultTranslateAssistant(targetLanguage: Language, text: str
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
   assistant.model = translateModel
+
+  if (!assistant.model) {
+    logger.error('No translate model')
+    throw new Error(i18n.t('translate.error.not_configured'))
+  }
 
   assistant.settings = {
     temperature: 0.7
