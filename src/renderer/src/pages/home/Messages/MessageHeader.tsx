@@ -117,11 +117,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => 
       {isMultiSelectMode && (
         <Checkbox
           checked={isSelected}
-          onChange={(e) => {
-            // 防止点击 checkbox 触发 wrapper 的点击事件
-            e.stopPropagation
-            handleSelectMessage(message.id, e.target.checked)
-          }}
+          onChange={(e) => handleSelectMessage(message.id, e.target.checked)}
           style={{ position: 'absolute', right: 0, top: 0 }}
         />
       )}

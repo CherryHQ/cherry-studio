@@ -40,31 +40,13 @@ interface Props {
 const logger = loggerService.withContext('MessageItem')
 
 const WrapperContainer = ({
-  messageId,
   isMultiSelectMode,
-  isSelected,
-  handleSelectMessage,
   children
 }: {
-  messageId: string
   isMultiSelectMode: boolean
-  isSelected: boolean
-  handleSelectMessage: (messageId: string, selected: boolean) => void
   children: React.ReactNode
 }) => {
-  return isMultiSelectMode ? (
-    <div
-      onClick={() => {
-        handleSelectMessage(messageId, !isSelected)
-      }}
-      style={{
-        cursor: 'pointer'
-      }}>
-      {children}
-    </div>
-  ) : (
-    children
-  )
+  return isMultiSelectMode ? <label style={{ cursor: 'pointer' }}>{children}</label> : children
 }
 
 const MessageItem: FC<Props> = ({
@@ -78,10 +60,7 @@ const MessageItem: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
-
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
-  const isSelected = selectedMessageIds?.includes(message.id)
-
+  const { isMultiSelectMode } = useChatContext(topic)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { messageFont, fontSize, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
@@ -172,11 +151,7 @@ const MessageItem: FC<Props> = ({
   }
 
   return (
-    <WrapperContainer
-      isMultiSelectMode={isMultiSelectMode}
-      messageId={message.id}
-      isSelected={isSelected}
-      handleSelectMessage={handleSelectMessage}>
+    <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
       <MessageContainer
         key={message.id}
         className={classNames({
