@@ -116,7 +116,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
-      files: <Folder size={15} />
+      files: <Folder size={16} />,
+      cherryAgent: <Sparkle size={16} />
     }),
     []
   )
@@ -214,7 +215,7 @@ const IconList = styled.div`
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  overflow-y: hidden;
+  overflow-y: auto;
 `
 
 const IconItem = styled.div`

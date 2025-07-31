@@ -1,30 +1,17 @@
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
 import { usePocMessages } from '@renderer/hooks/usePocMessages'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import React, { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import PocCommandInput from './components/PocCommandInput'
-import PocHeader from './components/PocHeader'
 import PocMessageList from './components/PocMessageList'
 import PocStatusBar from './components/PocStatusBar'
 
-const PageContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  width: 100%;
-  background: var(--color-background);
-`
+const CherryAgentPage: React.FC = () => {
+  const { isLeftNavbar } = useNavbarPosition()
 
-const ContentArea = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-`
-
-const CommandPocPage: React.FC = () => {
   // Initialize hooks
   const messagesHook = usePocMessages()
   const commandHook = usePocCommand()
@@ -32,7 +19,7 @@ const CommandPocPage: React.FC = () => {
 
   // Local state for command count tracking
   const [commandCount, setCommandCount] = useState(0)
-  const [currentWorkingDirectory] = useState<string>(process.cwd())
+  const [currentWorkingDirectory] = useState<string>('/Users/weliu')
 
   // Handle command execution
   const handleExecuteCommand = useCallback(
@@ -79,19 +66,55 @@ const CommandPocPage: React.FC = () => {
   }, [commandHook])
 
   return (
-    <PageContainer>
-      <PocHeader currentWorkingDirectory={currentWorkingDirectory} />
-      <ContentArea>
-        <PocMessageList messages={messagesHook.messages} />
-        <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
-        <PocCommandInput
-          onSendCommand={handleExecuteCommand}
-          disabled={commandHook.isExecuting}
-          commandHistory={historyHook}
+    <Container id="cherry-agent-page">
+      {/*{isLeftNavbar && (
+        <Navbar
+          activeAssistant={activeAssistant}
+          activeTopic={activeTopic}
+          setActiveTopic={setActiveTopic}
+          setActiveAssistant={setActiveAssistant}
+          position="left"
         />
-      </ContentArea>
-    </PageContainer>
+      )}*/}
+      <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
+        <ContentArea>
+          <PocMessageList messages={messagesHook.messages} />
+          <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
+          <PocCommandInput
+            onSendCommand={handleExecuteCommand}
+            disabled={commandHook.isExecuting}
+            // commandHistory={historyHook}
+          />
+        </ContentArea>
+      </ContentContainer>
+    </Container>
   )
 }
 
-export default CommandPocPage
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  [navbar-position='left'] & {
+    max-width: calc(100vw - var(--sidebar-width));
+  }
+  [navbar-position='top'] & {
+    max-width: 100vw;
+  }
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  overflow: hidden;
+`
+
+const ContentArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`
+
+export default CherryAgentPage

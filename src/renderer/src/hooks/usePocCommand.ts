@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import type { PocCommandExecution } from '@renderer/pages/command-poc/types'
 import { agentCommandService } from '@renderer/services/AgentCommandService'
+import type { PocCommandExecution } from '@types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('UsePocCommand')

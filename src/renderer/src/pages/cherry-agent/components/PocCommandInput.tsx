@@ -1,7 +1,6 @@
+import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import React, { KeyboardEvent, useCallback, useState } from 'react'
 import styled from 'styled-components'
-
-import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 
 const InputContainer = styled.div`
   display: flex;
@@ -74,15 +73,11 @@ interface PocCommandInputProps {
   commandHistory?: ReturnType<typeof useCommandHistory>
 }
 
-const PocCommandInput: React.FC<PocCommandInputProps> = ({ 
-  onSendCommand = () => {}, 
-  disabled = false,
-  commandHistory 
-}) => {
+const PocCommandInput: React.FC<PocCommandInputProps> = ({ onSendCommand = () => {}, disabled = false }) => {
   const [input, setInput] = useState('')
-  
+
   // Use the provided command history or create a default one
-  const history = commandHistory || useCommandHistory()
+  const history = useCommandHistory()
 
   const handleSend = useCallback(() => {
     const trimmedInput = input.trim()
@@ -115,7 +110,7 @@ const PocCommandInput: React.FC<PocCommandInputProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = e.target.value
       setInput(newValue)
-      
+
       // Reset navigation if user starts typing and is not navigating
       if (!history.isNavigating) {
         history.resetNavigation()

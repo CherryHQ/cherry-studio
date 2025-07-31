@@ -1,7 +1,6 @@
+import { PocMessage } from '@types'
 import React from 'react'
 import styled from 'styled-components'
-
-import { PocMessage } from '../types'
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;

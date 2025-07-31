@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
+import { PocCommandExecution, PocCommandOutput, PocExecuteCommandRequest } from '@types'
 import Emittery from 'emittery'
-
-import { PocCommandExecution, PocCommandOutput, PocExecuteCommandRequest } from '../pages/command-poc/types'
 
 const logger = loggerService.withContext('AgentCommandService')
 
@@ -50,6 +49,12 @@ export class AgentCommandService {
    */
   private setupOutputListener(): void {
     if (this.outputListenerRemover) {
+      return
+    }
+
+    // Check if we're running in Electron context
+    if (!window.electron?.ipcRenderer) {
+      logger.warn('Not running in Electron context, skipping IPC listener setup')
       return
     }
 
@@ -104,6 +109,13 @@ export class AgentCommandService {
    * @returns Promise that resolves when command starts execution
    */
   public async executeCommand(command: string, workingDirectory: string = process.cwd()): Promise<string> {
+    // Check if we're running in Electron context
+    if (!window.api?.poc?.executeCommand) {
+      const errorMessage = 'Not running in Electron context - command execution unavailable'
+      logger.warn(errorMessage)
+      throw new Error(errorMessage)
+    }
+
     const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     logger.info('Executing command', {
@@ -154,6 +166,12 @@ export class AgentCommandService {
    * @returns Promise that resolves to true if interrupted successfully
    */
   public async interruptCommand(commandId: string): Promise<boolean> {
+    // Check if we're running in Electron context
+    if (!window.api?.poc?.interruptCommand) {
+      logger.warn('Not running in Electron context - command interruption unavailable')
+      return false
+    }
+
     logger.info('Interrupting command', { commandId })
 
     try {
@@ -272,6 +290,12 @@ export class AgentCommandService {
    * @returns Promise that resolves to array of active processes
    */
   public async getActiveProcesses(): Promise<any[]> {
+    // Check if we're running in Electron context
+    if (!window.api?.poc?.getActiveProcesses) {
+      logger.warn('Not running in Electron context - cannot get active processes')
+      return []
+    }
+
     try {
       return await window.api.poc.getActiveProcesses()
     } catch (error) {

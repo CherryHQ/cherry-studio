@@ -1,11 +1,11 @@
 import { ChildProcess, spawn } from 'node:child_process'
-import { platform } from 'node:os'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
+import getLoginShellEnvironment from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
+import { PocCommandOutput, PocExecuteCommandRequest } from '@types'
 import { BrowserWindow } from 'electron'
-
-import { PocCommandOutput, PocExecuteCommandRequest } from '../../renderer/src/pages/command-poc/types'
 
 const logger = loggerService.withContext('PocCommandExecutor')
 
@@ -18,7 +18,7 @@ export interface PocRunningProcess {
 }
 
 /**
- * PocCommandExecutor - POC implementation for cross-platform command execution
+ * ShellCommandExecutor - POC implementation for cross-platform command execution
  *
  * Features:
  * - Cross-platform shell detection (cmd on Windows, bash on Unix-like systems)
@@ -27,8 +27,8 @@ export interface PocRunningProcess {
  * - Command interruption support
  * - Proper error handling and process cleanup
  */
-export class PocCommandExecutor {
-  private static instance: PocCommandExecutor | null = null
+export class ShellCommandExecutor {
+  private static instance: ShellCommandExecutor | null = null
   private mainWindow: BrowserWindow | null = null
   private activeProcesses = new Map<string, PocRunningProcess>()
 
@@ -37,11 +37,11 @@ export class PocCommandExecutor {
     logger.info('PocCommandExecutor initialized')
   }
 
-  public static getInstance(): PocCommandExecutor {
-    if (!PocCommandExecutor.instance) {
-      PocCommandExecutor.instance = new PocCommandExecutor()
+  public static getInstance(): ShellCommandExecutor {
+    if (!ShellCommandExecutor.instance) {
+      ShellCommandExecutor.instance = new ShellCommandExecutor()
     }
-    return PocCommandExecutor.instance
+    return ShellCommandExecutor.instance
   }
 
   public setMainWindow(mainWindow: BrowserWindow) {
@@ -53,9 +53,7 @@ export class PocCommandExecutor {
    * Detects the appropriate shell for the current platform
    */
   private getShellCommand(): { shell: string; args: string[] } {
-    const isWindows = platform() === 'win32'
-
-    if (isWindows) {
+    if (isWin) {
       // Windows: Use cmd.exe with /c flag
       return {
         shell: 'cmd.exe',
@@ -89,15 +87,17 @@ export class PocCommandExecutor {
     try {
       const { shell, args } = this.getShellCommand()
       const fullArgs = [...args, command]
+      // load login shell environment
+      const loginEnv = await getLoginShellEnvironment()
 
       // Spawn the child process
       const childProcess = spawn(shell, fullArgs, {
         cwd: workingDirectory,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
-          ...process.env,
+          ...loginEnv,
           // Ensure UTF-8 encoding on Windows
-          ...(platform() === 'win32' ? { CHCP: '65001' } : {})
+          ...(isWin ? { CHCP: '65001' } : {})
         }
       })
 
@@ -242,4 +242,4 @@ export class PocCommandExecutor {
   }
 }
 
-export const pocCommandExecutor = PocCommandExecutor.getInstance()
+export const pocCommandExecutor = ShellCommandExecutor.getInstance()

@@ -1,7 +1,7 @@
+import { PocMessage } from '@types'
 import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
-import { PocMessage } from '../types'
 import PocMessageBubble from './PocMessageBubble'
 
 const MessageContainer = styled.div`

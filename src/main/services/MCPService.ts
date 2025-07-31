@@ -34,11 +34,11 @@ import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
+import getLoginShellEnvironment from '../utils/shell-env'
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
-import getLoginShellEnvironment from './mcp/shell-env'
 import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
