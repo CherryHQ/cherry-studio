@@ -3412,6 +3412,47 @@
         "time": "Show topic time"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Are you sure you want to delete?",
+          "title": "Delete custom language"
+        },
+        "error": {
+          "add": "Failed to add",
+          "delete": "Deletion failed",
+          "langCode": {
+            "builtin": "The language has built-in support",
+            "invalid": "Invalid language code"
+          },
+          "update": "Update failed",
+          "value": {
+            "empty": "Language name cannot be empty",
+            "too_long": "Language name is too long"
+          }
+        },
+        "langCode": {
+          "label": "language code",
+          "placeholder": "en-us"
+        },
+        "success": {
+          "add": "Added successfully",
+          "delete": "Deleted successfully",
+          "update": "Update successful"
+        },
+        "table": {
+          "action": {
+            "title": "Operation"
+          }
+        },
+        "value": {
+          "label": "Language name",
+          "placeholder": "English"
+        }
+      },
+      "prompt": "Translation prompt",
+      "title": "Translation settings"
+    },
     "tray": {
       "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
@@ -3468,16 +3509,28 @@
       "title": "Translation Confirmation"
     },
     "copied": "Translation content copied",
+    "custom": {
+      "label": "Custom language"
+    },
     "detected": {
       "language": "Auto Detect"
     },
     "empty": "Translation content is empty",
     "error": {
+      "custom": {
+        "delete": "Deletion failed",
+        "exist": "The language already exists",
+        "list": "Failed to read custom language list",
+        "update": "Update failed"
+      },
       "failed": "Translation failed",
       "not_configured": "Translation model is not configured",
+      "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"
     },
-    "exchange": "Swap source and target languages",
+    "exchange": {
+      "label": "Swap the source and target languages"
+    },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
@@ -3515,6 +3568,12 @@
       "preview": "Markdown Preview",
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
+    },
+    "success": {
+      "custom": {
+        "delete": "Deleted successfully",
+        "update": "Update successful"
+      }
     },
     "target_language": "Target Language",
     "title": "Translation",

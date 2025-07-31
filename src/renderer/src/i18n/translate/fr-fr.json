@@ -83,25 +83,28 @@
       "restart": {
         "button": "Redémarrer",
         "tooltip": "Redémarrer le Serveur"
-      }
+      },
+      "start": "Démarrer",
+      "stop": "Arrêt"
+    },
+    "authHeader": {
+      "title": "En-tête d'autorisation"
     },
     "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
     "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
-      "title": "Documentation API",
-      "unavailable": {
-        "description": "Démarrez le serveur API pour voir la documentation interactive",
-        "title": "Documentation API Indisponible"
-      }
+      "title": "Documentation API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
+        "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
+        "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
         "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
@@ -3409,6 +3412,47 @@
         "time": "Afficher l'heure du sujet"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Voulez-vous vraiment supprimer ?",
+          "title": "Supprimer la langue personnalisée"
+        },
+        "error": {
+          "add": "Échec de l'ajout",
+          "delete": "Échec de la suppression",
+          "langCode": {
+            "builtin": "Cette langue est prise en charge intégrée",
+            "invalid": "Code de langue non valide"
+          },
+          "update": "Échec de la mise à jour",
+          "value": {
+            "empty": "Le nom de la langue ne peut pas être vide",
+            "too_long": "Le nom de la langue est trop long"
+          }
+        },
+        "langCode": {
+          "label": "code de langue",
+          "placeholder": "fr-fr"
+        },
+        "success": {
+          "add": "Ajout réussi",
+          "delete": "Suppression réussie",
+          "update": "Mise à jour réussie"
+        },
+        "table": {
+          "action": {
+            "title": "Opération"
+          }
+        },
+        "value": {
+          "label": "Nom de la langue",
+          "placeholder": "français"
+        }
+      },
+      "prompt": "suivez l'invite du système",
+      "title": "Paramètres de traduction"
+    },
     "tray": {
       "onclose": "Minimiser dans la barre d'état système lors de la fermeture",
       "show": "Afficher l'icône dans la barre d'état système",
@@ -3465,16 +3509,28 @@
       "title": "Confirmation de traduction"
     },
     "copied": "Le contenu traduit a été copié",
+    "custom": {
+      "label": "Langue personnalisée"
+    },
     "detected": {
       "language": "Détection automatique"
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "custom": {
+        "delete": "Échec de la suppression",
+        "exist": "Ce langage existe déjà",
+        "list": "Échec de la lecture de la liste de langues personnalisée",
+        "update": "Échec de la mise à jour"
+      },
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
+      "not_supported": "Langue non prise en charge {{language}}",
       "unknown": "Une erreur inconnue s'est produite lors de la traduction"
     },
-    "exchange": "Échanger la langue source et la langue cible",
+    "exchange": {
+      "label": "Échanger la langue source et la langue cible"
+    },
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
@@ -3512,6 +3568,12 @@
       "preview": "Aperçu Markdown",
       "scroll_sync": "Paramètres de synchronisation du défilement",
       "title": "Paramètres de traduction"
+    },
+    "success": {
+      "custom": {
+        "delete": "Suppression réussie",
+        "update": "Mise à jour réussie"
+      }
     },
     "target_language": "Langue cible",
     "title": "traduction",
