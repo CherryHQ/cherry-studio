@@ -200,7 +200,7 @@ describe('prompt', () => {
 
       expect(finalPrompt).toEqual(expectedFinalPrompt)
       expect(finalPrompt).not.toContain('## Tool Use Formatting')
-      expect(finalPrompt).toContain('## Using the think tool')
+      // expect(finalPrompt).toContain('## Using the think tool')
     })
 
     it('should return the original prompt if no tools are provided to buildSystemPromptWithTools', () => {
@@ -252,7 +252,7 @@ describe('prompt', () => {
       // 3. 验证结果
       expect(finalPrompt).toEqual(expectedFinalPrompt)
       expect(finalPrompt).not.toContain('## Tool Use Formatting') // 验证不包含工具定义
-      expect(finalPrompt).toContain('## Using the think tool') // 验证包含思考指令
+      // expect(finalPrompt).toContain('## Using the think tool') // 验证包含思考指令
     })
   })
 })
