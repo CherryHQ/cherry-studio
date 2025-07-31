@@ -52,6 +52,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.files'),
       path: '/files',
       bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
+    },
+    {
+      icon: <Sparkle size={32} className="icon" />,
+      text: 'cherryAgent',
+      path: '/cherryAgent',
+      bgColor: 'linear-gradient(135deg, #6366F1, #4F46E5)' // AI Agent
     }
   ]
 

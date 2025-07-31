@@ -1,10 +1,14 @@
+import { SettingOutlined } from '@ant-design/icons'
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
 import { usePocMessages } from '@renderer/hooks/usePocMessages'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { Button } from 'antd'
 import React, { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
+import CherryAgentSettingsModal from './components/CherryAgentSettingsModal'
 import PocCommandInput from './components/PocCommandInput'
 import PocMessageList from './components/PocMessageList'
 import PocStatusBar from './components/PocStatusBar'
@@ -19,7 +23,8 @@ const CherryAgentPage: React.FC = () => {
 
   // Local state for command count tracking
   const [commandCount, setCommandCount] = useState(0)
-  const [currentWorkingDirectory] = useState<string>('/Users/weliu')
+  const [currentWorkingDirectory, setCurrentWorkingDirectory] = useState<string>('/Users/weliu')
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   // Handle command execution
   const handleExecuteCommand = useCallback(
@@ -65,19 +70,29 @@ const CherryAgentPage: React.FC = () => {
     return undefined
   }, [commandHook])
 
+  // Handle settings modal
+  const handleOpenSettings = useCallback(() => {
+    setShowSettingsModal(true)
+  }, [])
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsModal(false)
+  }, [])
+
+  const handleSaveSettings = useCallback((workingDirectory: string) => {
+    setCurrentWorkingDirectory(workingDirectory)
+  }, [])
+
   return (
     <Container id="cherry-agent-page">
-      {/*{isLeftNavbar && (
-        <Navbar
-          activeAssistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-          position="left"
-        />
-      )}*/}
+      <Navbar>
+        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>CherryAgent</NavbarCenter>
+      </Navbar>
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <ContentArea>
+          <HeaderBar>
+            <SettingsButton type="text" icon={<SettingOutlined />} onClick={handleOpenSettings} title="Settings" />
+          </HeaderBar>
           <PocMessageList messages={messagesHook.messages} />
           <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
           <PocCommandInput
@@ -87,6 +102,12 @@ const CherryAgentPage: React.FC = () => {
           />
         </ContentArea>
       </ContentContainer>
+      <CherryAgentSettingsModal
+        visible={showSettingsModal}
+        onClose={handleCloseSettings}
+        onSave={handleSaveSettings}
+        currentWorkingDirectory={currentWorkingDirectory}
+      />
     </Container>
   )
 }
@@ -115,6 +136,25 @@ const ContentArea = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+`
+
+const HeaderBar = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+`
+
+const SettingsButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+
+  &:hover {
+    color: var(--color-text);
+    background-color: var(--color-background-soft);
+  }
 `
 
 export default CherryAgentPage

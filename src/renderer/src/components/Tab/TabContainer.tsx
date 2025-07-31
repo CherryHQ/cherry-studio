@@ -54,6 +54,8 @@ const getTabIcon = (tabId: string): React.ReactNode | undefined => {
       return <Folder size={14} />
     case 'settings':
       return <Settings size={14} />
+    case 'cherryAgent':
+      return <Sparkle size={14} />
     default:
       return null
   }
