@@ -115,7 +115,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
   private async validateFile(filePath: string): Promise<void> {
     const pdfBuffer = await fs.promises.readFile(filePath)
 
-    const doc = await this.readPdf(new Uint8Array(pdfBuffer))
+    const doc = await this.readPdf(pdfBuffer)
 
     // 文件页数小于600页
     if (doc.numPages >= 600) {
@@ -178,7 +178,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       // 下载ZIP文件
       const response = await axios.get(zipUrl, { responseType: 'arraybuffer' })
-      fs.writeFileSync(zipPath, response.data)
+      fs.writeFileSync(zipPath, Buffer.from(response.data))
       logger.info(`Downloaded ZIP file: ${zipPath}`)
 
       // 确保提取目录存在

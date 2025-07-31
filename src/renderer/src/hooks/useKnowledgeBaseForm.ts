@@ -1,6 +1,4 @@
-import { isMac } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { useOcrProviders } from '@renderer/hooks/useOcr'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -42,11 +40,10 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
   const { preprocessProviders } = usePreprocessProviders()
-  const { ocrProviders } = useOcrProviders()
 
   const selectedDocPreprocessProvider = useMemo(
-    () => newBase.preprocessOrOcrProvider?.provider,
-    [newBase.preprocessOrOcrProvider]
+    () => newBase.preprocessProvider?.provider,
+    [newBase.preprocessProvider]
   )
 
   const docPreprocessSelectOptions = useMemo(() => {
@@ -57,14 +54,8 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
         .filter((p) => p.apiKey !== '' || p.id === 'mineru')
         .map((p) => ({ value: p.id, label: p.name }))
     }
-    const ocrOptions = {
-      label: t('settings.tool.ocr.provider'),
-      title: t('settings.tool.ocr.provider'),
-      options: ocrProviders.filter((p) => p.apiKey !== '').map((p) => ({ value: p.id, label: p.name }))
-    }
-
-    return isMac ? [preprocessOptions, ocrOptions] : [preprocessOptions]
-  }, [ocrProviders, preprocessProviders, t])
+    return [preprocessOptions]
+  }, [preprocessProviders, t])
 
   const handleEmbeddingModelChange = useCallback(
     (value: string) => {
@@ -92,21 +83,20 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
 
   const handleDocPreprocessChange = useCallback(
     (value: string) => {
-      const type = preprocessProviders.find((p) => p.id === value) ? 'preprocess' : 'ocr'
-      const provider = (type === 'preprocess' ? preprocessProviders : ocrProviders).find((p) => p.id === value)
+      const provider = preprocessProviders.find((p) => p.id === value)
       if (!provider) {
-        setNewBase((prev) => ({ ...prev, preprocessOrOcrProvider: undefined }))
+        setNewBase((prev) => ({ ...prev, preprocessProvider: undefined }))
         return
       }
       setNewBase((prev) => ({
         ...prev,
-        preprocessOrOcrProvider: {
-          type,
+        preprocessProvider: {
+          type: 'preprocess',
           provider
         }
       }))
     },
-    [preprocessProviders, ocrProviders]
+    [preprocessProviders]
   )
 
   const handleChunkSizeChange = useCallback(
@@ -152,7 +142,6 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const providerData = {
     providers,
     preprocessProviders,
-    ocrProviders,
     selectedDocPreprocessProvider,
     docPreprocessSelectOptions
   }

@@ -25,7 +25,6 @@ import { loggerService } from '@logger'
 import Embeddings from '@main/knowledge/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledge/loader'
 import { NoteLoader } from '@main/knowledge/loader/noteLoader'
-import OcrProvider from '@main/knowledge/ocr/OcrProvider'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
@@ -687,14 +686,9 @@ class KnowledgeService {
     userId: string
   ): Promise<FileMetadata> => {
     let fileToProcess: FileMetadata = file
-    if (base.preprocessOrOcrProvider && file.ext.toLowerCase() === '.pdf') {
+    if (base.preprocessProvider && file.ext.toLowerCase() === '.pdf') {
       try {
-        let provider: PreprocessProvider | OcrProvider
-        if (base.preprocessOrOcrProvider.type === 'preprocess') {
-          provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
-        } else {
-          provider = new OcrProvider(base.preprocessOrOcrProvider.provider)
-        }
+        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
         // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
@@ -728,8 +722,8 @@ class KnowledgeService {
     userId: string
   ): Promise<number> => {
     try {
-      if (base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessOrOcrProvider.provider, userId)
+      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
+        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
         return await provider.checkQuota()
       }
       throw new Error('No preprocess provider configured')

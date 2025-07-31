@@ -18,7 +18,7 @@ import { useEffect } from 'react'
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
-import { useNavbarPosition, useSettings } from './useSettings'
+import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
 const logger = loggerService.withContext('useAppInit')
@@ -31,7 +31,6 @@ export function useAppInit() {
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const memoryConfig = useAppSelector(selectMemoryConfig)
-  const { isTopNavbar } = useNavbarPosition()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -86,17 +85,13 @@ export function useAppInit() {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
 
     if (minappShow) {
-      if (isTopNavbar) {
-        window.root.style.background = 'var(--navbar-background)'
-      } else {
-        window.root.style.background =
-          windowStyle === 'transparent' && isMac ? 'var(--color-background)' : 'var(--navbar-background)'
-      }
+      window.root.style.background =
+        windowStyle === 'transparent' && isMac ? 'var(--color-background)' : 'var(--navbar-background)'
       return
     }
 
     window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme, isTopNavbar])
+  }, [windowStyle, minappShow, theme])
 
   useEffect(() => {
     if (isLocalAi) {

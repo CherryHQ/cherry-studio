@@ -1,17 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
-import { getFileExt } from '@main/utils/file'
+import { getFileExt, getTempDir } from '@main/utils/file'
 import { FileMetadata, PreprocessProvider } from '@types'
-import { app } from 'electron'
-import pdfjs from 'pdfjs-dist'
-import { TypedArray } from 'pdfjs-dist/types/src/display/api'
+import { PDFDocument } from 'pdf-lib'
+
+const logger = loggerService.withContext('BasePreprocessProvider')
 
 export default abstract class BasePreprocessProvider {
   protected provider: PreprocessProvider
   protected userId?: string
-  public storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
+  public storageDir = path.join(getTempDir(), 'preprocess')
 
   constructor(provider: PreprocessProvider, userId?: string) {
     if (!provider) {
@@ -19,7 +20,19 @@ export default abstract class BasePreprocessProvider {
     }
     this.provider = provider
     this.userId = userId
+    this.ensureDirectories()
   }
+
+  private ensureDirectories() {
+    try {
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+    } catch (error) {
+      logger.error('Failed to create directories:', error as Error)
+    }
+  }
+
   abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata; quota?: number }>
 
   abstract checkQuota(): Promise<number>
@@ -77,17 +90,11 @@ export default abstract class BasePreprocessProvider {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  public async readPdf(
-    source: string | URL | TypedArray,
-    passwordCallback?: (fn: (password: string) => void, reason: string) => string
-  ) {
-    const documentLoadingTask = pdfjs.getDocument(source)
-    if (passwordCallback) {
-      documentLoadingTask.onPassword = passwordCallback
+  public async readPdf(buffer: Buffer) {
+    const pdfDoc = await PDFDocument.load(buffer)
+    return {
+      numPages: pdfDoc.getPageCount()
     }
-
-    const document = await documentLoadingTask.promise
-    return document
   }
 
   public async sendPreprocessProgress(sourceId: string, progress: number): Promise<void> {

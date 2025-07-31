@@ -703,6 +703,7 @@
     "no_results": "沒有結果",
     "open": "開啟",
     "paste": "貼上",
+    "preview": "預覽",
     "prompt": "提示詞",
     "provider": "供應商",
     "reasoning_content": "已深度思考",
@@ -711,6 +712,7 @@
     "rename": "重新命名",
     "reset": "重設",
     "save": "儲存",
+    "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
     "selectedItems": "已選擇 {{count}} 項",
@@ -3300,26 +3302,11 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "最小置信度",
-          "mode": {
-            "accurate": "準確",
-            "fast": "快速",
-            "title": "識別模式"
-          }
-        },
-        "provider": "OCR 供應商",
-        "provider_placeholder": "選擇一個OCR服務提供商",
-        "title": "OCR 文字識別"
-      },
       "preprocess": {
         "provider": "前置處理供應商",
         "provider_placeholder": "選擇一個預處理供應商",
-        "title": "前置處理"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商或OCR。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能，而OCR僅能辨識文件內圖片文字或掃描PDF文字。"
+        "title": "前置處理",
+        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
       "title": "工具設定",
       "websearch": {

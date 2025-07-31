@@ -39,7 +39,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   private async validateFile(filePath: string): Promise<void> {
     const pdfBuffer = await fs.promises.readFile(filePath)
 
-    const doc = await this.readPdf(new Uint8Array(pdfBuffer))
+    const doc = await this.readPdf(pdfBuffer)
 
     // 文件页数小于1000页
     if (doc.numPages >= 1000) {
