@@ -622,22 +622,29 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  let error: Error | undefined
+  const onError = (e: Error) => {
+    error = e
+  }
+
   const params: CompletionsParams = {
     callType: 'translate',
     messages: content,
     assistant: { ...assistant, model },
     streamOutput: stream,
     enableReasoning,
-    onResponse
+    onResponse,
+    onError
   }
 
   const AI = new AiProvider(provider)
 
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
+  const result = await AI.completions(params)
+  logger.debug('fetchTranslate', result)
+  if (error) {
+    throw error
   }
+  return result.getText() || ''
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
