@@ -26,6 +26,7 @@ import {
   Assistant,
   ExternalToolResult,
   KnowledgeReference,
+  LanguageCode,
   MCPTool,
   MemoryItem,
   Model,
@@ -42,6 +43,7 @@ import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPromptWithThinkTool, buildSystemPromptWithTools } from '@renderer/utils/prompt'
+import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -688,10 +690,15 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     }
   }
 
+  const currentLang = store.getState().settings.language
+  const language = getLanguageByLangcode(currentLang.toLowerCase() as LanguageCode)
+  logger.debug('got language', language)
+  const replacedPrompt = prompt.replaceAll('{{language}}', language.value)
+
   const params: CompletionsParams = {
     callType: 'summary',
     messages: conversation,
-    assistant: { ...summaryAssistant, prompt, model },
+    assistant: { ...summaryAssistant, prompt: replacedPrompt, model },
     maxTokens: 1000,
     streamOutput: false,
     topicId,
