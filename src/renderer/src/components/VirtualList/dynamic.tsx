@@ -1,14 +1,17 @@
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import React, { memo, useCallback, useImperativeHandle, useMemo, useRef } from 'react'
+import React, { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import styled from 'styled-components'
+
+const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 
 type InheritedVirtualizerOptions = Partial<
   Omit<
     VirtualizerOptions<HTMLDivElement, Element>,
-    | 'count' // 由 items.length 决定
-    | 'getScrollElement' // 由内部 scrollerRef 决定
-    | 'estimateSize' // 提升为一级必选 prop
-    | 'rangeExtractor' // isSticky 提供更简单的抽象
+    | 'count' // determined by items.length
+    | 'getScrollElement' // determined by internal scrollerRef
+    | 'estimateSize' // promoted to a required prop
+    | 'rangeExtractor' // isSticky provides a simpler abstraction
   >
 >
 
@@ -34,30 +37,45 @@ export interface DynamicVirtualListRef {
 export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions {
   ref?: React.Ref<DynamicVirtualListRef>
 
-  /** 列表数据 */
+  /**
+   * List data
+   */
   items: T[]
 
-  /** 列表项渲染函数 */
+  /**
+   * List item renderer function
+   */
   children: (item: T, index: number) => React.ReactNode
 
-  /** 列表项大小估计函数（初始估计） */
+  /**
+   * List item size estimator function (initial estimation)
+   */
   estimateSize: (index: number) => number
 
   /**
-   * sticky 项判断函数，不能与 rangeExtractor 同时使用
+   * Sticky item predicate, cannot be used with rangeExtractor
    */
   isSticky?: (index: number) => boolean
 
   /**
-   * 范围提取函数，不能与 isSticky 同时使用
+   * Range extractor function, cannot be used with isSticky
    */
   rangeExtractor?: (range: Range) => number[]
 
-  /** 滚动容器样式 */
+  /**
+   * List item container style
+   */
+  itemContainerStyle?: React.CSSProperties
+
+  /**
+   * Scroll container style
+   */
   scrollerStyle?: React.CSSProperties
 
-  /** 列表项样式 */
-  itemContainerStyle?: React.CSSProperties
+  /**
+   * Hide the scrollbar automatically when scrolling is stopped
+   */
+  autoHideScrollbar?: boolean
 }
 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
@@ -68,11 +86,14 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     estimateSize,
     isSticky,
     rangeExtractor: customRangeExtractor,
-    scrollerStyle,
     itemContainerStyle,
+    scrollerStyle,
+    autoHideScrollbar = false,
     ...restOptions
   } = props
 
+  const [showScrollbar, setShowScrollbar] = useState(!autoHideScrollbar)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const scrollerRef = internalScrollerRef
 
@@ -85,6 +106,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const internalStickyRangeExtractor = useCallback(
     (range: Range) => {
+      // The active sticky index is the last one that is before or at the start of the visible range
       const newActiveStickyIndex =
         [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? stickyIndexes[0] ?? 0
 
@@ -92,7 +114,10 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         activeStickyIndexRef.current = newActiveStickyIndex
       }
 
+      // Merge the active sticky index and the default range extractor
       const next = new Set([activeStickyIndexRef.current, ...defaultRangeExtractor(range)])
+
+      // Sort the set to maintain proper order
       return [...next].sort((a, b) => a - b)
     },
     [stickyIndexes]
@@ -100,13 +125,41 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const rangeExtractor = customRangeExtractor ?? (isSticky ? internalStickyRangeExtractor : undefined)
 
+  const handleScrollbarHide = useCallback(
+    (isScrolling: boolean) => {
+      if (!autoHideScrollbar) return
+
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (isScrolling) {
+        setShowScrollbar(true)
+      } else {
+        timeoutRef.current = setTimeout(() => {
+          setShowScrollbar(false)
+        }, SCROLLBAR_AUTO_HIDE_DELAY)
+      }
+    },
+    [autoHideScrollbar]
+  )
+
   const virtualizer = useVirtualizer({
     ...restOptions,
     count: items.length,
     getScrollElement: () => scrollerRef.current,
     estimateSize,
-    rangeExtractor
+    rangeExtractor,
+    onChange: (instance, sync) => {
+      restOptions.onChange?.(instance, sync)
+      handleScrollbarHide(instance.isScrolling)
+    }
   })
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [autoHideScrollbar])
 
   useImperativeHandle(
     ref,
@@ -128,8 +181,14 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const { horizontal } = restOptions
 
   return (
-    <div
+    <ScrollContainer
       ref={scrollerRef}
+      className="dynamic-virtual-list"
+      role="scrollbar"
+      aria-label="Dynamic Virtual List"
+      aria-hidden={!showScrollbar}
+      $autoHide={autoHideScrollbar}
+      $show={showScrollbar}
       style={{
         overflow: 'auto',
         ...scrollerStyle
@@ -168,8 +227,25 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           )
         })}
       </div>
-    </div>
+    </ScrollContainer>
   )
 }
 
-export default memo(DynamicVirtualList) as <T>(props: DynamicVirtualListProps<T>) => React.ReactElement
+const ScrollContainer = styled.div<{ $autoHide: boolean; $show: boolean }>`
+  overflow: auto;
+  &::-webkit-scrollbar-thumb {
+    transition: background 0.3s ease-in-out;
+    will-change: background;
+    background: ${(props) => (props.$autoHide && !props.$show ? 'transparent' : 'var(--color-scrollbar-thumb)')};
+
+    &:hover {
+      background: var(--color-scrollbar-thumb-hover);
+    }
+  }
+`
+
+const MemoizedDynamicVirtualList = memo(DynamicVirtualList) as <T>(
+  props: DynamicVirtualListProps<T>
+) => React.ReactElement
+
+export default MemoizedDynamicVirtualList

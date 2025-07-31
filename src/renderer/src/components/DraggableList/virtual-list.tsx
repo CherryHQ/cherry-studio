@@ -215,4 +215,4 @@ const VirtualRow = memo(({ virtualItem, list, children, itemStyle, itemContainer
   )
 })
 
-export default memo(DraggableVirtualList) as typeof DraggableVirtualList
+export default DraggableVirtualList

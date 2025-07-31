@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import React, { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -324,6 +324,57 @@ describe('DynamicVirtualList', () => {
           />
         )
       }).not.toThrow()
+    })
+  })
+
+  describe('auto hide scrollbar', () => {
+    it('should always show scrollbar when autoHideScrollbar is false', () => {
+      render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={false} />)
+
+      const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
+      expect(scrollContainer).toBeInTheDocument()
+
+      // When autoHideScrollbar is false, scrollbar should always be visible
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden', 'true')
+    })
+
+    it('should hide scrollbar initially and show during scrolling when autoHideScrollbar is true', async () => {
+      vi.useFakeTimers()
+
+      render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={true} />)
+
+      const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
+      expect(scrollContainer).toBeInTheDocument()
+
+      // Initially hidden
+      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+
+      // We can't easily simulate real scroll events in JSDOM, so we'll test the internal logic directly
+      // by calling the onChange handler which should update the state
+      const onChangeCallback = mocks.useVirtualizer.mock.calls[0][0].onChange
+
+      // Simulate scroll start
+      act(() => {
+        onChangeCallback({ isScrolling: true }, true)
+      })
+
+      // After scrolling starts, scrollbar should be visible
+      expect(scrollContainer).toHaveAttribute('aria-hidden', 'false')
+
+      // Simulate scroll end
+      act(() => {
+        onChangeCallback({ isScrolling: false }, true)
+      })
+
+      // Advance timers to trigger the hide timeout
+      act(() => {
+        vi.advanceTimersByTime(10000)
+      })
+
+      // After timeout, scrollbar should be hidden again
+      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+
+      vi.useRealTimers()
     })
   })
 })
