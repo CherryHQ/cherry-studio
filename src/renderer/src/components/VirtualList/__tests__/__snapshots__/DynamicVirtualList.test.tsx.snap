@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
+<div>
+  <div
+    style="overflow: auto;"
+  >
+    <div
+      style="position: relative; width: 100%; height: 150px;"
+    >
+      <div
+        data-index="0"
+        style="position: absolute; top: 0px; left: 0px; transform: translateY(0px); width: 100%;"
+      >
+        <div
+          data-testid="item-0"
+        >
+          Item 1
+        </div>
+      </div>
+      <div
+        data-index="1"
+        style="position: absolute; top: 0px; left: 0px; transform: translateY(50px); width: 100%;"
+      >
+        <div
+          data-testid="item-1"
+        >
+          Item 2
+        </div>
+      </div>
+      <div
+        data-index="2"
+        style="position: absolute; top: 0px; left: 0px; transform: translateY(100px); width: 100%;"
+      >
+        <div
+          data-testid="item-2"
+        >
+          Item 3
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
