@@ -1,17 +1,28 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  PlusOutlined,
+  SettingOutlined,
+  UserOutlined
+} from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useAgentManagement } from '@renderer/hooks/useAgentManagement'
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
 import { usePocMessages } from '@renderer/hooks/usePocMessages'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
-import { Button } from 'antd'
+import type { AgentResponse, SessionResponse } from '@types'
+import { Button, Dropdown, Menu, Modal, Tooltip } from 'antd'
 import React, { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
+import AgentManagementModal from './components/AgentManagementModal'
 import CherryAgentSettingsModal from './components/CherryAgentSettingsModal'
 import EnhancedCommandInput from './components/EnhancedCommandInput'
 import PocMessageList from './components/PocMessageList'
+import SessionManagementModal from './components/SessionManagementModal'
 
 const CherryAgentPage: React.FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
@@ -26,6 +37,10 @@ const CherryAgentPage: React.FC = () => {
   const [commandCount, setCommandCount] = useState(0)
   const [currentWorkingDirectory, setCurrentWorkingDirectory] = useState<string>('/Users/weliu')
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showAgentModal, setShowAgentModal] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<AgentResponse | null>(null)
+  const [showSessionModal, setShowSessionModal] = useState(false)
+  const [editingSession, setEditingSession] = useState<SessionResponse | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Handle command execution
@@ -86,6 +101,116 @@ const CherryAgentPage: React.FC = () => {
   const handleSaveSettings = useCallback((workingDirectory: string) => {
     setCurrentWorkingDirectory(workingDirectory)
   }, [])
+
+  // Handle agent modal
+  const handleCreateAgent = useCallback(() => {
+    setEditingAgent(null)
+    setShowAgentModal(true)
+  }, [])
+
+  const handleEditAgent = useCallback((agent: AgentResponse) => {
+    setEditingAgent(agent)
+    setShowAgentModal(true)
+  }, [])
+
+  const handleCloseAgentModal = useCallback(() => {
+    setShowAgentModal(false)
+    setEditingAgent(null)
+  }, [])
+
+  const handleSaveAgent = useCallback(
+    async (agentData: AgentResponse) => {
+      if (editingAgent) {
+        // Update existing agent
+        await agentManagement.updateAgent({
+          id: editingAgent.id,
+          name: agentData.name,
+          description: agentData.description,
+          avatar: agentData.avatar,
+          instructions: agentData.instructions,
+          model: agentData.model,
+          tools: agentData.tools,
+          knowledges: agentData.knowledges,
+          configuration: agentData.configuration
+        })
+      } else {
+        // Create new agent
+        await agentManagement.createAgent({
+          name: agentData.name,
+          description: agentData.description,
+          avatar: agentData.avatar,
+          instructions: agentData.instructions,
+          model: agentData.model,
+          tools: agentData.tools,
+          knowledges: agentData.knowledges,
+          configuration: agentData.configuration
+        })
+      }
+      handleCloseAgentModal()
+    },
+    [editingAgent, agentManagement, handleCloseAgentModal]
+  )
+
+  // Handle session modal
+  const handleCreateSession = useCallback(() => {
+    setEditingSession(null)
+    setShowSessionModal(true)
+  }, [])
+
+  const handleEditSession = useCallback((session: SessionResponse) => {
+    setEditingSession(session)
+    setShowSessionModal(true)
+  }, [])
+
+  const handleCloseSessionModal = useCallback(() => {
+    setShowSessionModal(false)
+    setEditingSession(null)
+  }, [])
+
+  const handleSaveSession = useCallback(
+    async (sessionData: SessionResponse) => {
+      if (editingSession) {
+        // Update existing session
+        await agentManagement.updateSession({
+          id: editingSession.id,
+          user_prompt: sessionData.user_prompt,
+          agent_ids: sessionData.agent_ids,
+          status: sessionData.status,
+          accessible_paths: sessionData.accessible_paths
+        })
+      } else {
+        // Create new session
+        const newSession = await agentManagement.createSession({
+          user_prompt: sessionData.user_prompt,
+          agent_ids: sessionData.agent_ids,
+          status: sessionData.status || 'idle',
+          accessible_paths: sessionData.accessible_paths
+        })
+        // Set the new session as current
+        if (newSession) {
+          agentManagement.setCurrentSession(newSession)
+        }
+      }
+      handleCloseSessionModal()
+    },
+    [editingSession, agentManagement, handleCloseSessionModal]
+  )
+
+  const handleDeleteSession = useCallback(
+    async (session: SessionResponse) => {
+      Modal.confirm({
+        title: 'Delete Session',
+        content: `Are you sure you want to delete the session "${session.user_prompt || session.id.slice(0, 8)}"?`,
+        okText: 'Delete',
+        okType: 'danger',
+        cancelText: 'Cancel',
+        onOk: async () => {
+          await agentManagement.deleteSession(session.id)
+        }
+      })
+    },
+    [agentManagement]
+  )
 
   // Handle command cancellation
   const handleCancelCommand = useCallback(async () => {
@@ -175,22 +300,80 @@ const CherryAgentPage: React.FC = () => {
         {!sidebarCollapsed && (
           <Sidebar>
             <SidebarHeader>
-              <HeaderLabel>header</HeaderLabel>
-              <CollapseButton type="text" icon={<MenuFoldOutlined />} onClick={toggleSidebar} size="small" />
+              <HeaderLabel>agents</HeaderLabel>
+              <HeaderActions>
+                <Dropdown
+                  overlay={
+                    <Menu>
+                      <Menu.Item key="create" icon={<PlusOutlined />} onClick={handleCreateAgent}>
+                        Create Agent
+                      </Menu.Item>
+                      {agentManagement.currentAgent && (
+                        <Menu.Item
+                          key="edit"
+                          icon={<UserOutlined />}
+                          onClick={() => handleEditAgent(agentManagement.currentAgent!)}>
+                          Edit Current Agent
+                        </Menu.Item>
+                      )}
+                    </Menu>
+                  }
+                  trigger={['click']}
+                  placement="bottomRight">
+                  <ActionButton type="text" icon={<PlusOutlined />} size="small" title="Agent Actions" />
+                </Dropdown>
+                <CollapseButton type="text" icon={<MenuFoldOutlined />} onClick={toggleSidebar} size="small" />
+              </HeaderActions>
             </SidebarHeader>
             <SidebarContent>
-              <SessionsLabel>sessions</SessionsLabel>
+              <SectionHeader>
+                <SessionsLabel>sessions</SessionsLabel>
+                <Tooltip title="Create new session">
+                  <ActionButton type="text" icon={<PlusOutlined />} onClick={handleCreateSession} size="small" />
+                </Tooltip>
+              </SectionHeader>
               <SessionsList>
                 {agentManagement.sessions.map((session) => (
-                  <SessionItem
-                    key={session.id}
-                    active={agentManagement.currentSession?.id === session.id}
-                    onClick={() => handleSessionSelect(session)}>
-                    {session.user_prompt || `Session ${session.id.slice(0, 8)}`}
-                  </SessionItem>
+                  <SessionItemWrapper key={session.id}>
+                    <SessionItem
+                      active={agentManagement.currentSession?.id === session.id}
+                      onClick={() => handleSessionSelect(session)}>
+                      <SessionInfo>
+                        <SessionTitle>{session.user_prompt || `Session ${session.id.slice(0, 8)}`}</SessionTitle>
+                        <SessionMeta>
+                          {session.agent_ids.length} agent{session.agent_ids.length !== 1 ? 's' : ''} • {session.status}
+                        </SessionMeta>
+                      </SessionInfo>
+                    </SessionItem>
+                    <SessionActions>
+                      <Tooltip title="Edit session">
+                        <ActionButton
+                          type="text"
+                          icon={<EditOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditSession(session)
+                          }}
+                          size="small"
+                        />
+                      </Tooltip>
+                      <Tooltip title="Delete session">
+                        <ActionButton
+                          type="text"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteSession(session)
+                          }}
+                          size="small"
+                          danger
+                        />
+                      </Tooltip>
+                    </SessionActions>
+                  </SessionItemWrapper>
                 ))}
                 {agentManagement.sessions.length === 0 && !agentManagement.loadingSessions && (
-                  <SessionItem active={false}>No sessions available</SessionItem>
+                  <EmptyState>No sessions available</EmptyState>
                 )}
               </SessionsList>
             </SidebarContent>
@@ -246,6 +429,22 @@ const CherryAgentPage: React.FC = () => {
         onSave={handleSaveSettings}
         currentWorkingDirectory={currentWorkingDirectory}
       />
+      <AgentManagementModal
+        visible={showAgentModal}
+        onClose={handleCloseAgentModal}
+        onSave={handleSaveAgent}
+        agent={editingAgent}
+        loading={agentManagement.loadingAgents}
+      />
+      <SessionManagementModal
+        visible={showSessionModal}
+        onClose={handleCloseSessionModal}
+        onSave={handleSaveSession}
+        session={editingSession}
+        agents={agentManagement.agents}
+        loading={agentManagement.loadingSessions}
+        currentWorkingDirectory={currentWorkingDirectory}
+      />
     </Container>
   )
 }
@@ -287,6 +486,12 @@ const SidebarHeader = styled.div`
   align-items: center;
   min-height: 56px;
   background-color: var(--color-background-soft);
+`
+
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const SidebarContent = styled.div`
@@ -420,13 +625,19 @@ const FooterLabel = styled.span`
   letter-spacing: 0.5px;
 `
 
+const SectionHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+`
+
 const SessionsLabel = styled.div`
   font-size: 11px;
   color: var(--color-text-tertiary);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 16px;
 `
 
 const SessionsList = styled.div`
@@ -435,14 +646,32 @@ const SessionsList = styled.div`
   gap: 8px;
 `
 
+const SessionActions = styled.div`
+  display: flex;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  gap: 4px;
+`
+
+const SessionItemWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &:hover {
+    ${SessionActions} {
+      opacity: 1;
+    }
+  }
+`
+
 const SessionItem = styled.div<{ active: boolean }>`
+  flex: 1;
   padding: 12px 16px;
   border-radius: 8px;
   background-color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-background-soft)')};
   color: ${(props) => (props.active ? 'white' : 'var(--color-text)')};
   cursor: pointer;
-  font-size: 14px;
-  font-weight: ${(props) => (props.active ? '500' : '400')};
   transition: all 0.2s ease;
   border: ${(props) => (props.active ? 'none' : '1px solid transparent')};
   box-shadow: ${(props) => (props.active ? '0 2px 8px rgba(24, 144, 255, 0.2)' : 'none')};
@@ -458,6 +687,32 @@ const SessionItem = styled.div<{ active: boolean }>`
   &:active {
     transform: translateY(0);
   }
+`
+
+const SessionInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const SessionTitle = styled.div`
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+`
+
+const SessionMeta = styled.div`
+  font-size: 11px;
+  opacity: 0.8;
+  line-height: 1;
+`
+
+const EmptyState = styled.div`
+  padding: 20px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  font-style: italic;
 `
 
 const AgentNameInput = styled.input`
