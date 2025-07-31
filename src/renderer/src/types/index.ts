@@ -526,14 +526,14 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: string // langCode
-  targetLanguage: string // langCode
+  sourceLanguage: LanguageCode
+  targetLanguage: LanguageCode
   createdAt: string
 }
 
 export type CustomTranslateLanguage = {
   id: string
-  langCode: string
+  langCode: LanguageCode
   value: string
   emoji: string
 }
