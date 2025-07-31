@@ -1,5 +1,6 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { useAgentManagement } from '@renderer/hooks/useAgentManagement'
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
 import { usePocMessages } from '@renderer/hooks/usePocMessages'
@@ -19,6 +20,7 @@ const CherryAgentPage: React.FC = () => {
   const messagesHook = usePocMessages()
   const commandHook = usePocCommand()
   const historyHook = useCommandHistory()
+  const agentManagement = useAgentManagement()
 
   // Local state for command count tracking
   const [commandCount, setCommandCount] = useState(0)
@@ -99,15 +101,69 @@ const CherryAgentPage: React.FC = () => {
     setSidebarCollapsed((prev) => !prev)
   }, [])
 
-  // Mock session data
-  const mockSessions = [
-    { id: '1', name: 'Session 1', active: true },
-    { id: '2', name: 'Session 2', active: false },
-    { id: '3', name: 'Session 3', active: false },
-    { id: '4', name: 'Session 4', active: false }
-  ]
+  // Handle session selection
+  const handleSessionSelect = useCallback(
+    (session: any) => {
+      agentManagement.setCurrentSession(session)
+    },
+    [agentManagement]
+  )
 
-  const [agentName, setAgentName] = useState('My Agent')
+  // Handle agent name change
+  const handleAgentNameChange = useCallback(
+    async (newName: string) => {
+      if (agentManagement.currentAgent && newName !== agentManagement.currentAgent.name) {
+        await agentManagement.updateAgent({
+          id: agentManagement.currentAgent.id,
+          name: newName
+        })
+      }
+    },
+    [agentManagement]
+  )
+
+  // Create a default agent if none exists
+  useEffect(() => {
+    if (!agentManagement.loadingAgents && agentManagement.agents.length === 0) {
+      agentManagement.createAgent({
+        name: 'My Agent',
+        model: 'gpt-4',
+        description: 'Default agent for command execution',
+        instructions: 'You are a helpful assistant that can execute commands and help with tasks.'
+      })
+    }
+  }, [agentManagement.loadingAgents, agentManagement.agents.length, agentManagement])
+
+  // Set the first agent as current if none is selected
+  useEffect(() => {
+    if (!agentManagement.currentAgent && agentManagement.agents.length > 0) {
+      agentManagement.setCurrentAgent(agentManagement.agents[0])
+    }
+  }, [agentManagement.currentAgent, agentManagement.agents, agentManagement])
+
+  // Create a default session for the current agent if none exists
+  useEffect(() => {
+    if (agentManagement.currentAgent && !agentManagement.currentSession && !agentManagement.loadingSessions) {
+      if (agentManagement.sessions.length === 0) {
+        agentManagement.createSession({
+          agent_ids: [agentManagement.currentAgent.id],
+          user_prompt: 'New session',
+          status: 'idle',
+          accessible_paths: [currentWorkingDirectory]
+        })
+      } else {
+        // Set the first session as current
+        agentManagement.setCurrentSession(agentManagement.sessions[0])
+      }
+    }
+  }, [
+    agentManagement.currentAgent,
+    agentManagement.currentSession,
+    agentManagement.sessions,
+    agentManagement.loadingSessions,
+    currentWorkingDirectory,
+    agentManagement
+  ])
 
   return (
     <Container id="cherry-agent-page">
@@ -125,11 +181,17 @@ const CherryAgentPage: React.FC = () => {
             <SidebarContent>
               <SessionsLabel>sessions</SessionsLabel>
               <SessionsList>
-                {mockSessions.map((session) => (
-                  <SessionItem key={session.id} active={session.active}>
-                    {session.name}
+                {agentManagement.sessions.map((session) => (
+                  <SessionItem
+                    key={session.id}
+                    active={agentManagement.currentSession?.id === session.id}
+                    onClick={() => handleSessionSelect(session)}>
+                    {session.user_prompt || `Session ${session.id.slice(0, 8)}`}
                   </SessionItem>
                 ))}
+                {agentManagement.sessions.length === 0 && !agentManagement.loadingSessions && (
+                  <SessionItem active={false}>No sessions available</SessionItem>
+                )}
               </SessionsList>
             </SidebarContent>
             <SidebarFooter>
@@ -153,8 +215,9 @@ const CherryAgentPage: React.FC = () => {
               <ToggleButton type="text" icon={<MenuUnfoldOutlined />} onClick={toggleSidebar} size="small" />
             )}
             <AgentNameInput
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
+              value={agentManagement.currentAgent?.name || ''}
+              onChange={(e) => handleAgentNameChange(e.target.value)}
+              onBlur={(e) => handleAgentNameChange(e.target.value)}
               placeholder="Agent Name & some Info"
             />
           </AgentHeader>
@@ -383,6 +446,7 @@ const SessionItem = styled.div<{ active: boolean }>`
   transition: all 0.2s ease;
   border: ${(props) => (props.active ? 'none' : '1px solid transparent')};
   box-shadow: ${(props) => (props.active ? '0 2px 8px rgba(24, 144, 255, 0.2)' : 'none')};
+  user-select: none;
 
   &:hover {
     background-color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-background-hover)')};

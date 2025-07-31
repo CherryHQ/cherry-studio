@@ -9,11 +9,23 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
+import type {
+  CreateAgentInput,
+  CreateSessionInput,
+  CreateSessionLogInput,
+  ListAgentsOptions,
+  ListSessionLogsOptions,
+  ListSessionsOptions,
+  SessionStatus,
+  UpdateAgentInput,
+  UpdateSessionInput
+} from '@types'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { PocExecuteCommandRequest } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import AgentService from './services/agent/AgentService'
 import { pocCommandExecutor } from './services/agent/commandExecutor'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
@@ -70,6 +82,7 @@ const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
+const agentService = AgentService.getInstance()
 const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
@@ -623,6 +636,65 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.Poc_GetActiveProcesses, () => {
     return pocCommandExecutor.getActiveProcesses()
+  })
+
+  // Agent Management IPC Handlers
+  ipcMain.handle(IpcChannel.Agent_Create, async (_, input: CreateAgentInput) => {
+    return await agentService.createAgent(input)
+  })
+
+  ipcMain.handle(IpcChannel.Agent_Update, async (_, input: UpdateAgentInput) => {
+    return await agentService.updateAgent(input)
+  })
+
+  ipcMain.handle(IpcChannel.Agent_GetById, async (_, id: string) => {
+    return await agentService.getAgentById(id)
+  })
+
+  ipcMain.handle(IpcChannel.Agent_List, async (_, options?: ListAgentsOptions) => {
+    return await agentService.listAgents(options)
+  })
+
+  ipcMain.handle(IpcChannel.Agent_Delete, async (_, id: string) => {
+    return await agentService.deleteAgent(id)
+  })
+
+  // Session Management IPC Handlers
+  ipcMain.handle(IpcChannel.Session_Create, async (_, input: CreateSessionInput) => {
+    return await agentService.createSession(input)
+  })
+
+  ipcMain.handle(IpcChannel.Session_Update, async (_, input: UpdateSessionInput) => {
+    return await agentService.updateSession(input)
+  })
+
+  ipcMain.handle(IpcChannel.Session_UpdateStatus, async (_, id: string, status: SessionStatus) => {
+    return await agentService.updateSessionStatus(id, status)
+  })
+
+  ipcMain.handle(IpcChannel.Session_GetById, async (_, id: string) => {
+    return await agentService.getSessionById(id)
+  })
+
+  ipcMain.handle(IpcChannel.Session_List, async (_, options?: ListSessionsOptions) => {
+    return await agentService.listSessions(options)
+  })
+
+  ipcMain.handle(IpcChannel.Session_Delete, async (_, id: string) => {
+    return await agentService.deleteSession(id)
+  })
+
+  // Session Log Management IPC Handlers
+  ipcMain.handle(IpcChannel.SessionLog_Add, async (_, input: CreateSessionLogInput) => {
+    return await agentService.addSessionLog(input)
+  })
+
+  ipcMain.handle(IpcChannel.SessionLog_GetBySessionId, async (_, options: ListSessionLogsOptions) => {
+    return await agentService.getSessionLogs(options)
+  })
+
+  ipcMain.handle(IpcChannel.SessionLog_ClearBySessionId, async (_, sessionId: string) => {
+    return await agentService.clearSessionLogs(sessionId)
   })
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))

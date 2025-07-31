@@ -285,5 +285,25 @@ export enum IpcChannel {
   Poc_ExecuteCommand = 'poc:execute-command',
   Poc_CommandOutput = 'poc:command-output',
   Poc_InterruptCommand = 'poc:interrupt-command',
-  Poc_GetActiveProcesses = 'poc:get-active-processes'
+  Poc_GetActiveProcesses = 'poc:get-active-processes',
+
+  // Agent Management
+  Agent_Create = 'agent:create',
+  Agent_Update = 'agent:update',
+  Agent_GetById = 'agent:get-by-id',
+  Agent_List = 'agent:list',
+  Agent_Delete = 'agent:delete',
+
+  // Session Management
+  Session_Create = 'session:create',
+  Session_Update = 'session:update',
+  Session_UpdateStatus = 'session:update-status',
+  Session_GetById = 'session:get-by-id',
+  Session_List = 'session:list',
+  Session_Delete = 'session:delete',
+
+  // Session Log Management
+  SessionLog_Add = 'session-log:add',
+  SessionLog_GetBySessionId = 'session-log:get-by-session-id',
+  SessionLog_ClearBySessionId = 'session-log:clear-by-session-id'
 }

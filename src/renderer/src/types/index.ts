@@ -7,6 +7,7 @@ import * as z from 'zod/v4'
 export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
+export * from './agent'
 export * from './cherryAgent'
 
 export type Assistant = {
