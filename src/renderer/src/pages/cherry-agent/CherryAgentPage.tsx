@@ -1,4 +1,10 @@
-import { SettingOutlined } from '@ant-design/icons'
+import {
+  BookOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  QuestionCircleOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useCommandHistory } from '@renderer/hooks/useCommandHistory'
 import { usePocCommand } from '@renderer/hooks/usePocCommand'
@@ -25,6 +31,7 @@ const CherryAgentPage: React.FC = () => {
   const [commandCount, setCommandCount] = useState(0)
   const [currentWorkingDirectory, setCurrentWorkingDirectory] = useState<string>('/Users/weliu')
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // Handle command execution
   const handleExecuteCommand = useCallback(
@@ -83,24 +90,56 @@ const CherryAgentPage: React.FC = () => {
     setCurrentWorkingDirectory(workingDirectory)
   }, [])
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => !prev)
+  }, [])
+
   return (
     <Container id="cherry-agent-page">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>CherryAgent</NavbarCenter>
       </Navbar>
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
-        <ContentArea>
-          <HeaderBar>
-            <SettingsButton type="text" icon={<SettingOutlined />} onClick={handleOpenSettings} title="Settings" />
-          </HeaderBar>
-          <PocMessageList messages={messagesHook.messages} />
-          <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
-          <PocCommandInput
-            onSendCommand={handleExecuteCommand}
-            disabled={commandHook.isExecuting}
-            // commandHistory={historyHook}
-          />
-        </ContentArea>
+        {/* Left Sidebar - Only show when not collapsed */}
+        {!sidebarCollapsed && (
+          <Sidebar>
+            <SidebarHeader>
+              <CollapseButton type="text" icon={<MenuFoldOutlined />} onClick={toggleSidebar} size="small" />
+            </SidebarHeader>
+            <SidebarContent>{/* Sidebar content can be added here later */}</SidebarContent>
+            <SidebarFooter>
+              <ActionButton
+                type="text"
+                icon={<SettingOutlined />}
+                onClick={handleOpenSettings}
+                title="Settings"
+                size="small"
+              />
+            </SidebarFooter>
+          </Sidebar>
+        )}
+
+        {/* Main Content Area */}
+        <MainContent>
+          <MainContentHeader>
+            {sidebarCollapsed && (
+              <ToggleButton type="text" icon={<MenuUnfoldOutlined />} onClick={toggleSidebar} size="small" />
+            )}
+          </MainContentHeader>
+          <MessageArea>
+            <PocMessageList messages={messagesHook.messages} />
+          </MessageArea>
+          <StatusArea>
+            <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
+          </StatusArea>
+          <InputArea>
+            <PocCommandInput
+              onSendCommand={handleExecuteCommand}
+              disabled={commandHook.isExecuting}
+              // commandHistory={historyHook}
+            />
+          </InputArea>
+        </MainContent>
       </ContentContainer>
       <CherryAgentSettingsModal
         visible={showSettingsModal}
@@ -131,30 +170,112 @@ const ContentContainer = styled.div`
   overflow: hidden;
 `
 
-const ContentArea = styled.div`
+const Sidebar = styled.div`
+  width: 240px;
+  min-width: 240px;
+  background-color: var(--color-background-soft);
+  border-right: 0.5px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+`
+
+const SidebarHeader = styled.div`
+  padding: 4px;
+  border-bottom: 0.5px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+`
+
+const SidebarContent = styled.div`
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+`
+
+const SidebarFooter = styled.div`
+  padding: 4px;
+  border-top: 0.5px solid var(--color-border);
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 4px;
+`
+
+const CollapseButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  width: 32px;
+  height: 32px;
+
+  &:hover {
+    color: var(--color-text);
+    background-color: var(--color-background);
+  }
+`
+
+const ActionButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  color: var(--color-text-secondary);
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+
+  &:hover {
+    color: var(--color-text);
+    background-color: var(--color-background);
+  }
+`
+
+const MainContent = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 `
 
-const HeaderBar = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px 16px;
+const MainContentHeader = styled.div`
+  padding: 4px 12px;
   border-bottom: 0.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  min-height: 32px;
 `
 
-const SettingsButton = styled(Button)`
+const ToggleButton = styled(Button)`
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--color-text-secondary);
+  width: 16px;
+  height: 16px;
 
   &:hover {
     color: var(--color-text);
     background-color: var(--color-background-soft);
   }
+`
+
+const MessageArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+`
+
+const StatusArea = styled.div`
+  padding: 0 16px 8px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+`
+
+const InputArea = styled.div`
+  padding: 16px;
+  background-color: var(--color-background);
+  border-top: 0.5px solid var(--color-border);
 `
 
 export default CherryAgentPage
