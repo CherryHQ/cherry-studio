@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { DraggableVirtualList as DraggableList } from '@renderer/components/DraggableList'
+import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -457,7 +457,7 @@ const ProvidersList: FC = () => {
             disabled={dragging}
           />
         </AddButtonWrapper>
-        <DraggableList
+        <DraggableVirtualList
           list={filteredProviders}
           onUpdate={handleUpdateProviders}
           onDragStart={() => setDragging(true)}
@@ -487,7 +487,7 @@ const ProvidersList: FC = () => {
               </ProviderListItem>
             </Dropdown>
           )}
-        </DraggableList>
+        </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}

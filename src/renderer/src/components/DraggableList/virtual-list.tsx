@@ -97,7 +97,10 @@ function DraggableVirtualList<T>({
   })
 
   return (
-    <div ref={ref} className={`${className} draggable-virtual-list`} style={{ height: '100%', ...style }}>
+    <div
+      ref={ref}
+      className={`${className} draggable-virtual-list`}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
         {header}
         <Droppable
