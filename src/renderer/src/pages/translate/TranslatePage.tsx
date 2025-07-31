@@ -149,7 +149,7 @@ const TranslatePage: FC = () => {
     setTargetLanguage(history._targetLanguage)
   }
 
-  const couldExchange = useMemo(() => sourceLanguage !== 'auto', [sourceLanguage])
+  const couldExchange = useMemo(() => sourceLanguage !== 'auto' && !isBidirectional, [isBidirectional, sourceLanguage])
 
   const handleExchange = useCallback(() => {
     if (sourceLanguage === 'auto') {
