@@ -103,38 +103,36 @@ const KnowledgePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <KnowledgeSideNav>
-          <ScrollContainer>
-            <DraggableList
-              list={bases}
-              onUpdate={updateKnowledgeBases}
-              style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
-              onDragStart={() => setIsDragging(true)}
-              onDragEnd={() => setIsDragging(false)}>
-              {(base: KnowledgeBase) => (
-                <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-                  <div>
-                    <ListItem
-                      active={selectedBase?.id === base.id}
-                      icon={<Book size={16} />}
-                      title={base.name}
-                      onClick={() => setSelectedBase(base)}
-                    />
-                  </div>
-                </Dropdown>
-              )}
-            </DraggableList>
-            {!isDragging && (
-              <AddKnowledgeItem onClick={handleAddKnowledge}>
-                <AddKnowledgeName>
-                  <Plus size={18} />
-                  {t('button.add')}
-                </AddKnowledgeName>
-              </AddKnowledgeItem>
+        <ScrollContainer>
+          <DraggableList
+            list={bases}
+            onUpdate={updateKnowledgeBases}
+            style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
+            onDragStart={() => setIsDragging(true)}
+            onDragEnd={() => setIsDragging(false)}>
+            {(base: KnowledgeBase) => (
+              <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
+                <div>
+                  <ListItem
+                    active={selectedBase?.id === base.id}
+                    icon={<Book size={16} />}
+                    title={base.name}
+                    onClick={() => setSelectedBase(base)}
+                  />
+                </div>
+              </Dropdown>
             )}
-            <div style={{ minHeight: '10px' }}></div>
-          </ScrollContainer>
-        </KnowledgeSideNav>
+          </DraggableList>
+          {!isDragging && (
+            <AddKnowledgeItem onClick={handleAddKnowledge}>
+              <AddKnowledgeName>
+                <Plus size={18} />
+                {t('button.add')}
+              </AddKnowledgeName>
+            </AddKnowledgeItem>
+          )}
+          <div style={{ minHeight: '10px' }}></div>
+        </ScrollContainer>
         {bases.length === 0 ? (
           <MainContent>
             <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -169,12 +167,13 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
 `
 
-export const KnowledgeSideNav = styled.div`
-  min-width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 12px 10px;
+const ScrollContainer = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
+
+  width: calc(var(--settings-width) + 100px);
+  border-right: 0.5px solid var(--color-border);
+  padding: 12px 10px;
 
   .ant-menu {
     border-inline-end: none !important;
@@ -197,12 +196,6 @@ export const KnowledgeSideNav = styled.div`
       color: var(--color-primary);
     }
   }
-`
-
-const ScrollContainer = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
 
   > div {
     margin-bottom: 8px;
