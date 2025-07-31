@@ -17,7 +17,6 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { getTopicQueue } from '@renderer/utils/queue'
 import { waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
@@ -877,8 +876,6 @@ const fetchAndProcessAssistantResponseImpl = async (
     //     EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
     //   }
     // }
-
-    assistant.prompt = await buildSystemPrompt(assistant.prompt || '', assistant)
 
     callbacks = createCallbacks({
       blockManager,

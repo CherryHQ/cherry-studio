@@ -4,6 +4,7 @@ import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -37,6 +38,11 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     }
     updateTokenCount()
   }, [prompt])
+
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
 
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
@@ -112,7 +118,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <TextAreaContainer>
         {showMarkdown ? (
           <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown>{prompt}</ReactMarkdown>
+            <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
-import { Assistant, MCPTool } from '@renderer/types'
+import { MCPTool } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:Prompt')
 
@@ -196,71 +196,90 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = async (userSystemPrompt: string, assistant?: Assistant): Promise<string> => {
-  if (typeof userSystemPrompt === 'string') {
-    const now = new Date()
-    if (userSystemPrompt.includes('{{date}}')) {
-      const date = now.toLocaleDateString()
-      userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
-    }
+const supportedVariables = [
+  '{{username}}',
+  '{{date}}',
+  '{{time}}',
+  '{{datetime}}',
+  '{{system}}',
+  '{{language}}',
+  '{{arch}}',
+  '{{model_name}}'
+]
 
-    if (userSystemPrompt.includes('{{time}}')) {
-      const time = now.toLocaleTimeString()
-      userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
-    }
+export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
+  return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+}
 
-    if (userSystemPrompt.includes('{{datetime}}')) {
-      const datetime = now.toLocaleString()
-      userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
-    }
+export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+  if (typeof userSystemPrompt !== 'string') {
+    logger.warn('User system prompt is not a string:', userSystemPrompt)
+    return userSystemPrompt
+  }
 
-    if (userSystemPrompt.includes('{{system}}')) {
-      try {
-        const systemType = await window.api.system.getDeviceType()
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
-      } catch (error) {
-        logger.error('Failed to get system type:', error as Error)
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
-      }
-    }
+  const now = new Date()
+  if (userSystemPrompt.includes('{{date}}')) {
+    const date = now.toLocaleDateString()
+    userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
+  }
 
-    if (userSystemPrompt.includes('{{language}}')) {
-      try {
-        const language = store.getState().settings.language
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
-      } catch (error) {
-        logger.error('Failed to get language:', error as Error)
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
-      }
-    }
+  if (userSystemPrompt.includes('{{time}}')) {
+    const time = now.toLocaleTimeString()
+    userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
+  }
 
-    if (userSystemPrompt.includes('{{arch}}')) {
-      try {
-        const appInfo = await window.api.getAppInfo()
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
-      } catch (error) {
-        logger.error('Failed to get architecture:', error as Error)
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
-      }
-    }
+  if (userSystemPrompt.includes('{{datetime}}')) {
+    const datetime = now.toLocaleString()
+    userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
+  }
 
-    if (userSystemPrompt.includes('{{model_name}}')) {
-      try {
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, assistant?.model?.name || 'Unknown Model')
-      } catch (error) {
-        logger.error('Failed to get model name:', error as Error)
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-      }
+  if (userSystemPrompt.includes('{{username}}')) {
+    try {
+      const userName = store.getState().settings.userName || 'Unknown Username'
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
+    } catch (error) {
+      logger.error('Failed to get username:', error as Error)
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
     }
+  }
 
-    if (userSystemPrompt.includes('{{username}}')) {
-      try {
-        const username = store.getState().settings.userName || 'Unknown Username'
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
-      } catch (error) {
-        logger.error('Failed to get username:', error as Error)
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
-      }
+  if (userSystemPrompt.includes('{{system}}')) {
+    try {
+      const systemType = await window.api.system.getDeviceType()
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
+    } catch (error) {
+      logger.error('Failed to get system type:', error as Error)
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{language}}')) {
+    try {
+      const language = store.getState().settings.language
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+    } catch (error) {
+      logger.error('Failed to get language:', error as Error)
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{arch}}')) {
+    try {
+      const appInfo = await window.api.getAppInfo()
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
+    } catch (error) {
+      logger.error('Failed to get architecture:', error as Error)
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{model_name}}')) {
+    try {
+      const name = modelName || store.getState().llm.defaultModel?.name
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, name)
+    } catch (error) {
+      logger.error('Failed to get model name:', error as Error)
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
     }
   }
 

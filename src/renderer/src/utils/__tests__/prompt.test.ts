@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   AvailableTools,
-  buildSystemPrompt,
   buildSystemPromptWithThinkTool,
   buildSystemPromptWithTools,
+  replacePromptVariables,
   SYSTEM_PROMPT,
   THINK_TOOL_PROMPT,
   ToolUseExamples
@@ -130,7 +130,7 @@ describe('prompt', () => {
   - 用户名称: {{username}};
 `
       const assistant = createMockAssistant('MyAssistant', 'Super-Model-X')
-      const result = await buildSystemPrompt(userPrompt, assistant)
+      const result = await replacePromptVariables(userPrompt, assistant.model?.name)
       const expectedPrompt = `
 以下是一些辅助信息:
   - 日期和时间: ${mockDate.toLocaleString()};
@@ -148,13 +148,13 @@ describe('prompt', () => {
       mockApi.getAppInfo.mockRejectedValue(new Error('API Error'))
 
       const userPrompt = 'System: {{system}}, Architecture: {{arch}}'
-      const result = await buildSystemPrompt(userPrompt)
+      const result = await replacePromptVariables(userPrompt)
       const expectedPrompt = 'System: Unknown System, Architecture: Unknown Architecture'
       expect(result).toEqual(expectedPrompt)
     })
 
     it('should handle non-string input gracefully', async () => {
-      const result = await buildSystemPrompt(null as any)
+      const result = await replacePromptVariables(null as any)
       expect(result).toBe(null)
     })
   })
@@ -173,7 +173,7 @@ describe('prompt', () => {
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      basePrompt = await buildSystemPrompt(initialPrompt, assistant)
+      basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
       expectedBasePrompt = `
         System Information:
         - Date: ${mockDate.toLocaleDateString()}
@@ -212,7 +212,7 @@ describe('prompt', () => {
   describe('buildSystemPromptWithTools', () => {
     it('should build a full prompt for "prompt" toolUseMode', async () => {
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      const basePrompt = await buildSystemPrompt('Be helpful.', assistant)
+      const basePrompt = await replacePromptVariables('Be helpful.', assistant.model?.name)
       const tools = [createMockTool('web_search', 'Search the web')]
 
       const finalPrompt = buildSystemPromptWithTools(basePrompt, tools)
@@ -236,7 +236,7 @@ describe('prompt', () => {
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      const basePrompt = await buildSystemPrompt(initialPrompt, assistant)
+      const basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
       const expectedBasePrompt = `
         System Information:
         - Date: ${mockDate.toLocaleDateString()}
