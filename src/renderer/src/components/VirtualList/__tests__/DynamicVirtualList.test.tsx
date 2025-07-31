@@ -87,7 +87,7 @@ describe('DynamicVirtualList', () => {
       const customStyle = { backgroundColor: 'red', height: '400px' }
       render(<DynamicVirtualList {...defaultProps} scrollerStyle={customStyle} />)
 
-      const scrollContainer = document.querySelector('div[style*="overflow"]')
+      const scrollContainer = document.querySelector('.dynamic-virtual-list')
       expect(scrollContainer).toBeInTheDocument()
       expect(scrollContainer).toHaveStyle('background-color: rgb(255, 0, 0)')
       expect(scrollContainer).toHaveStyle('height: 400px')
@@ -116,7 +116,7 @@ describe('DynamicVirtualList', () => {
 
       // Should handle dynamic item count changes
       rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(10)} />)
-      expect(document.querySelector('div[style*="overflow"]')).toBeInTheDocument()
+      expect(document.querySelector('.dynamic-virtual-list')).toBeInTheDocument()
     })
 
     it('should work with custom estimateSize function', () => {

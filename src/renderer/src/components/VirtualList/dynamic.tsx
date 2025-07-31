@@ -190,6 +190,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       $autoHide={autoHideScrollbar}
       $show={showScrollbar}
       style={{
+        height: '100%',
         overflow: 'auto',
         ...scrollerStyle
       }}>
@@ -232,7 +233,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 }
 
 const ScrollContainer = styled.div<{ $autoHide: boolean; $show: boolean }>`
-  overflow: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 0.3s ease-in-out;
     will-change: background;
