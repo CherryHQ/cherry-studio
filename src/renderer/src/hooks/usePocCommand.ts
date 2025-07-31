@@ -68,10 +68,10 @@ export function usePocCommand() {
         clearTimeout(existingTimeout)
       }
 
-      // Set new timeout for flushing
+      // Set new timeout for flushing - reduced to 50ms for better responsiveness
       const timeout = setTimeout(() => {
         flushBuffer(commandId)
-      }, 100) // 100ms debounce as specified in PRD
+      }, 50) // Reduced from 100ms for better real-time feedback
 
       bufferTimeouts.current.set(commandId, timeout)
     },

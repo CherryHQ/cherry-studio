@@ -22,10 +22,10 @@ const CommandBubble = styled(BubbleBase)`
   font-family: var(--font-mono);
 `
 
-const OutputBubble = styled(BubbleBase)`
-  background: var(--color-background-soft);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+const OutputBubble = styled(BubbleBase)<{ $isError?: boolean }>`
+  background: ${props => props.$isError ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-background-soft)'};
+  color: ${props => props.$isError ? '#ef4444' : 'var(--color-text)'};
+  border: 1px solid ${props => props.$isError ? '#ef4444' : 'var(--color-border)'};
 `
 
 const CommandPrefix = styled.span`
@@ -76,6 +76,7 @@ interface PocMessageBubbleProps {
 
 const PocMessageBubble: React.FC<PocMessageBubbleProps> = ({ message }) => {
   const isUserCommand = message.type === 'user-command'
+  const isError = message.type === 'error'
 
   return (
     <MessageContainer $isUser={isUserCommand}>
@@ -85,7 +86,7 @@ const PocMessageBubble: React.FC<PocMessageBubbleProps> = ({ message }) => {
           <CommandText>{message.content}</CommandText>
         </CommandBubble>
       ) : (
-        <OutputBubble>
+        <OutputBubble $isError={isError}>
           <OutputPre>{message.content}</OutputPre>
           {!message.isComplete && <LoadingDots />}
         </OutputBubble>

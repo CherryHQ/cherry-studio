@@ -61,7 +61,7 @@ const SendButton = styled.button`
 
 const Hint = styled.div`
   position: absolute;
-  top: -20px;
+  bottom: -20px;
   left: 0;
   font-size: 11px;
   color: var(--color-text-secondary);

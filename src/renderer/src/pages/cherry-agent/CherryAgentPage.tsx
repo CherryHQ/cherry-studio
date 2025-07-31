@@ -54,6 +54,8 @@ const CherryAgentPage: React.FC = () => {
   useEffect(() => {
     commandHook.setOutputCallback((commandId: string, output: string, isBuffered: boolean) => {
       // When we receive buffered output, append it to messages
+      // Note: The type determination (stdout vs stderr) is handled in usePocMessages
+      // based on the command output type from AgentCommandService
       if (isBuffered && output) {
         messagesHook.appendOutput(commandId, output, 'output', false)
       }
@@ -89,6 +91,16 @@ const CherryAgentPage: React.FC = () => {
   const handleSaveSettings = useCallback((workingDirectory: string) => {
     setCurrentWorkingDirectory(workingDirectory)
   }, [])
+
+  // Handle command cancellation
+  const handleCancelCommand = useCallback(async () => {
+    if (commandHook.currentCommandId) {
+      const success = await commandHook.interruptCommand(commandHook.currentCommandId)
+      if (success) {
+        messagesHook.appendOutput(commandHook.currentCommandId, '\n[Command cancelled by user]', 'stderr', true)
+      }
+    }
+  }, [commandHook, messagesHook])
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev)
@@ -130,7 +142,12 @@ const CherryAgentPage: React.FC = () => {
             <PocMessageList messages={messagesHook.messages} />
           </MessageArea>
           <StatusArea>
-            <PocStatusBar status={getCommandStatus()} activeCommand={getCurrentCommand()} commandCount={commandCount} />
+            <PocStatusBar
+              status={getCommandStatus()}
+              activeCommand={getCurrentCommand()}
+              commandCount={commandCount}
+              onCancelCommand={commandHook.isExecuting ? handleCancelCommand : undefined}
+            />
           </StatusArea>
           <InputArea>
             <PocCommandInput

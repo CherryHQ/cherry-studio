@@ -1,3 +1,5 @@
+import { CloseOutlined } from '@ant-design/icons'
+import { Button } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
 
@@ -45,20 +47,63 @@ const StatusIndicator = styled.div<{ $status: 'idle' | 'running' | 'error' }>`
           return '#6b7280'
       }
     }};
+    ${(props) =>
+      props.$status === 'running' &&
+      `
+      animation: pulse 1.5s infinite;
+    `}
   }
+
+  @keyframes pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+`
+
+const CancelButton = styled(Button)`
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`
+
+const CommandText = styled.span`
+  font-family: var(--font-mono);
+  background: var(--color-background);
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 interface PocStatusBarProps {
   status?: 'idle' | 'running' | 'error'
   activeCommand?: string
   commandCount?: number
+  onCancelCommand?: () => void
 }
 
-const PocStatusBar: React.FC<PocStatusBarProps> = ({ status = 'idle', activeCommand, commandCount = 0 }) => {
+const PocStatusBar: React.FC<PocStatusBarProps> = ({ 
+  status = 'idle', 
+  activeCommand, 
+  commandCount = 0, 
+  onCancelCommand 
+}) => {
   const getStatusText = () => {
     switch (status) {
       case 'running':
-        return activeCommand ? `Running: ${activeCommand}` : 'Running command...'
+        return 'Running:'
       case 'error':
         return 'Command failed'
       default:
@@ -70,8 +115,23 @@ const PocStatusBar: React.FC<PocStatusBarProps> = ({ status = 'idle', activeComm
     <StatusContainer>
       <StatusLeft>
         <StatusIndicator $status={status}>{getStatusText()}</StatusIndicator>
+        {status === 'running' && activeCommand && (
+          <CommandText title={activeCommand}>{activeCommand}</CommandText>
+        )}
       </StatusLeft>
       <StatusRight>
+        {status === 'running' && onCancelCommand && (
+          <CancelButton 
+            type="text" 
+            size="small" 
+            danger
+            icon={<CloseOutlined />}
+            onClick={onCancelCommand}
+            title="Cancel running command"
+          >
+            Cancel
+          </CancelButton>
+        )}
         <div>Commands executed: {commandCount}</div>
       </StatusRight>
     </StatusContainer>
