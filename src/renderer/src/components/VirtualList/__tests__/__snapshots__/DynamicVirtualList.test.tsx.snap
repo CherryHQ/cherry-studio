@@ -17,7 +17,7 @@ exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
     aria-label="Dynamic Virtual List"
     class="c0 dynamic-virtual-list"
     role="scrollbar"
-    style="height: 100%; overflow: auto;"
+    style="overflow: auto; height: 100%;"
   >
     <div
       style="position: relative; width: 100%; height: 150px;"

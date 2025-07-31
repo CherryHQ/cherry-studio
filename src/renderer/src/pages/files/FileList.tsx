@@ -1,12 +1,12 @@
 import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { handleDelete } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
-import VirtualList from 'rc-virtual-list'
-import React, { memo } from 'react'
+import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
@@ -27,6 +27,8 @@ interface FileItemProps {
 }
 
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
+  const estimateSize = useCallback(() => 75, [])
+
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
       <div style={{ padding: 16, overflowY: 'auto' }}>
@@ -78,19 +80,11 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   }
 
   return (
-    <VirtualList
-      data={list}
-      height={window.innerHeight - 100}
-      itemHeight={75}
-      itemKey="key"
-      style={{ padding: '0 16px 16px 16px' }}
-      styles={{
-        verticalScrollBar: {
-          width: 6
-        },
-        verticalScrollBarThumb: {
-          background: 'var(--color-scrollbar-thumb)'
-        }
+    <DynamicVirtualList
+      list={list}
+      estimateSize={estimateSize}
+      scrollerStyle={{
+        padding: '0 16px 16px 16px'
       }}>
       {(item) => (
         <div
@@ -109,7 +103,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
           />
         </div>
       )}
-    </VirtualList>
+    </DynamicVirtualList>
   )
 }
 
