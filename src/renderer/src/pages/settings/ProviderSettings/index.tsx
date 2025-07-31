@@ -462,6 +462,7 @@ const ProvidersList: FC = () => {
           onUpdate={handleUpdateProviders}
           onDragStart={() => setDragging(true)}
           estimateSize={useCallback(() => 40, [])}
+          overscan={3}
           style={{
             height: `calc(100vh - var(--navbar-height) - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
           }}
