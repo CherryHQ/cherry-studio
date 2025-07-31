@@ -148,15 +148,15 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const getFirstModelInfo = (v: generationModeType) => {
-    const newModelGroups = getModelOptions(v)
+    const modelGroups = getModelOptions(v)
     let model = ''
     let priceModel = ''
     let image_size = ''
-    for (const provider of Object.keys(newModelGroups)) {
-      if (newModelGroups[provider] && newModelGroups[provider].length > 0) {
-        model = newModelGroups[provider][0].id
-        priceModel = newModelGroups[provider][0].price
-        image_size = newModelGroups[provider][0].image_sizes[0].value
+    for (const provider of Object.keys(modelGroups)) {
+      if (modelGroups[provider] && modelGroups[provider].length > 0) {
+        model = modelGroups[provider][0].id
+        priceModel = modelGroups[provider][0].price
+        image_size = modelGroups[provider][0].image_sizes[0].value
         break
       }
     }
@@ -164,7 +164,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return {
       model,
       priceModel,
-      image_size
+      image_size,
+      modelGroups
     }
   }
 
@@ -304,7 +305,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     clearImages()
 
-    const { model, priceModel, image_size } = getFirstModelInfo(v)
+    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(v)
+
+    setModelOptions(modelGroups)
 
     // 如果有urls，创建新的painting
     if (Array.isArray(painting.urls) && painting.urls.length > 0) {
