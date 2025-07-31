@@ -1925,6 +1925,7 @@ const migrateConfig = {
       // Initialize API server configuration if not present
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
+          enabled: false,
           host: 'localhost',
           port: 23333,
           apiKey: `cs-sk-${uuid()}`

@@ -842,6 +842,7 @@ export type S3Config = {
 export type { Message } from './newMessage'
 
 export interface ApiServerConfig {
+  enabled: boolean
   host: string
   port: number
   apiKey: string

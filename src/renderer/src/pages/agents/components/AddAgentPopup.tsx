@@ -199,7 +199,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 }}
               />
             }
-            arrow>
+            arrow
+            trigger="click">
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>

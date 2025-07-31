@@ -143,9 +143,13 @@ if (!app.requestSingleInstanceLock()) {
 
     // Start API server if enabled
     try {
-      await apiServerService.start()
+      const config = await apiServerService.getCurrentConfig()
+      logger.info('API server config:', config)
+      if (config.enabled) {
+        await apiServerService.start()
+      }
     } catch (error: any) {
-      logger.error('Failed to start API server:', error)
+      logger.error('Failed to check/start API server:', error)
     }
   })
 

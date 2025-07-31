@@ -19,7 +19,7 @@ import {
 } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, Search, UserPen } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
@@ -34,11 +34,18 @@ const ProvidersList: FC = () => {
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
-  const [selectedProvider, setSelectedProvider] = useState<Provider>(providers[0])
+  const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
+
+  const setSelectedProvider = useCallback(
+    (provider: Provider) => {
+      startTransition(() => _setSelectedProvider(provider))
+    },
+    [_setSelectedProvider]
+  )
 
   useEffect(() => {
     const loadAllLogos = async () => {
@@ -71,7 +78,7 @@ const ProvidersList: FC = () => {
         setSelectedProvider(providers[0])
       }
     }
-  }, [providers, searchParams])
+  }, [providers, searchParams, setSelectedProvider])
 
   // Handle provider add key from URL schema
   useEffect(() => {

@@ -83,25 +83,28 @@
       "restart": {
         "button": "Restart",
         "tooltip": "Restart Server"
-      }
+      },
+      "start": "Start",
+      "stop": "Stop"
+    },
+    "authHeader": {
+      "title": "Authorization Header"
     },
     "authHeaderText": "Use in Authorization header:",
     "configuration": "Configuration",
     "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
     "documentation": {
-      "title": "API Documentation",
-      "unavailable": {
-        "description": "Start the API server to view the interactive documentation",
-        "title": "API Documentation Unavailable"
-      }
+      "title": "API Documentation"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copy API Key",
+        "description": "Secure authentication token for API access",
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
       },
       "port": {
+        "description": "TCP port number for the HTTP server (1000-65535)",
         "helpText": "Stop server to change port",
         "label": "Port"
       },

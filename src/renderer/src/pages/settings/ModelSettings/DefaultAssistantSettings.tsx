@@ -109,7 +109,7 @@ const AssistantSettings: FC = () => {
       theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
       <HStack gap={8} alignItems="center">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
             {emoji && (
