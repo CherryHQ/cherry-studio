@@ -131,7 +131,6 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
       isSticky={(index) => flatRows[index].type === 'group'}
       overscan={5}
       scrollerStyle={{
-        height: 'calc(100vh - 300px)',
         paddingRight: '10px'
       }}
       itemContainerStyle={{

@@ -48,6 +48,11 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   children: (item: T, index: number) => React.ReactNode
 
   /**
+   * List size (height or width, default is 100%)
+   */
+  size?: string | number
+
+  /**
    * List item size estimator function (initial estimation)
    */
   estimateSize: (index: number) => number
@@ -83,6 +88,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     ref,
     list,
     children,
+    size,
     estimateSize,
     isSticky,
     rangeExtractor: customRangeExtractor,
@@ -190,8 +196,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       $autoHide={autoHideScrollbar}
       $show={showScrollbar}
       style={{
-        height: '100%',
         overflow: 'auto',
+        ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
       <div
