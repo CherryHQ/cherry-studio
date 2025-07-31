@@ -149,6 +149,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const getFirstModelInfo = (v: generationModeType) => {
     const modelGroups = getModelOptions(v)
+
     let model = ''
     let priceModel = ''
     let image_size = ''
@@ -173,9 +174,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     clearImages()
 
     const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
-    const modelGroups = getModelOptions(generationMode as generationModeType)
 
-    const { model, priceModel, image_size } = getFirstModelInfo(modelGroups)
+    const { model, priceModel, image_size, modelGroups } = getFirstModelInfo(generationMode)
 
     return {
       ...DEFAULT_PAINTING,
@@ -183,6 +183,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       seed: generateRandomSeed(),
       generationMode,
       model,
+      modelGroups,
       priceModel,
       image_size,
       ...params
@@ -326,6 +327,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         priceModel: priceModel
       })
     }
+  }
+
+  const createNewPainting = () => {
+    if (isLoading) {
+      return
+    }
+    setPainting(addPainting('DMXAPIPaintings', getNewPainting()))
   }
 
   // 检查提供者状态函数
@@ -601,6 +609,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onDeletePainting = async (paintingToDelete: DmxapiPainting) => {
     if (paintingToDelete.id === painting.id) {
+      if (isLoading) {
+        return
+      }
+
       const currentIndex = DMXAPIPaintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
@@ -768,11 +780,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button
-              size="small"
-              className="nodrag"
-              icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting('DMXAPIPaintings', getNewPainting()))}>
+            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={createNewPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -991,7 +999,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting('DMXAPIPaintings', getNewPainting()))}
+          onNewPainting={createNewPainting}
         />
       </ContentContainer>
     </Container>
