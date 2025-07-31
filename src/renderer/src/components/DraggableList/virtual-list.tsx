@@ -35,6 +35,7 @@ interface DraggableVirtualListProps<T> {
   ref?: React.Ref<HTMLDivElement>
   className?: string
   style?: React.CSSProperties
+  scrollerStyle?: React.CSSProperties
   itemStyle?: React.CSSProperties
   itemContainerStyle?: React.CSSProperties
   droppableProps?: Partial<DroppableProps>
@@ -60,6 +61,7 @@ function DraggableVirtualList<T>({
   ref,
   className,
   style,
+  scrollerStyle,
   itemStyle,
   itemContainerStyle,
   droppableProps,
@@ -130,6 +132,7 @@ function DraggableVirtualList<T>({
                 {...provided.droppableProps}
                 className="virtual-scroller"
                 style={{
+                  ...scrollerStyle,
                   height: '100%',
                   width: '100%',
                   overflowY: 'auto',
