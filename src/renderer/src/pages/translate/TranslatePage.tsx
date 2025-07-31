@@ -242,7 +242,7 @@ const TranslatePage: FC = () => {
     try {
       if (isBidirectional) {
         return (
-          <Flex align="center" style={{ width: 160 }}>
+          <Flex align="center" style={{ minWidth: 160 }}>
             <BidirectionalLanguageDisplay>
               {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
             </BidirectionalLanguageDisplay>
