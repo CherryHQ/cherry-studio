@@ -83,25 +83,28 @@
       "restart": {
         "button": "Redémarrer",
         "tooltip": "Redémarrer le Serveur"
-      }
+      },
+      "start": "lancer",
+      "stop": "arrêter"
+    },
+    "authHeader": {
+      "title": "en-tête d'autorisation"
     },
     "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
     "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
-      "title": "Documentation API",
-      "unavailable": {
-        "description": "Démarrez le serveur API pour voir la documentation interactive",
-        "title": "Documentation API Indisponible"
-      }
+      "title": "Documentation API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
+        "description": "un jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
+        "description": "Numéro de port TCP du serveur HTTP (1000-65535)",
         "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
@@ -550,6 +553,7 @@
           "label": "Exporter sous forme de Markdown",
           "reason": "Exporter au format Markdown (avec réflexion)"
         },
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "obsidian_atributes": "Configurer les attributs de la note",
@@ -1189,6 +1193,9 @@
           "specified": "Échec de l'exportation vers un fichier Markdown"
         }
       },
+      "notes": {
+        "export": "Échec de l'exportation des notes"
+      },
       "notion": {
         "export": "Erreur lors de l'exportation vers Notion, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
         "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée"
@@ -1280,6 +1287,9 @@
           "preconf": "Exportation réussie vers un fichier Markdown dans le chemin prédéfini",
           "specified": "Exportation réussie vers un fichier Markdown"
         }
+      },
+      "notes": {
+        "export": "exportation réussie vers les notes"
       },
       "notion": {
         "export": "Exportation réussie vers Notion"
@@ -1459,6 +1469,25 @@
     "expand": "Agrandir la boîte de dialogue",
     "hide_sidebar": "Cacher la barre latérale",
     "show_sidebar": "Afficher la barre latérale"
+  },
+  "notes": {
+    "collapse": "réduire",
+    "content_placeholder": "Veuillez saisir le contenu de la note...",
+    "delete": "supprimer",
+    "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
+    "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
+    "delete_note_confirm": "Êtes-vous sûr de vouloir supprimer la note \"{{name}}\" ?",
+    "empty": "Aucune note pour le moment",
+    "expand": "développer",
+    "folder": "dossier",
+    "new_folder": "Nouveau dossier",
+    "new_note": "Nouvelle note",
+    "rename": "renommer",
+    "star": "收藏",
+    "title": "notes",
+    "unstar": "annuler la mise en favori",
+    "untitled_folder": "nouveau dossier",
+    "untitled_note": "Note sans titre"
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -1647,6 +1676,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Cloud Qianfan",
@@ -2026,6 +2056,7 @@
         "joplin": "Exporter vers Joplin",
         "markdown": "Exporter au format Markdown",
         "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "plain_text": "Copier en texte brut",
@@ -3088,6 +3119,16 @@
         "tip": "Séparer les clés multiples par des virgules"
       },
       "api_version": "Version API",
+      "aws-bedrock": {
+        "access_key_id": "Identifiant de clé d'accès AWS",
+        "access_key_id_help": "[votre traduction ici]",
+        "description": "AWS Bedrock est un service de modèles de base entièrement géré fourni par Amazon, prenant en charge divers grands modèles linguistiques avancés",
+        "region": "Région AWS",
+        "region_help": "Votre région de service AWS, par exemple us-east-1",
+        "secret_access_key": "Clés d'accès AWS",
+        "secret_access_key_help": "Votre clé d'accès AWS, veuillez la conserver en lieu sûr",
+        "title": "Configuration AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Version de l'API Azure OpenAI, veuillez saisir une version preview si vous souhaitez utiliser l'API de réponse"
@@ -3417,6 +3458,7 @@
     "launchpad": "Tableau de lancement",
     "mcp-servers": "Serveurs MCP",
     "memories": "Mémoires",
+    "notes": "notes",
     "paintings": "Peintures",
     "settings": "Paramètres",
     "translate": "Traduire"

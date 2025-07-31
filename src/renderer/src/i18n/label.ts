@@ -101,6 +101,7 @@ const titleKeyMap = {
   launchpad: 'title.launchpad',
   'mcp-servers': 'title.mcp-servers',
   memories: 'title.memories',
+  notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate'

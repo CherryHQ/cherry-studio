@@ -553,6 +553,7 @@
           "label": "Markdownとしてエクスポート",
           "reason": "Markdown としてエクスポート (思考内容を含む)"
         },
+        "notes": "ノートにエクスポート",
         "notion": "Notion にエクスポート",
         "obsidian": "Obsidian にエクスポート",
         "obsidian_atributes": "ノートの属性を設定",
@@ -1192,6 +1193,9 @@
           "specified": "Markdown ファイルのエクスポートに失敗しました"
         }
       },
+      "notes": {
+        "export": "ノートのエクスポートに失敗しました"
+      },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
@@ -1283,6 +1287,9 @@
           "preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
           "specified": "Markdown ファイルを正常にエクスポートしました"
         }
+      },
+      "notes": {
+        "export": "成功的にノートにエクスポートされました"
       },
       "notion": {
         "export": "Notionへのエクスポートに成功しました"
@@ -1462,6 +1469,25 @@
     "expand": "ダイアログを展開",
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
+  },
+  "notes": {
+    "collapse": "閉じる",
+    "content_placeholder": "メモの内容を入力してください...",
+    "delete": "削除",
+    "delete_confirm": "この{{type}}を本当に削除しますか？",
+    "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
+    "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
+    "empty": "暫無ノート",
+    "expand": "展開",
+    "folder": "フォルダー",
+    "new_folder": "新しいフォルダーを作成する",
+    "new_note": "新規ノート作成",
+    "rename": "名前の変更",
+    "star": "お気に入りに追加する",
+    "title": "ノート",
+    "unstar": "お気に入りを解除する",
+    "untitled_folder": "新ファイル夹",
+    "untitled_note": "無題のメモ"
   },
   "notification": {
     "assistant": "助手回應",
@@ -2030,6 +2056,7 @@
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -3431,6 +3458,7 @@
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
+    "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
     "translate": "翻訳"

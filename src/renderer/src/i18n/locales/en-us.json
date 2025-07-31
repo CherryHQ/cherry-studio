@@ -553,6 +553,7 @@
           "label": "Export as markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
+        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "obsidian_atributes": "Configure Note Attributes",
@@ -1192,6 +1193,9 @@
           "specified": "Failed to export the Markdown file"
         }
       },
+      "notes": {
+        "export": "Failed to export notes"
+      },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured"
@@ -1283,6 +1287,9 @@
           "preconf": "Successfully exported the Markdown file to the preconfigured path",
           "specified": "Successfully exported the Markdown file"
         }
+      },
+      "notes": {
+        "export": "Successfully exported to notes"
       },
       "notion": {
         "export": "Successfully exported to Notion"
@@ -1462,6 +1469,25 @@
     "expand": "Expand Dialog",
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar"
+  },
+  "notes": {
+    "collapse": "Collapse",
+    "content_placeholder": "Please enter the note content...",
+    "delete": "delete",
+    "delete_confirm": "Are you sure you want to delete this {{type}}?",
+    "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
+    "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
+    "empty": "No notes available yet",
+    "expand": "unfold",
+    "folder": "folder",
+    "new_folder": "New Folder",
+    "new_note": "Create a new note",
+    "rename": "Rename",
+    "star": "[translated]: follow system prompt",
+    "title": "notes",
+    "unstar": "Unfavorite",
+    "untitled_folder": "New Folder",
+    "untitled_note": "Untitled Note"
   },
   "notification": {
     "assistant": "Assistant Response",
@@ -2030,6 +2056,7 @@
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
+        "notes": "Export to notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -3431,6 +3458,7 @@
     "launchpad": "Launchpad",
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
+    "notes": "notes",
     "paintings": "Paintings",
     "settings": "Settings",
     "translate": "Translate"

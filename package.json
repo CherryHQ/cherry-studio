@@ -84,7 +84,8 @@
     "selection-hook": "^1.0.8",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "vditor": "^3.11.1"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",

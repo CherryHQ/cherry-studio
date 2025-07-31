@@ -3,7 +3,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import tabsService from '@renderer/services/TabsService'
-import { FileSearch, Folder, Languages, LayoutGrid, Palette, Sparkle } from 'lucide-react'
+import { FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -52,6 +52,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.files'),
       path: '/files',
       bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
+    },
+    {
+      icon: <NotepadText size={32} className="icon" />,
+      text: t('title.notes'),
+      path: '/notes',
+      bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
     }
   ]
 

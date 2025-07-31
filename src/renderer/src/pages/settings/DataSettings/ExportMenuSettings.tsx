@@ -84,7 +84,6 @@ const ExportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onChange={(checked) => handleToggleOption('docx', checked)} />
       </SettingRow>
-
       <SettingDivider />
 
       <SettingRow>
@@ -93,6 +92,12 @@ const ExportMenuOptions: FC = () => {
           checked={exportMenuOptions.plain_text}
           onChange={(checked) => handleToggleOption('plain_text', checked)}
         />
+      </SettingRow>
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.notes')}</SettingRowTitle>
+        <Switch checked={exportMenuOptions.notes} onChange={(checked) => handleToggleOption('notes', checked)} />
       </SettingRow>
     </SettingGroup>
   )

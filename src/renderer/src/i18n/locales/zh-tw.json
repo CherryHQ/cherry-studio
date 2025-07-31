@@ -553,6 +553,7 @@
           "label": "匯出為 Markdown",
           "reason": "匯出為 Markdown (包含思考)"
         },
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "obsidian_atributes": "配置筆記屬性",
@@ -1192,6 +1193,9 @@
           "specified": "導出 Markdown 文件失敗"
         }
       },
+      "notes": {
+        "export": "導出筆記失敗"
+      },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
         "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
@@ -1283,6 +1287,9 @@
           "preconf": "成功導出 Markdown 文件到預先設定的路徑",
           "specified": "成功導出 Markdown 文件"
         }
+      },
+      "notes": {
+        "export": "成功導出到筆記"
       },
       "notion": {
         "export": "成功匯出到 Notion"
@@ -1462,6 +1469,25 @@
     "expand": "伸縮對話框",
     "hide_sidebar": "隱藏側邊欄",
     "show_sidebar": "顯示側邊欄"
+  },
+  "notes": {
+    "collapse": "收起",
+    "content_placeholder": "請輸入筆記內容...",
+    "delete": "删除",
+    "delete_confirm": "確定要刪除此 {{type}} 嗎？",
+    "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
+    "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
+    "empty": "暫無筆記",
+    "expand": "展開",
+    "folder": "文件夹",
+    "new_folder": "新建文件夾",
+    "new_note": "新建筆記",
+    "rename": "重命名",
+    "star": "收藏",
+    "title": "筆記",
+    "unstar": "取消收藏",
+    "untitled_folder": "新資料夾",
+    "untitled_note": "無標題筆記"
   },
   "notification": {
     "assistant": "助手回應",
@@ -2030,6 +2056,7 @@
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
         "markdown_reason": "匯出為 Markdown（包含思考）",
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "plain_text": "複製為純文本",
@@ -3431,6 +3458,7 @@
     "launchpad": "啟動台",
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
+    "notes": "筆記",
     "paintings": "繪畫",
     "settings": "設定",
     "translate": "翻譯"

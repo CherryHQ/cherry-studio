@@ -553,6 +553,7 @@
           "label": "Экспорт как markdown",
           "reason": "Экспорт в Markdown (с рассуждениями)"
         },
+        "notes": "экспорт в заметки",
         "notion": "Экспорт в Notion",
         "obsidian": "Экспорт в Obsidian",
         "obsidian_atributes": "Настроить атрибуты заметки",
@@ -1192,6 +1193,9 @@
           "specified": "Не удалось экспортировать файл Markdown"
         }
       },
+      "notes": {
+        "export": "не удалось экспортировать заметку"
+      },
       "notion": {
         "export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_api_key": "Notion ApiKey или Notion DatabaseID не настроен"
@@ -1283,6 +1287,9 @@
           "preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
           "specified": "Файл Markdown успешно экспортирован"
         }
+      },
+      "notes": {
+        "export": "Успешно экспортировано в заметки"
       },
       "notion": {
         "export": "Успешный экспорт в Notion"
@@ -1462,6 +1469,25 @@
     "expand": "Развернуть диалоговое окно",
     "hide_sidebar": "Скрыть боковую панель",
     "show_sidebar": "Показать боковую панель"
+  },
+  "notes": {
+    "collapse": "Свернуть",
+    "content_placeholder": "Введите содержимое заметки...",
+    "delete": "удалить",
+    "delete_confirm": "Вы уверены, что хотите удалить этот объект {{type}}?",
+    "delete_folder_confirm": "Вы уверены, что хотите удалить папку \"{{name}}\" со всем ее содержимым?",
+    "delete_note_confirm": "Вы действительно хотите удалить заметку \"{{name}}\"?",
+    "empty": "заметок пока нет",
+    "expand": "развернуть",
+    "folder": "папка",
+    "new_folder": "Новая папка",
+    "new_note": "新建笔记",
+    "rename": "переименовать",
+    "star": "Сохранить",
+    "title": "заметки",
+    "unstar": "отменить избранное",
+    "untitled_folder": "Новая папка",
+    "untitled_note": "Незаглавленная заметка"
   },
   "notification": {
     "assistant": "Ответ ассистента",
@@ -2030,6 +2056,7 @@
         "joplin": "Экспорт в Joplin",
         "markdown": "Экспорт в Markdown",
         "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
+        "notes": "экспорт в заметки",
         "notion": "Экспорт в Notion",
         "obsidian": "Экспорт в Obsidian",
         "plain_text": "Копировать как чистый текст",
@@ -3431,6 +3458,7 @@
     "launchpad": "Запуск",
     "mcp-servers": "MCP серверы",
     "memories": "Память",
+    "notes": "заметки",
     "paintings": "Рисунки",
     "settings": "Настройки",
     "translate": "Перевод"
