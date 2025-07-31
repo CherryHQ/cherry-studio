@@ -47,34 +47,26 @@ function createTestItems(count = 5): TestItem[] {
   }))
 }
 
-// Test component for ref testing
-const TestComponentWithRef: React.FC<{
-  onRefReady?: (ref: DynamicVirtualListRef | null) => void
-  listProps?: any
-}> = ({ onRefReady, listProps = {} }) => {
-  const ref = useRef<DynamicVirtualListRef>(null)
-
-  React.useEffect(() => {
-    onRefReady?.(ref.current)
-  }, [onRefReady])
-
-  const defaultItems = createTestItems()
-  const defaultProps = {
-    items: defaultItems,
-    estimateSize: () => 50,
-    children: (item: TestItem, index: number) => <div data-testid={`item-${index}`}>{item.content}</div>,
-    ...listProps
-  }
-
-  return <DynamicVirtualList ref={ref} {...defaultProps} />
-}
-
 describe('DynamicVirtualList', () => {
   const defaultItems = createTestItems()
   const defaultProps = {
-    items: defaultItems,
+    list: defaultItems,
     estimateSize: () => 50,
     children: (item: TestItem, index: number) => <div data-testid={`item-${index}`}>{item.content}</div>
+  }
+
+  // Test component for ref testing
+  const TestComponentWithRef: React.FC<{
+    onRefReady?: (ref: DynamicVirtualListRef | null) => void
+    listProps?: any
+  }> = ({ onRefReady, listProps = {} }) => {
+    const ref = useRef<DynamicVirtualListRef>(null)
+
+    React.useEffect(() => {
+      onRefReady?.(ref.current)
+    }, [onRefReady])
+
+    return <DynamicVirtualList ref={ref} {...defaultProps} {...listProps} />
   }
 
   beforeEach(() => {
@@ -117,13 +109,13 @@ describe('DynamicVirtualList', () => {
 
   describe('props integration', () => {
     it('should render correctly with different item counts', () => {
-      const { rerender } = render(<DynamicVirtualList {...defaultProps} items={createTestItems(3)} />)
+      const { rerender } = render(<DynamicVirtualList {...defaultProps} list={createTestItems(3)} />)
 
       // Should render without errors
       expect(screen.getByTestId('item-0')).toBeInTheDocument()
 
       // Should handle dynamic item count changes
-      rerender(<DynamicVirtualList {...defaultProps} items={createTestItems(10)} />)
+      rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(10)} />)
       expect(document.querySelector('div[style*="overflow"]')).toBeInTheDocument()
     })
 
@@ -300,7 +292,7 @@ describe('DynamicVirtualList', () => {
       // Empty items list
       mocks.virtualizer.getVirtualItems.mockReturnValueOnce([])
       expect(() => {
-        render(<DynamicVirtualList {...defaultProps} items={[]} />)
+        render(<DynamicVirtualList {...defaultProps} list={[]} />)
       }).not.toThrow()
 
       // Null ref
@@ -319,7 +311,7 @@ describe('DynamicVirtualList', () => {
         render(
           <DynamicVirtualList
             {...defaultProps}
-            items={itemsWithoutContent}
+            list={itemsWithoutContent}
             children={(_item, index) => <div data-testid={`item-${index}`}>No content</div>}
           />
         )

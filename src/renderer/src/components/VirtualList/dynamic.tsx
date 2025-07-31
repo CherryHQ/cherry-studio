@@ -40,7 +40,7 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   /**
    * List data
    */
-  items: T[]
+  list: T[]
 
   /**
    * List item renderer function
@@ -81,7 +81,7 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const {
     ref,
-    items,
+    list,
     children,
     estimateSize,
     isSticky,
@@ -101,8 +101,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const stickyIndexes = useMemo(() => {
     if (!isSticky) return []
-    return items.map((_, index) => (isSticky(index) ? index : -1)).filter((index) => index !== -1)
-  }, [items, isSticky])
+    return list.map((_, index) => (isSticky(index) ? index : -1)).filter((index) => index !== -1)
+  }, [list, isSticky])
 
   const internalStickyRangeExtractor = useCallback(
     (range: Range) => {
@@ -143,7 +143,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const virtualizer = useVirtualizer({
     ...restOptions,
-    count: items.length,
+    count: list.length,
     getScrollElement: () => scrollerRef.current,
     estimateSize,
     rangeExtractor,
@@ -222,7 +222,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
           return (
             <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement} style={style}>
-              {children(items[virtualItem.index], virtualItem.index)}
+              {children(list[virtualItem.index], virtualItem.index)}
             </div>
           )
         })}

@@ -68,7 +68,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         }>
         <DynamicVirtualList
           ref={listRef}
-          items={models}
+          list={models}
           estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
           overscan={5}
           scrollerStyle={{

@@ -126,7 +126,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
   return (
     <DynamicVirtualList
-      items={flatRows}
+      list={flatRows}
       estimateSize={useCallback(() => 60, [])}
       isSticky={(index) => flatRows[index].type === 'group'}
       overscan={5}
