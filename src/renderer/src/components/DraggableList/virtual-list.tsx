@@ -43,6 +43,7 @@ interface DraggableVirtualListProps<T> {
   onDragEnd?: OnDragEndResponder
   list: T[]
   itemKey?: (index: number) => Key
+  estimateSize?: (index: number) => number
   overscan?: number
   header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
@@ -67,6 +68,7 @@ function DraggableVirtualList<T>({
   onDragEnd,
   list,
   itemKey,
+  estimateSize: _estimateSize,
   overscan = 5,
   header,
   children
@@ -88,7 +90,7 @@ function DraggableVirtualList<T>({
     count: list?.length ?? 0,
     getScrollElement: useCallback(() => parentRef.current, []),
     getItemKey: itemKey,
-    estimateSize: useCallback(() => 50, []),
+    estimateSize: useCallback((index) => _estimateSize?.(index) ?? 50, [_estimateSize]),
     overscan
   })
 
@@ -213,4 +215,4 @@ const VirtualRow = memo(({ virtualItem, list, children, itemStyle, itemContainer
   )
 })
 
-export default DraggableVirtualList
+export default memo(DraggableVirtualList) as typeof DraggableVirtualList
