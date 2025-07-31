@@ -1505,6 +1505,7 @@
         "image": "New Image"
       }
     },
+    "custom_size": "Custom Size",
     "edit": {
       "image_file": "Edited Image",
       "magic_prompt_option_tip": "Intelligently enhances editing prompts",

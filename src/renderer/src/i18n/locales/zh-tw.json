@@ -1505,6 +1505,7 @@
         "image": "新繪圖"
       }
     },
+    "custom_size": "自訂尺寸",
     "edit": {
       "image_file": "編輯圖像",
       "magic_prompt_option_tip": "智能優化編輯提示詞",

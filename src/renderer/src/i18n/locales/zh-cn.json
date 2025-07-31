@@ -1505,6 +1505,7 @@
         "image": "新建图片"
       }
     },
+    "custom_size": "自定义尺寸",
     "edit": {
       "image_file": "编辑的图像",
       "magic_prompt_option_tip": "智能优化编辑提示词",
