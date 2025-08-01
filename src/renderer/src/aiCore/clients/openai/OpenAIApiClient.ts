@@ -772,11 +772,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               contentSource = choice.message
             }
 
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-            if (!contentSource.reasoning_content && !contentSource.reasoning) {
-              isThinking = false
-            }
-
             if (!contentSource) {
               if ('finish_reason' in choice && choice.finish_reason) {
                 // For OpenRouter, don't emit completion signals immediately after finish_reason
@@ -793,6 +788,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 }
               }
               continue
+            }
+
+            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            if (!contentSource.reasoning_content && !contentSource.reasoning) {
+              isThinking = false
             }
 
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
