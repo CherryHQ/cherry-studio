@@ -28,6 +28,9 @@ import shortcuts from './shortcuts'
 import tabs from './tabs'
 import translate from './translate'
 import websearch from './websearch'
+import { loggerService } from '@renderer/services/LoggerService'
+
+const logger = loggerService.withContext('Store')
 
 const rootReducer = combineReducers({
   assistants,
@@ -103,5 +106,12 @@ export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
+window.persistor = persistor
+
+export async function handleSaveData() {
+  logger.info('Flushing redux persistor data')
+  await persistor.flush()
+  logger.info('Flushed redux persistor data')
+}
 
 export default store

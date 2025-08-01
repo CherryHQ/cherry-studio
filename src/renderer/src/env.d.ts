@@ -20,6 +20,7 @@ declare global {
     modal: HookAPI
     keyv: KeyvStorage
     store: any
+    persistor: any
     navigate: NavigateFunction
   }
 }
