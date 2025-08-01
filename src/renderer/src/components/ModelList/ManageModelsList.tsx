@@ -221,7 +221,7 @@ const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   align-items: center;
   justify-content: space-between;
   padding: 0 13px;
-  min-height: 50px;
+  min-height: 35px;
   color: var(--color-text);
   cursor: pointer;
 `
