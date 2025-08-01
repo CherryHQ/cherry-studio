@@ -3,14 +3,14 @@ import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Model, Provider } from '@renderer/types'
-import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,8 +39,6 @@ interface ManageModelsListProps {
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provider, onAddModel, onRemoveModel }) => {
   const { t } = useTranslation()
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const activeStickyIndexRef = useRef(0)
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
 
   const handleGroupToggle = useCallback((groupName: string) => {
@@ -73,33 +71,6 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
     return rows
   }, [modelGroups, collapsedGroups])
-
-  // 找到所有组 header 的索引
-  const stickyIndexes = useMemo(() => {
-    return flatRows.map((row, index) => (row.type === 'group' ? index : -1)).filter((index) => index !== -1)
-  }, [flatRows])
-
-  const isSticky = useCallback((index: number) => stickyIndexes.includes(index), [stickyIndexes])
-
-  const isActiveSticky = useCallback((index: number) => activeStickyIndexRef.current === index, [])
-
-  // 自定义 range extractor 用于 sticky header
-  const rangeExtractor = useCallback(
-    (range: any) => {
-      activeStickyIndexRef.current = [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? 0
-      const next = new Set([activeStickyIndexRef.current, ...defaultRangeExtractor(range)])
-      return [...next].sort((a, b) => a - b)
-    },
-    [stickyIndexes]
-  )
-
-  const virtualizer = useVirtualizer({
-    count: flatRows.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: () => 42,
-    rangeExtractor,
-    overscan: 5
-  })
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
@@ -153,79 +124,47 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
     [provider, onRemoveModel, onAddModel, t]
   )
 
-  const virtualItems = virtualizer.getVirtualItems()
-
   return (
-    <ListContainer ref={scrollerRef}>
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative'
-        }}>
-        {virtualItems.map((virtualItem) => {
-          const row = flatRows[virtualItem.index]
-          const isRowSticky = isSticky(virtualItem.index)
-          const isRowActiveSticky = isActiveSticky(virtualItem.index)
-          const isCollapsed = row.type === 'group' && collapsedGroups.has(row.groupName)
-
-          if (!row) return null
-
+    <DynamicVirtualList
+      list={flatRows}
+      estimateSize={useCallback(() => 60, [])}
+      isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
+      overscan={5}
+      scrollerStyle={{
+        paddingRight: '10px'
+      }}
+      itemContainerStyle={{
+        paddingBottom: '8px'
+      }}>
+      {(row) => {
+        if (row.type === 'group') {
+          const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <div
-              key={virtualItem.index}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              style={{
-                ...(isRowSticky
-                  ? {
-                      background: 'var(--color-background)',
-                      zIndex: 1
-                    }
-                  : {}),
-                ...(isRowActiveSticky
-                  ? {
-                      position: 'sticky'
-                    }
-                  : {
-                      position: 'absolute',
-                      transform: `translateY(${virtualItem.start}px)`
-                    }),
-                top: 0,
-                left: 0,
-                width: '100%'
-              }}>
-              {row.type === 'group' ? (
-                <GroupHeader onClick={() => handleGroupToggle(row.groupName)}>
-                  <Flex align="center" gap={10} style={{ flex: 1 }}>
-                    <ChevronRight
-                      size={16}
-                      color="var(--color-text-3)"
-                      strokeWidth={1.5}
-                      style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
-                    />
-                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
-                    <CustomTag color="#02B96B" size={10}>
-                      {row.models.length}
-                    </CustomTag>
-                  </Flex>
-                  {renderGroupTools(row.models)}
-                </GroupHeader>
-              ) : (
-                <div style={{ padding: '4px 0' }}>
-                  <ModelListItem
-                    model={row.model}
-                    provider={provider}
-                    onAddModel={onAddModel}
-                    onRemoveModel={onRemoveModel}
-                  />
-                </div>
-              )}
-            </div>
+            <GroupHeader
+              style={{ background: 'var(--color-background)' }}
+              onClick={() => handleGroupToggle(row.groupName)}>
+              <Flex align="center" gap={10} style={{ flex: 1 }}>
+                <ChevronRight
+                  size={16}
+                  color="var(--color-text-3)"
+                  strokeWidth={1.5}
+                  style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
+                />
+                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                <CustomTag color="#02B96B" size={10}>
+                  {row.models.length}
+                </CustomTag>
+              </Flex>
+              {renderGroupTools(row.models)}
+            </GroupHeader>
           )
-        })}
-      </div>
-    </ListContainer>
+        }
+
+        return (
+          <ModelListItem model={row.model} provider={provider} onAddModel={onAddModel} onRemoveModel={onRemoveModel} />
+        )
+      }}
+    </DynamicVirtualList>
   )
 }
 
@@ -262,18 +201,12 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
   )
 })
 
-const ListContainer = styled.div`
-  height: calc(100vh - 300px);
-  overflow: auto;
-  padding-right: 10px;
-`
-
 const GroupHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
-  min-height: 48px;
+  min-height: 50px;
   color: var(--color-text);
   cursor: pointer;
 `

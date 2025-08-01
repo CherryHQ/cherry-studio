@@ -1,7 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
-import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -9,7 +8,6 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
 import {
-  droppableReorder,
   generateColorFromChar,
   getFancyProviderName,
   getFirstCharacter,
@@ -29,6 +27,8 @@ import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
 const logger = loggerService.withContext('ProvidersList')
+
+const BUTTON_WRAPPER_HEIGHT = 50
 
 const ProvidersList: FC = () => {
   const [searchParams] = useSearchParams()
@@ -272,14 +272,9 @@ const ProvidersList: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  const onDragEnd = (result: DropResult) => {
+  const handleUpdateProviders = (reorderProviders: Provider[]) => {
     setDragging(false)
-    if (result.destination) {
-      const sourceIndex = result.source.index
-      const destIndex = result.destination.index
-      const reorderProviders = droppableReorder<Provider>(providers, sourceIndex, destIndex)
-      updateProviders(reorderProviders)
-    }
+    updateProviders(reorderProviders)
   }
 
   const onAddProvider = async () => {
@@ -462,50 +457,37 @@ const ProvidersList: FC = () => {
             disabled={dragging}
           />
         </AddButtonWrapper>
-        <Scrollbar>
-          <ProviderList>
-            <DragDropContext onDragStart={() => setDragging(true)} onDragEnd={onDragEnd}>
-              <Droppable droppableId="droppable">
-                {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef}>
-                    {filteredProviders.map((provider, index) => (
-                      <Draggable
-                        key={`draggable_${provider.id}_${index}`}
-                        draggableId={provider.id}
-                        index={index}
-                        isDragDisabled={searchText.length > 0}>
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            style={{ ...provided.draggableProps.style, marginBottom: 5 }}>
-                            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-                              <ProviderListItem
-                                key={JSON.stringify(provider)}
-                                className={provider.id === selectedProvider?.id ? 'active' : ''}
-                                onClick={() => setSelectedProvider(provider)}>
-                                {getProviderAvatar(provider)}
-                                <ProviderItemName className="text-nowrap">
-                                  {getFancyProviderName(provider)}
-                                </ProviderItemName>
-                                {provider.enabled && (
-                                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                                    ON
-                                  </Tag>
-                                )}
-                              </ProviderListItem>
-                            </Dropdown>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                  </div>
+        <DraggableVirtualList
+          list={filteredProviders}
+          onUpdate={handleUpdateProviders}
+          onDragStart={() => setDragging(true)}
+          estimateSize={useCallback(() => 40, [])}
+          overscan={3}
+          style={{
+            height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
+          }}
+          scrollerStyle={{
+            padding: 8,
+            paddingRight: 5
+          }}
+          itemContainerStyle={{ paddingBottom: 5 }}>
+          {(provider) => (
+            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
+              <ProviderListItem
+                key={JSON.stringify(provider)}
+                className={provider.id === selectedProvider?.id ? 'active' : ''}
+                onClick={() => setSelectedProvider(provider)}>
+                {getProviderAvatar(provider)}
+                <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
+                {provider.enabled && (
+                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                    ON
+                  </Tag>
                 )}
-              </Droppable>
-            </DragDropContext>
-          </ProviderList>
-        </Scrollbar>
+              </ProviderListItem>
+            </Dropdown>
+          )}
+        </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
@@ -534,14 +516,6 @@ const ProviderListContainer = styled.div`
   min-width: calc(var(--settings-width) + 10px);
   height: calc(100vh - var(--navbar-height));
   border-right: 0.5px solid var(--color-border);
-`
-
-const ProviderList = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 8px;
-  padding-right: 5px;
 `
 
 const ProviderListItem = styled.div`
@@ -575,7 +549,7 @@ const ProviderItemName = styled.div`
 `
 
 const AddButtonWrapper = styled.div`
-  height: 50px;
+  height: ${BUTTON_WRAPPER_HEIGHT}px;
   flex-direction: row;
   justify-content: center;
   align-items: center;

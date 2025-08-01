@@ -12,12 +12,13 @@ import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@sh
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
-import VirtualList from 'rc-virtual-list'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeFiles')
+
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 
 import {
   ClickableSpan,
@@ -63,6 +64,8 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+
+  const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
     return null
@@ -122,10 +125,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   }
 
   const showPreprocessIcon = (item: KnowledgeItem) => {
-    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+    if (base.preprocessProvider && item.isPreprocessed !== false) {
       return true
     }
-    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+    if (!base.preprocessProvider && item.isPreprocessed === true) {
       return true
     }
     return false
@@ -160,15 +163,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
-          <VirtualList
-            data={fileItems.reverse()}
-            height={windowHeight - 270}
-            itemHeight={75}
-            itemKey="id"
-            styles={{
-              verticalScrollBar: { width: 6 },
-              verticalScrollBarThumb: { background: 'var(--color-scrollbar-thumb)' }
-            }}>
+          <DynamicVirtualList
+            list={fileItems.reverse()}
+            estimateSize={estimateSize}
+            overscan={2}
+            scrollerStyle={{ height: windowHeight - 270 }}
+            autoHideScrollbar>
             {(item) => {
               const file = item.content as FileType
               return (
@@ -218,7 +218,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                 </div>
               )
             }}
-          </VirtualList>
+          </DynamicVirtualList>
         )}
       </ItemFlexColumn>
     </ItemContainer>

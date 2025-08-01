@@ -2663,6 +2663,17 @@ export function isQwenReasoningModel(model?: Model): boolean {
     return false
   }
 
+  const baseName = getLowerBaseModelName(model.id, '/')
+
+  if (baseName.startsWith('qwen3')) {
+    if (baseName.includes('thinking')) {
+      return true
+    } else if (baseName.includes('instruct')) {
+      return false
+    }
+    return true
+  }
+
   if (isSupportedThinkingTokenQwenModel(model)) {
     return true
   }
@@ -2681,27 +2692,34 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const baseName = getLowerBaseModelName(model.id, '/')
 
-  if (baseName.includes('coder') || baseName.includes('qwen3-235b-a22b-instruct')) {
+  if (baseName.includes('coder')) {
     return false
   }
 
-  return (
-    baseName.startsWith('qwen3') ||
-    [
-      'qwen-plus',
-      'qwen-plus-latest',
-      'qwen-plus-0428',
-      'qwen-plus-2025-04-28',
-      'qwen-plus-0714',
-      'qwen-plus-2025-07-14',
-      'qwen-turbo',
-      'qwen-turbo-latest',
-      'qwen-turbo-0428',
-      'qwen-turbo-2025-04-28',
-      'qwen-turbo-0715',
-      'qwen-turbo-2025-07-15'
-    ].includes(baseName)
-  )
+  if (baseName.startsWith('qwen3')) {
+    if (baseName.includes('instruct')) {
+      return false
+    }
+    if (baseName.includes('thinking')) {
+      return true
+    }
+    return true
+  }
+
+  return [
+    'qwen-plus',
+    'qwen-plus-latest',
+    'qwen-plus-0428',
+    'qwen-plus-2025-04-28',
+    'qwen-plus-0714',
+    'qwen-plus-2025-07-14',
+    'qwen-turbo',
+    'qwen-turbo-latest',
+    'qwen-turbo-0428',
+    'qwen-turbo-2025-04-28',
+    'qwen-turbo-0715',
+    'qwen-turbo-2025-07-15'
+  ].includes(baseName)
 }
 
 export function isQwen3235BA22BThinkingModel(model?: Model): boolean {
@@ -3070,11 +3088,13 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
-  'qwen3-235b-a22b-thinking(?:-[\\w-]+)$': { min: 0, max: 81_920 },
+  'qwen3-235b-a22b-thinking-2507$': { min: 0, max: 81_920 },
+  'qwen3-30b-a3b-thinking-2507$': { min: 0, max: 81_920 },
+  'qwen-plus-2025-07-28$': { min: 0, max: 81_920 },
+  'qwen3-1\\.7b$': { min: 0, max: 30_720 },
+  'qwen3-0\\.6b$': { min: 0, max: 30_720 },
   'qwen-plus-.*$': { min: 0, max: 38912 },
   'qwen-turbo-.*$': { min: 0, max: 38912 },
-  'qwen3-0\\.6b$': { min: 0, max: 30720 },
-  'qwen3-1\\.7b$': { min: 0, max: 30720 },
   'qwen3-.*$': { min: 1024, max: 38912 },
 
   // Claude models

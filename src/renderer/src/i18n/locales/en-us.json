@@ -703,6 +703,7 @@
     "no_results": "No results",
     "open": "Open",
     "paste": "Paste",
+    "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
@@ -711,6 +712,7 @@
     "rename": "Rename",
     "reset": "Reset",
     "save": "Save",
+    "saved": "Saved",
     "search": "Search",
     "select": "Select",
     "selectedItems": "Selected {{count}} items",
@@ -879,7 +881,7 @@
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
-      "model_invalid": "No model selected or deleted"
+      "model_invalid": "No model selected"
     },
     "file_hint": "Support {{file_types}}",
     "index_all": "Index All",
@@ -920,7 +922,7 @@
     "search_placeholder": "Enter text to search",
     "settings": {
       "preprocessing": "Preprocessing",
-      "preprocessing_tooltip": "Preprocess uploaded files with OCR",
+      "preprocessing_tooltip": "Preprocess uploaded files",
       "title": "Knowledge Base Settings"
     },
     "sitemap_added": "Added successfully",
@@ -1505,6 +1507,7 @@
         "image": "New Image"
       }
     },
+    "custom_size": "Custom Size",
     "edit": {
       "image_file": "Edited Image",
       "magic_prompt_option_tip": "Intelligently enhances editing prompts",
@@ -1627,6 +1630,7 @@
     },
     "text_desc_required": "Please enter image description first",
     "title": "Images",
+    "top_up": "Top up ",
     "translating": "Translating...",
     "uploaded_input": "Uploaded input",
     "upscale": {
@@ -3300,26 +3304,11 @@
     },
     "title": "Settings",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Minimum Confidence",
-          "mode": {
-            "accurate": "Accurate",
-            "fast": "Fast",
-            "title": "Recognition Mode"
-          }
-        },
-        "provider": "OCR Provider",
-        "provider_placeholder": "Choose an OCR provider",
-        "title": "OCR Settings"
-      },
       "preprocess": {
         "provider": "Pre Process Provider",
         "provider_placeholder": "Choose a Pre Process provider",
-        "title": "Pre Process"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text."
+        "title": "Pre Process",
+        "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Tools Settings",
       "websearch": {

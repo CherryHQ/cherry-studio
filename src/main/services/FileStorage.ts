@@ -16,7 +16,7 @@ import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
 import * as path from 'path'
-import pdfjs from 'pdfjs-dist'
+import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
@@ -367,10 +367,8 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
 
-    const doc = await pdfjs.getDocument({ data: buffer }).promise
-    const pages = doc.numPages
-    await doc.destroy()
-    return pages
+    const pdfDoc = await PDFDocument.load(buffer)
+    return pdfDoc.getPageCount()
   }
 
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {

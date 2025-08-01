@@ -195,7 +195,7 @@ class KnowledgeQueue {
           updateBaseItemIsPreprocessed({
             baseId,
             itemId: item.id,
-            isPreprocessed: !!base.preprocessOrOcrProvider
+            isPreprocessed: !!base.preprocessProvider
           })
         )
       }

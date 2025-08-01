@@ -1,13 +1,15 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import { CloseCircleFilled } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
+import { Edit, Eye, HelpCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -28,7 +30,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [prompt, setPrompt] = useState(assistant.prompt)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
+  const [showPreview, setShowPreview] = useState(prompt.length > 0)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -38,9 +40,15 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateTokenCount()
   }, [prompt])
 
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
+
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
+    window.message.success(t('common.saved'))
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
@@ -106,13 +114,13 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
+          <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
       </HStack>
       <TextAreaContainer>
-        {showMarkdown ? (
-          <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown>{prompt}</ReactMarkdown>
+        {showPreview ? (
+          <MarkdownContainer className="markdown" onClick={() => setShowPreview(false)}>
+            <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (
@@ -141,8 +149,11 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
-        <Button type="primary" onClick={() => setShowMarkdown((prev) => !prev)}>
-          {t(showMarkdown ? 'common.edit' : 'common.save')}
+        <Button
+          type="primary"
+          icon={showPreview ? <Edit size={14} /> : <Eye size={14} />}
+          onClick={() => setShowPreview((prev) => !prev)}>
+          {showPreview ? t('common.edit') : t('common.preview')}
         </Button>
       </HSpaceBetweenStack>
     </Container>
@@ -154,6 +165,10 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   overflow: hidden;
+
+  .ant-btn {
+    line-height: 0;
+  }
 `
 
 const EmojiButtonWrapper = styled.div`

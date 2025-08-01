@@ -1925,6 +1925,7 @@ const migrateConfig = {
       // Initialize API server configuration if not present
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
+          enabled: false,
           host: 'localhost',
           port: 23333,
           apiKey: `cs-sk-${uuid()}`
@@ -1933,6 +1934,28 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 125 error', error as Error)
+      return state
+    }
+  },
+  '126': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        // @ts-ignore eslint-disable-next-line
+        if (base.preprocessOrOcrProvider) {
+          // @ts-ignore eslint-disable-next-line
+          base.preprocessProvider = base.preprocessOrOcrProvider
+          // @ts-ignore eslint-disable-next-line
+          delete base.preprocessOrOcrProvider
+          // @ts-ignore eslint-disable-next-line
+          if (base.preprocessProvider.type === 'ocr') {
+            // @ts-ignore eslint-disable-next-line
+            delete base.preprocessProvider
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 126 error', error as Error)
       return state
     }
   }

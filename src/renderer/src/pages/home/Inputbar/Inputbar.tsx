@@ -704,7 +704,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
-      textareaRef.current?.focus()
+      const lastFocusedComponent = PasteService.getLastFocusedComponent()
+      if (lastFocusedComponent === 'inputbar') {
+        textareaRef.current?.focus()
+      }
     }
   }, [assistant, topic])
 

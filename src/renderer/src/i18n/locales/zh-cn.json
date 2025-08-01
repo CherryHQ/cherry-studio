@@ -703,6 +703,7 @@
     "no_results": "无结果",
     "open": "打开",
     "paste": "粘贴",
+    "preview": "预览",
     "prompt": "提示词",
     "provider": "提供商",
     "reasoning_content": "已深度思考",
@@ -711,6 +712,7 @@
     "rename": "重命名",
     "reset": "重置",
     "save": "保存",
+    "saved": "已保存",
     "search": "搜索",
     "select": "选择",
     "selectedItems": "已选择 {{count}} 项",
@@ -879,7 +881,7 @@
     "error": {
       "failed_to_create": "知识库创建失败",
       "failed_to_edit": "知识库编辑失败",
-      "model_invalid": "未选择模型或已删除"
+      "model_invalid": "未选择模型"
     },
     "file_hint": "支持 {{file_types}} 格式",
     "index_all": "索引全部",
@@ -1505,6 +1507,7 @@
         "image": "新建图片"
       }
     },
+    "custom_size": "自定义尺寸",
     "edit": {
       "image_file": "编辑的图像",
       "magic_prompt_option_tip": "智能优化编辑提示词",
@@ -1627,6 +1630,7 @@
     },
     "text_desc_required": "请先输入图片描述",
     "title": "图片",
+    "top_up": "充值",
     "translating": "翻译中...",
     "uploaded_input": "已上传输入",
     "upscale": {
@@ -3300,26 +3304,11 @@
     },
     "title": "设置",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "最低置信度",
-          "mode": {
-            "accurate": "准确",
-            "fast": "快速",
-            "title": "识别模式"
-          }
-        },
-        "provider": "OCR 服务商",
-        "provider_placeholder": "选择一个 OCR 服务商",
-        "title": "OCR 文字识别"
-      },
       "preprocess": {
         "provider": "文档预处理服务商",
         "provider_placeholder": "选择一个文档预处理服务商",
-        "title": "文档预处理"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "在设置 -> 工具中设置文档预处理服务商或OCR，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果，OCR仅可识别文档内图片或扫描版PDF的文本"
+        "title": "文档预处理",
+        "tooltip": "在设置 -> 工具中设置文档预处理服务商，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果"
       },
       "title": "工具设置",
       "websearch": {

@@ -66,7 +66,7 @@ export class ProxyManager {
 
     try {
       if (config?.mode === this.config?.mode && config?.proxyRules === this.config?.proxyRules) {
-        logger.info('proxy config is the same, skip configure')
+        logger.debug('proxy config is the same, skip configure')
         return
       }
 

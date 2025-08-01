@@ -7,7 +7,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { useAppDispatch } from '@renderer/store'
+import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
@@ -41,6 +41,7 @@ const AboutSettings: FC = () => {
       }
 
       if (update.downloaded) {
+        await handleSaveData()
         window.api.showUpdateDialog()
         return
       }

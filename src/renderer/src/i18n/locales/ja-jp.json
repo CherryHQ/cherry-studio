@@ -703,6 +703,7 @@
     "no_results": "検索結果なし",
     "open": "開く",
     "paste": "貼り付け",
+    "preview": "プレビュー",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
@@ -711,6 +712,7 @@
     "rename": "名前を変更",
     "reset": "リセット",
     "save": "保存",
+    "saved": "保存されました",
     "search": "検索",
     "select": "選択",
     "selectedItems": "{{count}}件の項目を選択しました",
@@ -879,7 +881,7 @@
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
-      "model_invalid": "モデルが選択されていないか、削除されています"
+      "model_invalid": "モデルが選択されていません"
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "index_all": "すべてをインデックス",
@@ -920,7 +922,7 @@
     "search_placeholder": "検索するテキストを入力",
     "settings": {
       "preprocessing": "預処理",
-      "preprocessing_tooltip": "アップロードされたファイルのOCR預処理",
+      "preprocessing_tooltip": "アップロードされたファイルの預処理",
       "title": "ナレッジベース設定"
     },
     "sitemap_added": "追加成功",
@@ -1505,6 +1507,7 @@
         "image": "新しい画像"
       }
     },
+    "custom_size": "カスタムサイズ",
     "edit": {
       "image_file": "編集画像",
       "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
@@ -1627,6 +1630,7 @@
     },
     "text_desc_required": "画像の説明を先に入力してください",
     "title": "画像",
+    "top_up": "チャージする",
     "translating": "翻訳中...",
     "uploaded_input": "アップロード済みの入力",
     "upscale": {
@@ -3300,26 +3304,11 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "最小信頼度",
-          "mode": {
-            "accurate": "正確",
-            "fast": "速い",
-            "title": "認識モード"
-          }
-        },
-        "provider": "OCRプロバイダー",
-        "provider_placeholder": "OCRプロバイダーを選択",
-        "title": "OCR（オーシーアール）"
-      },
       "preprocess": {
         "provider": "プレプロセスプロバイダー",
         "provider_placeholder": "前処理プロバイダーを選択してください",
-        "title": "前処理"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーまたはOCRを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。OCRは、ドキュメント内の画像内のテキストまたはスキャンされたPDFテキストのみを認識できます。"
+        "title": "前処理",
+        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
       },
       "title": "ツール設定",
       "websearch": {

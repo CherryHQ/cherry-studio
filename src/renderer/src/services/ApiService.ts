@@ -41,7 +41,12 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPromptWithThinkTool, buildSystemPromptWithTools } from '@renderer/utils/prompt'
+import {
+  buildSystemPromptWithThinkTool,
+  buildSystemPromptWithTools,
+  containsSupportedVariables,
+  replacePromptVariables
+} from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -312,16 +317,18 @@ async function fetchExternalTool(
     let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
-        searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
-        searchMemory()
-      ])
+    if (shouldWebSearch) {
+      webSearchResponseFromSearch = await searchTheWeb(extractResults, parentSpanId)
     }
 
-    // 存储搜索结果
+    if (shouldKnowledgeSearch) {
+      knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
+    }
+
+    if (shouldSearchMemory) {
+      memorySearchReferences = await searchMemory()
+    }
+
     if (lastUserMessage) {
       if (webSearchResponseFromSearch) {
         window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
@@ -373,8 +380,8 @@ async function fetchExternalTool(
           .map((result) => result.value)
           .flat()
         // 添加内置工具
-        const { BUILT_IN_TOOLS } = await import('../tools')
-        mcpTools.push(...BUILT_IN_TOOLS)
+        // const { BUILT_IN_TOOLS } = await import('../tools')
+        // mcpTools.push(...BUILT_IN_TOOLS)
 
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
@@ -423,6 +430,10 @@ export async function fetchChatCompletion({
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
+
+  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+  }
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
@@ -492,7 +503,7 @@ export async function fetchChatCompletion({
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
-    await processConversationMemory(messages, assistant)
+    processConversationMemory(messages, assistant)
   }
 
   return await AI.completionsForTrace(completionsParams, requestOptions)
@@ -648,8 +659,12 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
 
   // 总结上下文总是取最后5条消息
   const contextMessages = takeRight(messages, 5)

@@ -139,8 +139,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               </div>
             </Tooltip>
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
-            {base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessOrOcrProvider?.provider.id} quota={quota} />
+            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
+              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
           </div>
         </ModelInfo>
