@@ -3304,7 +3304,7 @@
         "provider_placeholder": "Sélectionnez un fournisseur de traitement préalable de documents",
         "title": "Traitement Préliminaire de Documents"
       },
-      "preprocessOrOcr": {
+      "preprocess": {
         "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
       },
       "title": "Paramètres des outils",

@@ -6,7 +6,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Input, Select, Slider } from 'antd'
+import { Input, Select, SelectProps, Slider } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -15,7 +15,7 @@ interface GeneralSettingsPanelProps {
   newBase: KnowledgeBase
   setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
   selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: any[]
+  docPreprocessSelectOptions: SelectProps['options']
   handlers: {
     handleEmbeddingModelChange: (value: string) => void
     handleDimensionChange: (value: number | null) => void
@@ -49,8 +49,8 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
 
       <SettingsItem>
         <div className="settings-label">
-          {t('settings.tool.preprocess.title')} / {t('settings.tool.ocr.title')}
-          <InfoTooltip title={t('settings.tool.preprocessOrOcr.tooltip')} placement="right" />
+          {t('settings.tool.preprocess.title')}
+          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
         <Select
           value={selectedDocPreprocessProvider?.id}

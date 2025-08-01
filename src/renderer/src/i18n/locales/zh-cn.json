@@ -703,6 +703,7 @@
     "no_results": "无结果",
     "open": "打开",
     "paste": "粘贴",
+    "preview": "预览",
     "prompt": "提示词",
     "provider": "提供商",
     "reasoning_content": "已深度思考",
@@ -711,6 +712,7 @@
     "rename": "重命名",
     "reset": "重置",
     "save": "保存",
+    "saved": "已保存",
     "search": "搜索",
     "select": "选择",
     "selectedItems": "已选择 {{count}} 项",
@@ -3300,26 +3302,11 @@
     },
     "title": "设置",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "最低置信度",
-          "mode": {
-            "accurate": "准确",
-            "fast": "快速",
-            "title": "识别模式"
-          }
-        },
-        "provider": "OCR 服务商",
-        "provider_placeholder": "选择一个 OCR 服务商",
-        "title": "OCR 文字识别"
-      },
       "preprocess": {
         "provider": "文档预处理服务商",
         "provider_placeholder": "选择一个文档预处理服务商",
-        "title": "文档预处理"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "在设置 -> 工具中设置文档预处理服务商或OCR，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果，OCR仅可识别文档内图片或扫描版PDF的文本"
+        "title": "文档预处理",
+        "tooltip": "在设置 -> 工具中设置文档预处理服务商，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果"
       },
       "title": "工具设置",
       "websearch": {

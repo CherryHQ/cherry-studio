@@ -122,10 +122,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   }
 
   const showPreprocessIcon = (item: KnowledgeItem) => {
-    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+    if (base.preprocessProvider && item.isPreprocessed !== false) {
       return true
     }
-    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+    if (!base.preprocessProvider && item.isPreprocessed === true) {
       return true
     }
     return false

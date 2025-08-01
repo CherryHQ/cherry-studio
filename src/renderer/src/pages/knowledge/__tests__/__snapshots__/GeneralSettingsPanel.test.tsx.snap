@@ -41,12 +41,10 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       class="settings-label"
     >
       settings.tool.preprocess.title
-       / 
-      settings.tool.ocr.title
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="settings.tool.preprocessOrOcr.tooltip"
+        title="settings.tool.preprocess.tooltip"
       >
         ℹ️
       </span>

@@ -3304,7 +3304,7 @@
         "provider_placeholder": "Selecciona un proveedor de preprocesamiento de documentos",
         "title": "Preprocesamiento de Documentos"
       },
-      "preprocessOrOcr": {
+      "preprocess": {
         "tooltip": "Configure un proveedor de preprocesamiento de documentos o OCR en Configuración -> Herramientas. El preprocesamiento de documentos puede mejorar significativamente la eficacia de búsqueda en documentos con formatos complejos o versiones escaneadas. El OCR solo puede reconocer texto en imágenes o en archivos PDF escaneados."
       },
       "title": "Configuración de Herramientas",

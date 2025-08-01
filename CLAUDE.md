@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Environment Setup
-- **Prerequisites**: Node.js v20.x.x, Yarn 4.6.0
-- **Setup Yarn**: `corepack enable && corepack prepare yarn@4.6.0 --activate`
+- **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
+- **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
 - **Install Dependencies**: `yarn install`
 
 ### Development
@@ -61,7 +61,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
 
 ### Build System
-- **Electron-Vite**: Development and build tooling
+- **Electron-Vite**: Development and build tooling (v4.0.0)
+- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
 - **Workspaces**: Monorepo structure with `packages/` directory
 - **Multiple Entry Points**: Main app, mini window, selection toolbar
 - **Styled Components**: CSS-in-JS styling with SWC optimization

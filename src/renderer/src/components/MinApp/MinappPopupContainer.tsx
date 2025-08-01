@@ -143,7 +143,7 @@ const MinappPopupContainer: React.FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+  const { isTopNavbar } = useNavbarPosition()
   const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
@@ -164,6 +164,8 @@ const MinappPopupContainer: React.FC = () => {
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
   const { minappsOpenLinkExternal } = useSettings()
+
+  const { isLeftNavbar } = useNavbarPosition()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -403,7 +405,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''} isTopNavBar={isTopNavbar}>
+        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
@@ -505,7 +507,6 @@ const MinappPopupContainer: React.FC = () => {
       closeIcon={null}
       style={{
         marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
-        marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
         backgroundColor: window.root.style.background
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
@@ -540,7 +541,7 @@ const TitleContainer = styled.div`
     padding-left: ${isMac ? '20px' : '10px'};
   }
   [navbar-position='top'] & {
-    padding-left: ${isMac ? '20px' : '10px'};
+    padding-left: ${isMac ? '80px' : '10px'};
     border-bottom: 0.5px solid var(--color-border);
   }
 `
@@ -562,14 +563,14 @@ const TitleTextTooltip = styled.span`
   }
 `
 
-const ButtonsGroup = styled.div<{ isTopNavBar: boolean }>`
+const ButtonsGroup = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${(props) => (props.isTopNavBar ? 0 : isWin ? '130px' : isLinux ? '100px' : 0)};
+    margin-right: ${isWin ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;

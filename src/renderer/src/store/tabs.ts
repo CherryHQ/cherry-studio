@@ -5,7 +5,7 @@ export interface Tab {
   path: string
 }
 
-interface TabsState {
+export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }

@@ -41,7 +41,12 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPromptWithThinkTool, buildSystemPromptWithTools } from '@renderer/utils/prompt'
+import {
+  buildSystemPromptWithThinkTool,
+  buildSystemPromptWithTools,
+  containsSupportedVariables,
+  replacePromptVariables
+} from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -426,6 +431,10 @@ export async function fetchChatCompletion({
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
 
+  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+  }
+
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
 
@@ -643,8 +652,12 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
 
   // 总结上下文总是取最后5条消息
   const contextMessages = takeRight(messages, 5)
