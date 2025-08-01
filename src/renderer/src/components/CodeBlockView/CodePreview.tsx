@@ -202,11 +202,11 @@ const VirtualizedRow = memo(
   ({ rawLine, tokenLine, showLineNumbers, index }: VirtualizedRowData & { index: number }) => {
     // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
     const completeTokenLine = useMemo(() => {
-      // 如果出现空行，补一个空格保证行高
+      // 如果出现空行，补一个空元素保证行高
       if (rawLine.length === 0) {
         return [
           {
-            content: ' ',
+            content: '',
             offset: 0,
             color: 'inherit',
             bgColor: 'inherit',
@@ -272,6 +272,7 @@ const ScrollContainer = styled.div<{
     align-items: flex-start;
     width: 100%;
     line-height: ${(props) => props.$lineHeight}px;
+    contain: content;
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
