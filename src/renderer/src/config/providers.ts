@@ -54,6 +54,7 @@ import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 
 import { TOKENFLUX_HOST } from './constant'
+import { Provider } from '@renderer/types'
 
 const PROVIDER_LOGO_MAP = {
   ph8: Ph8ProviderLogo,
@@ -716,4 +717,8 @@ export const PROVIDER_CONFIG = {
       models: 'https://poe.com/'
     }
   }
+}
+
+export const isSupportDeveloperRoleProvider = (provider: Provider) => {
+  return provider.id !== 'poe'
 }
