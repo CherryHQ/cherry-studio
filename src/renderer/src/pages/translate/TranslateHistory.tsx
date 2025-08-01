@@ -1,5 +1,4 @@
 import { DeleteOutlined } from '@ant-design/icons'
-import VirtualList from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { Language, TranslateHistory } from '@renderer/types'
@@ -12,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { OperationBar } from '.'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 
 type DisplayedTranslateHistory = TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
 
@@ -37,40 +37,6 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick })
     }))
   }, [_translateHistory, getLanguageByLangcode])
 
-  const historyItemRenderer = useCallback(
-    (item: DisplayedTranslateHistory) => (
-      <Dropdown
-        key={item.id}
-        trigger={['contextMenu']}
-        menu={{
-          items: [
-            {
-              key: 'delete',
-              label: t('translate.history.delete'),
-              icon: <DeleteOutlined />,
-              danger: true,
-              onClick: () => deleteHistory(item.id)
-            }
-          ]
-        }}>
-        <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-          <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-            <Flex align="center" justify="space-between" style={{ flex: 1 }}>
-              <Flex align="center" gap={6}>
-                <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
-              </Flex>
-              <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
-            </Flex>
-            <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-            <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>{item.targetText}</HistoryListItemTitle>
-          </Flex>
-        </HistoryListItem>
-      </Dropdown>
-    ),
-    [deleteHistory, onHistoryItemClick, t]
-  )
-
   return (
     <HistoryContainer>
       <OperationBar style={{ paddingLeft: '10px', paddingRight: '8px' }}>
@@ -88,10 +54,42 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ onHistoryItemClick })
       </OperationBar>
       {translateHistory && translateHistory.length ? (
         <HistoryList>
-          <VirtualList
-            list={translateHistory}
-            itemRenderer={historyItemRenderer}
-            estimateSize={() => ITEM_HEIGHT}></VirtualList>
+          <DynamicVirtualList list={translateHistory} estimateSize={() => ITEM_HEIGHT}>
+            {(item) => {
+              return (
+                <Dropdown
+                  key={item.id}
+                  trigger={['contextMenu']}
+                  menu={{
+                    items: [
+                      {
+                        key: 'delete',
+                        label: t('translate.history.delete'),
+                        icon: <DeleteOutlined />,
+                        danger: true,
+                        onClick: () => deleteHistory(item.id)
+                      }
+                    ]
+                  }}>
+                  <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+                    <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                      <Flex align="center" justify="space-between" style={{ flex: 1 }}>
+                        <Flex align="center" gap={6}>
+                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+                        </Flex>
+                        <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                      </Flex>
+                      <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
+                      <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                        {item.targetText}
+                      </HistoryListItemTitle>
+                    </Flex>
+                  </HistoryListItem>
+                </Dropdown>
+              )
+            }}
+          </DynamicVirtualList>
         </HistoryList>
       ) : (
         <Flex justify="center" align="center" style={{ flex: 1 }}>
