@@ -83,25 +83,24 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
     <DynamicVirtualList
       list={list}
       estimateSize={estimateSize}
+      overscan={2}
       scrollerStyle={{
         padding: '0 16px 16px 16px'
+      }}
+      itemContainerStyle={{
+        height: '75px',
+        paddingTop: '12px'
       }}>
       {(item) => (
-        <div
-          style={{
-            height: '75px',
-            paddingTop: '12px'
-          }}>
-          <FileItem
-            key={item.key}
-            fileInfo={{
-              name: item.file,
-              ext: item.ext,
-              extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
-              actions: item.actions
-            }}
-          />
-        </div>
+        <FileItem
+          key={item.key}
+          fileInfo={{
+            name: item.file,
+            ext: item.ext,
+            extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
+            actions: item.actions
+          }}
+        />
       )}
     </DynamicVirtualList>
   )

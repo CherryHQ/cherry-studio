@@ -82,6 +82,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
         <DynamicVirtualList
           list={reversedItems}
           estimateSize={estimateSize}
+          overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
           autoHideScrollbar>

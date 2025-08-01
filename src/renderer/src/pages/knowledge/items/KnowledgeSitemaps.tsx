@@ -101,6 +101,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         <DynamicVirtualList
           list={reversedItems}
           estimateSize={estimateSize}
+          overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
           autoHideScrollbar>

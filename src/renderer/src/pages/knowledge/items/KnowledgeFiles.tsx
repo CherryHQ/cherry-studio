@@ -166,6 +166,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           <DynamicVirtualList
             list={fileItems.reverse()}
             estimateSize={estimateSize}
+            overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
             autoHideScrollbar>
             {(item) => {
