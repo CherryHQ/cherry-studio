@@ -15,6 +15,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
 import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
+import PoeProviderLogo from '@renderer/assets/images/providers/poe.svg'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
@@ -108,7 +109,8 @@ const PROVIDER_LOGO_MAP = {
   lanyun: LanyunProviderLogo,
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
-  'aws-bedrock': AwsProviderLogo
+  'aws-bedrock': AwsProviderLogo,
+  poe: PoeProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -701,6 +703,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html',
       docs: 'https://docs.aws.amazon.com/bedrock/',
       models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html'
+    }
+  },
+  poe: {
+    api: {
+      url: 'https://api.poe.com/v1'
+    },
+    websites: {
+      official: 'https://poe.com/',
+      apiKey: 'https://poe.com/api_key',
+      docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
+      models: 'https://poe.com/'
     }
   }
 }

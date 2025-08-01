@@ -2346,7 +2346,15 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   'new-api': [],
-  'aws-bedrock': []
+  'aws-bedrock': [],
+  poe: [
+    {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'poe',
+      group: 'poe'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
