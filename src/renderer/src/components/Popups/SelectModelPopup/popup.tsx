@@ -28,7 +28,7 @@ import styled from 'styled-components'
 import { useScrollState } from './hook'
 import { FlatListItem } from './types'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 11
 const ITEM_HEIGHT = 36
 
 interface PopupParams {
@@ -388,6 +388,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
             getItemKey={getItemKey}
             estimateSize={estimateSize}
             isSticky={isSticky}
+            scrollPaddingStart={ITEM_HEIGHT} // 留出 sticky header 高度
             overscan={5}
             scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {rowRenderer}
