@@ -132,8 +132,6 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
     [provider, onRemoveModel, onAddModel, t]
   )
 
-  console.log('list', flatRows)
-
   return (
     <DynamicVirtualList
       list={flatRows}
