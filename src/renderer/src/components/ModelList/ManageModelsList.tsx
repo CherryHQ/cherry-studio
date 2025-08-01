@@ -139,7 +139,8 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
       isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
       overscan={5}
       scrollerStyle={{
-        paddingRight: '10px'
+        paddingRight: '10px',
+        borderRadius: '8px'
       }}>
       {(row) => {
         if (row.type === 'group') {
