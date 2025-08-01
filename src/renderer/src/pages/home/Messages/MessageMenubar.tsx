@@ -9,7 +9,7 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { loggerService } from '@renderer/services/LoggerService'
+import { loggerService } from '@logger'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState, useAppDispatch } from '@renderer/store'

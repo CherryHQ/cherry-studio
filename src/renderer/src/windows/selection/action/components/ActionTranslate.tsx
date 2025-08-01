@@ -8,7 +8,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { loggerService } from '@renderer/services/LoggerService'
+
 import { Assistant, Language, Topic } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
@@ -22,12 +22,13 @@ import styled from 'styled-components'
 
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
+import { loggerService } from '@logger'
 interface Props {
   action: ActionItem
   scrollToBottom: () => void
 }
 
-const logger = loggerService.withContext('ActionTranslate')
+const logger = loggerService
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
