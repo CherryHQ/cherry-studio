@@ -6,7 +6,7 @@ import { Button, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useMemo } from 'react'
+import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
