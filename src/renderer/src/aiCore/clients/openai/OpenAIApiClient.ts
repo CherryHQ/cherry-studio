@@ -714,7 +714,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       isFinished = true
     }
 
-    let isFirstThinkingChunk = true
+    let isThinking = false
     let isFirstTextChunk = true
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
@@ -809,16 +809,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
-              if (isFirstThinkingChunk) {
+              if (!isThinking) {
                 controller.enqueue({
                   type: ChunkType.THINKING_START
                 } as ThinkingStartChunk)
-                isFirstThinkingChunk = false
+                isThinking = true
               }
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
               })
+            } else {
+              isThinking = false
             }
 
             // 处理文本内容
