@@ -71,7 +71,7 @@ const Translate: FC<Props> = ({ text }) => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
     })
-  }, [])
+  }, [getLanguageByLangcode])
 
   useEffect(() => {
     translate()
