@@ -1,8 +1,6 @@
-import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MinApp/MinApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { Button, Input } from 'antd'
 import { Search, SettingsIcon } from 'lucide-react'
 import React, { FC, useState } from 'react'
@@ -16,7 +14,7 @@ const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { minapps } = useMinapps()
-  const { isTopNavbar } = useNavbarPosition()
+  // const { isTopNavbar } = useNavbarPosition()
 
   const filteredApps = search
     ? minapps.filter(
@@ -37,38 +35,40 @@ const AppsPage: FC = () => {
 
   return (
     <Container onContextMenu={handleContextMenu}>
-      <Navbar>
-        <NavbarMain>
-          {t('minapp.title')}
-          <Input
-            placeholder={t('common.search')}
-            className="nodrag"
-            style={{
-              width: '30%',
-              height: 28,
-              borderRadius: 15,
-              position: 'absolute',
-              left: '50vw',
-              transform: 'translateX(-50%)'
-            }}
-            size="small"
-            variant="filled"
-            suffix={<Search size={18} />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Button
-            type="text"
-            className="nodrag"
-            icon={<SettingsIcon size={18} color="var(--color-text-2)" />}
-            onClick={MinappSettingsPopup.show}
-          />
-        </NavbarMain>
-      </Navbar>
+      {/* <Navbar> */}
+      {/* <NavbarMain> */}
+      {/* {t('minapp.title')} */}
+      <div className="p-2">
+        <Input
+          placeholder={t('common.search')}
+          className="nodrag"
+          style={{
+            width: '30%',
+            height: 28,
+            borderRadius: 15,
+            position: 'absolute',
+            left: '50vw',
+            transform: 'translateX(-50%)'
+          }}
+          size="small"
+          variant="filled"
+          suffix={<Search size={18} />}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Button
+          type="text"
+          className="nodrag"
+          icon={<SettingsIcon size={18} color="var(--color-text-2)" />}
+          onClick={MinappSettingsPopup.show}
+        />
+      </div>
+      {/* </NavbarMain> */}
+      {/* </Navbar> */}
       <ContentContainer id="content-container">
         <MainContainer>
           <RightContainer>
-            {isTopNavbar && (
+            {/* {isTopNavbar && (
               <HeaderContainer>
                 <Input
                   placeholder={t('common.search')}
@@ -86,7 +86,7 @@ const AppsPage: FC = () => {
                   onClick={() => MinappSettingsPopup.show()}
                 />
               </HeaderContainer>
-            )}
+            )} */}
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
                 {filteredApps.map((app) => (
@@ -114,24 +114,23 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   justify-content: center;
-  height: 100%;
+  overflow: hidden;
 `
 
-const HeaderContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  height: 60px;
-  width: 100%;
-  gap: 10px;
-`
+// const HeaderContainer = styled.div`
+//   display: flex;
+//   flex-direction: row;
+//   justify-content: center;
+//   align-items: center;
+//   height: 60px;
+//   width: 100%;
+//   gap: 10px;
+// `
 
 const MainContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
-  height: calc(100vh - var(--navbar-height));
 `
 
 const RightContainer = styled(Scrollbar)`
@@ -140,7 +139,6 @@ const RightContainer = styled(Scrollbar)`
   flex-direction: column;
   height: 100%;
   align-items: center;
-  height: calc(100vh - var(--navbar-height));
 `
 
 const AppsContainerWrapper = styled(Scrollbar)`

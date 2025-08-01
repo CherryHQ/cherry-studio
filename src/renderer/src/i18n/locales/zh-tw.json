@@ -731,6 +731,13 @@
     "warning": "警告",
     "you": "您"
   },
+  "discover": {
+    "install": "安裝",
+    "title": "發現",
+    "uninstall": "卸載",
+    "update": "更新",
+    "update_all": "全部更新"
+  },
   "docs": {
     "title": "說明文件"
   },

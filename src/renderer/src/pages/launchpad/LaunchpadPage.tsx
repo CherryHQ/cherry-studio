@@ -20,7 +20,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),
-      path: '/apps',
+      path: '/discover/mini-app',
       bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
     },
     {
@@ -38,7 +38,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <Sparkle size={32} className="icon" />,
       text: t('title.agents'),
-      path: '/agents',
+      path: '/discover/assistant',
       bgColor: 'linear-gradient(135deg, #6366F1, #4F46E5)' // AI助手：靛蓝渐变，代表智能和科技
     },
     {

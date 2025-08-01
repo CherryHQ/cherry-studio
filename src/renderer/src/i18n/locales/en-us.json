@@ -731,6 +731,13 @@
     "warning": "Warning",
     "you": "You"
   },
+  "discover": {
+    "install": "Installation",
+    "title": "follow system prompt",
+    "uninstall": "uninstall",
+    "update": "update",
+    "update_all": "Full Update"
+  },
   "docs": {
     "title": "Docs"
   },

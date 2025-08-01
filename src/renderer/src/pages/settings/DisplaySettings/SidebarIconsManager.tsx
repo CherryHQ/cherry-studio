@@ -11,7 +11,7 @@ import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import { message } from 'antd'
-import { FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
+import { Compass, FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -116,7 +116,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
-      files: <Folder size={15} />
+      files: <Folder size={15} />,
+      discover: <Compass size={15} />
     }),
     []
   )

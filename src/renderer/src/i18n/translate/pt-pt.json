@@ -83,25 +83,28 @@
       "restart": {
         "button": "Reiniciar",
         "tooltip": "Reiniciar Servidor"
-      }
+      },
+      "start": "Iniciar",
+      "stop": "Pare"
+    },
+    "authHeader": {
+      "title": "cabeçalho de autorização"
     },
     "authHeaderText": "Usar no cabeçalho de autorização:",
     "configuration": "Configuração",
     "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
-      "title": "Documentação API",
-      "unavailable": {
-        "description": "Inicie o servidor API para ver a documentação interativa",
-        "title": "Documentação API Indisponível"
-      }
+      "title": "Documentação API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Chave API",
+        "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
+        "description": "número da porta TCP do servidor HTTP (1000-65535)",
         "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
@@ -725,6 +728,13 @@
     "topics": "Tópicos",
     "warning": "Aviso",
     "you": "Você"
+  },
+  "discover": {
+    "install": "Instalação",
+    "title": "Descoberta",
+    "uninstall": "desinstalar",
+    "update": "atualização",
+    "update_all": "Todas as atualizações"
   },
   "docs": {
     "title": "Documentação de Ajuda"
@@ -1647,6 +1657,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Antropológico",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Nuvem Baidu",
@@ -3088,6 +3099,16 @@
         "tip": "Use vírgula para separar várias chaves"
       },
       "api_version": "Versão da API",
+      "aws-bedrock": {
+        "access_key_id": "AWS ID da Chave de Acesso",
+        "access_key_id_help": "O seu ID da chave de acesso AWS, para aceder ao serviço AWS Bedrock",
+        "description": "AWS Bedrock é um serviço gerenciado completo de modelos base fornecido pela Amazon, suporta diversos modelos avançados de linguagem de grande porte.",
+        "region": "Siga o prompt do sistema",
+        "region_help": "A sua região do serviço AWS, por exemplo, us-east-1.",
+        "secret_access_key": "AWS Access Key",
+        "secret_access_key_help": "Por favor, mantenha a sua chave de acesso AWS em segurança.",
+        "title": "Configuração do AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Versão da API do Azure OpenAI. Se desejar usar a API de Resposta, insira a versão de visualização"
@@ -3298,11 +3319,6 @@
         "provider": "Provedor OCR",
         "provider_placeholder": "Selecione um provedor OCR",
         "title": "Reconhecimento de Texto OCR"
-      },
-      "preprocess": {
-        "provider": "Prestador de serviços de pré-processamento de documentos",
-        "provider_placeholder": "Selecione um prestador de serviços de pré-processamento de documentos",
-        "title": "Pré-processamento de Documentos"
       },
       "preprocess": {
         "tooltip": "Configure o provedor de pré-processamento de documentos ou OCR em Configurações -> Ferramentas. O pré-processamento de documentos pode melhorar significativamente a eficácia da busca em documentos com formatos complexos ou versões escaneadas. O OCR só consegue reconhecer texto em imagens ou PDFs escaneados."

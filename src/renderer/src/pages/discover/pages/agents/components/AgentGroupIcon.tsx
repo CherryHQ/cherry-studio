@@ -1,4 +1,4 @@
-import { groupTranslations } from '@renderer/pages/agents/agentGroupTranslations'
+import { groupTranslations } from '@renderer/pages/discover/pages/agents/agentGroupTranslations'
 import { DynamicIcon, IconName } from 'lucide-react/dynamic'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'

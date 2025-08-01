@@ -7,7 +7,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
 >
   <div
     class="ant-input-number css-dev-only-do-not-override-1261szd ant-input-number-outlined ant-input-number-compact-item ant-input-number-compact-first-item"
-    style="flex: 1;"
+    style="flex: 1 1 0%;"
   >
     <div
       class="ant-input-number-handler-wrap"
@@ -112,7 +112,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
 >
   <div
     class="ant-input-number css-dev-only-do-not-override-1261szd ant-input-number-outlined ant-input-number-compact-item ant-input-number-compact-first-item"
-    style="flex: 1;"
+    style="flex: 1 1 0%;"
   >
     <div
       class="ant-input-number-handler-wrap"

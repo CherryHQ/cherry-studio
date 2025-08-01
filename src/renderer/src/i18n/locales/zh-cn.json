@@ -731,6 +731,13 @@
     "warning": "警告",
     "you": "用户"
   },
+  "discover": {
+    "install": "安装",
+    "title": "发现",
+    "uninstall": "卸载",
+    "update": "更新",
+    "update_all": "全部更新"
+  },
   "docs": {
     "title": "帮助文档"
   },

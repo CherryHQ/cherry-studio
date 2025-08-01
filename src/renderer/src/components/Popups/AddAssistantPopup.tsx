@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useSystemAgents } from '@renderer/pages/agents'
+import { useSystemAgents } from '@renderer/pages/discover/pages/agents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent, Assistant } from '@renderer/types'

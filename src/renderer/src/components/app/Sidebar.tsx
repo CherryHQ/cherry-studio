@@ -16,15 +16,14 @@ import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
   CircleHelp,
+  Compass,
   FileSearch,
   Folder,
   Languages,
-  LayoutGrid,
   MessageSquare,
   Moon,
   Palette,
   Settings,
-  Sparkle,
   Sun
 } from 'lucide-react'
 import { FC } from 'react'
@@ -38,7 +37,7 @@ import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 const Sidebar: FC = () => {
   const { hideMinappPopup, openMinapp } = useMinappPopup()
   const { minappShow, currentMinappId } = useRuntime()
-  const { sidebarIcons } = useSettings()
+  // const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
 
   const { pathname } = useLocation()
@@ -52,8 +51,8 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
-
+  // const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
+  const showPinnedApps = pinned.length > 0
   const to = async (path: string) => {
     await modelGenerating()
     navigate(path)
@@ -141,22 +140,24 @@ const MainMenus: FC = () => {
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
-    agents: <Sparkle size={18} className="icon" />,
+    // agents: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
-    minapp: <LayoutGrid size={18} className="icon" />,
+    // minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />
+    files: <Folder size={17} className="icon" />,
+    discover: <Compass size={18} className="icon" />
   }
 
   const pathMap = {
     assistants: '/',
-    agents: '/agents',
+    // agents: '/agents',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
-    minapp: '/apps',
+    // minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    discover: '/discover'
   }
 
   return sidebarIcons.visible.map((icon) => {

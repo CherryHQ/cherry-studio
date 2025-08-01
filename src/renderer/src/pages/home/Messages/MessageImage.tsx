@@ -62,7 +62,10 @@ const MessageImage: FC<Props> = ({ block }) => {
               byteArrays.push(byteArray)
             }
 
-            const blob = new Blob(byteArrays, { type: mimeType })
+            const blob = new Blob(
+              byteArrays.map((b) => b.slice()),
+              { type: mimeType }
+            )
             await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
           } else {
             throw new Error('无效的 base64 图片格式')

@@ -83,25 +83,28 @@
       "restart": {
         "button": "Επανεκκίνηση",
         "tooltip": "Επανεκκίνηση Διακομιστή"
-      }
+      },
+      "start": "Εκκίνηση",
+      "stop": "σταματήστε"
+    },
+    "authHeader": {
+      "title": "Κεφαλίδα εξουσιοδότησης"
     },
     "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
     "configuration": "Διαμόρφωση",
     "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
     "documentation": {
-      "title": "Τεκμηρίωση API",
-      "unavailable": {
-        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση",
-        "title": "Τεκμηρίωση API Μη Διαθέσιμη"
-      }
+      "title": "Τεκμηρίωση API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Αντιγραφή Κλειδιού API",
+        "description": "Ασφαλές τοκέν πιστοποίησης για πρόσβαση στο API",
         "label": "Κλειδί API",
         "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
       },
       "port": {
+        "description": "Αριθμός θυρας TCP του διακομιστή HTTP (1000-65535)",
         "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
         "label": "Θύρα"
       },
@@ -725,6 +728,13 @@
     "topics": "Θέματα",
     "warning": "Προσοχή",
     "you": "Εσείς"
+  },
+  "discover": {
+    "install": "Εγκατάσταση",
+    "title": "ανακάλυψη",
+    "uninstall": "απεγκατάσταση",
+    "update": "ενημέρωση",
+    "update_all": "Όλα τα πρόσφατα"
   },
   "docs": {
     "title": "Βοήθεια"
@@ -1647,6 +1657,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
@@ -3088,6 +3099,16 @@
         "tip": "Χωριστά με κόμμα περισσότερα κλειδιά API"
       },
       "api_version": "Έκδοση API",
+      "aws-bedrock": {
+        "access_key_id": "ID πρόσβασης AWS",
+        "access_key_id_help": "Η ID της πρόσβασης AWS σας για την υπηρεσία AWS Bedrock",
+        "description": "AWS Bedrock είναι μία πλήρως τακτοποιημένη υπηρεσία βασικών μοντέλων που παρέχεται από το Amazon, η οποία συμπεριλαμβάνει πολλά προηγμένα μεγάλα γλωσσικά μοντέλα.",
+        "region": "Περιοχή AWS",
+        "region_help": "Παρακολουθήστε το σύστημα κατευθύνσεων",
+        "secret_access_key": "AWS κλειδί πρόσβασης",
+        "secret_access_key_help": "Σύνδεσης σας στο AWS, παρακαλώ φυλάξτε τα προσεκτικά.",
+        "title": "AWS Bedrock ρύθμιση"
+      },
       "azure": {
         "apiversion": {
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια προεπισκόπηση έκδοσης"
@@ -3298,11 +3319,6 @@
         "provider": "Πάροχος OCR",
         "provider_placeholder": "Επιλέξτε έναν πάροχο OCR",
         "title": "Αναγνώριση κειμένου OCR"
-      },
-      "preprocess": {
-        "provider": "Πάροχος προεπεξεργασίας εγγράφων",
-        "provider_placeholder": "Επιλέξτε έναν πάροχο προεπεξεργασίας εγγράφων",
-        "title": "Προεπεξεργασία Εγγράφων"
       },
       "preprocess": {
         "tooltip": "Ορίστε πάροχο προεπεξεργασίας εγγράφων ή OCR στις Ρυθμίσεις -> Εργαλεία. Η προεπεξεργασία εγγράφων μπορεί να βελτιώσει σημαντικά την απόδοση αναζήτησης για έγγραφα πολύπλοκης μορφής ή εγγράφων σε μορφή σάρωσης. Το OCR μπορεί να αναγνωρίσει μόνο κείμενο μέσα σε εικόνες εγγράφων ή σε PDF σε μορφή σάρωσης."

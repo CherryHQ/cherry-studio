@@ -49,6 +49,7 @@ body {
   font-family: var(--font-family);
   text-rendering: optimizeLegibility;
   transition: background-color 0.3s linear;
+  background-color: unset;
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

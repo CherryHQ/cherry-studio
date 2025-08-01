@@ -1,5 +1,4 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CustomTag from '@renderer/components/CustomTag'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -183,27 +182,28 @@ const AgentsPage: FC = () => {
 
   return (
     <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}>
-          {t('agents.title')}
-          <Input
-            placeholder={t('common.search')}
-            className="nodrag"
-            style={{ width: '30%', height: 28, borderRadius: 15, paddingLeft: 12 }}
-            size="small"
-            variant="filled"
-            allowClear
-            onClear={handleSearchClear}
-            suffix={<Search size={14} color="var(--color-icon)" onClick={handleSearch} />}
-            value={searchInput}
-            maxLength={50}
-            onChange={handleSearchInputChange}
-            onPressEnter={handleSearch}
-            onBlur={handleSearchInputBlur}
-          />
-          <div style={{ width: 80 }} />
-        </NavbarCenter>
-      </Navbar>
+      {/* <Navbar> */}
+      {/* <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}> */}
+      {/* {t('agents.title')} */}
+      {/* <div className="flex justify-center p-2">
+        <Input
+          placeholder={t('common.search')}
+          className="nodrag"
+          style={{ width: '30%', height: 28, borderRadius: 15, paddingLeft: 12 }}
+          size="small"
+          variant="filled"
+          allowClear
+          onClear={handleSearchClear}
+          suffix={<Search size={14} color="var(--color-icon)" onClick={handleSearch} />}
+          value={searchInput}
+          maxLength={50}
+          onChange={handleSearchInputChange}
+          onPressEnter={handleSearch}
+          onBlur={handleSearchInputBlur}
+        />
+      </div> */}
+      {/* </NavbarCenter> */}
+      {/* </Navbar> */}
 
       <Main id="content-container">
         <AgentsGroupList>
@@ -314,14 +314,13 @@ const AgentsPage: FC = () => {
 
 const Container = styled.div`
   display: flex;
-  flex: 1;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 `
 
 const AgentsGroupList = styled(Scrollbar)`
   min-width: 160px;
-  height: calc(100vh - var(--navbar-height));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -339,10 +338,10 @@ const AgentsGroupList = styled(Scrollbar)`
 const Main = styled.div`
   flex: 1;
   display: flex;
+  overflow: hidden;
 `
 
 const AgentsListContainer = styled.div`
-  height: calc(100vh - var(--navbar-height));
   flex: 1;
   display: flex;
   flex-direction: column;
