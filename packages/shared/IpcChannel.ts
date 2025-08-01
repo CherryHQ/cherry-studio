@@ -35,6 +35,7 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_LogToMain = 'app:log-to-main',
   App_SaveData = 'app:save-data',
+  App_SaveDataComplete = 'app:save-data-complete',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',

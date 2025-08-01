@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -319,16 +319,9 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
-      // save data before when close window
-      try {
-        mainWindow.webContents.send(IpcChannel.App_SaveData)
-      } catch (error) {
-        logger.error('Failed to save data:', error as Error)
-      }
-
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
-        return app.quit()
+        return
       }
 
       // 托盘及关闭行为设置
@@ -337,11 +330,39 @@ export class WindowService {
 
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
+        // 如果是Windows或Linux，需要保存数据后退出
         if (isWin || isLinux) {
-          return app.quit()
+          // 阻止默认关闭行为
+          event.preventDefault()
+
+          // 标记正在关闭
+          app.isQuitting = true
+
+          // 通知渲染进程保存数据
+          try {
+            mainWindow.webContents.send(IpcChannel.App_SaveData)
+
+            // 设置超时处理，防止渲染进程无响应
+            const saveTimeout = setTimeout(() => {
+              logger.warn('Save data timeout, force closing window')
+              mainWindow.destroy()
+              app.quit()
+            }, 5000)
+
+            // 等待保存完成确认
+            ipcMain.once(IpcChannel.App_SaveDataComplete, () => {
+              clearTimeout(saveTimeout)
+              mainWindow.destroy()
+              app.quit()
+            })
+          } catch (error) {
+            logger.error('Failed to initiate save data:', error as Error)
+            mainWindow.destroy()
+            app.quit()
+          }
+          return
         }
+        // mac按照系统默认行为，不退出
       }
 
       /**
@@ -352,6 +373,13 @@ export class WindowService {
 
       if (!mainWindow.isFullScreen()) {
         event.preventDefault()
+      }
+
+      // 最小化到托盘前也需要保存数据
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to send save data message when minimizing to tray:', error as Error)
       }
 
       mainWindow.hide()

@@ -105,9 +105,36 @@ export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
 
 export async function handleSaveData() {
-  logger.info('Flushing redux persistor data')
-  await persistor.flush()
-  logger.info('Flushed redux persistor data')
+  try {
+    logger.info('Starting data save process')
+
+    // 1. 保存 Redux 数据到 localStorage
+    logger.info('Flushing redux persistor data')
+    await persistor.flush()
+    logger.info('Flushed redux persistor data')
+
+    // 2. 取消所有节流的消息块更新，确保立即保存
+    const state = store.getState()
+    const allBlockIds = Object.keys(state.messageBlocks.entities)
+
+    if (allBlockIds.length > 0) {
+      logger.info(`Canceling throttled updates for ${allBlockIds.length} blocks`)
+      // 动态导入以避免循环依赖
+      const { cancelThrottledBlockUpdate } = await import('./thunk/messageThunk')
+      allBlockIds.forEach((blockId) => {
+        cancelThrottledBlockUpdate(blockId)
+      })
+    }
+
+    // 3. 等待 IndexedDB 操作完成
+    logger.info('Waiting for IndexedDB operations to complete')
+    // 给 IndexedDB 一些时间完成所有挂起的事务
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    logger.info('Data save process completed')
+  } catch (error) {
+    logger.error('Failed to save data:', error as Error)
+  }
 }
 
 export default store

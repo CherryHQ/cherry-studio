@@ -54,6 +54,8 @@ export function useAppInit() {
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
       await handleSaveData()
+      // 发送保存完成确认
+      window.electron.ipcRenderer.send(IpcChannel.App_SaveDataComplete)
     })
   }, [])
 
