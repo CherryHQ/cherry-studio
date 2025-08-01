@@ -2620,7 +2620,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
     return false
   }
 
-  if (model.id.includes('grok-3-mini')) {
+  if (model.id.includes('grok-3-mini') || model.id.includes('grok-4')) {
     return true
   }
 
@@ -2631,7 +2631,7 @@ export function isGrokReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  if (isSupportedReasoningEffortGrokModel(model) || model.id.includes('grok-4')) {
+  if (isSupportedReasoningEffortGrokModel(model)) {
     return true
   }
 
