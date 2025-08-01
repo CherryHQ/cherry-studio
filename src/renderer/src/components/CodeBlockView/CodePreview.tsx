@@ -189,46 +189,6 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
 CodePreview.displayName = 'CodePreview'
 
-/**
- * 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
- */
-function completeLineTokens(themedTokens: ThemedToken[], rawLine: string): ThemedToken[] {
-  // 如果出现空行，补一个空格保证行高
-  if (rawLine.length === 0) {
-    return [
-      {
-        content: ' ',
-        offset: 0,
-        color: 'inherit',
-        bgColor: 'inherit',
-        htmlStyle: {
-          opacity: '0.35'
-        }
-      }
-    ]
-  }
-
-  const themedContent = themedTokens.map((token) => token.content).join('')
-  const extraContent = rawLine.slice(themedContent.length)
-
-  // 已有内容已经全部高亮，直接返回
-  if (!extraContent) return themedTokens
-
-  // 补全剩余内容
-  return [
-    ...themedTokens,
-    {
-      content: extraContent,
-      offset: themedContent.length,
-      color: 'inherit',
-      bgColor: 'inherit',
-      htmlStyle: {
-        opacity: '0.35'
-      }
-    }
-  ]
-}
-
 interface VirtualizedRowData {
   rawLine: string
   tokenLine?: ThemedToken[]
@@ -240,11 +200,51 @@ interface VirtualizedRowData {
  */
 const VirtualizedRow = memo(
   ({ rawLine, tokenLine, showLineNumbers, index }: VirtualizedRowData & { index: number }) => {
+    // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
+    const completeTokenLine = useMemo(() => {
+      // 如果出现空行，补一个空格保证行高
+      if (rawLine.length === 0) {
+        return [
+          {
+            content: ' ',
+            offset: 0,
+            color: 'inherit',
+            bgColor: 'inherit',
+            htmlStyle: {
+              opacity: '0.35'
+            }
+          }
+        ]
+      }
+
+      const currentTokens = tokenLine ?? []
+      const themedContentLength = currentTokens.reduce((acc, token) => acc + token.content.length, 0)
+
+      // 已有内容已经全部高亮，直接返回
+      if (themedContentLength >= rawLine.length) {
+        return currentTokens
+      }
+
+      // 补全剩余内容
+      return [
+        ...currentTokens,
+        {
+          content: rawLine.slice(themedContentLength),
+          offset: themedContentLength,
+          color: 'inherit',
+          bgColor: 'inherit',
+          htmlStyle: {
+            opacity: '0.35'
+          }
+        }
+      ]
+    }, [rawLine, tokenLine])
+
     return (
       <div className="line">
         {showLineNumbers && <span className="line-number">{index + 1}</span>}
         <span className="line-content">
-          {completeLineTokens(tokenLine ?? [], rawLine).map((token, tokenIndex) => (
+          {completeTokenLine.map((token, tokenIndex) => (
             <span key={tokenIndex} style={getReactStyleFromToken(token)}>
               {token.content}
             </span>
