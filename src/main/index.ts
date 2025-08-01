@@ -8,7 +8,7 @@ import '@main/config'
 import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app, session, autoUpdater } from 'electron'
+import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { isDev, isLinux, isWin } from './constant'
@@ -171,40 +171,13 @@ if (!app.requestSingleInstanceLock()) {
     optimizer.watchWindowShortcuts(window)
   })
 
-  const handleBeforeQuit = () => {
+  app.on('before-quit', () => {
     app.isQuitting = true
 
     // quit selection service
     if (selectionService) {
       selectionService.quit()
     }
-
-    try {
-      logger.info('Flushing storage data')
-      session.defaultSession.flushStorageData()
-      session.defaultSession.cookies.flushStore()
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript('window.persistor.flush().then(() => {})')
-      }
-
-      logger.info('Flushed storage data')
-    } catch (error) {
-      logger.error('Error flushing storage data:', error as Error)
-    }
-  }
-
-  // https://www.electronjs.org/docs/latest/api/auto-updater#event-before-quit-for-update
-  // When this API is called, the before-quit event is not emitted before all windows are closed.
-  // As a result you should listen to this event if you wish to perform actions before the windows are closed while a process is quitting, as well as listening to before-quit.
-  autoUpdater.on('before-quit-for-update', () => {
-    logger.info('Before quit for update')
-    handleBeforeQuit()
-  })
-
-  app.on('before-quit', () => {
-    logger.info('Before quit by manual')
-    handleBeforeQuit()
   })
 
   app.on('will-quit', async () => {

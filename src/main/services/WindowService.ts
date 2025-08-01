@@ -319,6 +319,13 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // save data before when close window
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to save data:', error as Error)
+      }
+
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
         return app.quit()
