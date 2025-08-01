@@ -293,6 +293,42 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
   const isSticky = useCallback((index: number) => listItems[index].type === 'group', [listItems])
 
+  const rowRenderer = useCallback(
+    (item: FlatListItem) => {
+      const isFocused = item.key === focusedItemKey
+      if (item.type === 'group') {
+        return <GroupItem>{item.name}</GroupItem>
+      }
+      return (
+        <ModelItem
+          className={classNames({
+            focused: isFocused,
+            selected: item.isSelected
+          })}
+          onClick={() => handleItemClick(item)}
+          onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
+          <ModelItemLeft>
+            {item.icon}
+            {item.name}
+            {item.tags}
+          </ModelItemLeft>
+          <PinIconWrapper
+            onClick={(e) => {
+              e.stopPropagation()
+              if (item.model) {
+                togglePin(getModelUniqId(item.model))
+              }
+            }}
+            data-pinned={item.isPinned}
+            $isPinned={item.isPinned}>
+            <PushpinOutlined />
+          </PinIconWrapper>
+        </ModelItem>
+      )
+    },
+    [focusedItemKey, handleItemClick, setFocusedItemKey, togglePin]
+  )
+
   return (
     <Modal
       centered
@@ -354,38 +390,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
             isSticky={isSticky}
             overscan={5}
             scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-            {(item) => {
-              const isFocused = item.key === focusedItemKey
-              if (item.type === 'group') {
-                return <GroupItem>{item.name}</GroupItem>
-              }
-              return (
-                <ModelItem
-                  className={classNames({
-                    focused: isFocused,
-                    selected: item.isSelected
-                  })}
-                  onClick={() => handleItemClick(item)}
-                  onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
-                  <ModelItemLeft>
-                    {item.icon}
-                    {item.name}
-                    {item.tags}
-                  </ModelItemLeft>
-                  <PinIconWrapper
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (item.model) {
-                        togglePin(getModelUniqId(item.model))
-                      }
-                    }}
-                    data-pinned={item.isPinned}
-                    $isPinned={item.isPinned}>
-                    <PushpinOutlined />
-                  </PinIconWrapper>
-                </ModelItem>
-              )
-            }}
+            {rowRenderer}
           </DynamicVirtualList>
         </ListContainer>
       ) : (

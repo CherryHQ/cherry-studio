@@ -472,6 +472,45 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
+  const rowRenderer = useCallback(
+    (item: QuickPanelListItem, itemIndex: number) => {
+      if (!item) return null
+
+      return (
+        <QuickPanelItem
+          className={classNames({
+            focused: itemIndex === index,
+            selected: item.isSelected,
+            disabled: item.disabled
+          })}
+          data-id={itemIndex}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleItemAction(item, 'click')
+          }}>
+          <QuickPanelItemLeft>
+            <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+            <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+          </QuickPanelItemLeft>
+
+          <QuickPanelItemRight>
+            {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+            <QuickPanelItemSuffixIcon>
+              {item.suffix ? (
+                item.suffix
+              ) : item.isSelected ? (
+                <Check />
+              ) : (
+                item.isMenu && !item.disabled && <RightOutlined />
+              )}
+            </QuickPanelItemSuffixIcon>
+          </QuickPanelItemRight>
+        </QuickPanelItem>
+      )
+    },
+    [index, handleItemAction]
+  )
+
   return (
     <QuickPanelContainer
       $pageSize={ctx.pageSize}
@@ -496,41 +535,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           scrollerStyle={{
             pointerEvents: isMouseOver ? 'auto' : 'none'
           }}>
-          {(item, itemIndex) => {
-            if (!item) return null
-
-            return (
-              <QuickPanelItem
-                className={classNames({
-                  focused: itemIndex === index,
-                  selected: item.isSelected,
-                  disabled: item.disabled
-                })}
-                data-id={itemIndex}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleItemAction(item, 'click')
-                }}>
-                <QuickPanelItemLeft>
-                  <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-                  <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-                </QuickPanelItemLeft>
-
-                <QuickPanelItemRight>
-                  {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-                  <QuickPanelItemSuffixIcon>
-                    {item.suffix ? (
-                      item.suffix
-                    ) : item.isSelected ? (
-                      <Check />
-                    ) : (
-                      item.isMenu && !item.disabled && <RightOutlined />
-                    )}
-                  </QuickPanelItemSuffixIcon>
-                </QuickPanelItemRight>
-              </QuickPanelItem>
-            )
-          }}
+          {rowRenderer}
         </DynamicVirtualList>
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
