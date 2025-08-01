@@ -704,12 +704,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
-      const lastFocusedComponent = PasteService.getLastFocusedComponent()
-      if (lastFocusedComponent === 'inputbar') {
-        textareaRef.current?.focus()
-      }
+      textareaRef.current?.focus()
     }
-  }, [assistant, topic])
+  }, [topic.id])
 
   useEffect(() => {
     const timerId = requestAnimationFrame(() => resizeTextArea())
