@@ -23,8 +23,6 @@ export interface FlatListItem {
 export interface ScrollState {
   focusedItemKey: string
   scrollTrigger: ScrollTrigger
-  lastScrollOffset: number
-  stickyGroup: FlatListItem | null
   isMouseOver: boolean
 }
 
@@ -32,8 +30,6 @@ export interface ScrollState {
 export type ScrollAction =
   | { type: 'SET_FOCUSED_ITEM_KEY'; payload: string }
   | { type: 'SET_SCROLL_TRIGGER'; payload: ScrollTrigger }
-  | { type: 'SET_LAST_SCROLL_OFFSET'; payload: number }
-  | { type: 'SET_STICKY_GROUP'; payload: FlatListItem | null }
   | { type: 'SET_IS_MOUSE_OVER'; payload: boolean }
   | { type: 'FOCUS_NEXT_ITEM'; payload: { modelItems: FlatListItem[]; step: number } }
   | { type: 'FOCUS_PAGE'; payload: { modelItems: FlatListItem[]; currentIndex: number; step: number } }

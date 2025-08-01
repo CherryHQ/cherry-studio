@@ -6,8 +6,6 @@ import { ScrollAction, ScrollState } from './types'
 export const initialScrollState: ScrollState = {
   focusedItemKey: '',
   scrollTrigger: 'initial',
-  lastScrollOffset: 0,
-  stickyGroup: null,
   isMouseOver: false
 }
 
@@ -24,12 +22,6 @@ export const scrollReducer = (state: ScrollState, action: ScrollAction): ScrollS
 
     case 'SET_SCROLL_TRIGGER':
       return { ...state, scrollTrigger: action.payload }
-
-    case 'SET_LAST_SCROLL_OFFSET':
-      return { ...state, lastScrollOffset: action.payload }
-
-    case 'SET_STICKY_GROUP':
-      return { ...state, stickyGroup: action.payload }
 
     case 'SET_IS_MOUSE_OVER':
       return { ...state, isMouseOver: action.payload }
