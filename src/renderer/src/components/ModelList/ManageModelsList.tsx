@@ -54,23 +54,33 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
   }, [])
 
   // 将分组数据扁平化为单一列表，过滤掉空组
-  const flatRows = useMemo(() => {
-    const rows: RowData[] = []
+  // const flatRows = useMemo(() => {
+  //   const rows: RowData[] = []
 
+  //   Object.entries(modelGroups).forEach(([groupName, models]) => {
+  //     if (models.length > 0) {
+  //       // 只添加非空组
+  //       rows.push({ type: 'group', groupName, models })
+  //       if (!collapsedGroups.has(groupName)) {
+  //         models.forEach((model) => {
+  //           rows.push({ type: 'model', model })
+  //         })
+  //       }
+  //     }
+  //   })
+
+  //   return rows
+  // }, [modelGroups, collapsedGroups])
+
+  const displayedGroups = useMemo(() => {
+    const groups: GroupRowData[] = []
     Object.entries(modelGroups).forEach(([groupName, models]) => {
       if (models.length > 0) {
-        // 只添加非空组
-        rows.push({ type: 'group', groupName, models })
-        if (!collapsedGroups.has(groupName)) {
-          models.forEach((model) => {
-            rows.push({ type: 'model', model })
-          })
-        }
+        groups.push({ type: 'group', groupName, models })
       }
     })
-
-    return rows
-  }, [modelGroups, collapsedGroups])
+    return groups
+  }, [modelGroups])
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
@@ -126,9 +136,9 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
   return (
     <DynamicVirtualList
-      list={flatRows}
+      list={displayedGroups}
       estimateSize={useCallback(() => 60, [])}
-      isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
+      isSticky={useCallback(() => true, [])}
       overscan={5}
       scrollerStyle={{
         paddingRight: '10px'
@@ -137,11 +147,14 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
         paddingBottom: '8px'
       }}>
       {(row) => {
-        if (row.type === 'group') {
-          const isCollapsed = collapsedGroups.has(row.groupName)
-          return (
+        const isCollapsed = collapsedGroups.has(row.groupName)
+        return (
+          <GroupContainer>
             <GroupHeader
-              style={{ background: 'var(--color-background)' }}
+              style={{
+                background: 'var(--color-background-soft)',
+                borderRadius: isCollapsed ? '1em' : '1em 1em 0 0'
+              }}
               onClick={() => handleGroupToggle(row.groupName)}>
               <Flex align="center" gap={10} style={{ flex: 1 }}>
                 <ChevronRight
@@ -155,13 +168,28 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
                   {row.models.length}
                 </CustomTag>
               </Flex>
-              {renderGroupTools(row.models)}
+              <ToolsGroup>{renderGroupTools(row.models)}</ToolsGroup>
             </GroupHeader>
-          )
-        }
-
-        return (
-          <ModelListItem model={row.model} provider={provider} onAddModel={onAddModel} onRemoveModel={onRemoveModel} />
+            {!isCollapsed && (
+              <DynamicVirtualList
+                list={row.models}
+                estimateSize={() => 60}
+                overscan={5}
+                scrollerStyle={{ paddingBottom: '8px' }}
+                itemContainerStyle={{
+                  padding: '8px 8px 2px 8px'
+                }}>
+                {(model) => (
+                  <ModelListItem
+                    model={model}
+                    provider={provider}
+                    onAddModel={onAddModel}
+                    onRemoveModel={onRemoveModel}
+                  />
+                )}
+              </DynamicVirtualList>
+            )}
+          </GroupContainer>
         )
       }}
     </DynamicVirtualList>
@@ -207,6 +235,22 @@ const GroupHeader = styled.div`
   justify-content: space-between;
   padding: 0 8px;
   min-height: 50px;
+  color: var(--color-text);
+  cursor: pointer;
+`
+
+const GroupContainer = styled.div`
+  border: 1px solid var(--color-border);
+  border-radius: 1em;
+  margin-bottom: 8px;
+`
+
+const ToolsGroup = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  min-height: 20px;
   color: var(--color-text);
   cursor: pointer;
 `
