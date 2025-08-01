@@ -103,7 +103,6 @@ export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
-window.persistor = persistor
 
 export async function handleSaveData() {
   logger.info('Flushing redux persistor data')
