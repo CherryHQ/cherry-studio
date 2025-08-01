@@ -706,7 +706,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!document.querySelector('.topview-fullscreen-container')) {
       textareaRef.current?.focus()
     }
-  }, [topic.id, assistant.mcpServers, assistant.knowledge_bases, mentionedModels])
+  }, [
+    topic.id,
+    assistant.mcpServers,
+    assistant.knowledge_bases,
+    assistant.enableWebSearch,
+    assistant.webSearchProviderId,
+    mentionedModels
+  ])
 
   useEffect(() => {
     const timerId = requestAnimationFrame(() => resizeTextArea())
