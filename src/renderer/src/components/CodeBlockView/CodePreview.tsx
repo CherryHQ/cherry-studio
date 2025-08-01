@@ -189,6 +189,14 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
 CodePreview.displayName = 'CodePreview'
 
+const plainTokenStyle = {
+  color: 'inherit',
+  bgColor: 'inherit',
+  htmlStyle: {
+    opacity: '0.35'
+  }
+}
+
 interface VirtualizedRowData {
   rawLine: string
   tokenLine?: ThemedToken[]
@@ -208,11 +216,7 @@ const VirtualizedRow = memo(
           {
             content: '',
             offset: 0,
-            color: 'inherit',
-            bgColor: 'inherit',
-            htmlStyle: {
-              opacity: '0.35'
-            }
+            ...plainTokenStyle
           }
         ]
       }
@@ -231,11 +235,7 @@ const VirtualizedRow = memo(
         {
           content: rawLine.slice(themedContentLength),
           offset: themedContentLength,
-          color: 'inherit',
-          bgColor: 'inherit',
-          htmlStyle: {
-            opacity: '0.35'
-          }
+          ...plainTokenStyle
         }
       ]
     }, [rawLine, tokenLine])
