@@ -380,8 +380,8 @@ async function fetchExternalTool(
           .map((result) => result.value)
           .flat()
         // 添加内置工具
-        const { BUILT_IN_TOOLS } = await import('../tools')
-        mcpTools.push(...BUILT_IN_TOOLS)
+        // const { BUILT_IN_TOOLS } = await import('../tools')
+        // mcpTools.push(...BUILT_IN_TOOLS)
 
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
