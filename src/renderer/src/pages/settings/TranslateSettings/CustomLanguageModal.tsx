@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { HStack } from '@renderer/components/Layout'
 import { builtinLangCodeList } from '@renderer/config/translate'
-import { loggerService } from '@logger'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Input, Modal, Popover } from 'antd'

@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { Language, TranslateHistory } from '@renderer/types'
@@ -11,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { OperationBar } from '.'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
 
 type DisplayedTranslateHistory = TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
 
