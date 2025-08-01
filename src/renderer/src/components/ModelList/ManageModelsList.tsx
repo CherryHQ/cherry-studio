@@ -220,7 +220,7 @@ const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   border-radius: ${(props) => (props.isCollapsed ? '8px' : '8px 8px 0 0')};
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  padding: 0 13px;
   min-height: 50px;
   color: var(--color-text);
   cursor: pointer;
