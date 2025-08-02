@@ -7,11 +7,13 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
+
+// const logger = loggerService.withContext('AssistantsTab')
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -19,6 +21,12 @@ interface AssistantsTabProps {
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
+
+type GroupedAssistant = {
+  tag: string
+  assistants: Assistant[]
+}
+
 const Assistants: FC<AssistantsTabProps> = ({
   activeAssistant,
   setActiveAssistant,
@@ -30,8 +38,34 @@ const Assistants: FC<AssistantsTabProps> = ({
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
+  const [displayedAssistants, setDisplayedAssistants] = useState<Assistant[] | GroupedAssistant[]>([])
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
+  const [isLoaded, setIsLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isLoadedRef = useRef(isLoaded)
+  const [isPending, startTransition] = useTransition()
+
+  // FIXME: getGroupedAssistants 依赖 assistants，会触发不必要的更新
+  const updateDisplayedAssistants = useCallback(async () => {
+    if (assistantsTabSortType === 'list') {
+      setDisplayedAssistants(assistants)
+    } else if (assistantsTabSortType === 'tags') {
+      setDisplayedAssistants(getGroupedAssistants)
+    }
+  }, [assistants, assistantsTabSortType, getGroupedAssistants])
+
+  useEffect(() => {
+    isLoadedRef.current = isLoaded
+  }, [isLoaded])
+
+  useEffect(() => {
+    if (isLoadedRef.current) {
+      updateDisplayedAssistants()
+    } else {
+      startTransition(updateDisplayedAssistants)
+      setIsLoaded(true)
+    }
+  }, [updateDisplayedAssistants])
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -50,6 +84,14 @@ const Assistants: FC<AssistantsTabProps> = ({
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]
+  )
+
+  const handleReorder = useCallback(
+    (newList: Assistant[]) => {
+      setDisplayedAssistants(newList)
+      updateAssistants(newList)
+    },
+    [updateAssistants]
   )
 
   const handleGroupReorder = useCallback(
@@ -73,7 +115,7 @@ const Assistants: FC<AssistantsTabProps> = ({
     return (
       <Container className="assistants-tab" ref={containerRef}>
         <div style={{ marginBottom: '8px' }}>
-          {getGroupedAssistants.map((group) => (
+          {displayedAssistants.map((group) => (
             <TagsContainer key={group.tag}>
               {group.tag !== t('assistants.tags.untagged') && (
                 <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
@@ -130,8 +172,8 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <DraggableList
-        list={assistants}
-        onUpdate={updateAssistants}
+        list={displayedAssistants}
+        onUpdate={handleReorder}
         onDragStart={() => setDragging(true)}
         onDragEnd={() => setDragging(false)}>
         {(assistant) => (
@@ -149,7 +191,7 @@ const Assistants: FC<AssistantsTabProps> = ({
           />
         )}
       </DraggableList>
-      {!dragging && (
+      {!dragging && !isPending && (
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>
             <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />

@@ -39,3 +39,6 @@ export const THEME_COLOR_PRESETS = [
 
 export const MAX_CONTEXT_COUNT = 100
 export const UNLIMITED_CONTEXT_COUNT = 100000
+
+export const SKELETON_DELAY_TIME = 100
+export const SKELETON_MIN_TIME = 300
