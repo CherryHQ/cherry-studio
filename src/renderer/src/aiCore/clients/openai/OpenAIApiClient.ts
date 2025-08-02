@@ -834,7 +834,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 处理文本内容
             if (contentSource.content) {
-              if (accumulatingText) {
+              if (!accumulatingText) {
                 controller.enqueue({
                   type: ChunkType.TEXT_START
                 } as TextStartChunk)
