@@ -38,6 +38,7 @@ interface ModelScopeSyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
+  updatedServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -63,7 +64,8 @@ export const syncModelScopeServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
@@ -73,6 +75,7 @@ export const syncModelScopeServers = async (
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -85,19 +88,21 @@ export const syncModelScopeServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
     // Transform ModelScope servers to MCP servers format
     const addedServers: MCPServer[] = []
+    const updatedServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
-        // Skip if server already exists
-        if (existingServers.some((s) => s.id === `@modelscope/${server.id}`)) continue
+        // Check if server already exists
+        const existingServer = existingServers.find((s) => s.id === `@modelscope/${server.id}`)
 
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
@@ -115,16 +120,24 @@ export const syncModelScopeServers = async (
           tags: server.tags || []
         }
 
-        addedServers.push(mcpServer)
+        if (existingServer) {
+          // Update existing server with latest info
+          updatedServers.push(mcpServer)
+        } else {
+          // Add new server
+          addedServers.push(mcpServer)
+        }
       } catch (err) {
         logger.error('Error processing ModelScope server:', err as Error)
       }
     }
 
+    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: addedServers.length }),
-      addedServers
+      message: t('settings.mcp.sync.success', { count: totalServers }),
+      addedServers,
+      updatedServers
     }
   } catch (error) {
     logger.error('ModelScope sync error:', error as Error)
@@ -132,6 +145,7 @@ export const syncModelScopeServers = async (
       success: false,
       message: t('settings.mcp.sync.error'),
       addedServers: [],
+      updatedServers: [],
       errorDetails: String(error)
     }
   }

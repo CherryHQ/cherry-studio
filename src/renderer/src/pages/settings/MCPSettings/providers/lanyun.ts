@@ -55,6 +55,7 @@ interface TokenLanYunSyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
+  updatedServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -80,7 +81,8 @@ export const syncTokenLanYunServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
@@ -90,6 +92,7 @@ export const syncTokenLanYunServers = async (
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -101,6 +104,7 @@ export const syncTokenLanYunServers = async (
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -109,6 +113,7 @@ export const syncTokenLanYunServers = async (
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -119,27 +124,21 @@ export const syncTokenLanYunServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
     // Transform Token servers to MCP servers format
     const addedServers: MCPServer[] = []
+    const updatedServers: MCPServer[] = []
     logger.debug('TokenLanYun servers:', servers)
     for (const server of servers) {
       try {
         if (!server.operationalUrls?.[0]?.url) continue
 
-        // If any existing server id contains '@lanyun', clear them before adding new ones
-        // if (existingServers.some((s) => s.id.startsWith('@lanyun'))) {
-        //   for (let i = existingServers.length - 1; i >= 0; i--) {
-        //     if (existingServers[i].id.startsWith('@lanyun')) {
-        //       existingServers.splice(i, 1)
-        //     }
-        //   }
-        // }
-        // Skip if server already exists after clearing
-        if (existingServers.some((s) => s.id === `@lanyun/${server.id}`)) continue
+        // Check if server already exists
+        const existingServer = existingServers.find((s) => s.id === `@lanyun/${server.id}`)
 
         const mcpServer: MCPServer = {
           id: `@lanyun/${server.id}`,
@@ -158,16 +157,24 @@ export const syncTokenLanYunServers = async (
           tags: server.tags ?? (server.chineseName ? [server.chineseName] : [])
         }
 
-        addedServers.push(mcpServer)
+        if (existingServer) {
+          // Update existing server with latest info
+          updatedServers.push(mcpServer)
+        } else {
+          // Add new server
+          addedServers.push(mcpServer)
+        }
       } catch (err) {
         logger.error('Error processing LanYun server:', err as Error)
       }
     }
 
+    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: addedServers.length }),
-      addedServers
+      message: t('settings.mcp.sync.success', { count: totalServers }),
+      addedServers,
+      updatedServers
     }
   } catch (error) {
     logger.error('TokenLanyun sync error:', error as Error)
@@ -175,6 +182,7 @@ export const syncTokenLanYunServers = async (
       success: false,
       message: t('settings.mcp.sync.error'),
       addedServers: [],
+      updatedServers: [],
       errorDetails: String(error)
     }
   }

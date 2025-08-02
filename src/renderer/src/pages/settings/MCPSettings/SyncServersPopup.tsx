@@ -133,9 +133,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         for (const server of result.addedServers) {
           addMCPServer(server)
         }
-        // Update existing servers with corrected URLs (for TokenFlux)
-        if ((result as any).updatedServers) {
-          for (const server of (result as any).updatedServers) {
+        // Update existing servers with latest info
+        const updatedServers = (result as any).updatedServers
+        if (updatedServers?.length > 0) {
+          for (const server of updatedServers) {
             updateMCPServer(server)
           }
         }
