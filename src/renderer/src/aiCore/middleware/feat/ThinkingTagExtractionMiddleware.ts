@@ -76,6 +76,10 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
+              if (chunk.type === ChunkType.TEXT_COMPLETE) {
+                isFirstTextChunk = false
+              }
+
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 const textChunk = chunk as TextDeltaChunk
 
