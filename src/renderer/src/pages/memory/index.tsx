@@ -299,6 +299,7 @@ const MemoriesPage = () => {
   const dispatch = useDispatch()
   const currentUser = useSelector(selectCurrentUserId)
   const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const allAssistants = useSelector((state: any) => state.assistants.assistants)
 
   const [allMemories, setAllMemories] = useState<MemoryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -321,6 +322,16 @@ const MemoriesPage = () => {
 
   const getUserAvatar = (user: string) => {
     return user === DEFAULT_USER_ID ? user.slice(0, 1).toUpperCase() : user.slice(0, 2).toUpperCase()
+  }
+
+  // Get assistants linked to a specific memory user
+  const getAssistantsForUser = (userId: string) => {
+    return allAssistants.filter((assistant: any) => {
+      // Assistant uses this user if either:
+      // 1. memoryUserId explicitly matches
+      // 2. memoryUserId is undefined and this is the current global user
+      return assistant.memoryUserId === userId || (!assistant.memoryUserId && userId === currentUser)
+    })
   }
 
   // Load unique users from database
@@ -630,23 +641,61 @@ const MemoriesPage = () => {
                     </>
                   )}>
                   <Option value={DEFAULT_USER_ID}>
-                    <Space align="center">
-                      <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                        {getUserAvatar(DEFAULT_USER_ID)}
-                      </Avatar>
-                      <span>{t('memory.default_user')}</span>
-                    </Space>
+                    <div>
+                      <Space align="center">
+                        <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
+                          {getUserAvatar(DEFAULT_USER_ID)}
+                        </Avatar>
+                        <span>{t('memory.default_user')}</span>
+                      </Space>
+                      {(() => {
+                        const linkedAssistants = getAssistantsForUser(DEFAULT_USER_ID)
+                        return (
+                          linkedAssistants.length > 0 && (
+                            <div
+                              style={{
+                                fontSize: '11px',
+                                color: 'var(--color-text-tertiary)',
+                                marginTop: '2px',
+                                marginLeft: '24px'
+                              }}>
+                              {linkedAssistants.length} {linkedAssistants.length === 1 ? 'assistant' : 'assistants'}:{' '}
+                              {linkedAssistants.map((a: any) => a.name).join(', ')}
+                            </div>
+                          )
+                        )
+                      })()}
+                    </div>
                   </Option>
                   {uniqueUsers
                     .filter((user) => user !== DEFAULT_USER_ID)
                     .map((user) => (
                       <Option key={user} value={user}>
-                        <Space align="center">
-                          <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                            {getUserAvatar(user)}
-                          </Avatar>
-                          <span>{user}</span>
-                        </Space>
+                        <div>
+                          <Space align="center">
+                            <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
+                              {getUserAvatar(user)}
+                            </Avatar>
+                            <span>{user}</span>
+                          </Space>
+                          {(() => {
+                            const linkedAssistants = getAssistantsForUser(user)
+                            return (
+                              linkedAssistants.length > 0 && (
+                                <div
+                                  style={{
+                                    fontSize: '11px',
+                                    color: 'var(--color-text-tertiary)',
+                                    marginTop: '2px',
+                                    marginLeft: '24px'
+                                  }}>
+                                  {linkedAssistants.length} {linkedAssistants.length === 1 ? 'assistant' : 'assistants'}
+                                  : {linkedAssistants.map((a: any) => a.name).join(', ')}
+                                </div>
+                              )
+                            )
+                          })()}
+                        </div>
                       </Option>
                     ))}
                 </Select>
@@ -673,6 +722,19 @@ const MemoriesPage = () => {
                     {uniqueUsers.length} {t('memory.users', 'Users')}
                   </SettingRowTitle>
                 </SettingRow>
+                {(() => {
+                  const linkedAssistants = getAssistantsForUser(currentUser)
+                  return (
+                    linkedAssistants.length > 0 && (
+                      <SettingRow>
+                        <SettingRowTitle style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                          Linked Assistants ({linkedAssistants.length}):{' '}
+                          {linkedAssistants.map((a: any) => a.name).join(', ')}
+                        </SettingRowTitle>
+                      </SettingRow>
+                    )
+                  )
+                })()}
               </SettingGroup>
 
               <SettingGroup>

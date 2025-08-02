@@ -32,6 +32,7 @@ export type Assistant = {
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
   enableMemory?: boolean
+  memoryUserId?: string // 绑定的记忆用户ID，当未指定时使用全局记忆用户
 }
 
 export type TranslateAssistant = Assistant & {
