@@ -189,8 +189,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       setFocusedItemKey(targetItemKey)
       const index = listItems.findIndex((item) => item.key === targetItemKey)
       if (index >= 0) {
-        // FIXME: 手动计算偏移量给 scroller 增加了 padding 之后使用 scrollToIndex 不能
-        // 准确滚动到 item 中心，但是我们又需要 padding 来改善体验。
+        // FIXME: 手动计算偏移量，给 scroller 增加了 scrollPaddingStart 之后，
+        // scrollToIndex 不能准确滚动到 item 中心，但是又需要 padding 来改善体验。
         const targetScrollTop = index * ITEM_HEIGHT - listHeight / 2
         listRef.current?.scrollToOffset(targetScrollTop, {
           align: 'start',
