@@ -117,7 +117,7 @@ export const syncTokenFluxServers = async (
           name: server.display_name || server.name || `TokenFlux Server ${nanoid()}`,
           description: server.description || '',
           type: 'streamableHttp',
-          baseUrl: `${TOKENFLUX_HOST}/v1/mcps/${server.name}`,
+          baseUrl: `${TOKENFLUX_HOST}/v1/mcps/${server.name}/mcp`,
           isActive: true,
           provider: 'TokenFlux',
           providerUrl: `${TOKENFLUX_HOST}/mcps/${server.name}`,
