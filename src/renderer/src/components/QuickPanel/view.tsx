@@ -66,6 +66,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
 
+  // 无匹配项自动关闭的定时器
+  const noMatchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // 处理搜索，过滤列表
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
@@ -127,8 +130,29 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSearchTextRef.current = searchText
     prevSymbolRef.current = ctx.symbol
 
+    // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
+    const _searchText = searchText.replace(/^[/@]/, '')
+
+    if (_searchText && _searchText.length > 0 && newList.length === 0) {
+      // 清除之前的定时器
+      if (noMatchTimeoutRef.current) {
+        clearTimeout(noMatchTimeoutRef.current)
+      }
+
+      // 设置延迟关闭（防止输入过程中闪烁）
+      noMatchTimeoutRef.current = setTimeout(() => {
+        ctx.close('no-matches')
+      }, 300)
+    } else {
+      // 有匹配项或无搜索文本时清除定时器
+      if (noMatchTimeoutRef.current) {
+        clearTimeout(noMatchTimeoutRef.current)
+        noMatchTimeoutRef.current = null
+      }
+    }
+
     return newList
-  }, [ctx.isVisible, ctx.list, ctx.symbol, searchText])
+  }, [ctx, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -275,7 +299,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchText(newSearchText)
       } else {
-        handleClose('delete-symbol')
+        ctx.close('delete-symbol')
       }
     }
 
@@ -465,6 +489,16 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (noMatchTimeoutRef.current) {
+        clearTimeout(noMatchTimeoutRef.current)
+        noMatchTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
