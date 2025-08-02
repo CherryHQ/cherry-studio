@@ -83,25 +83,28 @@
       "restart": {
         "button": "Επανεκκίνηση",
         "tooltip": "Επανεκκίνηση Διακομιστή"
-      }
+      },
+      "start": "[to be translated]:启动",
+      "stop": "[to be translated]:停止"
+    },
+    "authHeader": {
+      "title": "[to be translated]:授权标头"
     },
     "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
     "configuration": "Διαμόρφωση",
     "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
     "documentation": {
-      "title": "Τεκμηρίωση API",
-      "unavailable": {
-        "description": "Ξεκινήστε τον διακομιστή API για να δείτε την διαδραστική τεκμηρίωση",
-        "title": "Τεκμηρίωση API Μη Διαθέσιμη"
-      }
+      "title": "Τεκμηρίωση API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Αντιγραφή Κλειδιού API",
+        "description": "[to be translated]:用于 API 访问的安全认证令牌",
         "label": "Κλειδί API",
         "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
       },
       "port": {
+        "description": "[to be translated]:HTTP 服务器的 TCP 端口号 (1000-65535)",
         "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
         "label": "Θύρα"
       },
@@ -471,7 +474,32 @@
         },
         "title": "Αποθήκευση στη βάση γνώσεων"
       },
-      "label": "Αποθήκευση"
+      "label": "Αποθήκευση",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "[to be translated]:包括话题标题和所有消息的主要文本内容"
+            }
+          },
+          "empty": {
+            "no_content": "[to be translated]:此话题没有可保存的内容"
+          },
+          "error": {
+            "save_failed": "[to be translated]:保存话题失败，请检查知识库配置"
+          },
+          "loading": "[to be translated]:正在分析话题内容...",
+          "select": {
+            "content": {
+              "label": "[to be translated]:选择要保存的内容类型",
+              "selected_tip": "[to be translated]:已选择 {{count}} 项内容，来自 {{messages}} 条消息",
+              "tip": "[to be translated]:话题将以包含完整对话上下文的形式保存到知识库"
+            }
+          },
+          "success": "[to be translated]:话题已成功保存到知识库（{{count}} 项内容）",
+          "title": "[to be translated]:保存话题到知识库"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -700,6 +728,7 @@
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
     "open": "Άνοιγμα",
     "paste": "Επικόλληση",
+    "preview": "[to be translated]:预览",
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
@@ -708,6 +737,7 @@
     "rename": "Μετονομασία",
     "reset": "Επαναφορά",
     "save": "Αποθήκευση",
+    "saved": "[to be translated]:已保存",
     "search": "Αναζήτηση",
     "select": "Επιλογή",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
@@ -1647,6 +1677,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "[to be translated]:AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
@@ -3088,6 +3119,16 @@
         "tip": "Χωριστά με κόμμα περισσότερα κλειδιά API"
       },
       "api_version": "Έκδοση API",
+      "aws-bedrock": {
+        "access_key_id": "[to be translated]:AWS 访问密钥 ID",
+        "access_key_id_help": "[to be translated]:您的 AWS 访问密钥 ID，用于访问 AWS Bedrock 服务",
+        "description": "[to be translated]:AWS Bedrock 是亚马逊提供的全托管基础模型服务，支持多种先进的大语言模型",
+        "region": "[to be translated]:AWS 区域",
+        "region_help": "[to be translated]:您的 AWS 服务区域，例如 us-east-1",
+        "secret_access_key": "[to be translated]:AWS 访问密钥",
+        "secret_access_key_help": "[to be translated]:您的 AWS 访问密钥，请妥善保管",
+        "title": "[to be translated]:AWS Bedrock 配置"
+      },
       "azure": {
         "apiversion": {
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια προεπισκόπηση έκδοσης"
@@ -3286,25 +3327,10 @@
     },
     "title": "Ρυθμίσεις",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Ελάχιστη βαθμίδα εμπιστοσύνης",
-          "mode": {
-            "accurate": "Ακριβής",
-            "fast": "Γρήγορος",
-            "title": "Μοτίβο Αναγνώρισης"
-          }
-        },
-        "provider": "Πάροχος OCR",
-        "provider_placeholder": "Επιλέξτε έναν πάροχο OCR",
-        "title": "Αναγνώριση κειμένου OCR"
-      },
       "preprocess": {
-        "provider": "Πάροχος προεπεξεργασίας εγγράφων",
-        "provider_placeholder": "Επιλέξτε έναν πάροχο προεπεξεργασίας εγγράφων",
-        "title": "Προεπεξεργασία Εγγράφων"
-      },
-      "preprocess": {
+        "provider": "[to be translated]:文档预处理服务商",
+        "provider_placeholder": "[to be translated]:选择一个文档预处理服务商",
+        "title": "[to be translated]:文档预处理",
         "tooltip": "Ορίστε πάροχο προεπεξεργασίας εγγράφων ή OCR στις Ρυθμίσεις -> Εργαλεία. Η προεπεξεργασία εγγράφων μπορεί να βελτιώσει σημαντικά την απόδοση αναζήτησης για έγγραφα πολύπλοκης μορφής ή εγγράφων σε μορφή σάρωσης. Το OCR μπορεί να αναγνωρίσει μόνο κείμενο μέσα σε εικόνες εγγράφων ή σε PDF σε μορφή σάρωσης."
       },
       "title": "Ρυθμίσεις Εργαλείων",
