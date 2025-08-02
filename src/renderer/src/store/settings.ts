@@ -4,14 +4,14 @@ import {
   ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
+  LanguageCode,
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
   S3Config,
-  ThemeMode,
-  TranslateLanguageVarious
+  ThemeMode
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
@@ -46,7 +46,7 @@ export interface SettingsState {
   assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
-  targetLanguage: TranslateLanguageVarious
+  targetLanguage: LanguageCode
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
@@ -414,7 +414,7 @@ const settingsSlice = createSlice({
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
     },
-    setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
+    setTargetLanguage: (state, action: PayloadAction<LanguageCode>) => {
       state.targetLanguage = action.payload
     },
     setProxyMode: (state, action: PayloadAction<'system' | 'custom' | 'none'>) => {

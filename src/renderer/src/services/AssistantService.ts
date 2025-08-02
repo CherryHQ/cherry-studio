@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
@@ -56,6 +57,11 @@ export function getDefaultTranslateAssistant(targetLanguage: Language, text: str
   if (!assistant.model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
+  }
+
+  if (targetLanguage.langCode === UNKNOWN.langCode) {
+    logger.error('Unknown target language')
+    throw new Error('Unknown target language')
   }
 
   assistant.settings = {

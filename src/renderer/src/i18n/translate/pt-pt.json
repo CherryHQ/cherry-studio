@@ -83,25 +83,28 @@
       "restart": {
         "button": "Reiniciar",
         "tooltip": "Reiniciar Servidor"
-      }
+      },
+      "start": "Iniciar",
+      "stop": "Parar"
+    },
+    "authHeader": {
+      "title": "Cabeçalho de autorização"
     },
     "authHeaderText": "Usar no cabeçalho de autorização:",
     "configuration": "Configuração",
     "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
-      "title": "Documentação API",
-      "unavailable": {
-        "description": "Inicie o servidor API para ver a documentação interativa",
-        "title": "Documentação API Indisponível"
-      }
+      "title": "Documentação API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Chave API",
+        "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
+        "description": "Número da porta TCP do servidor HTTP (1000-65535)",
         "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
@@ -1647,6 +1650,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Antropológico",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Nuvem Baidu",
@@ -3088,6 +3092,16 @@
         "tip": "Use vírgula para separar várias chaves"
       },
       "api_version": "Versão da API",
+      "aws-bedrock": {
+        "access_key_id": "ID da chave de acesso AWS",
+        "access_key_id_help": "O seu ID da chave de acesso AWS, utilizado para aceder ao serviço AWS Bedrock",
+        "description": "A AWS Bedrock é um serviço de modelos fundamentais totalmente gerido fornecido pela Amazon, que suporta diversos modelos avançados de linguagem.",
+        "region": "Região da AWS",
+        "region_help": "a sua região de serviço AWS, por exemplo, us-east-1",
+        "secret_access_key": "Chaves de acesso AWS",
+        "secret_access_key_help": "A sua chave de acesso AWS, guarde-a em segurança",
+        "title": "Configuração do AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Versão da API do Azure OpenAI. Se desejar usar a API de Resposta, insira a versão de visualização"
@@ -3398,6 +3412,47 @@
         "time": "Mostrar tempo do tópico"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Tem a certeza de que deseja eliminar?",
+          "title": "Eliminar idioma personalizado"
+        },
+        "error": {
+          "add": "Falha ao adicionar",
+          "delete": "Falha ao eliminar",
+          "langCode": {
+            "builtin": "O idioma já tem suporte integrado",
+            "invalid": "Código de idioma inválido"
+          },
+          "update": "Falha ao atualizar",
+          "value": {
+            "empty": "O nome do idioma não pode estar vazio",
+            "too_long": "O nome do idioma é muito longo"
+          }
+        },
+        "langCode": {
+          "label": "código do idioma",
+          "placeholder": "pt-pt"
+        },
+        "success": {
+          "add": "Adicionado com sucesso",
+          "delete": "Eliminação bem-sucedida",
+          "update": "Atualização bem-sucedida"
+        },
+        "table": {
+          "action": {
+            "title": "Operação"
+          }
+        },
+        "value": {
+          "label": "Nome do idioma",
+          "placeholder": "Português"
+        }
+      },
+      "prompt": "Prompt de tradução",
+      "title": "Definições de tradução"
+    },
     "tray": {
       "onclose": "Minimizar para bandeja ao fechar",
       "show": "Mostrar ícone de bandeja",
@@ -3454,14 +3509,27 @@
       "title": "Confirmação de Tradução"
     },
     "copied": "Conteúdo de tradução copiado",
+    "custom": {
+      "label": "idioma personalizado"
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "custom": {
+        "delete": "Falha ao eliminar",
+        "exist": "A língua já existe",
+        "list": "Falha ao ler a lista de idiomas personalizada",
+        "update": "Falha ao atualizar"
+      },
       "failed": "Tradução falhou",
       "not_configured": "Modelo de tradução não configurado",
+      "not_supported": "Idioma não suportado {{language}}",
       "unknown": "Ocorreu um erro desconhecido durante a tradução"
+    },
+    "exchange": {
+      "label": "Trocar idioma de origem e idioma de destino"
     },
     "history": {
       "clear": "Limpar Histórico",
@@ -3500,6 +3568,12 @@
       "preview": "Pré-visualização Markdown",
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
+    },
+    "success": {
+      "custom": {
+        "delete": "Eliminação bem-sucedida",
+        "update": "Atualização bem-sucedida"
+      }
     },
     "target_language": "Idioma de destino",
     "title": "Tradução",

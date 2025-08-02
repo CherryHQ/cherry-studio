@@ -1,18 +1,19 @@
 import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import store, { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import store, { RootState, useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Language, Model, Topic } from '@renderer/types'
@@ -29,7 +30,12 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  findMainTextBlocks,
+  findTranslationBlocks,
+  findTranslationBlocksById,
+  getMainTextContent
+} from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import {
@@ -66,6 +72,8 @@ interface Props {
   setModel: (model: Model) => void
 }
 
+const logger = loggerService.withContext('MessageMenubar')
+
 const MessageMenubar: FC<Props> = (props) => {
   const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
     props
@@ -75,6 +83,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -94,6 +103,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const dispatch = useAppDispatch()
 
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
@@ -169,14 +179,24 @@ const MessageMenubar: FC<Props> = (props) => {
         await translateText(mainTextContent, language, translationUpdater)
       } catch (error) {
         // console.error('Translation failed:', error)
-        // window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        // editMessage(message.id, { translatedContent: undefined })
+        window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
+        // 理应只有一个
+        const translationBlocks = findTranslationBlocksById(message.id)
+        logger.silly(`there are ${translationBlocks.length} translation blocks`)
+        if (translationBlocks.length > 0) {
+          const block = translationBlocks[0]
+          logger.silly(`block`, block)
+          if (!block.content) {
+            dispatch(removeOneBlock(block.id))
+          }
+        }
+
         // clearStreamMessage(message.id)
       } finally {
         setIsTranslating(false)
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent]
+    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -491,7 +511,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 backgroundClip: 'border-box'
               },
               items: [
-                ...translateLanguageOptions.map((item) => ({
+                ...translateLanguages.map((item) => ({
                   label: item.emoji + ' ' + item.label(),
                   key: item.langCode,
                   onClick: () => handleTranslate(item)

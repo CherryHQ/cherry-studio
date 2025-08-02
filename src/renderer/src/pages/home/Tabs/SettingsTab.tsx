@@ -1,4 +1,5 @@
 import EditableNumber from '@renderer/components/EditableNumber'
+import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -8,7 +9,6 @@ import {
   isSupportedFlexServiceTier,
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -74,6 +74,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -623,12 +624,10 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
-            <Selector
+            <LanguageSelect
+              style={{ width: 150 }}
               value={targetLanguage}
               onChange={(value) => setTargetLanguage(value)}
-              options={translateLanguageOptions.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
-              })}
             />
           </SettingRow>
           <SettingDivider />

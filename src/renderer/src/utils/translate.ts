@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
-import React, { MutableRefObject } from 'react'
+import React, { MutableRefObject, RefObject } from 'react'
 
 const logger = loggerService.withContext('Utils:translate')
 
@@ -207,8 +208,8 @@ export const handleScrollSync = (
  * 创建输入区域滚动处理函数
  */
 export const createInputScrollHandler = (
-  targetRef: MutableRefObject<HTMLDivElement | null>,
-  isProgrammaticScrollRef: MutableRefObject<boolean>,
+  targetRef: RefObject<HTMLDivElement | null>,
+  isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLTextAreaElement>) => {
@@ -234,8 +235,9 @@ export const createOutputScrollHandler = (
 
 /**
  * 根据语言代码获取对应的语言对象
+ * @deprecated
  * @param langcode - 语言代码
- * @returns 返回对应的语言对象，如果找不到则返回英语(enUS)
+ * @returns 返回对应的语言对象，如果找不到则返回未知语言
  * @example
  * ```typescript
  * const language = getLanguageByLangcode('zh-cn') // 返回中文语言对象
@@ -248,4 +250,24 @@ export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
     return UNKNOWN
   }
   return result
+}
+
+/**
+ * 获取所有可用的翻译语言选项。如果获取自定义语言失败，将只返回内置语言选项。
+ * @returns 返回内置语言选项和自定义语言选项的组合数组
+ */
+export const getTranslateOptions = async () => {
+  try {
+    const customLanguages = await getAllCustomLanguages()
+    // 转换为Language类型
+    const transformedCustomLangs: Language[] = customLanguages.map((item) => ({
+      value: item.value,
+      label: () => item.value,
+      emoji: item.emoji,
+      langCode: item.langCode
+    }))
+    return [...builtinLanguages, ...transformedCustomLangs]
+  } catch (e) {
+    return builtinLanguages
+  }
 }
