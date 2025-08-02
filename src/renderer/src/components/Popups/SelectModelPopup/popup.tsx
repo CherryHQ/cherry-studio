@@ -1,5 +1,4 @@
 import { PushpinOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -7,11 +6,10 @@ import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import { Model, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
+import { Avatar, Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
-import { Search } from 'lucide-react'
 import React, {
   startTransition,
   useCallback,
@@ -25,7 +23,7 @@ import React, {
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useScrollState } from './hook'
+import SelectModelSearchBar from './searchbar'
 import { FlatListItem } from './types'
 
 const PAGE_SIZE = 11
@@ -46,7 +44,6 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
   const [open, setOpen] = useState(true)
-  const inputRef = useRef<InputRef>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
@@ -55,29 +52,19 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const currentModelId = model ? getModelUniqId(model) : ''
 
   // 管理滚动和焦点状态
-  const {
-    focusedItemKey,
-    scrollTrigger,
-    isMouseOver,
-    setFocusedItemKey: _setFocusedItemKey,
-    setScrollTrigger,
-    setIsMouseOver,
-    focusNextItem,
-    focusPage,
-    searchChanged,
-    focusOnListChange
-  } = useScrollState()
+  const [focusedItemKey, _setFocusedItemKey] = useState('')
+  const [isMouseOver, setIsMouseOver] = useState(false)
+  const preventScrollToIndex = useRef(false)
 
-  const setFocusedItemKey = useCallback(
-    (key: string) => {
-      startTransition(() => _setFocusedItemKey(key))
-    },
-    [_setFocusedItemKey]
-  )
+  const setFocusedItemKey = useCallback((key: string) => {
+    startTransition(() => {
+      _setFocusedItemKey(key)
+    })
+  }, [])
 
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
-    (provider) => {
+    (provider: Provider) => {
       let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
@@ -91,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: any, isPinned: boolean): FlatListItem => {
+    (model: Model, provider: Provider, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
 
@@ -122,16 +109,18 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     [currentModelId]
   )
 
-  // 构建扁平化列表数据
-  const listItems = useMemo(() => {
+  // 构建扁平化列表数据，并派生出可选择的模型项
+  const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
+    const pinnedModelIds = new Set(pinnedModels)
+    const finalModelFilter = modelFilter || (() => true)
 
     // 添加置顶模型分组（仅在无搜索文本时）
-    if (searchText.length === 0 && pinnedModels.length > 0) {
+    if (searchText.length === 0 && pinnedModelIds.size > 0) {
       const pinnedItems = providers.flatMap((p) =>
         p.models
-          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-          .filter(modelFilter ? modelFilter : () => true)
+          .filter((m) => pinnedModelIds.has(getModelUniqId(m)))
+          .filter(finalModelFilter)
           .map((m) => createModelItem(m, p, true))
       )
 
@@ -151,8 +140,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     // 添加常规模型分组
     providers.forEach((p) => {
       const filteredModels = getFilteredModels(p)
-        .filter((m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m)))
-        .filter(modelFilter ? modelFilter : () => true)
+        .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
+        .filter(finalModelFilter)
 
       if (filteredModels.length === 0) return
 
@@ -164,41 +153,52 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: false
       })
 
-      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
+      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModelIds.has(getModelUniqId(m)))))
     })
 
-    return items
+    // 获取可选择的模型项（过滤掉分组标题）
+    const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
+    return { listItems: items, modelItems }
   }, [searchText.length, pinnedModels, providers, modelFilter, createModelItem, t, getFilteredModels])
 
-  // 获取可选择的模型项（过滤掉分组标题）
-  const modelItems = useMemo(() => {
-    return listItems.filter((item) => item.type === 'model')
-  }, [listItems])
+  const listHeight = useMemo(() => {
+    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
+  }, [listItems.length])
 
-  // 当搜索文本变化时更新滚动触发器
-  useEffect(() => {
-    searchChanged(searchText)
-  }, [searchText, searchChanged])
-
-  // 列表项更新时，更新焦点
-  useEffect(() => {
-    if (!loading) focusOnListChange(modelItems)
-  }, [modelItems, focusOnListChange, loading])
-
-  // 滚动到聚焦项
+  // 处理程序化滚动（加载、搜索开始、搜索清空）
   useLayoutEffect(() => {
-    if (scrollTrigger === 'none' || !focusedItemKey) return
+    if (loading) return
 
-    const index = listItems.findIndex((item) => item.key === focusedItemKey)
-    if (index < 0) return
+    if (preventScrollToIndex.current) {
+      preventScrollToIndex.current = false
+      return
+    }
 
-    // 根据触发源决定滚动对齐方式
-    const alignment = scrollTrigger === 'keyboard' ? 'auto' : 'center'
-    listRef.current?.scrollToIndex(index, { align: alignment })
+    let targetItemKey: string | undefined
 
-    // 滚动后重置触发器
-    setScrollTrigger('none')
-  }, [focusedItemKey, scrollTrigger, listItems, setScrollTrigger])
+    // 启动搜索时，滚动到第一个 item
+    if (searchText) {
+      targetItemKey = modelItems[0]?.key
+    }
+    // 初始加载或清空搜索时，滚动到 selected item
+    else {
+      targetItemKey = modelItems.find((item) => item.isSelected)?.key
+    }
+
+    if (targetItemKey) {
+      setFocusedItemKey(targetItemKey)
+      const index = listItems.findIndex((item) => item.key === targetItemKey)
+      if (index >= 0) {
+        // FIXME: 手动计算偏移量给 scroller 增加了 padding 之后使用 scrollToIndex 不能
+        // 准确滚动到 item 中心，但是我们又需要 padding 来改善体验。
+        const targetScrollTop = index * ITEM_HEIGHT - listHeight / 2
+        listRef.current?.scrollToOffset(targetScrollTop, {
+          align: 'start',
+          behavior: 'auto'
+        })
+      }
+    }
+  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
@@ -213,7 +213,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   // 处理键盘导航
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!open || modelItems.length === 0 || e.isComposing) return
+      const modelCount = modelItems.length
+
+      if (!open || modelCount === 0 || e.isComposing) return
 
       // 键盘操作时禁用鼠标 hover
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
@@ -222,25 +224,31 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         setIsMouseOver(false)
       }
 
+      // 当前聚焦的模型 index
       const currentIndex = modelItems.findIndex((item) => item.key === focusedItemKey)
-      const normalizedIndex = currentIndex < 0 ? 0 : currentIndex
+
+      let nextIndex = -1
 
       switch (e.key) {
-        case 'ArrowUp':
-          focusNextItem(modelItems, -1)
+        case 'ArrowUp': {
+          nextIndex = (currentIndex < 0 ? 0 : currentIndex - 1 + modelCount) % modelCount
           break
-        case 'ArrowDown':
-          focusNextItem(modelItems, 1)
+        }
+        case 'ArrowDown': {
+          nextIndex = (currentIndex < 0 ? 0 : currentIndex + 1) % modelCount
           break
-        case 'PageUp':
-          focusPage(modelItems, normalizedIndex, -PAGE_SIZE)
+        }
+        case 'PageUp': {
+          nextIndex = Math.max(0, (currentIndex < 0 ? 0 : currentIndex) - PAGE_SIZE)
           break
-        case 'PageDown':
-          focusPage(modelItems, normalizedIndex, PAGE_SIZE)
+        }
+        case 'PageDown': {
+          nextIndex = Math.min(modelCount - 1, (currentIndex < 0 ? 0 : currentIndex) + PAGE_SIZE)
           break
+        }
         case 'Enter':
-          if (focusedItemKey) {
-            const selectedItem = modelItems.find((item) => item.key === focusedItemKey)
+          if (currentIndex >= 0) {
+            const selectedItem = modelItems[currentIndex]
             if (selectedItem) {
               handleItemClick(selectedItem)
             }
@@ -252,8 +260,20 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           resolve(undefined)
           break
       }
+
+      // 没有键盘导航，直接返回
+      if (nextIndex < 0) return
+
+      const nextKey = modelItems[nextIndex]?.key || ''
+      if (nextKey) {
+        setFocusedItemKey(nextKey)
+        const index = listItems.findIndex((item) => item.key === nextKey)
+        if (index >= 0) {
+          listRef.current?.scrollToIndex(index, { align: 'auto' })
+        }
+      }
     },
-    [focusedItemKey, modelItems, handleItemClick, open, resolve, setIsMouseOver, focusNextItem, focusPage]
+    [modelItems, open, focusedItemKey, resolve, handleItemClick, setFocusedItemKey, listItems]
   )
 
   useEffect(() => {
@@ -266,28 +286,17 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   }, [])
 
   const onAfterClose = useCallback(async () => {
-    setScrollTrigger('initial')
     resolve(undefined)
     SelectModelPopup.hide()
-  }, [resolve, setScrollTrigger])
-
-  // 初始化焦点和滚动位置
-  useEffect(() => {
-    if (!open) return
-    const timer = setTimeout(() => inputRef.current?.focus(), 0)
-    return () => clearTimeout(timer)
-  }, [open])
+  }, [resolve])
 
   const togglePin = useCallback(
     async (modelId: string) => {
       await togglePinnedModel(modelId)
+      preventScrollToIndex.current = true
     },
     [togglePinnedModel]
   )
-
-  const listHeight = useMemo(() => {
-    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
-  }, [listItems.length])
 
   const getItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
@@ -352,35 +361,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       closeIcon={null}
       footer={null}>
       {/* 搜索框 */}
-      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
-        <Input
-          prefix={
-            <SearchIcon>
-              <Search size={15} />
-            </SearchIcon>
-          }
-          ref={inputRef}
-          placeholder={t('models.search')}
-          value={_searchText} // 使用 _searchText，需要实时更新
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          autoFocus
-          spellCheck={false}
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-          onKeyDown={(e) => {
-            // 防止上下键移动光标
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
-              e.preventDefault()
-            }
-          }}
-        />
-      </HStack>
+      <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => !isMouseOver && startTransition(() => setIsMouseOver(true))}>
+        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
           <DynamicVirtualList
             ref={listRef}
             list={listItems}
@@ -497,18 +482,6 @@ const EmptyState = styled.div`
   justify-content: center;
   align-items: center;
   height: 200px;
-`
-
-const SearchIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background-soft);
-  margin-right: 2px;
 `
 
 const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?: boolean }>`
