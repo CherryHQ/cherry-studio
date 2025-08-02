@@ -1507,6 +1507,7 @@
         "image": "新建图片"
       }
     },
+    "custom_size": "自定义尺寸",
     "edit": {
       "image_file": "编辑的图像",
       "magic_prompt_option_tip": "智能优化编辑提示词",
@@ -1629,6 +1630,7 @@
     },
     "text_desc_required": "请先输入图片描述",
     "title": "图片",
+    "top_up": "充值",
     "translating": "翻译中...",
     "uploaded_input": "已上传输入",
     "upscale": {

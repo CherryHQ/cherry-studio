@@ -552,6 +552,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS['aws-bedrock'],
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'poe',
+    name: 'Poe',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.poe.com/v1/',
+    models: SYSTEM_MODELS['poe'],
+    isSystem: true,
+    enabled: false
   }
 ]
 

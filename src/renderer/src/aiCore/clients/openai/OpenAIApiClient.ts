@@ -62,6 +62,7 @@ import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatComple
 import { GenericChunk } from '../../middleware/schemas'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 
 const logger = loggerService.withContext('OpenAIApiClient')
 
@@ -491,7 +492,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         if (isSupportedReasoningEffortOpenAIModel(model)) {
           systemMessage = {
-            role: 'developer',
+            role: isSupportDeveloperRoleProvider(this.provider) ? 'developer' : 'system',
             content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
           }
         }
