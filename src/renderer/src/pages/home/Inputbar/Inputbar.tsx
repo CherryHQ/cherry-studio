@@ -715,6 +715,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     mentionedModels
   ])
 
+  // 清空消息时聚焦。不要合并到上面的useEffect中，这里需要单独判断messages的情况
+  useEffect(() => {
+    if (assistant.messages && assistant.messages.length === 0) {
+      textareaRef.current?.focus()
+    }
+  }, [assistant.messages])
+
   useEffect(() => {
     const timerId = requestAnimationFrame(() => resizeTextArea())
     return () => cancelAnimationFrame(timerId)
