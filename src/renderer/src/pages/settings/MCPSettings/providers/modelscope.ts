@@ -1,12 +1,13 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('ModelScopeSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'modelscope_token'
+export const MODELSCOPE_HOST = 'https://www.modelscope.cn'
 
 export const saveModelScopeToken = (token: string): void => {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
@@ -50,7 +51,7 @@ export const syncModelScopeServers = async (
   const t = i18next.t
 
   try {
-    const response = await fetch('https://www.modelscope.cn/api/v1/mcp/services/operational', {
+    const response = await fetch(`${MODELSCOPE_HOST}/api/v1/mcp/services/operational`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -115,7 +116,7 @@ export const syncModelScopeServers = async (
           env: {},
           isActive: true,
           provider: 'ModelScope',
-          providerUrl: `https://www.modelscope.cn/mcp/servers/@${server.id}`,
+          providerUrl: `${MODELSCOPE_HOST}/mcp/servers/@${server.id}`,
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }
