@@ -1,0 +1,129 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 1`] = `
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  color: var(--color-text-3);
+}
+
+.c2:hover {
+  background-color: var(--color-background-soft);
+}
+
+.c2:hover .tool-icon {
+  color: var(--color-text-1);
+}
+
+.c2.active {
+  color: var(--color-primary);
+}
+
+.c2.active .tool-icon {
+  color: var(--color-primary);
+}
+
+.c2 .tool-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-3);
+}
+
+.c0 {
+  position: sticky;
+  top: 28px;
+  z-index: 10;
+}
+
+.c1 {
+  position: absolute;
+  align-items: center;
+  bottom: 0.3rem;
+  right: 0.5rem;
+  height: 24px;
+  gap: 4px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1 code-toolbar"
+      data-testid="hstack"
+    >
+      <div
+        data-testid="tooltip"
+        data-title="code_block.more"
+      >
+        <div
+          class="c2"
+        >
+          <div
+            class="tool-icon"
+            data-testid="ellipsis-icon"
+          />
+        </div>
+      </div>
+      <div
+        data-testid="tool-button-core1"
+        data-tool-id="core1"
+        data-tool-type="core"
+      >
+        <div
+          data-testid="test-icon"
+        >
+          Icon
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`CodeToolbar > basic rendering > should match snapshot with only core tools 1`] = `
+.c0 {
+  position: sticky;
+  top: 28px;
+  z-index: 10;
+}
+
+.c1 {
+  position: absolute;
+  align-items: center;
+  bottom: 0.3rem;
+  right: 0.5rem;
+  height: 24px;
+  gap: 4px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1 code-toolbar"
+      data-testid="hstack"
+    >
+      <div
+        data-testid="tool-button-core1"
+        data-tool-id="core1"
+        data-tool-type="core"
+      >
+        <div
+          data-testid="test-icon"
+        >
+          Icon
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

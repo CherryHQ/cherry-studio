@@ -5,15 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Environment Setup
+
 - **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
 - **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
 - **Install Dependencies**: `yarn install`
 
 ### Development
+
 - **Start Development**: `yarn dev` - Runs Electron app in development mode
 - **Debug Mode**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
 
 ### Testing & Quality
+
 - **Run Tests**: `yarn test` - Runs all tests (Vitest)
 - **Run E2E Tests**: `yarn test:e2e` - Playwright end-to-end tests
 - **Type Check**: `yarn typecheck` - Checks TypeScript for both node and web
@@ -21,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Format**: `yarn format` - Prettier formatting
 
 ### Build & Release
+
 - **Build**: `yarn build` - Builds for production (includes typecheck)
 - **Platform-specific builds**:
   - Windows: `yarn build:win`
@@ -30,6 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture Overview
 
 ### Electron Multi-Process Architecture
+
 - **Main Process** (`src/main/`): Node.js backend handling system integration, file operations, and services
 - **Renderer Process** (`src/renderer/`): React-based UI running in Chromium
 - **Preload Scripts** (`src/preload/`): Secure bridge between main and renderer processes
@@ -37,6 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Key Architectural Components
 
 #### Main Process Services (`src/main/services/`)
+
 - **MCPService**: Model Context Protocol server management
 - **KnowledgeService**: Document processing and knowledge base management
 - **FileStorage/S3Storage/WebDav**: Multiple storage backends
@@ -45,22 +51,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **SearchService**: Full-text search capabilities
 
 #### AI Core (`src/renderer/src/aiCore/`)
+
 - **Middleware System**: Composable pipeline for AI request processing
 - **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
 - **Stream Processing**: Real-time response handling
 
 #### State Management (`src/renderer/src/store/`)
+
 - **Redux Toolkit**: Centralized state management
 - **Persistent Storage**: Redux-persist for data persistence
 - **Thunks**: Async actions for complex operations
 
 #### Knowledge Management
+
 - **Embeddings**: Vector search with multiple providers (OpenAI, Voyage, etc.)
 - **OCR**: Document text extraction (system OCR, Doc2x, Mineru)
 - **Preprocessing**: Document preparation pipeline
 - **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
 
 ### Build System
+
 - **Electron-Vite**: Development and build tooling (v4.0.0)
 - **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
 - **Workspaces**: Monorepo structure with `packages/` directory
@@ -68,12 +78,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Styled Components**: CSS-in-JS styling with SWC optimization
 
 ### Testing Strategy
+
 - **Vitest**: Unit and integration testing
 - **Playwright**: End-to-end testing
 - **Component Testing**: React Testing Library
 - **Coverage**: Available via `yarn test:coverage`
 
 ### Key Patterns
+
 - **IPC Communication**: Secure main-renderer communication via preload scripts
 - **Service Layer**: Clear separation between UI and business logic
 - **Plugin Architecture**: Extensible via MCP servers and middleware
@@ -83,6 +95,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Logging Standards
 
 ### Usage
+
 ```typescript
 // Main process
 import { loggerService } from '@logger'
@@ -98,6 +111,7 @@ logger.error('message', new Error('error'), CONTEXT)
 ```
 
 ### Log Levels (highest to lowest)
+
 - `error` - Critical errors causing crash/unusable functionality
 - `warn` - Potential issues that don't affect core functionality
 - `info` - Application lifecycle and key user actions

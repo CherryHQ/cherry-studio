@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GraphvizPreview > basic rendering > should match snapshot 1`] = `
+.c0 {
+  overflow: auto;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+<div>
+  <div
+    data-source="graphviz"
+    data-testid="image-preview-layout"
+  >
+    <div
+      data-testid="toolbar"
+    >
+      Toolbar
+    </div>
+    <div
+      data-testid="preview-content"
+    >
+      <div
+        class="c0 graphviz special-preview"
+      />
+    </div>
+  </div>
+</div>
+`;

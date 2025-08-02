@@ -6,6 +6,7 @@ import {
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -44,7 +45,6 @@ import { ResponseInput } from 'openai/resources/responses/responses'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 
 export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   OpenAI,

@@ -254,20 +254,6 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
 }
 
 /**
- * 检查是否为有效的 PlantUML 图表
- * @param code 输入的 PlantUML 图表字符串
- * @returns 有效 true，无效 false
- */
-export function isValidPlantUML(code: string | null): boolean {
-  if (!code || !code.trim().startsWith('@start')) {
-    return false
-  }
-  const diagramType = code.match(/@start(\w+)/)?.[1]
-
-  return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
-}
-
-/**
  * 检查代码是否具有HTML特征
  * @param code 输入的代码字符串
  * @returns 是HTML代码 true，否则 false

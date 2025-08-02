@@ -25,8 +25,9 @@ import {
   setCodeCollapsible,
   setCodeEditor,
   setCodeExecution,
-  setCodePreview,
+  setCodeImageTools,
   setCodeShowLineNumbers,
+  setCodeViewer,
   setCodeWrappable,
   setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
@@ -92,7 +93,8 @@ const SettingsTab: FC<Props> = (props) => {
     codeCollapsible,
     codeWrappable,
     codeEditor,
-    codePreview,
+    codeViewer,
+    codeImageTools,
     codeExecution,
     mathEngine,
     autoTranslateWithSpace,
@@ -133,21 +135,21 @@ const SettingsTab: FC<Props> = (props) => {
         ? codeEditor.themeLight
         : codeEditor.themeDark
       : theme === ThemeMode.light
-        ? codePreview.themeLight
-        : codePreview.themeDark
+        ? codeViewer.themeLight
+        : codeViewer.themeDark
   }, [
     codeEditor.enabled,
     codeEditor.themeLight,
     codeEditor.themeDark,
     theme,
-    codePreview.themeLight,
-    codePreview.themeDark
+    codeViewer.themeLight,
+    codeViewer.themeDark
   ])
 
   const onCodeStyleChange = useCallback(
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
-      const action = codeEditor.enabled ? setCodeEditor : setCodePreview
+      const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
       dispatch(action({ [field]: value }))
     },
     [dispatch, theme, codeEditor.enabled]
@@ -531,6 +533,15 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
             <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_image_tools')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeImageTools}
+              onChange={(checked) => dispatch(setCodeImageTools(checked))}
+            />
           </SettingRow>
         </SettingGroup>
         <SettingDivider />

@@ -175,3 +175,26 @@ export function useBlurHandler({ onBlur }: UseBlurHandlerProps) {
     })
   }, [onBlur])
 }
+
+interface UseHeightListenerProps {
+  onHeightChange?: (scrollHeight: number) => void
+}
+
+/**
+ * CodeMirror 扩展，用于监听编辑器高度变化
+ * @param onHeightChange 高度变化时触发的回调函数
+ * @returns 扩展或空数组
+ */
+export function useHeightListener({ onHeightChange }: UseHeightListenerProps) {
+  return useMemo(() => {
+    if (!onHeightChange) {
+      return []
+    }
+
+    return EditorView.updateListener.of((update) => {
+      if (update.docChanged || update.heightChanged) {
+        onHeightChange(update.view.scrollDOM?.scrollHeight ?? 0)
+      }
+    })
+  }, [onHeightChange])
+}

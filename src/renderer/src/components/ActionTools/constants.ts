@@ -1,6 +1,6 @@
-import { CodeToolSpec } from './types'
+import { ActionToolSpec } from './types'
 
-export const TOOL_SPECS: Record<string, CodeToolSpec> = {
+export const TOOL_SPECS: Record<string, ActionToolSpec> = {
   // Core tools
   copy: {
     id: 'copy',
