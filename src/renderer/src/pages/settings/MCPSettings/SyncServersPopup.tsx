@@ -78,7 +78,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
-  const { addMCPServer } = useMCPServers()
+  const { addMCPServer, updateMCPServer } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
@@ -128,10 +128,16 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       // Sync servers
       const result = await selectedProvider.syncServers(token, existingServers)
 
-      if (result.success && result.addedServers?.length > 0) {
-        // Add the new servers to the store
+      if (result.success && (result.addedServers?.length > 0 || (result as any).updatedServers?.length > 0)) {
+        // Add new servers to the store
         for (const server of result.addedServers) {
           addMCPServer(server)
+        }
+        // Update existing servers with corrected URLs (for TokenFlux)
+        if ((result as any).updatedServers) {
+          for (const server of (result as any).updatedServers) {
+            updateMCPServer(server)
+          }
         }
         window.message.success(result.message)
         setOpen(false)
@@ -148,7 +154,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     } finally {
       setIsSyncing(false)
     }
-  }, [addMCPServer, existingServers, form, selectedProvider, t])
+  }, [addMCPServer, updateMCPServer, existingServers, form, selectedProvider, t])
 
   const onCancel = () => {
     setOpen(false)
