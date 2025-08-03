@@ -703,6 +703,7 @@
     "no_results": "Aucun résultat",
     "open": "Ouvrir",
     "paste": "Coller",
+    "preview": "Aperçu",
     "prompt": "Prompt",
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
@@ -711,6 +712,7 @@
     "rename": "Renommer",
     "reset": "Réinitialiser",
     "save": "Enregistrer",
+    "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
     "selectedItems": "{{count}} éléments sélectionnés",
@@ -1505,6 +1507,7 @@
         "image": "Nouvelle image"
       }
     },
+    "custom_size": "Dimensions personnalisées",
     "edit": {
       "image_file": "Image éditée",
       "magic_prompt_option_tip": "Optimisation intelligente du mot-clé d'édition",
@@ -1627,6 +1630,7 @@
     },
     "text_desc_required": "Veuillez d'abord saisir la description de l'image",
     "title": "Image",
+    "top_up": "Recharge",
     "translating": "Traduction en cours...",
     "uploaded_input": "Entrée téléchargée",
     "upscale": {
@@ -3300,25 +3304,10 @@
     },
     "title": "Paramètres",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Confiance minimale",
-          "mode": {
-            "accurate": "Précis",
-            "fast": "Rapide",
-            "title": "Mode de Reconnaissance"
-          }
-        },
-        "provider": "Fournisseur OCR",
-        "provider_placeholder": "Sélectionnez un fournisseur OCR",
-        "title": "Reconnaissance de texte OCR"
-      },
       "preprocess": {
-        "provider": "Fournisseur de traitement préalable de documents",
-        "provider_placeholder": "Sélectionnez un fournisseur de traitement préalable de documents",
-        "title": "Traitement Préliminaire de Documents"
-      },
-      "preprocess": {
+        "provider": "fournisseur de services de prétraitement de documents",
+        "provider_placeholder": "Choisissez un fournisseur de traitement préalable de documents",
+        "title": "Prétraitement des documents",
         "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
       },
       "title": "Paramètres des outils",
@@ -3517,12 +3506,6 @@
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
-      "custom": {
-        "delete": "Échec de la suppression",
-        "exist": "Ce langage existe déjà",
-        "list": "Échec de la lecture de la liste de langues personnalisée",
-        "update": "Échec de la mise à jour"
-      },
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
       "not_supported": "Langue non prise en charge {{language}}",

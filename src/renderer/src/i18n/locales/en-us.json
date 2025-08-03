@@ -3506,12 +3506,6 @@
     },
     "empty": "Translation content is empty",
     "error": {
-      "custom": {
-        "delete": "Deletion failed",
-        "exist": "The language already exists",
-        "list": "Failed to read custom language list",
-        "update": "Update failed"
-      },
       "failed": "Translation failed",
       "not_configured": "Translation model is not configured",
       "not_supported": "Unsupported language {{language}}",

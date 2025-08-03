@@ -703,6 +703,7 @@
     "no_results": "Nenhum resultado",
     "open": "Abrir",
     "paste": "Colar",
+    "preview": "Pré-visualização",
     "prompt": "Prompt",
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
@@ -711,6 +712,7 @@
     "rename": "Renomear",
     "reset": "Redefinir",
     "save": "Salvar",
+    "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
     "selectedItems": "{{count}} itens selecionados",
@@ -1505,6 +1507,7 @@
         "image": "Nova Imagem"
       }
     },
+    "custom_size": "Dimensões personalizadas",
     "edit": {
       "image_file": "Imagem editada",
       "magic_prompt_option_tip": "Otimização inteligente da palavra-chave de edição",
@@ -1627,6 +1630,7 @@
     },
     "text_desc_required": "Por favor, insira a descrição da imagem primeiro",
     "title": "Imagem",
+    "top_up": "carregar",
     "translating": "Traduzindo...",
     "uploaded_input": "Entrada enviada",
     "upscale": {
@@ -3300,25 +3304,10 @@
     },
     "title": "Configurações",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Confiança Mínima",
-          "mode": {
-            "accurate": "preciso",
-            "fast": "rápido",
-            "title": "Modo de Reconhecimento"
-          }
-        },
-        "provider": "Provedor OCR",
-        "provider_placeholder": "Selecione um provedor OCR",
-        "title": "Reconhecimento de Texto OCR"
-      },
       "preprocess": {
-        "provider": "Prestador de serviços de pré-processamento de documentos",
-        "provider_placeholder": "Selecione um prestador de serviços de pré-processamento de documentos",
-        "title": "Pré-processamento de Documentos"
-      },
-      "preprocess": {
+        "provider": "prestador de serviços de pré-processamento de documentos",
+        "provider_placeholder": "Escolha um fornecedor de pré-processamento de documentos",
+        "title": "Pré-processamento de documentos",
         "tooltip": "Configure o provedor de pré-processamento de documentos ou OCR em Configurações -> Ferramentas. O pré-processamento de documentos pode melhorar significativamente a eficácia da busca em documentos com formatos complexos ou versões escaneadas. O OCR só consegue reconhecer texto em imagens ou PDFs escaneados."
       },
       "title": "Configurações de Ferramentas",
@@ -3517,12 +3506,6 @@
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
-      "custom": {
-        "delete": "Falha ao eliminar",
-        "exist": "A língua já existe",
-        "list": "Falha ao ler a lista de idiomas personalizada",
-        "update": "Falha ao atualizar"
-      },
       "failed": "Tradução falhou",
       "not_configured": "Modelo de tradução não configurado",
       "not_supported": "Idioma não suportado {{language}}",

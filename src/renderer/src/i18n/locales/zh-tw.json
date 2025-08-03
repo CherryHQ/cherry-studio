@@ -3506,12 +3506,6 @@
     },
     "empty": "翻譯內容為空",
     "error": {
-      "custom": {
-        "delete": "删除失败",
-        "exist": "該語言已存在",
-        "list": "讀取自定義語言列表失敗",
-        "update": "更新失敗"
-      },
       "failed": "翻譯失敗",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
