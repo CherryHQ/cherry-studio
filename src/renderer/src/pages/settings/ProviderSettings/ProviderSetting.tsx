@@ -29,6 +29,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import ApiOptionsSettings from './ApiOptionsSettings'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -375,6 +376,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
+      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

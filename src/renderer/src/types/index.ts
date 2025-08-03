@@ -173,6 +173,8 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  isSupportStreamOptions?: boolean
+  isSupportDeveloperRole?: boolean
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
