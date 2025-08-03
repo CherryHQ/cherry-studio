@@ -136,7 +136,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       )
                       // 在非组成文本状态下接收到非思考内容时，生成 TEXT_START chunk 并更新状态
                       if (!accumulatingText) {
-                        logger.silly('since isFirstTextChunk is true, TEXT_START chunk is generated')
+                        logger.silly('since accumulatingText is false, TEXT_START chunk is generated')
                         controller.enqueue({
                           type: ChunkType.TEXT_START
                         })
@@ -154,7 +154,10 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                   }
                 }
               } else if (chunk.type !== ChunkType.TEXT_START) {
-                logger.silly('since chunk.type is not TEXT_START, pass through')
+                logger.silly('since chunk.type is not TEXT_START and not TEXT_DELTA, pass through')
+
+                logger.silly('since chunk.type is not TEXT_START and not TEXT_DELTA, accumulatingText is set to false')
+                accumulatingText = false
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
                 controller.enqueue(chunk)
               } else {

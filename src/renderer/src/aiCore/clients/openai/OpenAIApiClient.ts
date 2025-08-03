@@ -818,12 +818,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
+              logger.silly('since reasoningText is trusy, try to enqueue THINKING_START AND THINKING_DELTA')
               if (!isThinking) {
+                logger.silly('since isThinking is falsy, try to enqueue THINKING_START')
                 controller.enqueue({
                   type: ChunkType.THINKING_START
                 } as ThinkingStartChunk)
                 isThinking = true
               }
+
+              logger.silly('enqueue THINKING_DELTA')
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
@@ -834,12 +838,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             // 处理文本内容
             if (contentSource.content) {
+              logger.silly('since contentSource.content is trusy, try to enqueue TEXT_START and TEXT_DELTA')
               if (!accumulatingText) {
+                logger.silly('enqueue TEXT_START')
                 controller.enqueue({
                   type: ChunkType.TEXT_START
                 } as TextStartChunk)
                 accumulatingText = true
               }
+              logger.silly('enqueue TEXT_DELTA')
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: contentSource.content
