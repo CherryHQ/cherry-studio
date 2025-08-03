@@ -131,7 +131,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSymbolRef.current = ctx.symbol
 
     return newList
-  }, [ctx, searchText])
+  }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -140,25 +140,25 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
   useEffect(() => {
     const _searchText = searchText.replace(/^[/@]/, '')
-    
+
     // 清除之前的定时器（无论面板是否可见都要清理）
     if (noMatchTimeoutRef.current) {
       clearTimeout(noMatchTimeoutRef.current)
       noMatchTimeoutRef.current = null
     }
-    
+
     // 面板不可见时不设置新定时器
     if (!ctx.isVisible) {
       return
     }
-    
+
     // 只有在有搜索文本但无匹配项时才设置延迟关闭
     if (_searchText && _searchText.length > 0 && list.length === 0) {
       noMatchTimeoutRef.current = setTimeout(() => {
         ctx.close('no-matches')
       }, 300)
     }
-    
+
     // 清理函数
     return () => {
       if (noMatchTimeoutRef.current) {
@@ -499,7 +499,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
-
 
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
