@@ -175,7 +175,7 @@ const InputContainer = styled.div`
 `
 
 const ButtonContainer = styled.div`
-  padding: 4px;
+  padding: 4px 4px 4px 0;
 `
 
 export default CustomLanguageModal
