@@ -295,7 +295,11 @@ const TranslatePage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        {historyDrawerVisible && <TranslateHistoryList onHistoryItemClick={onHistoryItemClick} />}
+        <TranslateHistoryList
+          onHistoryItemClick={onHistoryItemClick}
+          isOpen={historyDrawerVisible}
+          onClose={() => setHistoryDrawerVisible(false)}
+        />
         <InputContainer>
           <OperationBar>
             <Flex align="center" gap={8}>
