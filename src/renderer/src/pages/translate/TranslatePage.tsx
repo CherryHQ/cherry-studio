@@ -15,7 +15,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
-import store, { useAppDispatch } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
@@ -48,7 +48,7 @@ const TranslatePage: FC = () => {
   // hooks
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const { prompt, translatedContent, translating, getLanguageByLangcode } = useTranslate()
+  const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
 
   // states
@@ -67,6 +67,10 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
   const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
+
+  // redux states
+  const translatedContent = useAppSelector((state) => state.translate.translatedContent)
+  const translating = useAppSelector((state) => state.runtime.translating)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
