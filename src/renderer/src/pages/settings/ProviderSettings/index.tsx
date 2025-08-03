@@ -1,11 +1,10 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
-import { getProviderLogo } from '@renderer/config/providers'
+import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
 import {
   generateColorFromChar,
@@ -108,7 +107,7 @@ const ProvidersList: FC = () => {
         }
       }
 
-      const providerDisplayName = existingProvider.isSystem
+      const providerDisplayName = isSystemProvider(existingProvider)
         ? getProviderLabel(existingProvider.id)
         : existingProvider.name
 
@@ -387,7 +386,7 @@ const ProvidersList: FC = () => {
               }
             }
 
-            setSelectedProvider(providers.filter((p) => p.isSystem)[0])
+            setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
             removeProvider(provider)
           }
         })
@@ -400,19 +399,21 @@ const ProvidersList: FC = () => {
       return menus
     }
 
-    if (provider.isSystem) {
-      if (INITIAL_PROVIDERS.find((p) => p.id === provider.id)) {
-        return [noteMenu]
-      }
+    if (isSystemProvider(provider)) {
+      return [noteMenu]
+    } else if (provider.isSystem) {
+      // 这里是处理数据中存在新版本删掉的系统提供商的情况
+      // 未来期望能重构一下，不要依赖isSystem字段
       return [noteMenu, deleteMenu]
+    } else {
+      return menus
     }
-
-    return menus
   }
 
   const getProviderAvatar = (provider: Provider) => {
-    if (provider.isSystem) {
-      return <ProviderLogo shape="circle" src={getProviderLogo(provider.id)} size={25} />
+    const logoSrc = getProviderLogo(provider.id)
+    if (logoSrc) {
+      return <ProviderLogo shape="circle" src={logoSrc} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]

@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
-import { Model, Provider } from '@renderer/types'
+import { Model, Provider, SystemProvider } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -38,7 +38,7 @@ export interface LlmState {
   settings: LlmSettings
 }
 
-export const INITIAL_PROVIDERS: Provider[] = [
+export const SYSTEM_PROVIDERS: SystemProvider[] = [
   {
     id: 'silicon',
     name: 'Silicon',
@@ -570,7 +570,7 @@ export const initialState: LlmState = {
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
   quickAssistantId: '',
-  providers: INITIAL_PROVIDERS,
+  providers: SYSTEM_PROVIDERS,
   settings: {
     ollama: {
       keepAliveTime: 0

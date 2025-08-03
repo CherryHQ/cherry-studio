@@ -83,25 +83,28 @@
       "restart": {
         "button": "Redémarrer",
         "tooltip": "Redémarrer le Serveur"
-      }
+      },
+      "start": "Démarrer",
+      "stop": "Arrêtez"
+    },
+    "authHeader": {
+      "title": "En-tête d'autorisation"
     },
     "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
     "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
-      "title": "Documentation API",
-      "unavailable": {
-        "description": "Démarrez le serveur API pour voir la documentation interactive",
-        "title": "Documentation API Indisponible"
-      }
+      "title": "Documentation API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
+        "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
+        "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
         "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
@@ -700,6 +703,7 @@
     "no_results": "Aucun résultat",
     "open": "Ouvrir",
     "paste": "Coller",
+    "preview": "Aperçu",
     "prompt": "Prompt",
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
@@ -708,6 +712,7 @@
     "rename": "Renommer",
     "reset": "Réinitialiser",
     "save": "Enregistrer",
+    "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
     "selectedItems": "{{count}} éléments sélectionnés",
@@ -1502,6 +1507,7 @@
         "image": "Nouvelle image"
       }
     },
+    "custom_size": "Dimensions personnalisées",
     "edit": {
       "image_file": "Image éditée",
       "magic_prompt_option_tip": "Optimisation intelligente du mot-clé d'édition",
@@ -1624,6 +1630,7 @@
     },
     "text_desc_required": "Veuillez d'abord saisir la description de l'image",
     "title": "Image",
+    "top_up": "recharge",
     "translating": "Traduction en cours...",
     "uploaded_input": "Entrée téléchargée",
     "upscale": {
@@ -1647,6 +1654,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Cloud Qianfan",
@@ -3076,6 +3084,21 @@
             "placeholder": "Saisir une ou plusieurs clés"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",
+            "label": "Prise en charge du format de tableau pour le contenu du message"
+          },
+          "developer_role": {
+            "help": "Le fournisseur prend-il en charge les messages avec le rôle : « développeur » ?",
+            "label": "Prise en charge du message développeur"
+          },
+          "label": "Paramètres de l'API",
+          "stream_options": {
+            "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
+            "label": "Prise en charge des options de flux"
+          }
+        },
         "url": {
           "preview": "Aperçu : {{url}}",
           "reset": "Réinitialiser",
@@ -3088,6 +3111,16 @@
         "tip": "Séparer les clés multiples par des virgules"
       },
       "api_version": "Version API",
+      "aws-bedrock": {
+        "access_key_id": "Identifiant de clé d'accès AWS",
+        "access_key_id_help": "Votre identifiant de clé d'accès AWS, utilisé pour accéder au service AWS Bedrock",
+        "description": "AWS Bedrock est un service de modèles de base entièrement géré proposé par Amazon, prenant en charge divers grands modèles linguistiques avancés.",
+        "region": "Région AWS",
+        "region_help": "Votre région de service AWS, par exemple us-east-1",
+        "secret_access_key": "Clés d'accès AWS",
+        "secret_access_key_help": "Votre clé d'accès AWS, veuillez la conserver en lieu sûr",
+        "title": "Configuration AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Version de l'API Azure OpenAI, veuillez saisir une version preview si vous souhaitez utiliser l'API de réponse"
@@ -3156,7 +3189,7 @@
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
       "get_api_key": "Cliquez ici pour obtenir une clé",
-      "is_not_support_array_content": "Activer le mode compatible",
+      "misc": "autre",
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
       "not_checked": "Non vérifié",
       "notes": {
@@ -3286,25 +3319,10 @@
     },
     "title": "Paramètres",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Confiance minimale",
-          "mode": {
-            "accurate": "Précis",
-            "fast": "Rapide",
-            "title": "Mode de Reconnaissance"
-          }
-        },
-        "provider": "Fournisseur OCR",
-        "provider_placeholder": "Sélectionnez un fournisseur OCR",
-        "title": "Reconnaissance de texte OCR"
-      },
       "preprocess": {
-        "provider": "Fournisseur de traitement préalable de documents",
-        "provider_placeholder": "Sélectionnez un fournisseur de traitement préalable de documents",
-        "title": "Traitement Préliminaire de Documents"
-      },
-      "preprocess": {
+        "provider": "fournisseur de services de prétraitement de documents",
+        "provider_placeholder": "Choisissez un prestataire de traitement de documents",
+        "title": "Prétraitement des documents",
         "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
       },
       "title": "Paramètres des outils",

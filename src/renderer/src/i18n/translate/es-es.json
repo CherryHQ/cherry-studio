@@ -83,25 +83,28 @@
       "restart": {
         "button": "Reiniciar",
         "tooltip": "Reiniciar Servidor"
-      }
+      },
+      "start": "Iniciar",
+      "stop": "Detener"
+    },
+    "authHeader": {
+      "title": "Encabezado de autorización"
     },
     "authHeaderText": "Usar en el encabezado de autorización:",
     "configuration": "Configuración",
     "description": "Expone las capacidades de IA de Cherry Studio a través de APIs HTTP compatibles con OpenAI",
     "documentation": {
-      "title": "Documentación API",
-      "unavailable": {
-        "description": "Inicia el servidor API para ver la documentación interactiva",
-        "title": "Documentación API No Disponible"
-      }
+      "title": "Documentación API"
     },
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Clave API",
+        "description": "Token de autenticación seguro para el acceso a la API",
         "label": "Clave API",
         "placeholder": "La clave API se generará automáticamente"
       },
       "port": {
+        "description": "Número de puerto TCP para el servidor HTTP (1000-65535)",
         "helpText": "Detén el servidor para cambiar el puerto",
         "label": "Puerto"
       },
@@ -700,6 +703,7 @@
     "no_results": "Sin resultados",
     "open": "Abrir",
     "paste": "Pegar",
+    "preview": "Vista previa",
     "prompt": "Prompt",
     "provider": "Proveedor",
     "reasoning_content": "Pensamiento profundo",
@@ -708,6 +712,7 @@
     "rename": "Renombrar",
     "reset": "Restablecer",
     "save": "Guardar",
+    "saved": "Guardado",
     "search": "Buscar",
     "select": "Seleccionar",
     "selectedItems": "{{count}} elementos seleccionados",
@@ -1502,6 +1507,7 @@
         "image": "Nueva imagen"
       }
     },
+    "custom_size": "Tamaño personalizado",
     "edit": {
       "image_file": "Imagen editada",
       "magic_prompt_option_tip": "Optimización inteligente de las palabras clave de edición",
@@ -1624,6 +1630,7 @@
     },
     "text_desc_required": "Por favor, introduzca primero la descripción de la imagen",
     "title": "Imagen",
+    "top_up": "Recarga",
     "translating": "Traduciendo...",
     "uploaded_input": "Entrada subida",
     "upscale": {
@@ -1647,6 +1654,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Antropológico",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Nube Qiánfān",
@@ -3076,6 +3084,21 @@
             "placeholder": "Ingrese una o más claves"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "¿Admite el proveedor que el campo content del mensaje sea de tipo array?",
+            "label": "Contenido del mensaje compatible con formato de matriz"
+          },
+          "developer_role": {
+            "help": "¿Admite el proveedor mensajes con el rol: \"developer\"?",
+            "label": "Mensajes para desarrolladores compatibles"
+          },
+          "label": "Configuración de la API",
+          "stream_options": {
+            "help": "¿Admite el proveedor el parámetro stream_options?",
+            "label": "Admite stream_options"
+          }
+        },
         "url": {
           "preview": "Vista previa: {{url}}",
           "reset": "Restablecer",
@@ -3088,6 +3111,16 @@
         "tip": "Separar múltiples claves con comas"
       },
       "api_version": "Versión API",
+      "aws-bedrock": {
+        "access_key_id": "ID de clave de acceso de AWS",
+        "access_key_id_help": "Su ID de clave de acceso de AWS, utilizado para acceder al servicio AWS Bedrock",
+        "description": "AWS Bedrock es un servicio de modelos fundamentales completamente gestionado proporcionado por Amazon, que admite diversos modelos avanzados de lenguaje de gran tamaño.",
+        "region": "Región de AWS",
+        "region_help": "Su región de servicio AWS, por ejemplo us-east-1",
+        "secret_access_key": "Claves de acceso de AWS",
+        "secret_access_key_help": "Su clave de acceso de AWS, guárdela de forma segura",
+        "title": "Configuración de AWS Bedrock"
+      },
       "azure": {
         "apiversion": {
           "tip": "Versión de la API de Azure OpenAI; si desea usar la API de respuesta, ingrese una versión de vista previa"
@@ -3156,7 +3189,7 @@
       "docs_check": "Ver",
       "docs_more_details": "Obtener más detalles",
       "get_api_key": "Haga clic aquí para obtener la clave",
-      "is_not_support_array_content": "Activar modo compatible",
+      "misc": "otro",
       "no_models_for_check": "No hay modelos disponibles para revisar (por ejemplo, modelos de conversación)",
       "not_checked": "No verificado",
       "notes": {
@@ -3286,25 +3319,10 @@
     },
     "title": "Configuración",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Confianza mínima",
-          "mode": {
-            "accurate": "Preciso",
-            "fast": "Rápido",
-            "title": "Modo de Reconocimiento"
-          }
-        },
-        "provider": "Proveedor de OCR",
-        "provider_placeholder": "Selecciona un proveedor de OCR",
-        "title": "Reconocimiento de texto OCR"
-      },
       "preprocess": {
         "provider": "Proveedor de servicios de preprocesamiento de documentos",
-        "provider_placeholder": "Selecciona un proveedor de preprocesamiento de documentos",
-        "title": "Preprocesamiento de Documentos"
-      },
-      "preprocess": {
+        "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
+        "title": "Preprocesamiento de documentos",
         "tooltip": "Configure un proveedor de preprocesamiento de documentos o OCR en Configuración -> Herramientas. El preprocesamiento de documentos puede mejorar significativamente la eficacia de búsqueda en documentos con formatos complejos o versiones escaneadas. El OCR solo puede reconocer texto en imágenes o en archivos PDF escaneados."
       },
       "title": "Configuración de Herramientas",

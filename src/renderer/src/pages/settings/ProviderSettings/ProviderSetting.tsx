@@ -29,6 +29,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import ApiOptionsSettings from './ApiOptionsSettings'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -36,7 +37,6 @@ import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
 import ProviderOAuth from './ProviderOAuth'
-import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
@@ -236,14 +236,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!provider.isSystem && (
-            <Button
-              type="text"
-              size="small"
-              onClick={() => ProviderSettingsPopup.show({ provider })}
-              icon={<Settings2 size={14} />}
-            />
-          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -375,6 +367,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
+      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

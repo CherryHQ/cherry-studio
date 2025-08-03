@@ -3085,6 +3085,21 @@
             "placeholder": "1つ以上のキーを入力してください"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
+            "label": "配列形式のメッセージコンテンツをサポート"
+          },
+          "developer_role": {
+            "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
+            "label": "Developer Message をサポート"
+          },
+          "label": "API設定",
+          "stream_options": {
+            "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
+            "label": "stream_options をサポート"
+          }
+        },
         "url": {
           "preview": "プレビュー: {{url}}",
           "reset": "リセット",
@@ -3175,7 +3190,7 @@
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
       "get_api_key": "APIキーを取得",
-      "is_not_support_array_content": "互換モードを有効にする",
+      "misc": "その他",
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
       "not_checked": "未チェック",
       "notes": {
