@@ -89,8 +89,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ provider })
-  }, [provider])
+    ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider.id])
 
   const onAddModel = useCallback(() => {
     if (provider.id === 'new-api') {
