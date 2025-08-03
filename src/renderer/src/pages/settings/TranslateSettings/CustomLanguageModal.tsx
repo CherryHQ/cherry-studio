@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { HStack } from '@renderer/components/Layout'
 import { builtinLangCodeList } from '@renderer/config/translate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
@@ -45,6 +44,11 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
     () => (editingCustomLanguage ? t('common.edit') : t('common.add')) + t('translate.custom.label'),
     [editingCustomLanguage, t]
   )
+
+  const formItemLayout = {
+    labelCol: { span: 6 },
+    wrapperCol: { span: 16 }
+  }
 
   const handleSubmit = useCallback(
     async (values: any) => {
@@ -108,9 +112,19 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
   }, [onCancel, t, form.submit, editingCustomLanguage])
 
   return (
-    <Modal open={isOpen} title={title} footer={footer} onCancel={onCancel}>
-      <Form form={form} onFinish={handleSubmit} layout="vertical">
-        <HStack alignItems="center" gap={4}>
+    <Modal
+      open={isOpen}
+      title={title}
+      footer={footer}
+      onCancel={onCancel}
+      forceRender
+      styles={{
+        body: {
+          padding: '20px'
+        }
+      }}>
+      <Form form={form} onFinish={handleSubmit}>
+        <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }}>
           <Popover
             content={
               <EmojiPicker
@@ -123,22 +137,30 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             arrow
             trigger="click">
             <ButtonContainer>
-              <Form.Item name="emoji" noStyle>
-                <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
-              </Form.Item>
+              <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
             </ButtonContainer>
           </Popover>
+        </Form.Item>
+        <Form.Item
+          name="value"
+          label={t('settings.translate.custom.value.label')}
+          {...formItemLayout}
+          required
+          help={t('settings.translate.custom.value.help')}>
           <InputContainer>
-            <Form.Item name="value" noStyle>
-              <Input placeholder={t('settings.translate.custom.value.placeholder')} />
-            </Form.Item>
+            <Input placeholder={t('settings.translate.custom.value.placeholder')} />
           </InputContainer>
+        </Form.Item>
+        <Form.Item
+          name="langCode"
+          label={t('settings.translate.custom.langCode.label')}
+          {...formItemLayout}
+          required
+          help={t('settings.translate.custom.langCode.help')}>
           <InputContainer>
-            <Form.Item name="langCode" noStyle>
-              <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
-            </Form.Item>
+            <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
           </InputContainer>
-        </HStack>
+        </Form.Item>
       </Form>
     </Modal>
   )

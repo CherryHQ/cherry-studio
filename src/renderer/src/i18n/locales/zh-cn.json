@@ -3421,6 +3421,7 @@
           }
         },
         "langCode": {
+          "help": "[2~3位小写字母]-[2~3位小写字母]",
           "label": "语言代码",
           "placeholder": "zh-CN"
         },
@@ -3435,6 +3436,7 @@
           }
         },
         "value": {
+          "help": "1~32个字符",
           "label": "语言名称",
           "placeholder": "中文"
         }
