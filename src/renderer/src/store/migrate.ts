@@ -7,7 +7,8 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider
+  isSupportStreamOptionsProvider,
+  isSystemProvider
 } from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -1968,6 +1969,7 @@ const migrateConfig = {
     try {
       addProvider(state, 'poe')
 
+      // 迁移api选项设置
       state.llm.providers.forEach((provider) => {
         // 新字段默认支持
         const changes = {
@@ -1987,6 +1989,14 @@ const migrateConfig = {
         }
         updateProvider(state, provider.id, changes)
       })
+
+      // 迁移以前删除掉的内置提供商
+      for (const provider of state.llm.providers) {
+        if (provider.isSystem && !isSystemProvider(provider)) {
+          updateProvider(state, provider.id, { isSystem: false })
+        }
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 127 error', error as Error)

@@ -52,6 +52,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
@@ -735,4 +736,10 @@ const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
 
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+}
+
+const SYSTEM_PROVIDER_IDS = INITIAL_PROVIDERS.map((provider) => provider.id)
+
+export const isSystemProvider = (provider: Provider) => {
+  return SYSTEM_PROVIDER_IDS.includes(provider.id)
 }
