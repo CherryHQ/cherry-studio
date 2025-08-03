@@ -52,10 +52,10 @@ export const addCustomLanguage = async (
   langCode: string
 ): Promise<CustomTranslateLanguage> => {
   // 按langcode判重
-  const existing = await db.translate_languages.where('langCode').equals(value).first()
+  const existing = await db.translate_languages.where('langCode').equals(langCode).first()
   if (existing) {
-    logger.error(`Custom language ${value} exists.`)
-    throw new Error(`Custom language ${value} exists.`)
+    logger.error(`Custom language ${langCode} exists.`)
+    throw new Error(`Custom language ${langCode} exists.`)
   } else {
     try {
       const item = {
