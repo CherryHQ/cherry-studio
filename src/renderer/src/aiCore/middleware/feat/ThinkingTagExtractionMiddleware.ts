@@ -77,6 +77,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
               if (chunk.type === ChunkType.TEXT_COMPLETE) {
+                logger.silly('since TEXT_COMPLETE, isFirstTextChunk is set to false')
                 isFirstTextChunk = false
               }
 
@@ -88,6 +89,9 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
 
                 for (const extractionResult of extractionResults) {
                   if (extractionResult.complete && extractionResult.tagContentExtracted?.trim()) {
+                    logger.silly(
+                      'since extractionResult.complete and extractionResult.tagContentExtracted is not empty, THINKING_COMPLETE chunk is generated'
+                    )
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
@@ -100,6 +104,9 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                     hasThinkingContent = false
                     thinkingStartTime = 0
                   } else if (extractionResult.content.length > 0) {
+                    logger.silly(
+                      'since extractionResult.content is not empty, try to generate THINKING_START/THINKING_DELTA chunk'
+                    )
                     if (extractionResult.isTagContent) {
                       // 第一次接收到思考内容时记录开始时间
                       if (!hasThinkingContent) {
@@ -120,7 +127,11 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                         controller.enqueue(thinkingDeltaChunk)
                       }
                     } else {
+                      logger.silly(
+                        'since extractionResult.isTagContent is falsy, try to generate TEXT_START/TEXT_DELTA chunk'
+                      )
                       if (isFirstTextChunk) {
+                        logger.silly('since isFirstTextChunk is true, TEXT_START chunk is generated')
                         controller.enqueue({
                           type: ChunkType.TEXT_START
                         })
@@ -133,10 +144,16 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       }
                       controller.enqueue(cleanTextChunk)
                     }
+                  } else {
+                    logger.silly('since both condition is false, skip')
                   }
                 }
               } else if (chunk.type !== ChunkType.TEXT_START) {
+                logger.silly('since chunk.type is not TEXT_START, pass through')
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
+                controller.enqueue(chunk)
+              } else {
+                logger.silly('since chunk.type is TEXT_START, pass through')
                 controller.enqueue(chunk)
               }
             },
