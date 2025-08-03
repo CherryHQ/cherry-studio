@@ -280,7 +280,7 @@ const TranslatePage: FC = () => {
   )
 
   const couldTranslate = useMemo(() => {
-    return (
+    return !(
       !text.trim() ||
       (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
       targetLanguage.langCode === UNKNOWN.langCode ||
@@ -361,7 +361,7 @@ const TranslatePage: FC = () => {
                 type="primary"
                 loading={translating}
                 onClick={onTranslate}
-                disabled={couldTranslate}
+                disabled={!couldTranslate}
                 icon={<SendOutlined />}>
                 {t('translate.button.translate')}
               </TranslateButton>
