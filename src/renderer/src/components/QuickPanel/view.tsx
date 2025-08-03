@@ -130,33 +130,38 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSearchTextRef.current = searchText
     prevSymbolRef.current = ctx.symbol
 
-    // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
-    const _searchText = searchText.replace(/^[/@]/, '')
-
-    if (_searchText && _searchText.length > 0 && newList.length === 0) {
-      // 清除之前的定时器
-      if (noMatchTimeoutRef.current) {
-        clearTimeout(noMatchTimeoutRef.current)
-      }
-
-      // 设置延迟关闭（防止输入过程中闪烁）
-      noMatchTimeoutRef.current = setTimeout(() => {
-        ctx.close('no-matches')
-      }, 300)
-    } else {
-      // 有匹配项或无搜索文本时清除定时器
-      if (noMatchTimeoutRef.current) {
-        clearTimeout(noMatchTimeoutRef.current)
-        noMatchTimeoutRef.current = null
-      }
-    }
-
     return newList
   }, [ctx, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
   }, [list, historyPanel])
+
+  // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
+  useEffect(() => {
+    const _searchText = searchText.replace(/^[/@]/, '')
+    
+    // 清除之前的定时器
+    if (noMatchTimeoutRef.current) {
+      clearTimeout(noMatchTimeoutRef.current)
+      noMatchTimeoutRef.current = null
+    }
+    
+    // 只有在有搜索文本但无匹配项时才设置延迟关闭
+    if (_searchText && _searchText.length > 0 && list.length === 0) {
+      noMatchTimeoutRef.current = setTimeout(() => {
+        ctx.close('no-matches')
+      }, 300)
+    }
+    
+    // 清理函数
+    return () => {
+      if (noMatchTimeoutRef.current) {
+        clearTimeout(noMatchTimeoutRef.current)
+        noMatchTimeoutRef.current = null
+      }
+    }
+  }, [searchText, list.length, ctx])
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
