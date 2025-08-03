@@ -272,11 +272,15 @@ export function mapLanguageToQwenMTModel(language: TranslateLanguage): string | 
   if (language.langCode === UNKNOWN.langCode) {
     return undefined
   }
+  // 中文的多个地区需要单独处理
   if (language.langCode === 'zh-cn') {
     return 'Chinese'
   }
   if (language.langCode === 'zh-tw') {
     return 'Traditional Chinese'
+  }
+  if (language.langCode === 'zh-yue') {
+    return 'Cantonese'
   }
   const shortLangCode = language.langCode.split('-')[0]
   return QwenMTMap[shortLangCode]
