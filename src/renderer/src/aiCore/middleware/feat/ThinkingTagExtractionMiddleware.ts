@@ -154,7 +154,6 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                 controller.enqueue(chunk)
               } else {
                 logger.silly('since chunk.type is TEXT_START, pass through')
-                controller.enqueue(chunk)
               }
             },
             flush(controller) {
