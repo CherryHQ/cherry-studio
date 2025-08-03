@@ -10,7 +10,9 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { useWindowSize } from '@renderer/hooks/useWindow'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
@@ -49,6 +51,8 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
+  const { width } = useWindowSize()
+  const { isLeftNavbar } = useNavbarPosition()
 
   // states
   const [text, setText] = useState(_text)
@@ -382,6 +386,10 @@ const TranslatePage: FC = () => {
     return estimateTextTokens(text + prompt)
   }, [prompt, text])
 
+  // FIXME: 很复杂的样式控制！但是有更好的方法吗？
+  // var(--sidebar-width) is 50px, padding and gap is ... 差不多就行了
+  const modelSelectorWidth = useMemo(() => (width - (isLeftNavbar ? 50 : 0) - 60) / 3, [isLeftNavbar, width])
+
   return (
     <Container id="translate-page">
       <Navbar>
@@ -396,6 +404,7 @@ const TranslatePage: FC = () => {
         <OperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
             <ModelSelector
+              style={{ width: modelSelectorWidth }}
               providers={providers}
               predicate={modelPredicate}
               value={defaultTranslateModel}
@@ -429,7 +438,11 @@ const TranslatePage: FC = () => {
               ]}
             />
             <Tooltip title={t('translate.exchange.label')} placement="bottom">
-              <Button icon={<SwapOutlined />} onClick={handleExchange} disabled={!couldExchange}></Button>
+              <Button
+                icon={<SwapOutlined />}
+                style={{ aspectRatio: '1/1' }}
+                onClick={handleExchange}
+                disabled={!couldExchange}></Button>
             </Tooltip>
             {getLanguageDisplay()}
           </InnerOperationBar>
@@ -666,6 +679,7 @@ const InnerOperationBar = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
 `
 
 export default TranslatePage
