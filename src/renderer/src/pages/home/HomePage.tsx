@@ -5,6 +5,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -79,7 +80,7 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? 520 : 1080, 600)
+    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       window.api.window.resetMinimumSize()
