@@ -64,7 +64,7 @@ export const addCustomLanguage = async (
         langCode: langCode.toLowerCase(),
         emoji
       }
-      db.translate_languages.add(item)
+      await db.translate_languages.add(item)
       return item
     } catch (e) {
       logger.error('Failed to add custom language.', e as Error)
