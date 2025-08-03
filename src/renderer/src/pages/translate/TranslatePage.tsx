@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
@@ -395,40 +394,18 @@ const TranslatePage: FC = () => {
         />
         <OperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
-            <Flex align="center" gap={8}>
-              <ModelSelector
-                providers={providers}
-                predicate={modelPredicate}
-                value={defaultTranslateModel}
-                placeholder={t('settings.models.empty')}
-                onChange={(value) => {
-                  const selectedModel = find(allModels, JSON.parse(value)) as Model
-                  if (selectedModel) {
-                    handleModelChange(selectedModel)
-                  }
-                }}
-              />
-            </Flex>
-
-            <Tooltip
-              mouseEnterDelay={0.5}
-              styles={{ body: { fontSize: '12px' } }}
-              title={
-                <div style={{ textAlign: 'center' }}>
-                  Enter: {t('translate.button.translate')}
-                  <br />
-                  Shift + Enter: {t('translate.tooltip.newline')}
-                </div>
-              }>
-              <TranslateButton
-                type="primary"
-                loading={translating}
-                onClick={onTranslate}
-                disabled={!couldTranslate}
-                icon={<SendOutlined />}>
-                {t('translate.button.translate')}
-              </TranslateButton>
-            </Tooltip>
+            <ModelSelector
+              providers={providers}
+              predicate={modelPredicate}
+              value={defaultTranslateModel}
+              placeholder={t('settings.models.empty')}
+              onChange={(value) => {
+                const selectedModel = find(allModels, JSON.parse(value)) as Model
+                if (selectedModel) {
+                  handleModelChange(selectedModel)
+                }
+              }}
+            />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'center' }}>
             <LanguageSelect
@@ -455,28 +432,46 @@ const TranslatePage: FC = () => {
             {getLanguageDisplay()}
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
-            <HStack alignItems="center" gap={5}>
-              <Button
-                type="text"
-                icon={<Settings2 size={18} />}
-                onClick={() => setSettingsVisible(true)}
-                style={{ color: 'var(--color-text-2)', display: 'flex' }}
-              />
-              <Button
-                className="nodrag"
-                color="default"
-                variant={historyDrawerVisible ? 'filled' : 'text'}
-                type="text"
-                icon={<HistoryOutlined />}
-                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-              />
-              <Button
-                type="text"
-                onClick={onCopy}
-                disabled={!translatedContent}
-                icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
-              />
-            </HStack>
+            <Button
+              type="text"
+              icon={<Settings2 size={18} />}
+              onClick={() => setSettingsVisible(true)}
+              style={{ color: 'var(--color-text-2)', display: 'flex' }}
+            />
+            <Button
+              className="nodrag"
+              color="default"
+              variant={historyDrawerVisible ? 'filled' : 'text'}
+              type="text"
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
+            />
+            <Button
+              type="text"
+              onClick={onCopy}
+              disabled={!translatedContent}
+              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
+            />
+            <Tooltip
+              mouseEnterDelay={0.5}
+              placement="bottom"
+              styles={{ body: { fontSize: '12px' } }}
+              title={
+                <div style={{ textAlign: 'center' }}>
+                  Enter: {t('translate.button.translate')}
+                  <br />
+                  Shift + Enter: {t('translate.tooltip.newline')}
+                </div>
+              }>
+              <TranslateButton
+                type="primary"
+                loading={translating}
+                onClick={onTranslate}
+                disabled={!couldTranslate}
+                icon={<SendOutlined />}>
+                {t('translate.button.translate')}
+              </TranslateButton>
+            </Tooltip>
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
