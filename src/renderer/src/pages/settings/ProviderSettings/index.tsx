@@ -411,8 +411,9 @@ const ProvidersList: FC = () => {
   }
 
   const getProviderAvatar = (provider: Provider) => {
-    if (isSystemProvider(provider)) {
-      return <ProviderLogo shape="circle" src={getProviderLogo(provider.id)} size={25} />
+    const logoSrc = getProviderLogo(provider.id)
+    if (logoSrc) {
+      return <ProviderLogo shape="circle" src={logoSrc} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]
