@@ -6,7 +6,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Input, Tooltip } from 'antd'
-import { Languages } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,7 +30,6 @@ const TranslatePromptSettings = () => {
     <SettingGroup theme={theme}>
       <SettingTitle style={{ marginBottom: 12 }}>
         <HStack alignItems="center" gap={10} height={30}>
-          <Languages size={18} color="var(--color-text)" />
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>

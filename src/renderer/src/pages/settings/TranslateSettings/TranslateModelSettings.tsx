@@ -7,7 +7,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { find } from 'lodash'
-import { Languages } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,7 +34,6 @@ const TranslateModelSettings = () => {
     <SettingGroup theme={theme}>
       <SettingTitle style={{ marginBottom: 12 }}>
         <HStack alignItems="center" gap={10}>
-          <Languages size={18} color="var(--color-text)" />
           {t('settings.models.translate_model')}
         </HStack>
       </SettingTitle>
