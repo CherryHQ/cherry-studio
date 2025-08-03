@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -15,7 +16,7 @@ type Props = {
   onCancel: () => void
 }
 
-// const logger = loggerService.withContext('CustomLanguageModal')
+const logger = loggerService.withContext('CustomLanguageModal')
 
 const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
   const { t } = useTranslation()
@@ -142,12 +143,16 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             },
             {
               validator: async (_, value: string) => {
+                logger.silly('validate langCode', { value, langCodeList, editingCustomLanguage })
                 if (editingCustomLanguage) {
-                  return
-                }
-                const langCode = value.toLowerCase()
-                if (langCodeList.includes(langCode)) {
-                  throw new Error(t('settings.translate.custom.error.langCode.exists'))
+                  if (langCodeList.includes(value) && value !== editingCustomLanguage.langCode) {
+                    throw new Error(t('settings.translate.custom.error.langCode.exists'))
+                  }
+                } else {
+                  const langCode = value.toLowerCase()
+                  if (langCodeList.includes(langCode)) {
+                    throw new Error(t('settings.translate.custom.error.langCode.exists'))
+                  }
                 }
               }
             }
