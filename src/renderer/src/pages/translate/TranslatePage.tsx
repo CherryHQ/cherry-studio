@@ -475,7 +475,9 @@ const TranslatePage: FC = () => {
             />
             <Footer>
               <Popover content={t('chat.input.estimated_tokens.tip')}>
-                <Typography.Text style={{ color: 'var(--color-text-3)' }}>{tokenCount}</Typography.Text>
+                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
+                  {tokenCount}
+                </Typography.Text>
               </Popover>
             </Footer>
           </InputAreaContainer>
