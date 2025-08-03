@@ -25,7 +25,7 @@ const LanguageSelect = (props: Props) => {
         <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
           {lang.emoji}
         </span>
-        <Space.Compact block>{lang.label()}</Space.Compact>
+        {lang.label()}
       </Space.Compact>
     )
   }, [])
