@@ -1,7 +1,7 @@
 import { db } from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { CustomTranslateLanguage, TranslateLanguage } from '@renderer/types'
+import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 import { fetchTranslate } from './ApiService'
@@ -126,4 +126,46 @@ export const getAllCustomLanguages = async () => {
     logger.error('Failed to get all custom languages.', e as Error)
     throw e
   }
+}
+
+/**
+ * 保存翻译历史记录到数据库
+ * @param sourceText - 原文内容
+ * @param targetText - 翻译后的内容
+ * @param sourceLanguage - 源语言代码
+ * @param targetLanguage - 目标语言代码
+ * @returns Promise<void>
+ */
+export const saveTranslateHistory = async (
+  sourceText: string,
+  targetText: string,
+  sourceLanguage: TranslateLanguageCode,
+  targetLanguage: TranslateLanguageCode
+) => {
+  const history: TranslateHistory = {
+    id: uuid(),
+    sourceText,
+    targetText,
+    sourceLanguage,
+    targetLanguage,
+    createdAt: new Date().toISOString()
+  }
+  await db.translate_history.add(history)
+}
+
+/**
+ * 删除指定的翻译历史记录
+ * @param id - 要删除的翻译历史记录ID
+ * @returns Promise<void>
+ */
+export const deleteHistory = async (id: string) => {
+  db.translate_history.delete(id)
+}
+
+/**
+ * 清空所有翻译历史记录
+ * @returns Promise<void>
+ */
+export const clearHistory = async () => {
+  db.translate_history.clear()
 }

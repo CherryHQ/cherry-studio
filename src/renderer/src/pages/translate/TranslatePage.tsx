@@ -12,8 +12,15 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { fetchTranslate } from '@renderer/services/ApiService'
+import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import { estimateTextTokens } from '@renderer/services/TokenService'
+import { saveTranslateHistory } from '@renderer/services/TranslateService'
+import store, { useAppDispatch } from '@renderer/store'
+import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
+import type { Model, TranslateAssistant, TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
@@ -21,9 +28,9 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Flex, Tooltip } from 'antd'
+import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import { find, isEmpty } from 'lodash'
+import { find, isEmpty, throttle } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +70,8 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const { translatedContent, translating, translate, setTranslatedContent, getLanguageByLangcode } = useTranslate()
+  const { prompt, translatedContent, translating, getLanguageByLangcode } = useTranslate()
+  const dispatch = useAppDispatch()
 
   _text = text
   _sourceLanguage = sourceLanguage
@@ -72,6 +80,83 @@ const TranslatePage: FC = () => {
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
+  }
+
+  const setTranslatedContent = useCallback(
+    (content: string) => {
+      dispatch(setTranslatedContentAction(content))
+    },
+    [dispatch]
+  )
+
+  const setTranslating = (translating: boolean) => {
+    dispatch(setTranslatingAction(translating))
+  }
+
+  /**
+   * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
+   * @param text - 需要翻译的文本
+   * @param actualSourceLanguage - 源语言
+   * @param actualTargetLanguage - 目标语言
+   */
+  const translate = async (
+    text: string,
+    actualSourceLanguage: TranslateLanguage,
+    actualTargetLanguage: TranslateLanguage
+  ): Promise<void> => {
+    try {
+      if (translating) {
+        return
+      }
+
+      setTranslating(true)
+
+      let assistant: TranslateAssistant
+      try {
+        assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
+      } catch (e) {
+        if (e instanceof Error) {
+          window.message.error(e.message)
+          return
+        } else {
+          throw e
+        }
+      }
+
+      try {
+        await fetchTranslate({
+          content: text,
+          assistant,
+          onResponse: throttle(setTranslatedContent, 100)
+        })
+      } catch (e) {
+        logger.error('Failed to translate text', e as Error)
+        window.message.error(t('translate.error.failed'))
+        setTranslating(false)
+        return
+      }
+
+      window.message.success(t('translate.complete'))
+
+      try {
+        const translatedContent = store.getState().translate.translatedContent
+        await saveTranslateHistory(
+          text,
+          translatedContent,
+          actualSourceLanguage.langCode,
+          actualTargetLanguage.langCode
+        )
+      } catch (e) {
+        logger.error('Failed to save translate history', e as Error)
+        window.message.error(t('translate.history.error.save'))
+      }
+
+      setTranslating(false)
+    } catch (e) {
+      logger.error('Failed to translate', e as Error)
+      window.message.error(t('translate.error.unknown'))
+      setTranslating(false)
+    }
   }
 
   const onTranslate = async () => {
@@ -266,6 +351,10 @@ const TranslatePage: FC = () => {
     )
   }
 
+  const tokenCount = useMemo(() => {
+    return estimateTextTokens(text + prompt)
+  }, [prompt, text])
+
   const { providers } = useProviders()
   const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
 
@@ -371,7 +460,7 @@ const TranslatePage: FC = () => {
             </Tooltip>
           </OperationBar>
 
-          <InputTextAreaContainer>
+          <InputAreaContainer>
             <Textarea
               ref={textAreaRef}
               variant="borderless"
@@ -384,7 +473,12 @@ const TranslatePage: FC = () => {
               spellCheck={false}
               allowClear
             />
-          </InputTextAreaContainer>
+            <Footer>
+              <Popover content={t('chat.input.estimated_tokens.tip')}>
+                <Typography.Text style={{ color: 'var(--color-text-3)' }}>{tokenCount}</Typography.Text>
+              </Popover>
+            </Footer>
+          </InputAreaContainer>
         </InputContainer>
 
         <ExchangeContainer>
@@ -406,7 +500,7 @@ const TranslatePage: FC = () => {
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
           </OperationBar>
-          <OutputTextAreaContainer>
+          <OutputAreaContainer>
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
                 <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
@@ -418,7 +512,7 @@ const TranslatePage: FC = () => {
                 <div className="plain">{translatedContent}</div>
               )}
             </OutputText>
-          </OutputTextAreaContainer>
+          </OutputAreaContainer>
         </OutputContainer>
       </ContentContainer>
 
@@ -461,7 +555,7 @@ const InputContainer = styled.div`
   padding-right: 2px;
 `
 
-const InputTextAreaContainer = styled.div`
+const InputAreaContainer = styled.div`
   position: relative;
   display: flex;
   flex: 1;
@@ -485,6 +579,14 @@ const Textarea = styled(TextArea)`
   }
 `
 
+const Footer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+`
+
 const ExchangeContainer = styled.div``
 
 const OutputContainer = styled.div`
@@ -498,7 +600,7 @@ const OutputContainer = styled.div`
   padding-right: 2px;
 `
 
-const OutputTextAreaContainer = styled.div`
+const OutputAreaContainer = styled.div`
   min-height: 0;
   position: relative;
   display: flex;
