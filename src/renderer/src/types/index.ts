@@ -172,10 +172,20 @@ export type Provider = {
   isSystem?: boolean
   isAuthed?: boolean
   rateLimit?: number
+
+  // undefined 视为支持
   isNotSupportArrayContent?: boolean
+  isNotSupportStreamOptions?: boolean
+  isNotSupportDeveloperRole?: boolean
+
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+}
+
+// 后面会重构成更严格的类型
+export type SystemProvider = Provider & {
+  isSystem: true
 }
 
 export type ProviderType =

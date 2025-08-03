@@ -3085,6 +3085,21 @@
             "placeholder": "輸入一個或多個密鑰"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "該提供商是否支援 message 的 content 欄位為 array 類型",
+            "label": "支援陣列格式的 message content"
+          },
+          "developer_role": {
+            "help": "該提供商是否支援 role: \"developer\" 的訊息",
+            "label": "支援開發人員訊息"
+          },
+          "label": "API 設定",
+          "stream_options": {
+            "help": "該提供商是否支援 stream_options 參數",
+            "label": "支援 stream_options"
+          }
+        },
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
@@ -3175,7 +3190,7 @@
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
       "get_api_key": "點選這裡取得金鑰",
-      "is_not_support_array_content": "開啟相容模式",
+      "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
       "not_checked": "未檢查",
       "notes": {

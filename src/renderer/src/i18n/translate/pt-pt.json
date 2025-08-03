@@ -84,8 +84,8 @@
         "button": "Reiniciar",
         "tooltip": "Reiniciar Servidor"
       },
-      "start": "Iniciar",
-      "stop": "Parar"
+      "start": "iniciar",
+      "stop": "parar"
     },
     "authHeader": {
       "title": "Cabeçalho de autorização"
@@ -104,7 +104,7 @@
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
-        "description": "Número da porta TCP do servidor HTTP (1000-65535)",
+        "description": "Número de porta TCP do servidor HTTP (1000-65535)",
         "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
@@ -1507,7 +1507,7 @@
         "image": "Nova Imagem"
       }
     },
-    "custom_size": "Dimensões personalizadas",
+    "custom_size": "Dimensão personalizada",
     "edit": {
       "image_file": "Imagem editada",
       "magic_prompt_option_tip": "Otimização inteligente da palavra-chave de edição",
@@ -3084,6 +3084,21 @@
             "placeholder": "Insira uma ou mais chaves"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",
+            "label": "suporta o formato de matriz do conteúdo da mensagem"
+          },
+          "developer_role": {
+            "help": "O fornecedor suporta mensagens com role: \"developer\"?",
+            "label": "Mensagem de suporte ao programador"
+          },
+          "label": "Definições da API",
+          "stream_options": {
+            "help": "O fornecedor suporta o parâmetro stream_options?",
+            "label": "suporta stream_options"
+          }
+        },
         "url": {
           "preview": "Pré-visualização: {{url}}",
           "reset": "Redefinir",
@@ -3097,13 +3112,13 @@
       },
       "api_version": "Versão da API",
       "aws-bedrock": {
-        "access_key_id": "ID da chave de acesso AWS",
+        "access_key_id": "ID da chave de acesso da AWS",
         "access_key_id_help": "O seu ID da chave de acesso AWS, utilizado para aceder ao serviço AWS Bedrock",
         "description": "A AWS Bedrock é um serviço de modelos fundamentais totalmente gerido fornecido pela Amazon, que suporta diversos modelos avançados de linguagem.",
         "region": "Região da AWS",
-        "region_help": "a sua região de serviço AWS, por exemplo, us-east-1",
+        "region_help": "A sua região de serviço da AWS, por exemplo, us-east-1",
         "secret_access_key": "Chaves de acesso AWS",
-        "secret_access_key_help": "A sua chave de acesso AWS, guarde-a em segurança",
+        "secret_access_key_help": "A sua chave de acesso AWS, mantenha-a em segurança",
         "title": "Configuração do AWS Bedrock"
       },
       "azure": {
@@ -3174,7 +3189,7 @@
       "docs_check": "Verificar",
       "docs_more_details": "Obter mais detalhes",
       "get_api_key": "Clique aqui para obter a chave",
-      "is_not_support_array_content": "Ativar modo compatível",
+      "misc": "outro",
       "no_models_for_check": "Não há modelos disponíveis para verificação (por exemplo, modelos de conversa)",
       "not_checked": "Não verificado",
       "notes": {

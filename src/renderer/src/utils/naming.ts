@@ -82,6 +82,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
+  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
   return provider.isSystem ? getProviderLabel(provider.id) : provider.name
 }
 

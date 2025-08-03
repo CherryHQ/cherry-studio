@@ -52,7 +52,8 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { Provider } from '@renderer/types'
+import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
+import { Provider, SystemProvider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -719,6 +720,29 @@ export const PROVIDER_CONFIG = {
   }
 }
 
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
+export const isSupportArrayContentProvider = (provider: Provider) => {
+  return provider.isNotSupportArrayContent !== true || !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
+}
+
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
+
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
-  return provider.id !== 'poe'
+  return provider.isNotSupportDeveloperRole !== true || !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
+}
+
+const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
+
+export const isSupportStreamOptionsProvider = (provider: Provider) => {
+  return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+}
+
+/**
+ * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
+ * @param provider - Provider对象，包含提供商的信息
+ * @returns 是否为系统内置提供商
+ */
+export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
+  return SYSTEM_PROVIDERS.some((p) => p.id === provider.id)
 }
