@@ -342,6 +342,7 @@ const TranslatePage: FC = () => {
 
     return (
       <LanguageSelect
+        style={{ width: 200 }}
         value={targetLanguage.langCode}
         onChange={(value) => {
           setTargetLanguage(getLanguageByLangcode(value))
@@ -410,6 +411,7 @@ const TranslatePage: FC = () => {
           <InnerOperationBar style={{ justifyContent: 'center' }}>
             <LanguageSelect
               showSearch
+              style={{ width: 200 }}
               value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
               optionFilterProp="label"
               onChange={(value) => {
