@@ -2,7 +2,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { deleteCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
-import { Button, Popconfirm, Table, TableProps } from 'antd'
+import { Button, Popconfirm, Space, Table, TableProps } from 'antd'
 import { memo, startTransition, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -84,7 +84,7 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
         key: 'action',
         render: (_, record) => {
           return (
-            <HStack>
+            <Space>
               <Button icon={<EditOutlined />} onClick={() => onClickEdit(record)}>
                 {t('common.edit')}
               </Button>
@@ -94,7 +94,7 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
                 onConfirm={() => onDelete(record.id)}>
                 <Button icon={<DeleteOutlined />}>{t('common.delete')}</Button>
               </Popconfirm>
-            </HStack>
+            </Space>
           )
         }
       }
