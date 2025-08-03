@@ -17,7 +17,7 @@ type Props = {
 
 const LanguageSelect = (props: Props) => {
   const { translateLanguages } = useTranslate()
-  const { extraOptionsAfter, extraOptionsBefore, languageRenderer } = props
+  const { extraOptionsAfter, extraOptionsBefore, languageRenderer, ...restProps } = props
 
   const defaultLanguageRenderer = useCallback((lang: TranslateLanguage) => {
     return (
@@ -52,7 +52,12 @@ const LanguageSelect = (props: Props) => {
   }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, languageRenderer, translateLanguages])
 
   return (
-    <Select {...props} labelRender={labelRender} options={displayedOptions} style={{ minWidth: 150, ...props.style }} />
+    <Select
+      {...restProps}
+      labelRender={labelRender}
+      options={displayedOptions}
+      style={{ minWidth: 150, ...props.style }}
+    />
   )
 }
 
