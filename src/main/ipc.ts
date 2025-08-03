@@ -537,6 +537,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  ipcMain.handle(IpcChannel.Windows_GetSize, () => {
+    const [width, height] = mainWindow?.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    return [width, height]
+  })
+
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
