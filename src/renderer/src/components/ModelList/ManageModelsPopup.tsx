@@ -18,13 +18,7 @@ import {
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import {
-  filterModelsByKeywords,
-  getDefaultGroupName,
-  getFancyProviderName,
-  isFreeModel,
-  runAsyncFunction
-} from '@renderer/utils'
+import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName, isFreeModel } from '@renderer/utils'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -40,18 +34,18 @@ import { isModelInProvider, isValidNewApiModel } from './utils'
 const logger = loggerService.withContext('ManageModelsPopup')
 
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { provider, models, addModel, removeModel } = useProvider(_provider.id)
+  const { provider, models, addModel, removeModel } = useProvider(providerId)
   const [listModels, setListModels] = useState<Model[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loadingModels, setLoadingModels] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [filterSearchText, setFilterSearchText] = useState('')
   const debouncedSetFilterText = useMemo(
@@ -78,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
-  const systemModels = SYSTEM_MODELS[_provider.id] || []
+  const systemModels = SYSTEM_MODELS[provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
 
   const list = useMemo(
@@ -149,48 +143,38 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
 
   const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout
-    let mounted = true
+  const loadModels = useCallback(async (provider: Provider) => {
+    setLoadingModels(true)
+    try {
+      const models = await fetchModels(provider)
+      const filteredModels = models
+        .map((model) => ({
+          // @ts-ignore modelId
+          id: model?.id || model?.name,
+          // @ts-ignore name
+          name: model?.display_name || model?.displayName || model?.name || model?.id,
+          provider: provider.id,
+          // @ts-ignore group
+          group: getDefaultGroupName(model?.id || model?.name, provider.id),
+          // @ts-ignore description
+          description: model?.description || '',
+          // @ts-ignore owned_by
+          owned_by: model?.owned_by || '',
+          // @ts-ignore supported_endpoint_types
+          supported_endpoint_types: model?.supported_endpoint_types
+        }))
+        .filter((model) => !isEmpty(model.name))
 
-    runAsyncFunction(async () => {
-      try {
-        setLoading(true)
-        const models = await fetchModels(_provider)
-        setListModels(
-          models
-            .map((model) => ({
-              // @ts-ignore modelId
-              id: model?.id || model?.name,
-              // @ts-ignore name
-              name: model?.display_name || model?.displayName || model?.name || model?.id,
-              provider: _provider.id,
-              // @ts-ignore group
-              group: getDefaultGroupName(model?.id || model?.name, _provider.id),
-              // @ts-ignore description
-              description: model?.description || '',
-              // @ts-ignore owned_by
-              owned_by: model?.owned_by || '',
-              // @ts-ignore supported_endpoint_types
-              supported_endpoint_types: model?.supported_endpoint_types
-            }))
-            .filter((model) => !isEmpty(model.name))
-        )
-      } catch (error) {
-        logger.error('Failed to fetch models', error as Error)
-      } finally {
-        if (mounted) {
-          timer = setTimeout(() => setLoading(false), 300)
-        }
-      }
-    })
-
-    return () => {
-      mounted = false
-      if (timer) {
-        clearTimeout(timer)
-      }
+      setListModels(filteredModels)
+    } catch (error) {
+      logger.error(`Failed to load models for provider ${getFancyProviderName(provider)}`, error as Error)
+    } finally {
+      setLoadingModels(false)
     }
+  }, [])
+
+  useEffect(() => {
+    loadModels(provider)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -268,11 +252,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             e.stopPropagation()
             isAllFilteredInProvider ? onRemoveAll() : onAddAll()
           }}
-          disabled={loading || list.length === 0}
+          disabled={loadingModels || list.length === 0}
         />
       </Tooltip>
     )
-  }, [list, t, loading, provider, onRemoveModel, models, onAddModel])
+  }, [list, t, loadingModels, provider, onRemoveModel, models, onAddModel])
 
   return (
     <Modal
@@ -330,7 +314,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         />
       </SearchContainer>
       <ListContainer>
-        {loading || isFilterTypePending || isSearchPending ? (
+        {loadingModels || isFilterTypePending || isSearchPending ? (
           <Flex justify="center" align="center" style={{ height: '70%' }}>
             <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
           </Flex>
@@ -342,7 +326,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             onRemoveModel={onRemoveModel}
           />
         )}
-        {!(loading || isFilterTypePending || isSearchPending) && isEmpty(list) && (
+        {!(loadingModels || isFilterTypePending || isSearchPending) && isEmpty(list) && (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />
         )}
       </ListContainer>
