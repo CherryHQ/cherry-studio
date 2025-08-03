@@ -142,6 +142,9 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             },
             {
               validator: async (_, value: string) => {
+                if (editingCustomLanguage) {
+                  return
+                }
                 const langCode = value.toLowerCase()
                 if (langCodeList.includes(langCode)) {
                   throw new Error(t('settings.translate.custom.error.langCode.exists'))
