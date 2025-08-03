@@ -219,6 +219,14 @@ export class WindowService {
       })
     }
 
+    mainWindow.on('unmaximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
+
+    mainWindow.on('maximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
+
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
       // 当按下Escape键且窗口处于全屏状态时退出全屏
