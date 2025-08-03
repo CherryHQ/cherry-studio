@@ -1,6 +1,7 @@
 import {
   Content,
   createPartFromUri,
+  EmbedContentConfig,
   File,
   FunctionCall,
   GenerateContentConfig,
@@ -45,6 +46,7 @@ import {
 import { ChunkType, LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
+  EmbeddingOptions,
   GeminiOptions,
   GeminiSdkMessageParam,
   GeminiSdkParams,
@@ -146,12 +148,20 @@ export class GeminiAPIClient extends BaseApiClient<
     }
   }
 
-  override async getEmbeddingDimensions(model: Model): Promise<number> {
+  override async getEmbeddingDimensions(model: Model, options?: EmbeddingOptions): Promise<number> {
     const sdk = await this.getSdkInstance()
 
+    const config: EmbedContentConfig | undefined = options
+      ? {
+          httpOptions: {
+            timeout: options?.timeout
+          }
+        }
+      : undefined
     const data = await sdk.models.embedContent({
       model: model.id,
-      contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+      contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+      config
     })
     return data.embeddings?.[0]?.values?.length || 0
   }

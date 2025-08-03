@@ -8,6 +8,7 @@ import {
   ToolCallResponse
 } from '@renderer/types'
 import {
+  EmbeddingOptions,
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -119,9 +120,9 @@ export abstract class MixedBaseAPIClient extends BaseApiClient {
     return this.currentClient.generateImage(params)
   }
 
-  async getEmbeddingDimensions(model?: Model): Promise<number> {
+  async getEmbeddingDimensions(model?: Model, options?: EmbeddingOptions): Promise<number> {
     const client = model ? this.getClient(model) : this.currentClient
-    return client.getEmbeddingDimensions(model)
+    return client.getEmbeddingDimensions(model, options)
   }
 
   async listModels(): Promise<SdkModel[]> {

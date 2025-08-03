@@ -36,7 +36,7 @@ import {
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
-import { SdkModel } from '@renderer/types/sdk'
+import { EmbeddingOptions, RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
@@ -843,16 +843,23 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<void> {
+// FIXME: 暂时先设置一个比较大的默认超时时间，或许让用户能改会更好
+export async function checkApi(provider: Provider, model: Model, timeout: number = 60000): Promise<void> {
   checkApiProvider(provider)
 
   const ai = new AiProvider(provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
+
   try {
     if (isEmbeddingModel(model)) {
-      await ai.getEmbeddingDimensions(model)
+      const timeoutOptions: EmbeddingOptions | undefined = timeout
+        ? {
+            timeout
+          }
+        : undefined
+      await ai.getEmbeddingDimensions(model, timeoutOptions)
     } else {
       const params: CompletionsParams = {
         callType: 'check',
@@ -862,9 +869,15 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         enableReasoning: false,
         shouldThrow: true
       }
+      const timeoutOptions: RequestOptions | undefined = timeout
+        ? {
+            timeout
+          }
+        : undefined
 
       // Try streaming check first
-      const result = await ai.completions(params)
+      // 添加超时处理
+      const result = await ai.completions(params, timeoutOptions)
       if (!result.getText()) {
         throw new Error('No response received')
       }

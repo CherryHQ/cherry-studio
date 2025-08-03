@@ -256,3 +256,7 @@ export interface AwsBedrockSdkToolCall {
   input: any
   toolUseId: string
 }
+
+export type EmbeddingOptions = {
+  timeout?: number
+}

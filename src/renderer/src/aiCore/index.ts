@@ -6,7 +6,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
-import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
+import type { EmbeddingOptions, RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
@@ -155,13 +155,13 @@ export default class AiProvider {
     return this.apiClient.listModels()
   }
 
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model, options?: EmbeddingOptions): Promise<number> {
     try {
       // Use the SDK instance to test embedding capabilities
       if (this.apiClient instanceof OpenAIResponseAPIClient && getProviderByModel(model).type === 'azure-openai') {
         this.apiClient = this.apiClient.getClient(model) as BaseApiClient
       }
-      const dimensions = await this.apiClient.getEmbeddingDimensions(model)
+      const dimensions = await this.apiClient.getEmbeddingDimensions(model, options)
       return dimensions
     } catch (error) {
       logger.error('Error getting embedding dimensions:', error as Error)

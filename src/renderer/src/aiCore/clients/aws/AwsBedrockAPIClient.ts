@@ -32,6 +32,7 @@ import {
   AwsBedrockSdkRawOutput,
   AwsBedrockSdkTool,
   AwsBedrockSdkToolCall,
+  EmbeddingOptions,
   SdkModel
 } from '@renderer/types/sdk'
 import { convertBase64ImageToAwsBedrockFormat } from '@renderer/utils/aws-bedrock-utils'
@@ -205,7 +206,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     return []
   }
 
-  override async getEmbeddingDimensions(model?: Model): Promise<number> {
+  override async getEmbeddingDimensions(model?: Model, options?: EmbeddingOptions): Promise<number> {
     if (!model) {
       throw new Error('Model is required for AWS Bedrock embedding dimensions.')
     }
@@ -257,7 +258,13 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         accept: 'application/json'
       })
 
-      const response = await sdk.client.send(command)
+      const sendOptions = options
+        ? {
+            requestTimeout: options?.timeout
+          }
+        : undefined
+
+      const response = await sdk.client.send(command, sendOptions)
       const responseBody = JSON.parse(new TextDecoder().decode(response.body))
 
       // 解析响应获取嵌入维度

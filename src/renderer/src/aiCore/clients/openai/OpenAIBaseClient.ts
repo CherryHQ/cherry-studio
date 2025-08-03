@@ -11,6 +11,7 @@ import store from '@renderer/store'
 import { SettingsState } from '@renderer/store/settings'
 import { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
 import {
+  EmbeddingOptions,
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
   OpenAIResponseSdkRawChunk,
@@ -24,6 +25,7 @@ import {
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
 import { formatApiHost } from '@renderer/utils/api'
+import { RequestOptions } from 'node_modules/openai/internal/request-options.mjs'
 import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -85,14 +87,20 @@ export abstract class OpenAIBaseClient<
     return response.data.map((item) => item.url)
   }
 
-  override async getEmbeddingDimensions(model: Model): Promise<number> {
+  override async getEmbeddingDimensions(model: Model, options?: EmbeddingOptions): Promise<number> {
     const sdk = await this.getSdkInstance()
 
-    const data = await sdk.embeddings.create({
-      model: model.id,
-      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-      encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
-    })
+    const createOptions: RequestOptions = {
+      timeout: options?.timeout
+    }
+    const data = await sdk.embeddings.create(
+      {
+        model: model.id,
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
+      },
+      createOptions
+    )
     return data.data[0].embedding.length
   }
 

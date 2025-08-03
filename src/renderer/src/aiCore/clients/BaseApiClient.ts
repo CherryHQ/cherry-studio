@@ -28,6 +28,7 @@ import {
 } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import {
+  EmbeddingOptions,
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -96,7 +97,7 @@ export abstract class BaseApiClient<
 
   abstract generateImage(generateImageParams: GenerateImageParams): Promise<string[]>
 
-  abstract getEmbeddingDimensions(model?: Model): Promise<number>
+  abstract getEmbeddingDimensions(model?: Model, options?: EmbeddingOptions): Promise<number>
 
   abstract listModels(): Promise<SdkModel[]>
 
