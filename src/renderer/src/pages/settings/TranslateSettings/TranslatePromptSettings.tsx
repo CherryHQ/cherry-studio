@@ -5,10 +5,11 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
-import { Button, Input, Tooltip } from 'antd'
+import { Input, Tooltip } from 'antd'
 import { Languages } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
 
@@ -34,7 +35,9 @@ const TranslatePromptSettings = () => {
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>
-              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
+              <ResetButton type="reset" onClick={onResetTranslatePrompt}>
+                <RedoOutlined size={16} />
+              </ResetButton>
             </Tooltip>
           )}
         </HStack>
@@ -48,5 +51,20 @@ const TranslatePromptSettings = () => {
     </SettingGroup>
   )
 }
+
+const ResetButton = styled.button`
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  padding: 0;
+  width: 30px;
+  height: 30px;
+
+  &:hover {
+    background: var(--color-list-item);
+    border-radius: 8px;
+  }
+`
 
 export default TranslatePromptSettings
