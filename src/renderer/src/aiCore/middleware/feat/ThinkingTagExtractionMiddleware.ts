@@ -70,16 +70,12 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         let hasThinkingContent = false
         let thinkingStartTime = 0
 
-        let isFirstTextChunk = true
+        let accumulatingText = true
         let accumulatedThinkingContent = ''
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               logger.silly('chunk', chunk)
-              if (chunk.type === ChunkType.TEXT_COMPLETE) {
-                logger.silly('since TEXT_COMPLETE, isFirstTextChunk is set to false')
-                isFirstTextChunk = false
-              }
 
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 const textChunk = chunk as TextDeltaChunk
@@ -89,9 +85,13 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
 
                 for (const extractionResult of extractionResults) {
                   if (extractionResult.complete && extractionResult.tagContentExtracted?.trim()) {
+                    // 完成思考
                     logger.silly(
                       'since extractionResult.complete and extractionResult.tagContentExtracted is not empty, THINKING_COMPLETE chunk is generated'
                     )
+                    // 如果完成思考，更新状态
+                    accumulatingText = false
+
                     // 生成 THINKING_COMPLETE 事件
                     const thinkingCompleteChunk: ThinkingCompleteChunk = {
                       type: ChunkType.THINKING_COMPLETE,
@@ -108,6 +108,9 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                       'since extractionResult.content is not empty, try to generate THINKING_START/THINKING_DELTA chunk'
                     )
                     if (extractionResult.isTagContent) {
+                      // 如果提取到思考内容，更新状态
+                      accumulatingText = false
+
                       // 第一次接收到思考内容时记录开始时间
                       if (!hasThinkingContent) {
                         hasThinkingContent = true
@@ -127,15 +130,17 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                         controller.enqueue(thinkingDeltaChunk)
                       }
                     } else {
+                      // 如果没有思考内容，直接输出文本
                       logger.silly(
                         'since extractionResult.isTagContent is falsy, try to generate TEXT_START/TEXT_DELTA chunk'
                       )
-                      if (isFirstTextChunk) {
+                      // 在非组成文本状态下接收到非思考内容时，生成 TEXT_START chunk 并更新状态
+                      if (!accumulatingText) {
                         logger.silly('since isFirstTextChunk is true, TEXT_START chunk is generated')
                         controller.enqueue({
                           type: ChunkType.TEXT_START
                         })
-                        isFirstTextChunk = false
+                        accumulatingText = true
                       }
                       // 发送清理后的文本内容
                       const cleanTextChunk: TextDeltaChunk = {
@@ -153,6 +158,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
                 controller.enqueue(chunk)
               } else {
+                // 接收到的 TEXT_START chunk 直接丢弃
                 logger.silly('since chunk.type is TEXT_START, passed')
               }
             },
