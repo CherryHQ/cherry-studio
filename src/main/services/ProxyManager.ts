@@ -10,6 +10,33 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 
 const logger = loggerService.withContext('ProxyManager')
 
+const isLocalhost = (hostname: string) => {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
+class SelectiveDispatcher extends Dispatcher {
+  private proxyDispatcher: Dispatcher
+  private directDispatcher: Dispatcher
+
+  constructor(proxyDispatcher: Dispatcher, directDispatcher: Dispatcher) {
+    super()
+    this.proxyDispatcher = proxyDispatcher
+    this.directDispatcher = directDispatcher
+  }
+
+  dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
+    if (opts.origin) {
+      const url = new URL(opts.origin)
+      // 检查是否为 localhost 或本地地址
+      if (isLocalhost(url.hostname)) {
+        return this.directDispatcher.dispatch(opts, handler)
+      }
+    }
+
+    return this.proxyDispatcher.dispatch(opts, handler)
+  }
+}
+
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
@@ -81,6 +108,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
+      this.config.proxyBypassRules = 'localhost,127.0.0.1,::1'
       this.setGlobalProxy()
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -176,16 +204,27 @@ export class ProxyManager {
         callback = args[1]
       }
 
+      // filter localhost
+      if (url) {
+        if (typeof url === 'string') {
+          const urlObj = new URL(url)
+          if (isLocalhost(urlObj.hostname)) {
+            return originalMethod(url, options, callback)
+          }
+        }
+
+        if (url instanceof URL) {
+          if (isLocalhost(url.hostname)) {
+            return originalMethod(url, options, callback)
+          }
+        }
+      }
+
       // for webdav https self-signed certificate
       if (options.agent instanceof https.Agent) {
         ;(agent as https.Agent).options.rejectUnauthorized = options.agent.options.rejectUnauthorized
       }
-
-      // 确保只设置 agent，不修改其他网络选项
-      if (!options.agent) {
-        options.agent = agent
-      }
-
+      options.agent = agent
       if (url) {
         return originalMethod(url, options, callback)
       }
@@ -203,17 +242,20 @@ export class ProxyManager {
 
     const url = new URL(proxyUrl)
     if (url.protocol === 'http:' || url.protocol === 'https:') {
-      setGlobalDispatcher(new EnvHttpProxyAgent())
+      setGlobalDispatcher(new SelectiveDispatcher(new EnvHttpProxyAgent(), this.originalGlobalDispatcher))
       return
     }
 
-    global[Symbol.for('undici.globalDispatcher.1')] = socksDispatcher({
-      port: parseInt(url.port),
-      type: url.protocol === 'socks4:' ? 4 : 5,
-      host: url.hostname,
-      userId: url.username || undefined,
-      password: url.password || undefined
-    })
+    global[Symbol.for('undici.globalDispatcher.1')] = new SelectiveDispatcher(
+      socksDispatcher({
+        port: parseInt(url.port),
+        type: url.protocol === 'socks4:' ? 4 : 5,
+        host: url.hostname,
+        userId: url.username || undefined,
+        password: url.password || undefined
+      }),
+      this.originalSocksDispatcher
+    )
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
