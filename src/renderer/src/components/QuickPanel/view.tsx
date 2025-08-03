@@ -141,10 +141,15 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   useEffect(() => {
     const _searchText = searchText.replace(/^[/@]/, '')
     
-    // 清除之前的定时器
+    // 清除之前的定时器（无论面板是否可见都要清理）
     if (noMatchTimeoutRef.current) {
       clearTimeout(noMatchTimeoutRef.current)
       noMatchTimeoutRef.current = null
+    }
+    
+    // 面板不可见时不设置新定时器
+    if (!ctx.isVisible) {
+      return
     }
     
     // 只有在有搜索文本但无匹配项时才设置延迟关闭
@@ -161,7 +166,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         noMatchTimeoutRef.current = null
       }
     }
-  }, [searchText, list.length, ctx])
+  }, [ctx.isVisible, searchText, list.length, ctx.close])
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
