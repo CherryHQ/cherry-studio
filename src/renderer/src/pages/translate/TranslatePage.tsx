@@ -47,11 +47,15 @@ let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
 const TranslatePage: FC = () => {
+  // hooks
   const { t } = useTranslation()
+  const { translateModel, setTranslateModel } = useDefaultModel()
+  const { prompt, translatedContent, translating, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
+
+  // states
   const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const { translateModel, setTranslateModel } = useDefaultModel()
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
@@ -66,11 +70,12 @@ const TranslatePage: FC = () => {
   const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
 
+  // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const { prompt, translatedContent, translating, getLanguageByLangcode } = useTranslate()
+
   const dispatch = useAppDispatch()
 
   _text = text
@@ -89,6 +94,7 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
+  // 控制翻译按钮
   const setTranslating = (translating: boolean) => {
     dispatch(setTranslatingAction(translating))
   }
@@ -159,6 +165,7 @@ const TranslatePage: FC = () => {
     }
   }
 
+  // 控制翻译按钮，翻译前进行校验
   const onTranslate = async () => {
     if (!text.trim()) return
     if (!translateModel) {
@@ -211,17 +218,20 @@ const TranslatePage: FC = () => {
     }
   }
 
+  // 控制双向翻译切换
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
     db.settings.put({ id: 'translate:bidirectional:enabled', value })
   }
 
+  // 控制复制按钮
   const onCopy = () => {
     navigator.clipboard.writeText(translatedContent)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // 控制历史记录点击
   const onHistoryItemClick = (
     history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }
   ) => {
@@ -235,6 +245,7 @@ const TranslatePage: FC = () => {
     setTargetLanguage(history._targetLanguage)
   }
 
+  // 控制语言切换按钮
   const couldExchange = useMemo(() => sourceLanguage !== 'auto' && !isBidirectional, [isBidirectional, sourceLanguage])
 
   const handleExchange = useCallback(() => {
@@ -252,6 +263,7 @@ const TranslatePage: FC = () => {
   }, [setTranslatedContent, text])
 
   // Render markdown content when result or enableMarkdown changes
+  // 控制Markdown渲染
   useEffect(() => {
     if (enableMarkdown && translatedContent) {
       let isMounted = true
@@ -269,6 +281,7 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translatedContent])
 
+  // 控制设置加载
   useEffect(() => {
     runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
@@ -312,6 +325,7 @@ const TranslatePage: FC = () => {
     })
   }, [getLanguageByLangcode])
 
+  // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
     if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -320,10 +334,11 @@ const TranslatePage: FC = () => {
     }
   }
 
+  // 控制双向滚动
   const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
-  // 获取当前语言状态显示
+  // 获取目标语言显示
   const getLanguageDisplay = () => {
     try {
       if (isBidirectional) {
@@ -351,10 +366,7 @@ const TranslatePage: FC = () => {
     )
   }
 
-  const tokenCount = useMemo(() => {
-    return estimateTextTokens(text + prompt)
-  }, [prompt, text])
-
+  // 控制模型选择器
   const { providers } = useProviders()
   const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
 
@@ -368,6 +380,7 @@ const TranslatePage: FC = () => {
     [translateModel]
   )
 
+  // 控制翻译按钮是否可用
   const couldTranslate = useMemo(() => {
     return !(
       !text.trim() ||
@@ -377,6 +390,11 @@ const TranslatePage: FC = () => {
         (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode))
     )
   }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
+
+  // 控制token估计
+  const tokenCount = useMemo(() => {
+    return estimateTextTokens(text + prompt)
+  }, [prompt, text])
 
   return (
     <Container id="translate-page">
