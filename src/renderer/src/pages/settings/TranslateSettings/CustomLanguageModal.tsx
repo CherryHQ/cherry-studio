@@ -1,10 +1,8 @@
-import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { builtinLangCodeList } from '@renderer/config/translate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Form, Input, Modal, Popover } from 'antd'
-import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -17,7 +15,7 @@ type Props = {
   onCancel: () => void
 }
 
-const logger = loggerService.withContext('CustomLanguageModal')
+// const logger = loggerService.withContext('CustomLanguageModal')
 
 const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
   const { t } = useTranslation()
@@ -53,30 +51,6 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
   const handleSubmit = useCallback(
     async (values: any) => {
       const { emoji, value, langCode } = values
-
-      // 基本校验 规则暂时硬编码
-      logger.debug(`checkBeforeSubmit`, {
-        emoji,
-        value,
-        langCode
-      })
-      if (isEmpty(value)) {
-        window.message.error(t('settings.translate.custom.error.value.empty'))
-        return
-      }
-      if (value.length > 32) {
-        window.message.error(t('settings.translate.custom.error.value.too_long'))
-        return
-      }
-      logger.debug(`checking ${langCode}, result is ${isEmpty(langCode)}`)
-      if (!/^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/.test(langCode) || isEmpty(langCode)) {
-        window.message.error(t('settings.translate.custom.error.langCode.invalid'))
-        return
-      }
-      if (builtinLangCodeList.includes(langCode.toLowerCase())) {
-        window.message.error(t('settings.translate.custom.error.langCode.builtin'))
-        return
-      }
 
       if (editingCustomLanguage) {
         try {
@@ -123,7 +97,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           padding: '20px'
         }
       }}>
-      <Form form={form} onFinish={handleSubmit}>
+      <Form form={form} onFinish={handleSubmit} validateTrigger="onBlur">
         <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }}>
           <ButtonContainer>
             <Popover
@@ -145,7 +119,10 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           name="value"
           label={t('settings.translate.custom.value.label')}
           {...formItemLayout}
-          required
+          rules={[
+            { required: true, message: t('settings.translate.custom.error.value.empty') },
+            { max: 32, message: t('settings.translate.custom.error.value.too_long') }
+          ]}
           help={t('settings.translate.custom.value.help')}>
           <InputContainer>
             <Input placeholder={t('settings.translate.custom.value.placeholder')} />
@@ -155,7 +132,19 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           name="langCode"
           label={t('settings.translate.custom.langCode.label')}
           {...formItemLayout}
-          required
+          rules={[
+            { required: true, message: t('settings.translate.custom.error.langCode.empty') },
+            {
+              pattern: /^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/,
+              message: t('settings.translate.custom.error.langCode.invalid')
+            },
+            {
+              validator: async (_, value: string) => {
+                return builtinLangCodeList.includes(value.toLowerCase())
+              },
+              message: t('settings.translate.custom.error.langCode.builtin')
+            }
+          ]}
           help={t('settings.translate.custom.langCode.help')}>
           <InputContainer>
             <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
