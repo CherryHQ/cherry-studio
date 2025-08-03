@@ -13,7 +13,7 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
-const logger = loggerService.withContext('KnowledgeService')
+const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
@@ -57,7 +57,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    preprocessOrOcrProvider: base.preprocessOrOcrProvider,
+    preprocessProvider: base.preprocessProvider,
     documentCount: base.documentCount
   }
 }

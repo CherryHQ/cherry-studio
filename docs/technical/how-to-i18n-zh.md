@@ -78,15 +78,21 @@ i18n ally是一个强大的VSCode插件，它能在开发阶段提供实时反�
 
 ### 推荐做法
 
+为了避免键的缺失，所有需要动态翻译的文本都应当先维护一个`FooKeyMap`，再通过函数获取翻译文本。
+
+例如：
+
 ```ts
-const fruitLabels = {
-  apple: t('fruits.apple'),
-  banana: t('fruits.banana')
+// src/renderer/src/i18n/label.ts
+const themeModeKeyMap = {
+  dark: 'settings.theme.dark',
+  light: 'settings.theme.light',
+  system: 'settings.theme.system'
 } as const
 
-const fruit = getFruit()
-
-const label = fruitLabels[fruit]
+export const getThemeModeLabel = (key: string): string => {
+  return themeModeKeyMap[key] ? t(themeModeKeyMap[key]) : key
+}
 ```
 
 通过避免模板字符串，可以获得更好的开发体验、更可靠的翻译检查以及更易维护的代码库。

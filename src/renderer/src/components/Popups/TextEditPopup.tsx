@@ -76,7 +76,8 @@ const PopupContainer: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    setTimeout(resizeTextArea, 0)
+    const timer = setTimeout(resizeTextArea, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   const handleAfterOpenChange = (visible: boolean) => {

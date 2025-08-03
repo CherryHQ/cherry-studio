@@ -45,6 +45,7 @@ interface TokenFluxSyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
+  updatedServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -70,7 +71,8 @@ export const syncTokenFluxServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
@@ -80,6 +82,7 @@ export const syncTokenFluxServers = async (
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -92,17 +95,19 @@ export const syncTokenFluxServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
     // Transform TokenFlux servers to MCP servers format
     const addedServers: MCPServer[] = []
+    const updatedServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
-        // Skip if server already exists
-        if (existingServers.some((s) => s.id === `@tokenflux/${server.name}`)) continue
+        // Check if server already exists
+        const existingServer = existingServers.find((s) => s.id === `@tokenflux/${server.name}`)
 
         const authHeaders = {}
         if (server.security_schemes && server.security_schemes.api_key) {
@@ -117,7 +122,7 @@ export const syncTokenFluxServers = async (
           name: server.display_name || server.name || `TokenFlux Server ${nanoid()}`,
           description: server.description || '',
           type: 'streamableHttp',
-          baseUrl: `${TOKENFLUX_HOST}/v1/mcps/${server.name}`,
+          baseUrl: `${TOKENFLUX_HOST}/v1/mcps/${server.name}/mcp`,
           isActive: true,
           provider: 'TokenFlux',
           providerUrl: `${TOKENFLUX_HOST}/mcps/${server.name}`,
@@ -126,16 +131,24 @@ export const syncTokenFluxServers = async (
           headers: authHeaders
         }
 
-        addedServers.push(mcpServer)
+        if (existingServer) {
+          // Update existing server with corrected URL and latest info
+          updatedServers.push(mcpServer)
+        } else {
+          // Add new server
+          addedServers.push(mcpServer)
+        }
       } catch (err) {
         logger.error('Error processing TokenFlux server:', err as Error)
       }
     }
 
+    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: addedServers.length }),
-      addedServers
+      message: t('settings.mcp.sync.success', { count: totalServers }),
+      addedServers,
+      updatedServers
     }
   } catch (error) {
     logger.error('TokenFlux sync error:', error as Error)
@@ -143,6 +156,7 @@ export const syncTokenFluxServers = async (
       success: false,
       message: t('settings.mcp.sync.error'),
       addedServers: [],
+      updatedServers: [],
       errorDetails: String(error)
     }
   }

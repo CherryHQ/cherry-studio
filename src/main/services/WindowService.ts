@@ -319,6 +319,13 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // save data before when close window
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to save data:', error as Error)
+      }
+
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
         return app.quit()
@@ -349,10 +356,13 @@ export class WindowService {
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide()
-      }
+      // TODO: don't hide dock icon when close to tray
+      // will cause the cmd+h behavior not working
+      // after the electron fix the bug, we can restore this code
+      // //for mac users, should hide dock icon if close to tray
+      // if (isMac && isTrayOnClose) {
+      //   app.dock?.hide()
+      // }
     })
 
     mainWindow.on('closed', () => {

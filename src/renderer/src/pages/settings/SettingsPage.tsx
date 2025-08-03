@@ -15,7 +15,6 @@ import {
   TextCursorInput,
   Zap
 } from 'lucide-react'
-// 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -210,7 +209,6 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
-  border-right: 0.5px solid var(--color-border);
 `
 
 export default SettingsPage

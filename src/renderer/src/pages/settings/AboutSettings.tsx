@@ -7,10 +7,10 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { useAppDispatch } from '@renderer/store'
+import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
-import { compareVersions, runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
@@ -41,6 +41,7 @@ const AboutSettings: FC = () => {
       }
 
       if (update.downloaded) {
+        await handleSaveData()
         window.api.showUpdateDialog()
         return
       }
@@ -95,8 +96,6 @@ const AboutSettings: FC = () => {
       logo: AppLogo
     })
   }
-
-  const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
   const currentChannelByVersion =
     [
@@ -266,7 +265,7 @@ const AboutSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-      {hasNewVersion && update.info && (
+      {update.info && update.available && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>

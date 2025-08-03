@@ -33,7 +33,6 @@ class BackupManager {
     this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
     this.backupToLocalDir = this.backupToLocalDir.bind(this)
     this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
-    this.setLocalBackupDir = this.setLocalBackupDir.bind(this)
     this.backupToS3 = this.backupToS3.bind(this)
     this.restoreFromS3 = this.restoreFromS3.bind(this)
     this.listS3Files = this.listS3Files.bind(this)
@@ -595,17 +594,6 @@ class BackupManager {
       return true
     } catch (error) {
       logger.error('[BackupManager] Delete local backup file failed:', error as Error)
-      throw error
-    }
-  }
-
-  async setLocalBackupDir(_: Electron.IpcMainInvokeEvent, dirPath: string) {
-    try {
-      // Check if directory exists
-      await fs.ensureDir(dirPath)
-      return true
-    } catch (error) {
-      logger.error('[BackupManager] Set local backup directory failed:', error as Error)
       throw error
     }
   }

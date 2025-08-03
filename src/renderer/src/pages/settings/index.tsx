@@ -10,7 +10,7 @@ export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   height: calc(100vh - var(--navbar-height));
   padding: 20px;
   padding-top: 15px;
-  padding-bottom: 75px;
+  padding-bottom: 20px;
   overflow-y: scroll;
   background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
 

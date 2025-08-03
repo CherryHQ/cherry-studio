@@ -1,4 +1,5 @@
 import { RightOutlined } from '@ant-design/icons'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
@@ -6,7 +7,6 @@ import { Flex } from 'antd'
 import { t } from 'i18next'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { FixedSizeList } from 'react-window'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
@@ -55,7 +55,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
-  const listRef = useRef<FixedSizeList>(null)
+  const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const [_searchText, setSearchText] = useState('')
@@ -306,8 +306,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   useLayoutEffect(() => {
     if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return
 
-    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'smart'
-    listRef.current?.scrollToItem(index, alignment)
+    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
+    listRef.current?.scrollToIndex(index, { align: alignment })
 
     scrollTriggerRef.current = 'none'
   }, [index])
@@ -470,13 +470,45 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
 
-  const RowData = useMemo(
-    (): VirtualizedRowData => ({
-      list,
-      focusedIndex: index,
-      handleItemAction
-    }),
-    [list, index, handleItemAction]
+  const estimateSize = useCallback(() => ITEM_HEIGHT, [])
+
+  const rowRenderer = useCallback(
+    (item: QuickPanelListItem, itemIndex: number) => {
+      if (!item) return null
+
+      return (
+        <QuickPanelItem
+          className={classNames({
+            focused: itemIndex === index,
+            selected: item.isSelected,
+            disabled: item.disabled
+          })}
+          data-id={itemIndex}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleItemAction(item, 'click')
+          }}>
+          <QuickPanelItemLeft>
+            <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+            <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+          </QuickPanelItemLeft>
+
+          <QuickPanelItemRight>
+            {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+            <QuickPanelItemSuffixIcon>
+              {item.suffix ? (
+                item.suffix
+              ) : item.isSelected ? (
+                <Check />
+              ) : (
+                item.isMenu && !item.disabled && <RightOutlined />
+              )}
+            </QuickPanelItemSuffixIcon>
+          </QuickPanelItemRight>
+        </QuickPanelItem>
+      )
+    },
+    [index, handleItemAction]
   )
 
   return (
@@ -494,19 +526,17 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             return prev ? prev : true
           })
         }>
-        <FixedSizeList
+        <DynamicVirtualList
           ref={listRef}
-          itemCount={list.length}
-          itemSize={ITEM_HEIGHT}
-          itemData={RowData}
-          height={listHeight}
-          width="100%"
-          overscanCount={4}
-          style={{
+          list={list}
+          size={listHeight}
+          estimateSize={estimateSize}
+          overscan={5}
+          scrollerStyle={{
             pointerEvents: isMouseOver ? 'auto' : 'none'
           }}>
-          {VirtualizedRow}
-        </FixedSizeList>
+          {rowRenderer}
+        </DynamicVirtualList>
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
           <QuickPanelFooterTips $footerWidth={footerWidth}>
@@ -545,57 +575,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     </QuickPanelContainer>
   )
 }
-
-interface VirtualizedRowData {
-  list: QuickPanelListItem[]
-  focusedIndex: number
-  handleItemAction: (item: QuickPanelListItem, action?: QuickPanelCloseAction) => void
-}
-
-/**
- * 虚拟化列表行组件，用于避免重新渲染
- */
-const VirtualizedRow = React.memo(
-  ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
-    const { list, focusedIndex, handleItemAction } = data
-    const item = list[index]
-    if (!item) return null
-
-    return (
-      <div style={style}>
-        <QuickPanelItem
-          className={classNames({
-            focused: index === focusedIndex,
-            selected: item.isSelected,
-            disabled: item.disabled
-          })}
-          data-id={index}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleItemAction(item, 'click')
-          }}>
-          <QuickPanelItemLeft>
-            <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-            <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-          </QuickPanelItemLeft>
-
-          <QuickPanelItemRight>
-            {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-            <QuickPanelItemSuffixIcon>
-              {item.suffix ? (
-                item.suffix
-              ) : item.isSelected ? (
-                <Check />
-              ) : (
-                item.isMenu && !item.disabled && <RightOutlined />
-              )}
-            </QuickPanelItemSuffixIcon>
-          </QuickPanelItemRight>
-        </QuickPanelItem>
-      </div>
-    )
-  }
-)
 
 const QuickPanelContainer = styled.div<{
   $pageSize: number

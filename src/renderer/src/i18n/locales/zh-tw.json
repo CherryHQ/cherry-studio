@@ -76,6 +76,62 @@
     },
     "title": "智慧代理人"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "複製",
+      "regenerate": "重新生成",
+      "restart": {
+        "button": "重新啟動",
+        "tooltip": "重新啟動伺服器"
+      },
+      "start": "啟動",
+      "stop": "停止"
+    },
+    "authHeader": {
+      "title": "授權標頭"
+    },
+    "authHeaderText": "在授權標頭中使用：",
+    "configuration": "配置",
+    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
+    "documentation": {
+      "title": "API 文件"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "複製 API 金鑰",
+        "description": "用於 API 訪問的安全認證令牌",
+        "label": "API 金鑰",
+        "placeholder": "API 金鑰將自動生成"
+      },
+      "port": {
+        "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
+        "helpText": "停止伺服器以變更連接埠",
+        "label": "連接埠"
+      },
+      "url": {
+        "copyTooltip": "複製 URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API 金鑰已複製到剪貼簿",
+      "apiKeyRegenerated": "API 金鑰已重新生成",
+      "operationFailed": "API 伺服器操作失敗：",
+      "restartError": "重新啟動 API 伺服器失敗：",
+      "restartFailed": "API 伺服器重新啟動失敗：",
+      "restartSuccess": "API 伺服器重新啟動成功",
+      "startError": "啟動 API 伺服器失敗：",
+      "startSuccess": "API 伺服器啟動成功",
+      "stopError": "停止 API 伺服器失敗：",
+      "stopSuccess": "API 伺服器停止成功",
+      "urlCopied": "伺服器 URL 已複製到剪貼簿"
+    },
+    "status": {
+      "running": "執行中",
+      "stopped": "已停止"
+    },
+    "title": "API 伺服器"
+  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -647,6 +703,7 @@
     "no_results": "沒有結果",
     "open": "開啟",
     "paste": "貼上",
+    "preview": "預覽",
     "prompt": "提示詞",
     "provider": "供應商",
     "reasoning_content": "已深度思考",
@@ -655,6 +712,7 @@
     "rename": "重新命名",
     "reset": "重設",
     "save": "儲存",
+    "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
     "selectedItems": "已選擇 {{count}} 項",
@@ -822,7 +880,8 @@
     "empty": "暫無知識庫",
     "error": {
       "failed_to_create": "知識庫創建失敗",
-      "failed_to_edit": "知識庫編輯失敗"
+      "failed_to_edit": "知識庫編輯失敗",
+      "model_invalid": "未選擇模型"
     },
     "file_hint": "支援 {{file_types}} 格式",
     "index_all": "索引全部",
@@ -911,6 +970,8 @@
     "spanish": "西班牙文",
     "thai": "泰文",
     "turkish": "土耳其文",
+    "ukrainian": "烏克蘭語",
+    "unknown": "未知",
     "urdu": "烏爾都文",
     "vietnamese": "越南文"
   },
@@ -1446,6 +1507,7 @@
         "image": "新繪圖"
       }
     },
+    "custom_size": "自訂尺寸",
     "edit": {
       "image_file": "編輯圖像",
       "magic_prompt_option_tip": "智能優化編輯提示詞",
@@ -1518,7 +1580,7 @@
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入” 英文 “圖片描述，目前 Imagen 僅支持英文提示詞",
+    "prompt_placeholder_en": "輸入英文圖片描述，目前 Imagen 僅支持英文提示詞",
     "proxy_required": "打開代理並開啟”TUN 模式 “查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -1568,6 +1630,7 @@
     },
     "text_desc_required": "請先輸入圖片描述",
     "title": "繪圖",
+    "top_up": "儲值",
     "translating": "翻譯中...",
     "uploaded_input": "已上傳輸入",
     "upscale": {
@@ -1591,6 +1654,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "百川",
     "baidu-cloud": "百度雲千帆",
@@ -1651,6 +1715,7 @@
     "progress": {
       "completed": "復原完成",
       "copying_files": "複製檔案... {{progress}}%",
+      "extracted": "解壓成功",
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
@@ -2078,6 +2143,10 @@
         "title": "本地備份"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "匯出 Markdown 時排除引用和參考文獻，僅保留主要內容",
+          "title": "不匯出引用內容"
+        },
         "force_dollar_math": {
           "help": "開啟後，匯出 Markdown 時會強制使用 $$ 來標記 LaTeX 公式。注意：該項也會影響所有透過 Markdown 匯出的方式，如 Notion、語雀等",
           "title": "LaTeX 公式強制使用 $$"
@@ -2093,6 +2162,10 @@
         "show_model_provider": {
           "help": "在匯出 Markdown 時顯示模型供應商，如 OpenAI、Gemini 等",
           "title": "顯示模型供應商"
+        },
+        "standardize_citations": {
+          "help": "將引用標記轉換為標準 Markdown 腳註格式 [^1]，並格式化引用列表",
+          "title": "標準化引用格式"
         },
         "title": "Markdown 匯出"
       },
@@ -2585,6 +2658,17 @@
       "argsTooltip": "每個參數佔一行",
       "baseUrlTooltip": "遠端 URL 地址",
       "builtinServers": "內置伺服器",
+      "builtinServersDescriptions": {
+        "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
+        "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
+        "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
+        "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
+        "mcp_auto_install": "自動安裝 MCP 服務（測試版）",
+        "memory": "基於本地知識圖譜的持久性記憶基礎實現。這使得模型能夠在不同對話間記住使用者的相關資訊。需要配置 MEMORY_FILE_PATH 環境變數。",
+        "no": "無描述",
+        "python": "在安全的沙盒環境中執行 Python 代碼。使用 Pyodide 運行 Python，支援大多數標準庫和科學計算套件",
+        "sequentialthinking": "一個 MCP 伺服器實現，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
+      },
       "command": "指令",
       "config_description": "設定模型上下文協議伺服器",
       "customRegistryPlaceholder": "請輸入私有倉庫位址，如: https://npm.company.com",
@@ -2866,6 +2950,10 @@
           "label": "模型名稱",
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "增量文本輸出",
+          "tooltip": "當模型不支持的時候，將該按鈕關閉"
         }
       },
       "api_key": "API 密鑰",
@@ -3008,6 +3096,16 @@
         "tip": "多個金鑰使用逗號或空格分隔"
       },
       "api_version": "API 版本",
+      "aws-bedrock": {
+        "access_key_id": "AWS 存取密鑰 ID",
+        "access_key_id_help": "您的 AWS 存取密鑰 ID，用於存取 AWS Bedrock 服務",
+        "description": "AWS Bedrock 是亞馬遜提供的全托管基础模型服務，支持多種先進的大語言模型",
+        "region": "AWS 區域",
+        "region_help": "您的 AWS 服務區域，例如 us-east-1",
+        "secret_access_key": "AWS 存取密鑰",
+        "secret_access_key_help": "您的 AWS 存取密鑰，請妥善保管",
+        "title": "AWS Bedrock 設定"
+      },
       "azure": {
         "apiversion": {
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
@@ -3210,26 +3308,11 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "最小置信度",
-          "mode": {
-            "accurate": "準確",
-            "fast": "快速",
-            "title": "識別模式"
-          }
-        },
-        "provider": "OCR 供應商",
-        "provider_placeholder": "選擇一個OCR服務提供商",
-        "title": "OCR 文字識別"
-      },
       "preprocess": {
         "provider": "前置處理供應商",
         "provider_placeholder": "選擇一個預處理供應商",
-        "title": "前置處理"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商或OCR。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能，而OCR僅能辨識文件內圖片文字或掃描PDF文字。"
+        "title": "前置處理",
+        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
       "title": "工具設定",
       "websearch": {
@@ -3372,6 +3455,7 @@
     },
     "close": "關閉",
     "closed": "翻譯已關閉",
+    "complete": "翻譯完成",
     "confirm": {
       "content": "翻譯後將覆蓋原文，是否繼續？",
       "title": "翻譯確認"
@@ -3383,13 +3467,17 @@
     "empty": "翻譯內容為空",
     "error": {
       "failed": "翻譯失敗",
-      "not_configured": "翻譯模型未設定"
+      "not_configured": "翻譯模型未設定",
+      "unknown": "翻譯過程中遇到未知錯誤"
     },
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
       "delete": "刪除",
       "empty": "翻譯歷史為空",
+      "error": {
+        "save": "保存翻譯歷史失敗"
+      },
       "title": "翻譯歷史"
     },
     "input": {

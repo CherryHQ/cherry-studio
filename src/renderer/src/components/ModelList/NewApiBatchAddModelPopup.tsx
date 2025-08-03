@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -45,7 +46,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     batchModels.forEach((model) => {
       addModel({
         ...model,
-        endpoint_type: values.endpointType
+        endpoint_type: values.endpointType,
+        supported_text_delta: !isNotSupportedTextDelta(model)
       })
     })
     return true

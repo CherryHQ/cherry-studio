@@ -1,9 +1,10 @@
 import { MinusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
-import React, { memo } from 'react'
+import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,11 +32,21 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   onRemoveGroup
 }) => {
   const { t } = useTranslation()
+  const listRef = useRef<DynamicVirtualListRef>(null)
+
+  const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
+    const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
+    if (isNowExpanded) {
+      // 延迟到 DOM 可见后测量
+      requestAnimationFrame(() => listRef.current?.measure())
+    }
+  }, [])
 
   return (
     <CustomCollapseWrapper>
       <CustomCollapse
         defaultActiveKey={defaultOpen ? ['1'] : []}
+        onChange={handleCollapseChange}
         label={
           <Flex align="center" gap={10}>
             <span style={{ fontWeight: 'bold' }}>{groupName}</span>
@@ -47,23 +58,36 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               type="text"
               className="toolbar-item"
               icon={<MinusOutlined />}
-              onClick={onRemoveGroup}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemoveGroup()
+              }}
               disabled={disabled}
             />
           </Tooltip>
         }>
-        <Flex gap={10} vertical style={{ marginTop: 10 }}>
-          {models.map((model) => (
+        <DynamicVirtualList
+          ref={listRef}
+          list={models}
+          estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
+          overscan={5}
+          scrollerStyle={{
+            maxHeight: '390px',
+            padding: '4px 16px'
+          }}
+          itemContainerStyle={{
+            padding: '4px 0'
+          }}>
+          {(model) => (
             <ModelListItem
-              key={model.id}
               model={model}
               modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
               onEdit={onEditModel}
               onRemove={onRemoveModel}
               disabled={disabled}
             />
-          ))}
-        </Flex>
+          )}
+        </DynamicVirtualList>
       </CustomCollapse>
     </CustomCollapseWrapper>
   )
@@ -78,6 +102,11 @@ const CustomCollapseWrapper = styled.div`
   }
   &:hover .toolbar-item {
     opacity: 1;
+  }
+
+  /* 移除 collapse 的 padding，转而在 scroller 内部调整 */
+  .ant-collapse-content-box {
+    padding: 0 !important;
   }
 `
 

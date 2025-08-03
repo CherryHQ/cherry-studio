@@ -174,7 +174,8 @@ vi.mock('@renderer/store/llm.ts', () => {
           {
             id: 'gemini-2.5-pro',
             name: 'Gemini 2.5 Pro',
-            provider: 'gemini'
+            provider: 'gemini',
+            supported_text_delta: true
           }
         ],
         isSystem: true,
@@ -184,17 +185,20 @@ vi.mock('@renderer/store/llm.ts', () => {
     defaultModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     topicNamingModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     translateModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     quickAssistantId: '',
     settings: {
@@ -1690,7 +1694,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1810,7 +1815,8 @@ describe('ApiService', () => {
         type: 'anthropic',
         model: {
           id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet'
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1886,7 +1892,8 @@ describe('ApiService', () => {
         type: 'anthropic',
         model: {
           id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet'
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1957,7 +1964,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -2125,7 +2133,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gpt-4o',
-          name: 'GPT-4o'
+          name: 'GPT-4o',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -2215,7 +2224,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gpt-4o',
-          name: 'GPT-4o'
+          name: 'GPT-4o',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,

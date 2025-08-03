@@ -44,6 +44,7 @@ import { ResponseInput } from 'openai/resources/responses/responses'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 
 export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   OpenAI,
@@ -369,7 +370,11 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           type: 'input_text'
         }
         if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessage.role = 'developer'
+          if (isSupportDeveloperRoleProvider(this.provider)) {
+            systemMessage.role = 'developer'
+          } else {
+            systemMessage.role = 'system'
+          }
         }
 
         // 2. 设置工具

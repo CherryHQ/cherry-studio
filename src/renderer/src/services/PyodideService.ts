@@ -242,6 +242,23 @@ class PyodideService {
   }
 
   /**
+   * 重置 Pyodide Worker
+   * 该方法会销毁当前的 Worker 并重新创建一个新的实例，
+   * 用于处理模块缓存或文件系统状态污染等罕见问题。
+   */
+  public async resetWorker(): Promise<void> {
+    logger.verbose('Resetting Pyodide worker...')
+    this.terminate()
+    try {
+      await this.initialize()
+      logger.verbose('Pyodide worker has been reset successfully.')
+    } catch (error) {
+      logger.error('Failed to re-initialize Pyodide worker after reset.', error as Error)
+      throw error
+    }
+  }
+
+  /**
    * 释放 Pyodide Worker 资源
    */
   public terminate(): void {

@@ -52,18 +52,11 @@ export function useSystemAgents() {
         // 如果没有远程配置或获取失败，加载本地代理
         if (resourcesPath) {
           try {
-            let fileName = 'agents.json'
-            if (currentLanguage === 'zh-CN') {
-              fileName = 'agents-zh.json'
-            } else {
-              fileName = 'agents-en.json'
-            }
-
+            const fileName = currentLanguage === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
             const localAgentsData = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
             _agents = JSON.parse(localAgentsData) as Agent[]
           } catch (error) {
-            const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json', 'utf-8')
-            _agents = JSON.parse(localAgentsData) as Agent[]
+            logger.error('Failed to load local agents:', error as Error)
           }
         }
 

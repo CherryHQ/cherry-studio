@@ -31,7 +31,6 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     pageSize: 5,
     total: 0
   })
-
   const fetchBackupFiles = useCallback(async () => {
     if (!localBackupDir) {
       return

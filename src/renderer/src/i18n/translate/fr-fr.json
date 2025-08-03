@@ -76,6 +76,59 @@
     },
     "title": "Agent intelligent"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copier",
+      "regenerate": "Régénérer",
+      "restart": {
+        "button": "Redémarrer",
+        "tooltip": "Redémarrer le Serveur"
+      }
+    },
+    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
+    "configuration": "Configuration",
+    "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
+    "documentation": {
+      "title": "Documentation API",
+      "unavailable": {
+        "description": "Démarrez le serveur API pour voir la documentation interactive",
+        "title": "Documentation API Indisponible"
+      }
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copier la Clé API",
+        "label": "Clé API",
+        "placeholder": "La clé API sera générée automatiquement"
+      },
+      "port": {
+        "helpText": "Arrêtez le serveur pour changer le port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copier l'URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
+      "apiKeyRegenerated": "Clé API régénérée",
+      "operationFailed": "Opération du Serveur API échouée : ",
+      "restartError": "Échec du redémarrage du Serveur API : ",
+      "restartFailed": "Redémarrage du Serveur API échoué : ",
+      "restartSuccess": "Serveur API redémarré avec succès",
+      "startError": "Échec du démarrage du Serveur API : ",
+      "startSuccess": "Serveur API démarré avec succès",
+      "stopError": "Échec de l'arrêt du Serveur API : ",
+      "stopSuccess": "Serveur API arrêté avec succès",
+      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+    },
+    "status": {
+      "running": "En cours d'exécution",
+      "stopped": "Arrêté"
+    },
+    "title": "Serveur API"
+  },
   "assistants": {
     "abbr": "Aide",
     "clear": {
@@ -822,7 +875,8 @@
     "empty": "Aucune base de connaissances pour le moment",
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
-      "failed_to_edit": "Erreur lors de la modification de la base de connaissances"
+      "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
+      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
     "file_hint": "Format supporté : {{file_types}}",
     "index_all": "Indexer tout",
@@ -911,6 +965,8 @@
     "spanish": "Espagnol",
     "thai": "Thaï",
     "turkish": "Turc",
+    "ukrainian": "ukrainien",
+    "unknown": "inconnu",
     "urdu": "Ourdou",
     "vietnamese": "Vietnamien"
   },
@@ -1651,6 +1707,7 @@
     "progress": {
       "completed": "Restauration terminée",
       "copying_files": "Copie des fichiers... {{progress}}%",
+      "extracted": "décompression réussie",
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
@@ -2078,6 +2135,10 @@
         "title": "Sauvegarde locale"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Lorsque cette option est activée, le contenu des citations sera exclu lors de l'exportation en Markdown.",
+          "title": "Exclure le contenu des citations"
+        },
         "force_dollar_math": {
           "help": "Lorsque cette option est activée, l'exportation en Markdown utilisera $$ pour marquer les formules LaTeX. Note : Cette option affecte également toutes les méthodes d'exportation en Markdown, comme Notion, YuQue, etc.",
           "title": "Forcer l'utilisation de $$ pour marquer les formules LaTeX"
@@ -2093,6 +2154,10 @@
         "show_model_provider": {
           "help": "Afficher le fournisseur du modèle lors de l'exportation en Markdown, par exemple OpenAI, Gemini, etc.",
           "title": "Afficher le fournisseur du modèle"
+        },
+        "standardize_citations": {
+          "help": "Lorsque cette option est activée, les citations seront converties au format Markdown standard [^1] et la liste des citations sera formatée.",
+          "title": "Formater les citations"
         },
         "title": "Exporter en Markdown"
       },
@@ -2585,6 +2650,17 @@
       "argsTooltip": "Chaque argument sur une ligne",
       "baseUrlTooltip": "Adresse URL distante",
       "builtinServers": "Serveurs intégrés",
+      "builtinServersDescriptions": {
+        "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
+        "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
+        "filesystem": "Serveur Node.js implémentant le protocole de contexte de modèle (MCP) pour les opérations de système de fichiers. Nécessite une configuration des répertoires autorisés à être accédés.",
+        "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
+        "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
+        "no": "sans description",
+        "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
+        "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
+      },
       "command": "Commande",
       "config_description": "Configurer le modèle du protocole de contexte du serveur",
       "customRegistryPlaceholder": "Veuillez entrer l'adresse du registre privé, par exemple : https://npm.company.com",
@@ -2866,6 +2942,10 @@
           "label": "Nom du modèle",
           "placeholder": "Par exemple, GPT-3.5",
           "tooltip": "Par exemple GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "sortie de texte incrémentielle",
+          "tooltip": "Désactivez ce bouton lorsque le modèle n'est pas pris en charge"
         }
       },
       "api_key": "Clé API",
@@ -3103,7 +3183,7 @@
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "title": "Services de modèles",
       "vertex_ai": {
-        "api_host_help": "Adresse API de Vertex AI, il n'est pas recommandé de la remplir, généralement utilisée pour le proxy inversé",
+        "api_host_help": "Adresse API de Vertex AI, il n'est pas recommandé de la remplir, généralement utilisée pour un proxy inverse",
         "documentation": "Consultez la documentation officielle pour plus de détails sur la configuration :",
         "learn_more": "En savoir plus",
         "location": "Région",
@@ -3228,7 +3308,7 @@
         "provider_placeholder": "Sélectionnez un fournisseur de traitement préalable de documents",
         "title": "Traitement Préliminaire de Documents"
       },
-      "preprocessOrOcr": {
+      "preprocess": {
         "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
       },
       "title": "Paramètres des outils",
@@ -3372,6 +3452,7 @@
     },
     "close": "fermer",
     "closed": "La traduction est désactivée",
+    "complete": "La traduction est terminée",
     "confirm": {
       "content": "La traduction remplacera le texte original, voulez-vous continuer ?",
       "title": "Confirmation de traduction"
@@ -3383,13 +3464,17 @@
     "empty": "Le contenu à traduire est vide",
     "error": {
       "failed": "échec de la traduction",
-      "not_configured": "le modèle de traduction n'est pas configuré"
+      "not_configured": "le modèle de traduction n'est pas configuré",
+      "unknown": "Une erreur inconnue s'est produite lors de la traduction"
     },
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
       "delete": "Supprimer",
       "empty": "Aucun historique de traduction pour le moment",
+      "error": {
+        "save": "Échec de la sauvegarde de l'historique des traductions"
+      },
       "title": "Historique des traductions"
     },
     "input": {

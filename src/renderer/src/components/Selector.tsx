@@ -51,10 +51,14 @@ const Selector = <V extends string | number>({
   const inputRef = useRef<any>(null)
 
   useEffect(() => {
+    let timer: NodeJS.Timeout
     if (open) {
-      setTimeout(() => {
+      timer = setTimeout(() => {
         inputRef.current?.focus()
       }, 1)
+    }
+    return () => {
+      clearTimeout(timer)
     }
   }, [open])
 

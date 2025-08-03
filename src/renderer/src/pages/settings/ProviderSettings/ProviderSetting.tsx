@@ -13,10 +13,10 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Checkbox, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { CircleHelp, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,6 +29,8 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import ApiOptionsSettings from './ApiOptionsSettings'
+import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
@@ -251,7 +253,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {provider.id !== 'vertexai' && (
+      {provider.id !== 'vertexai' && provider.id !== 'aws-bedrock' && (
         <>
           <SettingSubtitle
             style={{
@@ -364,21 +366,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
+      {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
-      <SettingSubtitle>{t('settings.provider.misc')}</SettingSubtitle>
-      <Checkbox
-        checked={isNotSupportArrayContent}
-        onChange={(e) => {
-          setIsNotSupportArrayContent(e.target.checked)
-          updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
-        }}>
-        <CheckboxLabelContainer>
-          {t('settings.provider.is_not_support_array_content.label')}
-          <Tooltip title={t('settings.provider.is_not_support_array_content.tip')}>
-            <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-          </Tooltip>
-        </CheckboxLabelContainer>
-      </Checkbox>
+      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

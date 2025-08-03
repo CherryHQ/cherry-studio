@@ -15,8 +15,10 @@ interface Props {
   resolve: (data: any) => void
 }
 
+type ProgressStageType = 'reading_data' | 'preparing' | 'extracting' | 'extracted' | 'copying_files' | 'completed'
+
 interface ProgressData {
-  stage: string
+  stage: ProgressStageType
   progress: number
   total: number
 }

@@ -76,6 +76,62 @@
     },
     "title": "Agents"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copy",
+      "regenerate": "Regenerate",
+      "restart": {
+        "button": "Restart",
+        "tooltip": "Restart Server"
+      },
+      "start": "Start",
+      "stop": "Stop"
+    },
+    "authHeader": {
+      "title": "Authorization Header"
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "configuration": "Configuration",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "documentation": {
+      "title": "API Documentation"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copy API Key",
+        "description": "Secure authentication token for API access",
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated"
+      },
+      "port": {
+        "description": "TCP port number for the HTTP server (1000-65535)",
+        "helpText": "Stop server to change port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copy URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API Key copied to clipboard",
+      "apiKeyRegenerated": "API Key regenerated",
+      "operationFailed": "API Server operation failed: ",
+      "restartError": "Failed to restart API Server: ",
+      "restartFailed": "API Server restart failed: ",
+      "restartSuccess": "API Server restarted successfully",
+      "startError": "Failed to start API Server: ",
+      "startSuccess": "API Server started successfully",
+      "stopError": "Failed to stop API Server: ",
+      "stopSuccess": "API Server stopped successfully",
+      "urlCopied": "Server URL copied to clipboard"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "title": "API Server"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -647,6 +703,7 @@
     "no_results": "No results",
     "open": "Open",
     "paste": "Paste",
+    "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
@@ -655,6 +712,7 @@
     "rename": "Rename",
     "reset": "Reset",
     "save": "Save",
+    "saved": "Saved",
     "search": "Search",
     "select": "Select",
     "selectedItems": "Selected {{count}} items",
@@ -822,7 +880,8 @@
     "empty": "No knowledge base found",
     "error": {
       "failed_to_create": "Knowledge base creation failed",
-      "failed_to_edit": "Knowledge base editing failed"
+      "failed_to_edit": "Knowledge base editing failed",
+      "model_invalid": "No model selected"
     },
     "file_hint": "Support {{file_types}}",
     "index_all": "Index All",
@@ -863,7 +922,7 @@
     "search_placeholder": "Enter text to search",
     "settings": {
       "preprocessing": "Preprocessing",
-      "preprocessing_tooltip": "Preprocess uploaded files with OCR",
+      "preprocessing_tooltip": "Preprocess uploaded files",
       "title": "Knowledge Base Settings"
     },
     "sitemap_added": "Added successfully",
@@ -911,6 +970,8 @@
     "spanish": "Spanish",
     "thai": "Thai",
     "turkish": "Turkish",
+    "ukrainian": "Ukrainian",
+    "unknown": "unknown",
     "urdu": "Urdu",
     "vietnamese": "Vietnamese"
   },
@@ -1446,6 +1507,7 @@
         "image": "New Image"
       }
     },
+    "custom_size": "Custom Size",
     "edit": {
       "image_file": "Edited Image",
       "magic_prompt_option_tip": "Intelligently enhances editing prompts",
@@ -1568,6 +1630,7 @@
     },
     "text_desc_required": "Please enter image description first",
     "title": "Images",
+    "top_up": "Top up ",
     "translating": "Translating...",
     "uploaded_input": "Uploaded input",
     "upscale": {
@@ -1591,6 +1654,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
@@ -1651,6 +1715,7 @@
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",
+      "extracted": "Extraction successful",
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
       "reading_data": "Reading data...",
@@ -2078,6 +2143,10 @@
         "title": "Local Backup"
       },
       "markdown_export": {
+        "exclude_citations": {
+          "help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
+          "title": "Exclude Citations"
+        },
         "force_dollar_math": {
           "help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
           "title": "Force $$ for LaTeX formulas"
@@ -2093,6 +2162,10 @@
         "show_model_provider": {
           "help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
           "title": "Show Model Provider"
+        },
+        "standardize_citations": {
+          "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
+          "title": "Standardize Citation Format"
         },
         "title": "Markdown Export"
       },
@@ -2585,6 +2658,17 @@
       "argsTooltip": "Each argument on a new line",
       "baseUrlTooltip": "Remote server base URL",
       "builtinServers": "Builtin Servers",
+      "builtinServersDescriptions": {
+        "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
+        "fetch": "MCP server for retrieving URL web content",
+        "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
+        "mcp_auto_install": "Automatically install MCP service (beta)",
+        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
+        "no": "No description",
+        "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
+      },
       "command": "Command",
       "config_description": "Configure Model Context Protocol servers",
       "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
@@ -2866,6 +2950,10 @@
           "label": "Model Name",
           "placeholder": "Optional e.g. GPT-4",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "Incremental text output",
+          "tooltip": "When the model is not supported, close the button"
         }
       },
       "api_key": "API Key",
@@ -3008,6 +3096,16 @@
         "tip": "Multiple keys separated by commas or spaces"
       },
       "api_version": "API Version",
+      "aws-bedrock": {
+        "access_key_id": "AWS Access Key ID",
+        "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
+        "region": "AWS Region",
+        "region_help": "Your AWS service region, e.g., us-east-1",
+        "secret_access_key": "AWS Secret Access Key",
+        "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
+        "title": "AWS Bedrock Configuration"
+      },
       "azure": {
         "apiversion": {
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"
@@ -3210,26 +3308,11 @@
     },
     "title": "Settings",
     "tool": {
-      "ocr": {
-        "mac_system_ocr_options": {
-          "min_confidence": "Minimum Confidence",
-          "mode": {
-            "accurate": "Accurate",
-            "fast": "Fast",
-            "title": "Recognition Mode"
-          }
-        },
-        "provider": "OCR Provider",
-        "provider_placeholder": "Choose an OCR provider",
-        "title": "OCR Settings"
-      },
       "preprocess": {
         "provider": "Pre Process Provider",
         "provider_placeholder": "Choose a Pre Process provider",
-        "title": "Pre Process"
-      },
-      "preprocessOrOcr": {
-        "tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text."
+        "title": "Pre Process",
+        "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Tools Settings",
       "websearch": {
@@ -3372,6 +3455,7 @@
     },
     "close": "Close",
     "closed": "Translation closed",
+    "complete": "Translation completed",
     "confirm": {
       "content": "Translation will replace the original text, continue?",
       "title": "Translation Confirmation"
@@ -3383,13 +3467,17 @@
     "empty": "Translation content is empty",
     "error": {
       "failed": "Translation failed",
-      "not_configured": "Translation model is not configured"
+      "not_configured": "Translation model is not configured",
+      "unknown": "An unknown error occurred during translation"
     },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
       "delete": "Delete",
       "empty": "No translation history",
+      "error": {
+        "save": "Failed to save translation history"
+      },
       "title": "Translation History"
     },
     "input": {

@@ -68,6 +68,7 @@ const SettingsTab: FC<Props> = (props) => {
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
@@ -154,6 +155,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   useEffect(() => {
     setTemperature(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
+    setEnableTemperature(assistant?.settings?.enableTemperature ?? true)
     setContextCount(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
@@ -193,19 +195,32 @@ const SettingsTab: FC<Props> = (props) => {
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
+            <Switch
+              size="small"
+              style={{ marginLeft: 'auto' }}
+              checked={enableTemperature}
+              onChange={(enabled) => {
+                setEnableTemperature(enabled)
+                onUpdateAssistantSettings({ enableTemperature: enabled })
+              }}
+            />
           </Row>
-          <Row align="middle" gutter={10}>
-            <Col span={23}>
-              <Slider
-                min={0}
-                max={2}
-                onChange={setTemperature}
-                onChangeComplete={onTemperatureChange}
-                value={typeof temperature === 'number' ? temperature : 0}
-                step={0.1}
-              />
-            </Col>
-          </Row>
+          {enableTemperature ? (
+            <Row align="middle" gutter={10}>
+              <Col span={23}>
+                <Slider
+                  min={0}
+                  max={2}
+                  onChange={setTemperature}
+                  onChangeComplete={onTemperatureChange}
+                  value={typeof temperature === 'number' ? temperature : 0}
+                  step={0.1}
+                />
+              </Col>
+            </Row>
+          ) : (
+            <SettingDivider />
+          )}
           <Row align="middle">
             <SettingRowTitleSmall>{t('chat.settings.context_count.label')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>

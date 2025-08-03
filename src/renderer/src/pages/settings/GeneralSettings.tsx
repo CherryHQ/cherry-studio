@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
@@ -200,37 +201,6 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
-        </SettingRow>
-        {enableSpellCheck && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
-              <Selector<string>
-                size={14}
-                multiple
-                value={spellCheckLanguages}
-                placeholder={t('settings.general.spell_check.languages')}
-                onChange={handleSpellCheckLanguagesChange}
-                options={spellCheckLanguageOptions.map((lang) => ({
-                  value: lang.value,
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                      {lang.label}
-                    </Flex>
-                  )
-                }))}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={onProxyModeChange} options={proxyModeOptions} />
         </SettingRow>
@@ -250,6 +220,33 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow>
+          <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
+            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
+            {enableSpellCheck && (
+              <Selector<string>
+                size={14}
+                multiple
+                value={spellCheckLanguages}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  )
+                }))}
+              />
+            )}
+          </HStack>
+          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>

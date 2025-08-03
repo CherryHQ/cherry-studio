@@ -1,9 +1,11 @@
+import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
   addTopic,
+  insertAssistant,
   removeAllTopics,
   removeAssistant,
   removeTopic,
@@ -17,18 +19,44 @@ import {
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { TopicManager } from './useTopic'
 
 export function useAssistants() {
+  const { t } = useTranslation()
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
+  const logger = loggerService.withContext('useAssistants')
 
   return {
     assistants,
     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
     addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
+    insertAssistant: (index: number, assistant: Assistant) => dispatch(insertAssistant({ index, assistant })),
+    copyAssistant: (assistant: Assistant): Assistant | undefined => {
+      if (!assistant) {
+        logger.error("assistant doesn't exists.")
+        return
+      }
+      const index = assistants.findIndex((_assistant) => _assistant.id === assistant.id)
+      const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+      if (index === -1) {
+        logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
+        dispatch(addAssistant(_assistant))
+      } else {
+        // 插入到后面
+        try {
+          dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
+        } catch (e) {
+          logger.error('Failed to insert assistant', e as Error)
+          window.message.error(t('message.error.copy'))
+        }
+      }
+      return _assistant
+    },
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
       const assistant = assistants.find((a) => a.id === id)

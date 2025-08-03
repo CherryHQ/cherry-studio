@@ -4,7 +4,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
 <div>
   <div
     class="custom-class draggable-virtual-list"
-    style="height: 100%; border: 1px solid red;"
+    style="height: 100%; display: flex; flex-direction: column; border: 1px solid red;"
   >
     <div
       data-testid="drag-drop-context"

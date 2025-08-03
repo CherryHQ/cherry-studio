@@ -16,12 +16,22 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
   }, [])
 
   useEffect(() => {
-    if (ref.current) {
-      ref.current.addEventListener('emoji-click', (event: any) => {
+    const refValue = ref.current
+
+    if (refValue) {
+      const handleEmojiClick = (event: any) => {
         event.stopPropagation()
         onEmojiClick(event.detail.unicode || event.detail.emoji.unicode)
-      })
+      }
+      // 添加事件监听器
+      refValue.addEventListener('emoji-click', handleEmojiClick)
+
+      // 清理事件监听器
+      return () => {
+        refValue.removeEventListener('emoji-click', handleEmojiClick)
+      }
     }
+    return
   }, [onEmojiClick])
 
   // @ts-ignore next-line
