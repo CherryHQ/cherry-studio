@@ -1,7 +1,7 @@
 name: 🐛 错误报告 (中文)
 description: 创建一个报告以帮助我们改进
 title: '[错误]: '
-labels: ['kind/bug']
+labels: ['BUG']
 body:
   - type: markdown
     attributes:
@@ -23,6 +23,8 @@ body:
         - label: 我已经查看了 **置顶 Issue** 并搜索了现有的 [开放Issue](https://github.com/CherryHQ/cherry-studio/issues)和[已关闭Issue](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed%20)，没有找到类似的问题。
           required: true
         - label: 我填写了简短且清晰明确的标题，以便开发者在翻阅 Issue 列表时能快速确定大致问题。而不是“一个建议”、“卡住了”等。
+          required: true
+        - label: 我确认我正在使用最新版本的 Cherry Studio。
           required: true
 
   - type: dropdown

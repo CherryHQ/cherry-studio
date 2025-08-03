@@ -2991,6 +2991,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
         "remove_whole_group": "移除整个分组"

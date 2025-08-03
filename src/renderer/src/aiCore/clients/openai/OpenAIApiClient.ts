@@ -21,6 +21,7 @@ import {
   isSupportedThinkingTokenZhipuModel,
   isVisionModel
 } from '@renderer/config/models'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -63,7 +64,6 @@ import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatComple
 import { GenericChunk } from '../../middleware/schemas'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 
 const logger = loggerService.withContext('OpenAIApiClient')
 

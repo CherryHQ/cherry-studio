@@ -2991,6 +2991,7 @@
           "label": "リストにモデルを追加"
         },
         "add_whole_group": "グループ全体を追加",
+        "refetch_list": "モデルリストを再取得",
         "remove_listed": "リストからモデルを削除",
         "remove_model": "モデルを削除",
         "remove_whole_group": "グループ全体を削除"
