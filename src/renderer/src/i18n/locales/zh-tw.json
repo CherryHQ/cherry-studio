@@ -3412,6 +3412,8 @@
           "delete": "删除失败",
           "langCode": {
             "builtin": "該語言已內建支援",
+            "empty": "語言代碼為空",
+            "exists": "該語言已存在",
             "invalid": "無效的語言代碼"
           },
           "update": "更新失敗",
@@ -3421,6 +3423,7 @@
           }
         },
         "langCode": {
+          "help": "[語言+區域]的格式，[2~3位小寫字母]-[2~3位小寫字母]",
           "label": "語言代碼",
           "placeholder": "zh-tw"
         },
@@ -3435,6 +3438,7 @@
           }
         },
         "value": {
+          "help": "1~32個字元",
           "label": "语言名称",
           "placeholder": "繁體中文"
         }
@@ -3506,6 +3510,7 @@
     },
     "empty": "翻譯內容為空",
     "error": {
+      "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",

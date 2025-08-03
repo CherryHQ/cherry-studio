@@ -3412,6 +3412,8 @@
           "delete": "Échec de la suppression",
           "langCode": {
             "builtin": "Cette langue est prise en charge intégrée",
+            "empty": "Le code de langue est vide",
+            "exists": "Ce langage existe déjà",
             "invalid": "Code de langue non valide"
           },
           "update": "Échec de la mise à jour",
@@ -3421,6 +3423,7 @@
           }
         },
         "langCode": {
+          "help": "[2~3 lettres minuscules]-[2~3 lettres minuscules] au format [langue+zone]",
           "label": "code de langue",
           "placeholder": "fr-fr"
         },
@@ -3435,6 +3438,7 @@
           }
         },
         "value": {
+          "help": "1 à 32 caractères",
           "label": "Nom de la langue",
           "placeholder": "français"
         }
@@ -3506,6 +3510,7 @@
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
       "not_supported": "Langue non prise en charge {{language}}",

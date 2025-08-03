@@ -3412,6 +3412,8 @@
           "delete": "Falha ao eliminar",
           "langCode": {
             "builtin": "O idioma já tem suporte integrado",
+            "empty": "Código de idioma vazio",
+            "exists": "Este idioma já existe",
             "invalid": "Código de idioma inválido"
           },
           "update": "Falha ao atualizar",
@@ -3421,6 +3423,7 @@
           }
         },
         "langCode": {
+          "help": "[linguagem+região] no formato, [2~3 letras minúsculas]-[2~3 letras minúsculas]",
           "label": "código do idioma",
           "placeholder": "pt-pt"
         },
@@ -3435,6 +3438,7 @@
           }
         },
         "value": {
+          "help": "1~32 caracteres",
           "label": "Nome do idioma",
           "placeholder": "Português"
         }
@@ -3506,6 +3510,7 @@
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "not_configured": "Modelo de tradução não configurado",
       "not_supported": "Idioma não suportado {{language}}",

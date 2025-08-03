@@ -3412,6 +3412,8 @@
           "delete": "Deletion failed",
           "langCode": {
             "builtin": "The language has built-in support",
+            "empty": "Language code is empty",
+            "exists": "The language already exists",
             "invalid": "Invalid language code"
           },
           "update": "Update failed",
@@ -3421,6 +3423,7 @@
           }
         },
         "langCode": {
+          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
           "label": "language code",
           "placeholder": "en-us"
         },
@@ -3435,6 +3438,7 @@
           }
         },
         "value": {
+          "help": "1~32 characters",
           "label": "Language name",
           "placeholder": "English"
         }
@@ -3506,6 +3510,7 @@
     },
     "empty": "Translation content is empty",
     "error": {
+      "empty": "The translation result is empty content",
       "failed": "Translation failed",
       "not_configured": "Translation model is not configured",
       "not_supported": "Unsupported language {{language}}",
