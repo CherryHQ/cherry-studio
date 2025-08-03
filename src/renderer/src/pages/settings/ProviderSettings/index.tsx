@@ -5,7 +5,6 @@ import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
 import {
   generateColorFromChar,
@@ -401,10 +400,13 @@ const ProvidersList: FC = () => {
     }
 
     if (isSystemProvider(provider)) {
-      if (SYSTEM_PROVIDERS.find((p) => p.id === provider.id)) {
-        return [noteMenu]
-      }
+      return [noteMenu]
+    } else if (provider.isSystem) {
+      // 这里是处理数据中存在新版本删掉的系统提供商的情况
+      // 未来期望能重构一下，不要依赖isSystem字段
       return [noteMenu, deleteMenu]
+    } else {
+      return menus
     }
   }
 
