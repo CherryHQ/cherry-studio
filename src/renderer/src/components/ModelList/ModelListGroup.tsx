@@ -1,14 +1,16 @@
-import { MinusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Button, Flex, Tooltip } from 'antd'
+import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ModelListItem from './ModelListItem'
+
+const MAX_SCROLLER_HEIGHT = 390
 
 interface ModelListGroupProps {
   groupName: string
@@ -57,7 +59,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             <Button
               type="text"
               className="toolbar-item"
-              icon={<MinusOutlined />}
+              icon={<Minus size={14} />}
               onClick={(e) => {
                 e.stopPropagation()
                 onRemoveGroup()
@@ -65,15 +67,21 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               disabled={disabled}
             />
           </Tooltip>
-        }>
+        }
+        styles={{
+          header: {
+            padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
+          }
+        }}>
         <DynamicVirtualList
           ref={listRef}
           list={models}
           estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
           overscan={5}
           scrollerStyle={{
-            maxHeight: '390px',
-            padding: '4px 16px'
+            maxHeight: `${MAX_SCROLLER_HEIGHT}px`,
+            padding: '4px 6px 4px 12px',
+            scrollbarGutter: 'stable'
           }}
           itemContainerStyle={{
             padding: '4px 0'

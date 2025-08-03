@@ -6,6 +6,9 @@
 
   --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
   --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
+
+  --scrollbar-width: 6px;
+  --scrollbar-height: 6px;
 }
 
 body[theme-mode='light'] {
@@ -15,8 +18,8 @@ body[theme-mode='light'] {
 
 /* 全局初始化滚动条样式 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-height);
 }
 
 ::-webkit-scrollbar-track,

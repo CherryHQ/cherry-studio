@@ -264,7 +264,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={openApiKeyList} icon={<Settings2 size={14} />} />
+                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -311,9 +311,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                 {t('settings.provider.api_host')}
                 <Button
                   type="text"
-                  size="small"
                   onClick={() => CustomHeaderPopup.show({ provider })}
-                  icon={<Settings2 size={14} />}
+                  icon={<Settings2 size={16} />}
                 />
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
