@@ -149,7 +149,6 @@ const CustomLanguageSettingsContainer = styled.div`
 const TableContainer = styled.div`
   display: flex;
   flex-direction: column;
-  justify-content: end;
   flex: 1;
 `
 
