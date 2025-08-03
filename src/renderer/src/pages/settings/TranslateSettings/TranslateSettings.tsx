@@ -1,8 +1,8 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import CustomLanguageSettings from '@renderer/pages/settings/TranslateSettings/CustomLanguageSettings'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
-import { Spin } from 'antd'
 import { Suspense, useEffect, useState } from 'react'
 
 import { SettingContainer, SettingGroup } from '..'
@@ -43,7 +43,7 @@ const CustomLanguagesSettingsFallback = () => {
         justifyContent: 'center',
         alignItems: 'center'
       }}>
-      <Spin />
+      <SvgSpinners180Ring />
     </div>
   )
 }
