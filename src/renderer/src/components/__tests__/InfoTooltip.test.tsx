@@ -1,8 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import InfoTooltip from '../InfoTooltip'
+
+vi.mock('lucide-react', () => ({
+  Info: ({ ref, ...props }) => (
+    <div {...props} ref={ref} role="img" aria-label="Information">
+      Info
+    </div>
+  )
+}))
 
 describe('InfoTooltip', () => {
   it('should match snapshot', () => {
