@@ -14,10 +14,10 @@
     "baseUrl": ".",
     "moduleResolution": "bundler",
     "paths": {
+      "@logger": ["src/renderer/src/services/LoggerService"],
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],
       "@types": ["src/renderer/src/types/index.ts"],
-      "@logger": ["src/renderer/src/services/LoggerService"],
       "@mcp-trace/*": ["packages/mcp-trace/*"]
     },
     "experimentalDecorators": true,

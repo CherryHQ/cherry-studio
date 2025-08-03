@@ -34,12 +34,6 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
     if (result.stream) {
       const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
 
-      // 检查是否启用reasoning
-      const enableReasoning = params.enableReasoning || false
-      if (!enableReasoning) {
-        return result
-      }
-
       // 检查是否有流需要处理
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
         // thinking 处理状态

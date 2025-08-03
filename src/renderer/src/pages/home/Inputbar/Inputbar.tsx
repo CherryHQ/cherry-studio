@@ -37,7 +37,12 @@ import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, To
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
-import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
+import {
+  getFilesFromDropEvent,
+  getSendMessageShortcutLabel,
+  getTextFromDropEvent,
+  isSendMessageKeyPressed
+} from '@renderer/utils/input'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -184,6 +189,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const resizeTextArea = useCallback(
     (force: boolean = false) => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -251,7 +260,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setTimeout(() => resizeTextArea(true), 0)
       setExpend(false)
     } catch (error) {
-      logger.warn('Failed to send message:', error)
+      logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
@@ -267,7 +276,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       translatedText && setText(translatedText)
       setTimeout(() => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error)
+      logger.warn('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -311,7 +320,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const openSelectFileMenu = useCallback(() => {
     quickPanel.open({
-      title: t('chat.input.upload'),
+      title: t('chat.input.upload.label'),
       list: [
         {
           label: t('chat.input.upload.upload_from_local'),
@@ -465,9 +474,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         setTimeout(() => resizeTextArea(), 0)
         return newText
       })
-      textareaRef.current?.focus()
+      focusTextarea()
     },
-    [resizeTextArea]
+    [resizeTextArea, focusTextarea]
   )
 
   const onPause = async () => {
@@ -480,6 +489,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       await delay(1)
     }
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    focusTextarea()
   }
 
   const onNewContext = () => {
@@ -567,6 +577,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       e.stopPropagation()
       setIsFileDragging(false)
 
+      const data = await getTextFromDropEvent(e)
+
+      setText(text + data)
+
       const files = await getFilesFromDropEvent(e).catch((err) => {
         logger.error('handleDrop:', err)
         return null
@@ -591,7 +605,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     },
-    [supportedExts, t]
+    [supportedExts, t, text]
   )
 
   const onTranslated = (translatedText: string) => {
@@ -661,7 +675,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useShortcut('new_topic', () => {
     addNewTopic()
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    textareaRef.current?.focus()
+    focusTextarea()
   })
 
   useShortcut('clear_topic', clearTopic)
@@ -695,12 +709,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
-      textareaRef.current?.focus()
+      focusTextarea()
     }
-  }, [assistant, topic])
+  }, [
+    topic.id,
+    assistant.mcpServers,
+    assistant.knowledge_bases,
+    assistant.enableWebSearch,
+    assistant.webSearchProviderId,
+    mentionedModels,
+    focusTextarea
+  ])
 
   useEffect(() => {
-    setTimeout(() => resizeTextArea(), 0)
+    const timerId = requestAnimationFrame(() => resizeTextArea())
+    return () => cancelAnimationFrame(timerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -721,12 +744,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const lastFocusedComponent = PasteService.getLastFocusedComponent()
 
       if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
-        textareaRef.current?.focus()
+        focusTextarea()
       }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [])
+  }, [focusTextarea])
 
   useEffect(() => {
     // if assistant knowledge bases are undefined return []
@@ -806,7 +829,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     }
 
-    textareaRef.current?.focus()
+    focusTextarea()
   }
 
   const isExpended = expended || !!textareaHeight
@@ -962,7 +985,10 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 24px 18px 24px;
+  padding: 0 18px 18px 18px;
+  [navbar-position='top'] & {
+    padding: 0 18px 10px 18px;
+  }
 `
 
 const InputBarContainer = styled.div`

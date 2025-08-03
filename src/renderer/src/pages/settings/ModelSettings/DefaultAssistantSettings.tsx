@@ -13,15 +13,17 @@ import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingSubtitle } from '..'
+import { SettingContainer, SettingRow, SettingSubtitle } from '..'
 
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
   const [temperature, setTemperature] = useState(defaultAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
+  const [enableTemperature, setEnableTemperature] = useState(defaultAssistant.settings?.enableTemperature ?? true)
   const [contextCount, setContextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
+  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? true)
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -36,11 +38,13 @@ const AssistantSettings: FC = () => {
       settings: {
         ...defaultAssistant.settings,
         temperature: settings.temperature ?? temperature,
+        enableTemperature: settings.enableTemperature ?? enableTemperature,
         contextCount: settings.contextCount ?? contextCount,
         enableMaxTokens: settings.enableMaxTokens ?? enableMaxTokens,
         maxTokens: settings.maxTokens ?? maxTokens,
         streamOutput: settings.streamOutput ?? true,
-        topP: settings.topP ?? topP
+        topP: settings.topP ?? topP,
+        enableTopP: settings.enableTopP ?? enableTopP
       }
     })
   }
@@ -61,20 +65,24 @@ const AssistantSettings: FC = () => {
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
+    setEnableTemperature(true)
     setContextCount(DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setTopP(1)
+    setEnableTopP(true)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
         ...defaultAssistant.settings,
         temperature: DEFAULT_TEMPERATURE,
+        enableTemperature: true,
         contextCount: DEFAULT_CONTEXTCOUNT,
         enableMaxTokens: false,
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
-        topP: 1
+        topP: 1,
+        enableTopP: true
       }
     })
   }
@@ -96,10 +104,12 @@ const AssistantSettings: FC = () => {
   }
 
   return (
-    <SettingContainer style={{ height: 'auto', background: 'transparent', padding: 0 }} theme={theme}>
+    <SettingContainer
+      style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 12 }}
+      theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <HStack gap={8} alignItems="center" style={{ margin: '10px 0' }}>
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+      <HStack gap={8} alignItems="center">
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
             {emoji && (
@@ -129,84 +139,108 @@ const AssistantSettings: FC = () => {
           style={{ flex: 1 }}
         />
       </HStack>
-      <SettingSubtitle>{t('common.prompt')}</SettingSubtitle>
+      <SettingSubtitle style={{ marginTop: 0 }}>{t('common.prompt')}</SettingSubtitle>
       <TextArea
         rows={4}
         placeholder={t('common.assistant') + t('common.prompt')}
         value={defaultAssistant.prompt}
         onChange={(e) => updateDefaultAssistant({ ...defaultAssistant, prompt: e.target.value })}
-        style={{ margin: '10px 0' }}
         spellCheck={false}
       />
       <SettingSubtitle
         style={{
           display: 'flex',
           flexDirection: 'row',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
         <Button onClick={onReset} style={{ width: 81 }}>
           {t('chat.settings.reset')}
         </Button>
       </SettingSubtitle>
+      <SettingRow>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.temperature.label')}</Label>
+          <Tooltip title={t('chat.settings.temperature.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          style={{ marginLeft: 10 }}
+          checked={enableTemperature}
+          onChange={(enabled) => {
+            setEnableTemperature(enabled)
+            onUpdateAssistantSettings({ enableTemperature: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTemperature && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={2}
+              onChange={setTemperature}
+              onChangeComplete={onTemperatureChange}
+              value={typeof temperature === 'number' ? temperature : 0}
+              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <InputNumber
+              min={0}
+              max={2}
+              step={0.01}
+              value={temperature}
+              onChange={onTemperatureChange}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
+      <SettingRow>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.top_p.label')}</Label>
+          <Tooltip title={t('chat.settings.top_p.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          style={{ marginLeft: 10 }}
+          checked={enableTopP}
+          onChange={(enabled) => {
+            setEnableTopP(enabled)
+            onUpdateAssistantSettings({ enableTopP: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableTopP && (
+        <Row align="middle" gutter={12}>
+          <Col span={20}>
+            <Slider
+              min={0}
+              max={1}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
+              step={0.01}
+            />
+          </Col>
+          <Col span={4}>
+            <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
+          </Col>
+        </Row>
+      )}
       <Row align="middle">
-        <Label>{t('chat.settings.temperature')}</Label>
-        <Tooltip title={t('chat.settings.temperature.tip')}>
-          <QuestionIcon />
-        </Tooltip>
-      </Row>
-      <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={19}>
-          <Slider
-            min={0}
-            max={2}
-            onChange={setTemperature}
-            onChangeComplete={onTemperatureChange}
-            value={typeof temperature === 'number' ? temperature : 0}
-            marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
-          />
-        </Col>
-        <Col span={5}>
-          <InputNumber
-            min={0}
-            max={2}
-            step={0.01}
-            value={temperature}
-            onChange={onTemperatureChange}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
-      <Row align="middle">
-        <Label>{t('chat.settings.top_p')}</Label>
-        <Tooltip title={t('chat.settings.top_p.tip')}>
-          <QuestionIcon />
-        </Tooltip>
-      </Row>
-      <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={19}>
-          <Slider
-            min={0}
-            max={1}
-            onChange={setTopP}
-            onChangeComplete={onTopPChange}
-            value={typeof topP === 'number' ? topP : 1}
-            marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
-            step={0.01}
-          />
-        </Col>
-        <Col span={5}>
-          <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
-        </Col>
-      </Row>
-      <Row align="middle">
-        <Label>{t('chat.settings.context_count')}</Label>
+        <Label>{t('chat.settings.context_count.label')}</Label>
         <Tooltip title={t('chat.settings.context_count.tip')}>
           <QuestionIcon />
         </Tooltip>
       </Row>
-      <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
+      <Row align="middle" gutter={20}>
         <Col span={19}>
           <Slider
             min={0}
@@ -229,9 +263,9 @@ const AssistantSettings: FC = () => {
           />
         </Col>
       </Row>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 10 }}>
+      <Flex justify="space-between" align="center">
         <HStack alignItems="center">
-          <Label>{t('chat.settings.max_tokens')}</Label>
+          <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>

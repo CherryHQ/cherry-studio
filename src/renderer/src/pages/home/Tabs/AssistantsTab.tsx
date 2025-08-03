@@ -25,7 +25,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
-  const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
+  const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
@@ -106,7 +106,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                         onSwitch={setActiveAssistant}
                         onDelete={onDelete}
                         addAgent={addAgent}
-                        addAssistant={addAssistant}
+                        copyAssistant={copyAssistant}
                         onCreateDefaultAssistant={onCreateDefaultAssistant}
                         handleSortByChange={handleSortByChange}
                       />
@@ -143,7 +143,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             onSwitch={setActiveAssistant}
             onDelete={onDelete}
             addAgent={addAgent}
-            addAssistant={addAssistant}
+            copyAssistant={copyAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
             handleSortByChange={handleSortByChange}
           />
@@ -188,12 +188,7 @@ const AssistantAddItem = styled.div`
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-background-soft);
-  }
-
-  &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item-hover);
   }
 `
 

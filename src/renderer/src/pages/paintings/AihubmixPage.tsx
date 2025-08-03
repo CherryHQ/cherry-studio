@@ -14,6 +14,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -58,9 +59,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
   const dispatch = useAppDispatch()
@@ -116,7 +124,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          logger.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error as Error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -187,7 +195,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             prompt,
             model: painting.model,
             imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate-exp') ? 1 : painting.numberOfImages || 1,
+            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
             personGeneration: painting.personGeneration
           })
           if (base64s?.length > 0) {
@@ -550,7 +558,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }

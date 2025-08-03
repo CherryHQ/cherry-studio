@@ -69,10 +69,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         await navigator.clipboard.writeText(user_code)
         window.message.success(t('settings.provider.copilot.code_copied'))
       } catch (error) {
-        logger.error('Failed to copy to clipboard:', error)
+        logger.error('Failed to copy to clipboard:', error as Error)
       }
     } catch (error) {
-      logger.error('Failed to get device code:', error)
+      logger.error('Failed to get device code:', error as Error)
       window.message.error(t('settings.provider.copilot.code_failed'))
       setCurrentStep(0)
     } finally {
@@ -98,7 +98,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         window.message.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
-      logger.error('Failed to get token:', error)
+      logger.error('Failed to get token:', error as Error)
       window.message.error(t('settings.provider.copilot.auth_failed'))
       setCurrentStep(2)
     } finally {
@@ -127,7 +127,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
       window.message.success(t('settings.provider.copilot.logout_success'))
     } catch (error) {
-      logger.error('Failed to logout:', error)
+      logger.error('Failed to logout:', error as Error)
       window.message.error(t('settings.provider.copilot.logout_failed'))
       // 如果登出失败，重置登出状态
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
@@ -142,7 +142,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       await navigator.clipboard.writeText(userCode)
       window.message.success(t('common.copied'))
     } catch (error) {
-      logger.error('Failed to copy to clipboard:', error)
+      logger.error('Failed to copy to clipboard:', error as Error)
       window.message.error(t('common.copy_failed'))
     }
   }, [userCode, t])

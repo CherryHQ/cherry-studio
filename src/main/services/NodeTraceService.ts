@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
@@ -6,7 +7,6 @@ import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 
 import { ConfigKeys, configManager } from './ConfigManager'
-import { loggerService } from './LoggerService'
 import { spanCacheService } from './SpanCacheService'
 
 export const TRACER_NAME = 'CherryStudio'

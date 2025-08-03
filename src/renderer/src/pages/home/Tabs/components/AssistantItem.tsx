@@ -17,7 +17,7 @@ import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
-import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
@@ -40,7 +40,7 @@ interface AssistantItemProps {
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
-  addAssistant: (assistant: Assistant) => void
+  copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
 }
@@ -52,7 +52,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   onSwitch,
   onDelete,
   addAgent,
-  addAssistant,
+  copyAssistant,
   handleSortByChange
 }) => {
   const { t } = useTranslation()
@@ -91,7 +91,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         assistants,
         updateAssistants,
         addAgent,
-        addAssistant,
+        copyAssistant,
         onSwitch,
         onDelete,
         removeAllTopics,
@@ -108,7 +108,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       assistants,
       updateAssistants,
       addAgent,
-      addAssistant,
+      copyAssistant,
       onSwitch,
       onDelete,
       removeAllTopics,
@@ -246,7 +246,7 @@ function getMenuItems({
   assistants,
   updateAssistants,
   addAgent,
-  addAssistant,
+  copyAssistant,
   onSwitch,
   onDelete,
   removeAllTopics,
@@ -268,9 +268,10 @@ function getMenuItems({
       key: 'duplicate',
       icon: <CopyIcon />,
       onClick: async () => {
-        const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
-        addAssistant(_assistant)
-        onSwitch(_assistant)
+        const _assistant = copyAssistant(assistant)
+        if (_assistant) {
+          onSwitch(_assistant)
+        }
       }
     },
     {
@@ -390,6 +391,7 @@ const Container = styled.div`
   }
   &.active {
     background-color: var(--color-list-item);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
 `
 

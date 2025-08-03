@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
@@ -140,6 +141,8 @@ export interface SettingsState {
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionExportReasoning: boolean
+  excludeCitationsInExport: boolean
+  standardizeCitationsInExport: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -200,6 +203,10 @@ export interface SettingsState {
   s3: S3Config
   // Developer mode
   enableDeveloperMode: boolean
+  // UI
+  navbarPosition: 'left' | 'top'
+  // API Server
+  apiServer: ApiServerConfig
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -291,7 +298,7 @@ export const initialState: SettingsState = {
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
   readClipboardAtStartup: true,
-  multiModelMessageStyle: 'fold',
+  multiModelMessageStyle: 'horizontal',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
@@ -302,6 +309,8 @@ export const initialState: SettingsState = {
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
+  excludeCitationsInExport: false,
+  standardizeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -368,7 +377,16 @@ export const initialState: SettingsState = {
     skipBackupFile: false
   },
   // Developer mode
-  enableDeveloperMode: false
+  enableDeveloperMode: false,
+  // UI
+  navbarPosition: 'left',
+  // API Server
+  apiServer: {
+    enabled: false,
+    host: 'localhost',
+    port: 23333,
+    apiKey: `cs-sk-${uuid()}`
+  }
 }
 
 const settingsSlice = createSlice({
@@ -655,6 +673,12 @@ const settingsSlice = createSlice({
     setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
       state.notionExportReasoning = action.payload
     },
+    setExcludeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.excludeCitationsInExport = action.payload
+    },
+    setStandardizeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.standardizeCitationsInExport = action.payload
+    },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
     },
@@ -763,6 +787,28 @@ const settingsSlice = createSlice({
     },
     setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
       state.enableDeveloperMode = action.payload
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
+    },
+    // API Server actions
+    setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        enabled: action.payload
+      }
+    },
+    setApiServerPort: (state, action: PayloadAction<number>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        port: action.payload
+      }
+    },
+    setApiServerApiKey: (state, action: PayloadAction<string>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        apiKey: action.payload
+      }
     }
   }
 })
@@ -846,6 +892,8 @@ export const {
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionExportReasoning,
+  setExcludeCitationsInExport,
+  setStandardizeCitationsInExport,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
@@ -882,7 +930,12 @@ export const {
   setDefaultPaintingProvider,
   setS3,
   setS3Partial,
-  setEnableDeveloperMode
+  setEnableDeveloperMode,
+  setNavbarPosition,
+  // API Server actions
+  setApiServerEnabled,
+  setApiServerPort,
+  setApiServerApiKey
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

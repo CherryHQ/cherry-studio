@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { runAsyncFunction } from '../index'
-import { compareVersions, hasPath, isFreeModel, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+import { hasPath, isFreeModel, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {
@@ -108,34 +108,6 @@ describe('Unclassified Utils', () => {
     it('should return false for invalid url', () => {
       expect(hasPath('not a url')).toBe(false)
       expect(hasPath('')).toBe(false)
-    })
-  })
-
-  describe('compareVersions', () => {
-    it('should return 1 if v1 > v2', () => {
-      expect(compareVersions('1.2.3', '1.2.2')).toBe(1)
-      expect(compareVersions('2.0.0', '1.9.9')).toBe(1)
-      expect(compareVersions('1.2.0', '1.1.9')).toBe(1)
-      expect(compareVersions('1.2.3', '1.2')).toBe(1)
-    })
-
-    it('should return -1 if v1 < v2', () => {
-      expect(compareVersions('1.2.2', '1.2.3')).toBe(-1)
-      expect(compareVersions('1.9.9', '2.0.0')).toBe(-1)
-      expect(compareVersions('1.1.9', '1.2.0')).toBe(-1)
-      expect(compareVersions('1.2', '1.2.3')).toBe(-1)
-    })
-
-    it('should return 0 if v1 == v2', () => {
-      expect(compareVersions('1.2.3', '1.2.3')).toBe(0)
-      expect(compareVersions('1.2', '1.2.0')).toBe(0)
-      expect(compareVersions('1.0.0', '1')).toBe(0)
-    })
-
-    it('should handle non-numeric and empty string', () => {
-      expect(compareVersions('', '')).toBe(0)
-      expect(compareVersions('a.b.c', '1.2.3')).toBe(-1)
-      expect(compareVersions('1.2.3', 'a.b.c')).toBe(1)
     })
   })
 })

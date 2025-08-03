@@ -62,7 +62,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('复制图片失败:', error)
+      logger.error('复制图片失败:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }

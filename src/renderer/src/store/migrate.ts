@@ -2,11 +2,11 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, LanguageCode, Provider, WebSearchProvider } from '@renderer/types'
+import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -202,13 +202,14 @@ const migrateConfig = {
   '8': (state: RootState) => {
     try {
       const fixAssistantName = (assistant: Assistant) => {
+        // 2025/07/25 这俩键早没了，从远古版本迁移包出错的
         if (isEmpty(assistant.name)) {
-          assistant.name = i18n.t(`assistant.${assistant.id}.name`)
+          assistant.name = i18n.t('chat.default.name')
         }
 
         assistant.topics = assistant.topics.map((topic) => {
           if (isEmpty(topic.name)) {
-            topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
+            topic.name = i18n.t('chat.default.topic.name')
           }
           return topic
         })
@@ -280,7 +281,7 @@ const migrateConfig = {
           defaultAssistant: {
             ...state.assistants.defaultAssistant,
             name: ['Default Assistant', '默认助手'].includes(state.assistants.defaultAssistant.name)
-              ? i18n.t(`assistant.default.name`)
+              ? i18n.t('settings.assistant.label')
               : state.assistants.defaultAssistant.name
           }
         }
@@ -1156,7 +1157,7 @@ const migrateConfig = {
       state.settings.trayOnClose = true
       return state
     } catch (error) {
-      logger.error('migrate 83 error', error)
+      logger.error('migrate 83 error', error as Error)
       return state
     }
   },
@@ -1165,7 +1166,7 @@ const migrateConfig = {
       addProvider(state, 'voyageai')
       return state
     } catch (error) {
-      logger.error('migrate 84 error', error)
+      logger.error('migrate 84 error', error as Error)
       return state
     }
   },
@@ -1386,7 +1387,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 100 error', error)
+      logger.error('migrate 100 error', error as Error)
       return state
     }
   },
@@ -1414,7 +1415,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 101 error', error)
+      logger.error('migrate 101 error', error as Error)
       return state
     }
   },
@@ -1449,7 +1450,7 @@ const migrateConfig = {
       delete state.settings.codeCacheThreshold
       return state
     } catch (error) {
-      logger.error('migrate 102 error', error)
+      logger.error('migrate 102 error', error as Error)
       return state
     }
   },
@@ -1478,7 +1479,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 103 error', error)
+      logger.error('migrate 103 error', error as Error)
       return state
     }
   },
@@ -1488,7 +1489,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
       return state
     } catch (error) {
-      logger.error('migrate 104 error', error)
+      logger.error('migrate 104 error', error as Error)
       return state
     }
   },
@@ -1504,7 +1505,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 105 error', error)
+      logger.error('migrate 105 error', error as Error)
       return state
     }
   },
@@ -1514,7 +1515,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
       return state
     } catch (error) {
-      logger.error('migrate 106 error', error)
+      logger.error('migrate 106 error', error as Error)
       return state
     }
   },
@@ -1525,7 +1526,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 107 error', error)
+      logger.error('migrate 107 error', error as Error)
       return state
     }
   },
@@ -1535,7 +1536,7 @@ const migrateConfig = {
       state.inputTools.isCollapsed = false
       return state
     } catch (error) {
-      logger.error('migrate 108 error', error)
+      logger.error('migrate 108 error', error as Error)
       return state
     }
   },
@@ -1544,7 +1545,7 @@ const migrateConfig = {
       state.settings.userTheme = settingsInitialState.userTheme
       return state
     } catch (error) {
-      logger.error('migrate 109 error', error)
+      logger.error('migrate 109 error', error as Error)
       return state
     }
   },
@@ -1557,7 +1558,7 @@ const migrateConfig = {
       state.settings.testPlan = false
       return state
     } catch (error) {
-      logger.error('migrate 110 error', error)
+      logger.error('migrate 110 error', error as Error)
       return state
     }
   },
@@ -1576,7 +1577,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 111 error', error)
+      logger.error('migrate 111 error', error as Error)
       return state
     }
   },
@@ -1590,7 +1591,7 @@ const migrateConfig = {
       state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
       return state
     } catch (error) {
-      logger.error('migrate 112 error', error)
+      logger.error('migrate 112 error', error as Error)
       return state
     }
   },
@@ -1608,7 +1609,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 113 error', error)
+      logger.error('migrate 113 error', error as Error)
       return state
     }
   },
@@ -1625,7 +1626,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 114 error', error)
+      logger.error('migrate 114 error', error as Error)
       return state
     }
   },
@@ -1646,7 +1647,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 115 error', error)
+      logger.error('migrate 115 error', error as Error)
       return state
     }
   },
@@ -1675,7 +1676,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 116 error', error)
+      logger.error('migrate 116 error', error as Error)
       return state
     }
   },
@@ -1713,7 +1714,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 117 error', error)
+      logger.error('migrate 117 error', error as Error)
       return state
     }
   },
@@ -1734,7 +1735,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 118 error', error)
+      logger.error('migrate 118 error', error as Error)
       return state
     }
   },
@@ -1752,7 +1753,7 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
-      logger.error('migrate 119 error', error)
+      logger.error('migrate 119 error', error as Error)
       return state
     }
   },
@@ -1800,7 +1801,7 @@ const migrateConfig = {
       state.settings.localBackupSyncInterval = 0
       return state
     } catch (error) {
-      logger.error('migrate 120 error', error)
+      logger.error('migrate 120 error', error as Error)
       return state
     }
   },
@@ -1832,7 +1833,138 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 121 error', error)
+      logger.error('migrate 121 error', error as Error)
+      return state
+    }
+  },
+  '122': (state: RootState) => {
+    try {
+      state.settings.navbarPosition = 'left'
+      return state
+    } catch (error) {
+      logger.error('migrate 122 error', error as Error)
+      return state
+    }
+  },
+  '123': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          if (model.type && Array.isArray(model.type)) {
+            model.capabilities = model.type.map((t) => ({
+              type: t,
+              isUserSelected: true
+            }))
+            delete model.type
+          }
+        })
+      })
+
+      const lanyunProvider = state.llm.providers.find((provider) => provider.id === 'lanyun')
+      if (lanyunProvider && lanyunProvider.models.length === 0) {
+        updateProvider(state, 'lanyun', { models: SYSTEM_MODELS.lanyun })
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 123 error', error as Error)
+      return state
+    }
+  }, // 1.5.4
+  '124': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && !assistant.settings.toolUseMode) {
+          assistant.settings.toolUseMode = 'prompt'
+        }
+      })
+
+      const updateModelTextDelta = (model?: Model) => {
+        if (model) {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        }
+      }
+
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          updateModelTextDelta(model)
+        })
+      })
+      state.assistants.assistants.forEach((assistant) => {
+        updateModelTextDelta(assistant.defaultModel)
+        updateModelTextDelta(assistant.model)
+      })
+
+      updateModelTextDelta(state.llm.defaultModel)
+      updateModelTextDelta(state.llm.topicNamingModel)
+      updateModelTextDelta(state.llm.translateModel)
+
+      if (state.assistants.defaultAssistant.model) {
+        updateModelTextDelta(state.assistants.defaultAssistant.model)
+        updateModelTextDelta(state.assistants.defaultAssistant.defaultModel)
+      }
+
+      addProvider(state, 'aws-bedrock')
+
+      // 初始化 awsBedrock 设置
+      if (!state.llm.settings.awsBedrock) {
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 124 error', error as Error)
+      return state
+    }
+  },
+  '125': (state: RootState) => {
+    try {
+      // Initialize API server configuration if not present
+      if (!state.settings.apiServer) {
+        state.settings.apiServer = {
+          enabled: false,
+          host: 'localhost',
+          port: 23333,
+          apiKey: `cs-sk-${uuid()}`
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 125 error', error as Error)
+      return state
+    }
+  },
+  '126': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        // @ts-ignore eslint-disable-next-line
+        if (base.preprocessOrOcrProvider) {
+          // @ts-ignore eslint-disable-next-line
+          base.preprocessProvider = base.preprocessOrOcrProvider
+          // @ts-ignore eslint-disable-next-line
+          delete base.preprocessOrOcrProvider
+          // @ts-ignore eslint-disable-next-line
+          if (base.preprocessProvider.type === 'ocr') {
+            // @ts-ignore eslint-disable-next-line
+            delete base.preprocessProvider
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 126 error', error as Error)
+      return state
+    }
+  },
+  '127': (state: RootState) => {
+    try {
+      addProvider(state, 'poe')
+      return state
+    } catch (error) {
+      logger.error('migrate 127 error', error as Error)
       return state
     }
   }

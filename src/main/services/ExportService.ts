@@ -403,7 +403,7 @@ export class ExportService {
         logger.debug('Document exported successfully')
       }
     } catch (error) {
-      logger.error('Export to Word failed:', error)
+      logger.error('Export to Word failed:', error as Error)
       throw error
     }
   }

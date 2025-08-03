@@ -1,9 +1,10 @@
 import { SyncOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HStack } from '@renderer/components/Layout'
+import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -68,6 +69,7 @@ const DisplaySettings: FC = () => {
     assistantIconType,
     userTheme
   } = useSettings()
+  const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -217,6 +219,24 @@ const DisplaySettings: FC = () => {
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
+          {t('settings.display.navbar.title')} <TextBadge text="New" />
+        </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.navbar.position.label')}</SettingRowTitle>
+          <Segmented
+            value={navbarPosition}
+            shape="round"
+            onChange={setNavbarPosition}
+            options={[
+              { label: t('settings.display.navbar.position.left'), value: 'left' },
+              { label: t('settings.display.navbar.position.top'), value: 'top' }
+            ]}
+          />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.zoom.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -239,7 +259,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
           <Segmented
             value={topicPosition || 'right'}
             shape="round"
@@ -277,7 +297,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
           <Segmented
             value={assistantIconType}
             shape="round"
@@ -286,25 +306,27 @@ const DisplaySettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle
-          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('settings.display.sidebar.title')}</span>
-          <ResetButtonWrapper>
-            <Button onClick={handleReset}>{t('common.reset')}</Button>
-          </ResetButtonWrapper>
-        </SettingTitle>
-        <SettingDivider />
-        <SidebarIconsManager
-          visibleIcons={visibleIcons}
-          disabledIcons={disabledIcons}
-          setVisibleIcons={setVisibleIcons}
-          setDisabledIcons={setDisabledIcons}
-        />
-      </SettingGroup>
+      {navbarPosition === 'left' && (
+        <SettingGroup theme={theme}>
+          <SettingTitle
+            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{t('settings.display.sidebar.title')}</span>
+            <ResetButtonWrapper>
+              <Button onClick={handleReset}>{t('common.reset')}</Button>
+            </ResetButtonWrapper>
+          </SettingTitle>
+          <SettingDivider />
+          <SidebarIconsManager
+            visibleIcons={visibleIcons}
+            disabledIcons={disabledIcons}
+            setVisibleIcons={setVisibleIcons}
+            setDisabledIcons={setDisabledIcons}
+          />
+        </SettingGroup>
+      )}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.display.custom.css')}
+          {t('settings.display.custom.css.label')}
           <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
             {t('settings.display.custom.css.cherrycss')}
           </TitleExtra>

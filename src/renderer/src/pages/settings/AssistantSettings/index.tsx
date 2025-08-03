@@ -72,11 +72,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',
-      label: t('assistants.settings.knowledge_base')
+      label: t('assistants.settings.knowledge_base.label')
     },
     {
       key: 'mcp',
-      label: t('assistants.settings.mcp')
+      label: t('assistants.settings.mcp.label')
     },
     {
       key: 'regular_phrases',

@@ -109,7 +109,7 @@ const HomeWindow: FC = () => {
       }
     } catch (error) {
       // Silently handle clipboard read errors (common in some environments)
-      logger.warn('Failed to read clipboard:', error)
+      logger.warn('Failed to read clipboard:', error as Error)
     }
   }, [readClipboardAtStartup])
 
@@ -397,7 +397,7 @@ const HomeWindow: FC = () => {
       } catch (err) {
         if (isAbortError(err)) return
         handleError(err instanceof Error ? err : new Error('An error occurred'))
-        logger.error('Error fetching result:', err)
+        logger.error('Error fetching result:', err as Error)
       } finally {
         setIsLoading(false)
         setIsOutputted(true)

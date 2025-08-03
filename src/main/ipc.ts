@@ -55,7 +55,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, isPathInside, untildify } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
@@ -163,7 +163,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    logger.info('set test plan', isActive)
+    logger.info(`set test plan: ${isActive}`)
     if (isActive !== configManager.getTestPlan()) {
       appUpdater.cancelDownload()
       configManager.setTestPlan(isActive)
@@ -171,7 +171,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    logger.info('set test channel', channel)
+    logger.info(`set test channel: ${channel}`)
     if (channel !== configManager.getTestChannel()) {
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
@@ -286,7 +286,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
-    return hasWritePermission(filePath)
+    const hasPermission = await hasWritePermission(filePath)
+    return hasPermission
+  })
+
+  ipcMain.handle(IpcChannel.App_ResolvePath, async (_, filePath: string) => {
+    return path.resolve(untildify(filePath))
+  })
+
+  // Check if a path is inside another path (proper parent-child relationship)
+  ipcMain.handle(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
+    return isPathInside(childPath, parentPath)
   })
 
   // Set app data path
@@ -342,7 +352,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
     // Fix for .AppImage
     if (isLinux && process.env.APPIMAGE) {
-      logger.info('Relaunching app with options:', process.env.APPIMAGE, options)
+      logger.info(`Relaunching app with options: ${process.env.APPIMAGE}`, options)
       // On Linux, we need to use the APPIMAGE environment variable to relaunch
       // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
       options = options || {}
@@ -399,7 +409,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_SetLocalBackupDir, backupManager.setLocalBackupDir.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
@@ -533,6 +542,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return vertexAIService.getAuthHeaders(params)
   })
 
+  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
+    return vertexAIService.getAccessToken(params)
+  })
+
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
@@ -566,9 +579,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
-  ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
-    mainWindow.webContents.send('mcp-progress', progress)
-  })
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -580,7 +590,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       // Process DXT file using the temporary path
       return await dxtService.uploadDxt(event, tempPath)
     } catch (error) {
-      logger.error('DXT upload error:', error)
+      logger.error('DXT upload error:', error as Error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to upload DXT file'

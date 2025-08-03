@@ -118,13 +118,14 @@ export const useChatContext = (activeTopic: Topic) => {
                 window.message.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
-                logger.error('Failed to delete messages:', error)
+                logger.error('Failed to delete messages:', error as Error)
                 window.message.error(t('message.delete.failed'))
               }
             }
           })
           break
         case 'save': {
+          // 筛选消息，实际并非assistant messages，而是可能包含user messages
           const assistantMessages = messages.filter((msg) => messageIds.includes(msg.id))
           if (assistantMessages.length > 0) {
             const contentToSave = assistantMessages
@@ -144,7 +145,7 @@ export const useChatContext = (activeTopic: Topic) => {
             window.message.success({ content: t('message.save.success.title'), key: 'save-messages' })
             handleToggleMultiSelectMode(false)
           } else {
-            window.message.warning(t('message.save.no.assistant'))
+            // 这个分支不会进入 因为 messageIds.length === 0 已提前返回，需要简化掉
           }
           break
         }
@@ -167,7 +168,7 @@ export const useChatContext = (activeTopic: Topic) => {
             window.message.success({ content: t('message.copied'), key: 'copy-messages' })
             handleToggleMultiSelectMode(false)
           } else {
-            window.message.warning(t('message.copy.no.assistant'))
+            // 和上面一样
           }
           break
         }

@@ -29,7 +29,7 @@ export default class ImageStorage {
         }
       }
     } catch (error) {
-      logger.error('Error storing the image', error)
+      logger.error('Error storing the image', error as Error)
     }
   }
 
@@ -46,7 +46,7 @@ export default class ImageStorage {
         await db.settings.delete(id)
       }
     } catch (error) {
-      logger.error('Error removing the image', error)
+      logger.error('Error removing the image', error as Error)
       throw error
     }
   }

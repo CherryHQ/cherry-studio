@@ -42,7 +42,7 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
     try {
       return await specialLoader()
     } catch (error) {
-      logger.debug(`Failed to load language ${normalizedLang}`, error)
+      logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
       return null
     }
   }
@@ -53,7 +53,7 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
     const extension = loadLanguage(normalizedLang as any)
     return extension || null
   } catch (error) {
-    logger.debug(`Failed to load language ${normalizedLang}`, error)
+    logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
     return null
   }
 }
@@ -68,7 +68,7 @@ async function loadLinterExtension(language: string): Promise<Extension | null> 
   try {
     return await loader()
   } catch (error) {
-    logger.debug(`Failed to load linter for ${language}`, error)
+    logger.debug(`Failed to load linter for ${language}`, error as Error)
     return null
   }
 }
@@ -108,7 +108,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
         setExtensions(results)
       } catch (error) {
         if (!cancelled) {
-          logger.debug('Failed to load language extensions:', error)
+          logger.debug('Failed to load language extensions:', error as Error)
           setExtensions([])
         }
       }

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import {
   isEmbeddingModel,
   isGenerateImageModel,
@@ -29,6 +30,7 @@ import {
   MemoryItem,
   Model,
   Provider,
+  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -39,6 +41,12 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  buildSystemPromptWithThinkTool,
+  buildSystemPromptWithTools,
+  containsSupportedVariables,
+  replacePromptVariables
+} from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -202,7 +210,7 @@ async function fetchExternalTool(
       }
     } catch (error) {
       if (isAbortError(error)) throw error
-      logger.error('Web search failed:', error)
+      logger.error('Web search failed:', error as Error)
       return
     }
   }
@@ -221,7 +229,7 @@ async function fetchExternalTool(
         const currentUserId = selectCurrentUserId(store.getState())
         // Search for relevant memories
         const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info('Searching for relevant memories with content:', content)
+        logger.info(`Searching for relevant memories with content: ${content}`)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -240,7 +248,7 @@ async function fetchExternalTool(
         return []
       }
     } catch (error) {
-      logger.error('Error processing memory search:', error)
+      logger.error('Error processing memory search:', error as Error)
       // Continue with conversation even if memory processing fails
       return []
     }
@@ -289,7 +297,7 @@ async function fetchExternalTool(
         modelName
       )
     } catch (error) {
-      logger.error('Knowledge base search failed:', error)
+      logger.error('Knowledge base search failed:', error as Error)
       return
     }
   }
@@ -309,16 +317,18 @@ async function fetchExternalTool(
     let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
-        searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
-        searchMemory()
-      ])
+    if (shouldWebSearch) {
+      webSearchResponseFromSearch = await searchTheWeb(extractResults, parentSpanId)
     }
 
-    // 存储搜索结果
+    if (shouldKnowledgeSearch) {
+      knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
+    }
+
+    if (shouldSearchMemory) {
+      memorySearchReferences = await searchMemory()
+    }
+
     if (lastUserMessage) {
       if (webSearchResponseFromSearch) {
         window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
@@ -345,7 +355,7 @@ async function fetchExternalTool(
     }
 
     // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = [] // Initialize as empty array
+    let mcpTools: MCPTool[] = []
     const allMcpServers = store.getState().mcp.servers || []
     const activedMcpServers = allMcpServers.filter((s) => s.isActive)
     const assistantMcpServers = assistant.mcpServers || []
@@ -360,7 +370,7 @@ async function fetchExternalTool(
             const tools = await window.api.mcp.listTools(mcpServer, spanContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
-            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
             return []
           }
         })
@@ -369,15 +379,28 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
+        // 添加内置工具
+        // const { BUILT_IN_TOOLS } = await import('../tools')
+        // mcpTools.push(...BUILT_IN_TOOLS)
+
+        // 根据toolUseMode决定如何构建系统提示词
+        const basePrompt = assistant.prompt
+        if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
+          // 提示词模式：需要完整的工具定义，思考工具返回会打乱提示词的返回（先去掉）
+          assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
+        } else {
+          // 原生函数调用模式：仅需要注入思考指令
+          assistant.prompt = buildSystemPromptWithThinkTool(basePrompt)
+        }
       } catch (toolError) {
-        logger.error('Error fetching MCP tools:', toolError)
+        logger.error('Error fetching MCP tools:', toolError as Error)
       }
     }
 
     return { mcpTools }
   } catch (error) {
     if (isAbortError(error)) throw error
-    logger.error('Tool execution failed:', error)
+    logger.error('Tool execution failed:', error as Error)
 
     // 发送错误状态
     const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
@@ -407,6 +430,10 @@ export async function fetchChatCompletion({
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
+
+  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+  }
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
@@ -473,13 +500,13 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false
   }
 
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
-    await processConversationMemory(messages, assistant)
+    processConversationMemory(messages, assistant)
   }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 /**
@@ -567,16 +594,16 @@ async function processConversationMemory(messages: Message[], assistant: Assista
         }
       })
       .catch((error) => {
-        logger.error('Background memory processing failed:', error)
+        logger.error('Background memory processing failed:', error as Error)
       })
   } catch (error) {
-    logger.error('Error in post-conversation memory processing:', error)
+    logger.error('Error in post-conversation memory processing:', error as Error)
   }
 }
 
 interface FetchTranslateProps {
   content: string
-  assistant: Assistant
+  assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
@@ -625,8 +652,12 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
 
   // 总结上下文总是取最后5条消息
   const contextMessages = takeRight(messages, 5)
@@ -796,8 +827,8 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      throw new Error(i18n.t('message.error.enter.api.key'))
+      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 

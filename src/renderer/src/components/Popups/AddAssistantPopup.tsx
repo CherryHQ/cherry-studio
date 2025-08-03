@@ -141,7 +141,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   useEffect(() => {
-    open && setTimeout(() => inputRef.current?.focus(), 0)
+    if (!open) return
+
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
   }, [open])
 
   return (

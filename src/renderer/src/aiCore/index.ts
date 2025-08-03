@@ -9,9 +9,8 @@ import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
-import { OpenAIAPIClient } from './clients'
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
-import { AnthropicAPIClient } from './clients/anthropic/AnthropicAPIClient'
+import { VertexAPIClient } from './clients/gemini/VertexAPIClient'
 import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
@@ -63,6 +62,8 @@ export default class AiProvider {
     } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
       // OpenAIResponseAPIClient: 根据模型特征选择API类型
       client = this.apiClient.getClient(model) as BaseApiClient
+    } else if (this.apiClient instanceof VertexAPIClient) {
+      client = this.apiClient.getClient(model) as BaseApiClient
     } else {
       // 其他client直接使用
       client = this.apiClient
@@ -81,18 +82,18 @@ export default class AiProvider {
     } else {
       // Existing logic for other models
       logger.silly('Builder Params', params)
-      if (!params.enableReasoning) {
-        // 这里注释掉不会影响正常的关闭思考,可忽略不计的性能下降
-        // builder.remove(ThinkingTagExtractionMiddlewareName)
-        builder.remove(ThinkChunkMiddlewareName)
-        logger.silly('ThinkChunkMiddleware is removed')
-      }
-      // 注意：用client判断会导致typescript类型收窄
-      if (!(this.apiClient instanceof OpenAIAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+      // 使用兼容性类型检查，避免typescript类型收窄和装饰器模式的问题
+      const clientTypes = client.getClientCompatibilityType(model)
+      const isOpenAICompatible =
+        clientTypes.includes('OpenAIAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+      if (!isOpenAICompatible) {
         logger.silly('ThinkingTagExtractionMiddleware is removed')
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
-      if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+
+      const isAnthropicOrOpenAIResponseCompatible =
+        clientTypes.includes('AnthropicAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+      if (!isAnthropicOrOpenAIResponseCompatible) {
         logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)
       }
@@ -119,10 +120,13 @@ export default class AiProvider {
         logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
         logger.silly('FinalChunkConsumerMiddleware is removed')
+        builder.insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
+        logger.silly('ThinkingTagExtractionMiddleware is inserted')
       }
     }
 
     const middlewares = builder.build()
+    logger.silly('middlewares', middlewares)
 
     // 3. Create the wrapped SDK method with middlewares
     const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)
@@ -160,12 +164,16 @@ export default class AiProvider {
       const dimensions = await this.apiClient.getEmbeddingDimensions(model)
       return dimensions
     } catch (error) {
-      logger.error('Error getting embedding dimensions:', error)
+      logger.error('Error getting embedding dimensions:', error as Error)
       throw error
     }
   }
 
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
+    if (this.apiClient instanceof AihubmixAPIClient) {
+      const client = this.apiClient.getClientForModel({ id: params.model } as Model)
+      return client.generateImage(params)
+    }
     return this.apiClient.generateImage(params)
   }
 

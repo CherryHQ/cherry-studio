@@ -31,6 +31,12 @@ corepack prepare yarn@4.6.0 --activate
 yarn install
 ```
 
+### ENV
+
+```bash
+copy .env.example .env
+```
+
 ### Start
 
 ```bash

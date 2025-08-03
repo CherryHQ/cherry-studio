@@ -103,7 +103,7 @@ export function createImageBlock(
   overrides: Partial<Omit<ImageMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): ImageMessageBlock {
   if (overrides.file && overrides.file.type !== FileTypes.IMAGE) {
-    logger.warn('Attempted to create ImageBlock with non-image file type:', overrides.file.type)
+    logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
   const { file, url, metadata, ...baseOverrides } = overrides
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.IMAGE, baseOverrides)

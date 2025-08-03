@@ -1,21 +1,25 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import CustomTag from '@renderer/components/CustomTag'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { HStack } from '@renderer/components/Layout'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
-import EditModelsPopup from '@renderer/components/ModelList/EditModelsPopup'
-import ModelEditContent from '@renderer/components/ModelList/ModelEditContent'
+import EditModelPopup from '@renderer/components/ModelList/EditModelPopup'
+import ManageModelsPopup from '@renderer/components/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
-import { Button, Flex, Tooltip } from 'antd'
+import { filterModelsByKeywords } from '@renderer/utils'
+import { Button, Empty, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
-import React, { memo, startTransition, useCallback, useMemo, useState } from 'react'
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ModelListGroup from './ModelListGroup'
@@ -23,6 +27,21 @@ import { useHealthCheck } from './useHealthCheck'
 
 interface ModelListProps {
   providerId: string
+}
+
+type ModelGroups = Record<string, Model[]>
+const MODEL_COUNT_THRESHOLD = 10
+
+/**
+ * 根据搜索文本筛选模型、分组并排序
+ */
+const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
+  const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
+  const grouped = groupBy(filteredModels, 'group')
+  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+    acc[key] = value
+    return acc
+  }, {})
 }
 
 /**
@@ -39,8 +58,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
 
-  const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [searchText, _setSearchText] = useState('')
+  const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
+    if (models.length > MODEL_COUNT_THRESHOLD) {
+      return null
+    }
+    return calculateModelGroups(models, '')
+  })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
 
@@ -50,22 +74,22 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     })
   }, [])
 
-  const modelGroups = useMemo(() => {
-    const filteredModels = searchText
-      ? models.filter((model) => model.name.toLowerCase().includes(searchText.toLowerCase()))
-      : models
-    return groupBy(filteredModels, 'group')
-  }, [searchText, models])
+  useEffect(() => {
+    if (models.length > MODEL_COUNT_THRESHOLD) {
+      startTransition(() => {
+        setDisplayedModelGroups(calculateModelGroups(models, searchText))
+      })
+    } else {
+      setDisplayedModelGroups(calculateModelGroups(models, searchText))
+    }
+  }, [models, searchText])
 
-  const sortedModelGroups = useMemo(() => {
-    return sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-      acc[key] = value
-      return acc
-    }, {})
-  }, [modelGroups])
+  const modelCount = useMemo(() => {
+    return Object.values(displayedModelGroups ?? {}).reduce((acc, group) => acc + group.length, 0)
+  }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    EditModelsPopup.show({ provider })
+    ManageModelsPopup.show({ provider })
   }, [provider])
 
   const onAddModel = useCallback(() => {
@@ -75,10 +99,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
-
-  const onEditModel = useCallback((model: Model) => {
-    setEditingModel(model)
-  }, [])
 
   const onUpdateModel = useCallback(
     (updatedModel: Model) => {
@@ -104,58 +124,74 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
   )
 
+  const onEditModel = useCallback(
+    async (model: Model) => {
+      const updatedModel = await EditModelPopup.show({ provider, model })
+      if (updatedModel) {
+        onUpdateModel(updatedModel)
+      }
+    },
+    [provider, onUpdateModel]
+  )
+
+  const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
+
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {!isEmpty(models) && <CollapsibleSearchBar onSearch={setSearchText} />}
+            {modelCount > 0 && (
+              <CustomTag color="#8c8c8c" size={10}>
+                {modelCount}
+              </CustomTag>
+            )}
+            <CollapsibleSearchBar onSearch={setSearchText} />
           </HStack>
-          {!isEmpty(models) && (
-            <HStack>
-              <Tooltip title={t('button.manage')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={onManageModel}
-                  icon={<ListCheck size={16} />}
-                  disabled={isHealthChecking}
-                />
-              </Tooltip>
-              <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-                <Button type="text" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
-              </Tooltip>
-              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={runHealthCheck}
-                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-                />
-              </Tooltip>
-            </HStack>
-          )}
+          <HStack>
+            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+              <Button
+                type="text"
+                onClick={runHealthCheck}
+                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+              />
+            </Tooltip>
+          </HStack>
         </HStack>
       </SettingSubtitle>
-      <Flex gap={12} vertical>
-        {Object.keys(sortedModelGroups).map((group, i) => (
-          <ModelListGroup
-            key={group}
-            groupName={group}
-            models={sortedModelGroups[group]}
-            modelStatuses={modelStatuses}
-            defaultOpen={i <= 5}
-            disabled={isHealthChecking}
-            onEditModel={onEditModel}
-            onRemoveModel={removeModel}
-            onRemoveGroup={() => modelGroups[group].forEach((model) => removeModel(model))}
+      <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+        {displayedModelGroups && !isEmpty(displayedModelGroups) ? (
+          <Flex gap={12} vertical>
+            {Object.keys(displayedModelGroups).map((group, i) => (
+              <ModelListGroup
+                key={group}
+                groupName={group}
+                models={displayedModelGroups[group]}
+                modelStatuses={modelStatuses}
+                defaultOpen={i <= 5}
+                disabled={isHealthChecking}
+                onEditModel={onEditModel}
+                onRemoveModel={removeModel}
+                onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+              />
+            ))}
+          </Flex>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={t('settings.models.empty')}
+            style={{ visibility: isLoading ? 'hidden' : 'visible' }}
           />
-        ))}
+        )}
+      </Spin>
+      <Flex justify="space-between" align="center">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {docsWebsite && (
               <SettingHelpLink target="_blank" href={docsWebsite}>
-                {t(`provider.${provider.id}`) + ' '}
+                {getProviderLabel(provider.id) + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
@@ -171,16 +207,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <div style={{ height: 5 }} />
         )}
       </Flex>
-      {models.map((model) => (
-        <ModelEditContent
-          provider={provider}
-          model={model}
-          onUpdateModel={onUpdateModel}
-          open={editingModel?.id === model.id}
-          onClose={() => setEditingModel(null)}
-          key={model.id}
-        />
-      ))}
+      <Flex gap={10} style={{ marginTop: 12 }}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+          {t('button.manage')}
+        </Button>
+        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          {t('button.add')}
+        </Button>
+      </Flex>
     </>
   )
 }
