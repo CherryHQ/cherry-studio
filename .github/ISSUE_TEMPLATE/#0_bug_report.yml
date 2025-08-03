@@ -24,6 +24,8 @@ body:
           required: true
         - label: 我填写了简短且清晰明确的标题，以便开发者在翻阅 Issue 列表时能快速确定大致问题。而不是“一个建议”、“卡住了”等。
           required: true
+        - label: 我确认我正在使用最新版本的 Cherry Studio。
+          required: true
 
   - type: dropdown
     id: platform

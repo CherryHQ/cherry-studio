@@ -24,6 +24,8 @@ body:
           required: true
         - label: I've filled in short, clear headings so that developers can quickly identify a rough idea of what to expect when flipping through the list of issues. And not "a suggestion", "stuck", etc.
           required: true
+        - label: I've confirmed that I am using the latest version of Cherry Studio.
+          required: true
 
   - type: dropdown
     id: platform
