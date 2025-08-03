@@ -91,6 +91,13 @@
     max-height: 50vh;
     overflow-y: auto;
     border: 0.5px solid var(--color-border);
+
+    // Align lucide icon in dropdown menu item extra
+    .ant-dropdown-menu-item-extra {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
   }
   .ant-dropdown-arrow + .ant-dropdown-menu {
     border: none;
