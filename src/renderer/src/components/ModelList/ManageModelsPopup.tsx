@@ -23,11 +23,12 @@ import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
-import { Search } from 'lucide-react'
+import { RefreshCcw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { HStack } from '../Layout'
 import ManageModelsList from './ManageModelsList'
 import { isModelInProvider, isValidNewApiModel } from './utils'
 
@@ -143,6 +144,34 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
   const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
 
+  const onRemoveAll = useCallback(() => {
+    list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+  }, [list, onRemoveModel, provider])
+
+  const onAddAll = useCallback(() => {
+    const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+    window.modal.confirm({
+      title: t('settings.models.manage.add_listed.label'),
+      content: t('settings.models.manage.add_listed.confirm'),
+      centered: true,
+      onOk: () => {
+        if (provider.id === 'new-api') {
+          if (models.every(isValidNewApiModel)) {
+            wouldAddModel.forEach(onAddModel)
+          } else {
+            NewApiBatchAddModelPopup.show({
+              title: t('settings.models.add.batch_add_models'),
+              batchModels: wouldAddModel,
+              provider
+            })
+          }
+        } else {
+          wouldAddModel.forEach(onAddModel)
+        }
+      }
+    })
+  }, [list, models, onAddModel, provider, t])
+
   const loadModels = useCallback(async (provider: Provider) => {
     setLoadingModels(true)
     try {
@@ -206,57 +235,39 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const renderTopTools = useCallback(() => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
 
-    const onRemoveAll = () => {
-      list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
-    }
-
-    const onAddAll = () => {
-      const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
-      window.modal.confirm({
-        title: t('settings.models.manage.add_listed.label'),
-        content: t('settings.models.manage.add_listed.confirm'),
-        centered: true,
-        onOk: () => {
-          if (provider.id === 'new-api') {
-            if (models.every(isValidNewApiModel)) {
-              wouldAddModel.forEach(onAddModel)
-            } else {
-              NewApiBatchAddModelPopup.show({
-                title: t('settings.models.add.batch_add_models'),
-                batchModels: wouldAddModel,
-                provider
-              })
-            }
-          } else {
-            wouldAddModel.forEach(onAddModel)
-          }
-        }
-      })
-    }
-
     return (
-      <Tooltip
-        destroyTooltipOnHide
-        title={
-          isAllFilteredInProvider
-            ? t('settings.models.manage.remove_listed')
-            : t('settings.models.manage.add_listed.label')
-        }
-        mouseLeaveDelay={0}
-        placement="top">
-        <Button
-          type="default"
-          icon={isAllFilteredInProvider ? <MinusOutlined /> : <PlusOutlined />}
-          size="large"
-          onClick={(e) => {
-            e.stopPropagation()
-            isAllFilteredInProvider ? onRemoveAll() : onAddAll()
-          }}
-          disabled={loadingModels || list.length === 0}
-        />
-      </Tooltip>
+      <HStack gap={8}>
+        <Tooltip
+          title={
+            isAllFilteredInProvider
+              ? t('settings.models.manage.remove_listed')
+              : t('settings.models.manage.add_listed.label')
+          }
+          destroyTooltipOnHide
+          mouseLeaveDelay={0}>
+          <Button
+            type="default"
+            icon={isAllFilteredInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            size="large"
+            onClick={(e) => {
+              e.stopPropagation()
+              isAllFilteredInProvider ? onRemoveAll() : onAddAll()
+            }}
+            disabled={loadingModels || list.length === 0}
+          />
+        </Tooltip>
+        <Tooltip title={t('settings.models.manage.refetch_list')} destroyTooltipOnHide mouseLeaveDelay={0}>
+          <Button
+            type="default"
+            icon={<RefreshCcw size={16} />}
+            size="large"
+            onClick={() => loadModels(provider)}
+            disabled={loadingModels}
+          />
+        </Tooltip>
+      </HStack>
     )
-  }, [list, t, loadingModels, provider, onRemoveModel, models, onAddModel])
+  }, [list, t, loadingModels, provider, onRemoveAll, onAddAll, loadModels])
 
   return (
     <Modal
