@@ -1,11 +1,11 @@
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { builtinLangCodeList } from '@renderer/config/translate'
+import InfoTooltip from '@renderer/components/InfoTooltip'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
-import { Button, Form, Input, Modal, Popover } from 'antd'
+import { Button, Form, Input, Modal, Popover, Space } from 'antd'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 type Props = {
   isOpen: boolean
@@ -20,9 +20,14 @@ type Props = {
 const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
   const { t } = useTranslation()
   const [form] = Form.useForm()
-  // 表单无法同步显示emoji，会出现显示的emoji和表单中实际emoji不一致的情况，所以需要单独管理
+  // antd表单的getFieldValue方法在首次渲染时无法获取到值，但emoji需要获取表单值来显示，所以单独管理状态
   const defaultEmoji = '🏳️'
   const [emoji, setEmoji] = useState(defaultEmoji)
+  const { translateLanguages } = useTranslate()
+
+  const langCodeList = useMemo(() => {
+    return translateLanguages.map((item) => item.langCode)
+  }, [translateLanguages])
 
   useEffect(() => {
     if (editingCustomLanguage) {
@@ -58,7 +63,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           onEdit({ ...editingCustomLanguage, emoji, value, langCode })
           window.message.success(t('settings.translate.custom.success.update'))
         } catch (e) {
-          window.message.error(t('settings.translate.custom.error.update'))
+          window.message.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
         }
       } else {
         try {
@@ -66,7 +71,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           onAdd(added)
           window.message.success(t('settings.translate.custom.success.add'))
         } catch (e) {
-          window.message.error(t('settings.translate.custom.error.add'))
+          window.message.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
         }
       }
       onCancel()
@@ -97,41 +102,38 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           padding: '20px'
         }
       }}>
-      <Form form={form} onFinish={handleSubmit} validateTrigger="onBlur">
-        <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }}>
-          <ButtonContainer>
-            <Popover
-              content={
-                <EmojiPicker
-                  onEmojiClick={(emoji) => {
-                    form.setFieldsValue({ emoji })
-                    setEmoji(emoji)
-                  }}
-                />
-              }
-              arrow
-              trigger="click">
-              <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
-            </Popover>
-          </ButtonContainer>
+      <Form form={form} onFinish={handleSubmit} validateTrigger="onBlur" colon={false}>
+        <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }} initialValue={defaultEmoji}>
+          <Popover
+            content={
+              <EmojiPicker
+                onEmojiClick={(emoji) => {
+                  form.setFieldsValue({ emoji })
+                  setEmoji(emoji)
+                }}
+              />
+            }
+            arrow
+            trigger="click">
+            <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
+          </Popover>
         </Form.Item>
         <Form.Item
           name="value"
-          label={t('settings.translate.custom.value.label')}
+          label={Label(t('settings.translate.custom.value.label'), t('settings.translate.custom.value.help'))}
           {...formItemLayout}
+          initialValue={''}
           rules={[
             { required: true, message: t('settings.translate.custom.error.value.empty') },
             { max: 32, message: t('settings.translate.custom.error.value.too_long') }
-          ]}
-          help={t('settings.translate.custom.value.help')}>
-          <InputContainer>
-            <Input placeholder={t('settings.translate.custom.value.placeholder')} />
-          </InputContainer>
+          ]}>
+          <Input placeholder={t('settings.translate.custom.value.placeholder')} />
         </Form.Item>
         <Form.Item
           name="langCode"
-          label={t('settings.translate.custom.langCode.label')}
+          label={Label(t('settings.translate.custom.langCode.label'), t('settings.translate.custom.langCode.help'))}
           {...formItemLayout}
+          initialValue={''}
           rules={[
             { required: true, message: t('settings.translate.custom.error.langCode.empty') },
             {
@@ -140,31 +142,31 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             },
             {
               validator: async (_, value: string) => {
-                return builtinLangCodeList.includes(value.toLowerCase())
-              },
-              message: t('settings.translate.custom.error.langCode.builtin')
+                const langCode = value.toLowerCase()
+                if (langCodeList.includes(langCode)) {
+                  throw new Error(t('settings.translate.custom.error.langCode.exists'))
+                }
+              }
             }
-          ]}
-          help={t('settings.translate.custom.langCode.help')}>
-          <InputContainer>
-            <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
-          </InputContainer>
+          ]}>
+          <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
         </Form.Item>
       </Form>
     </Modal>
   )
 }
 
+const Label = (label: string, help: string) => {
+  return (
+    <Space>
+      <span>{label}</span>
+      <InfoTooltip title={help} />
+    </Space>
+  )
+}
+
 const Emoji: FC<{ emoji: string; size?: number }> = ({ emoji, size = 18 }) => {
   return <div style={{ lineHeight: 0, fontSize: size }}>{emoji}</div>
 }
-
-const InputContainer = styled.div`
-  flex: 1;
-`
-
-const ButtonContainer = styled.div`
-  padding: 4px 4px 4px 0;
-`
 
 export default CustomLanguageModal

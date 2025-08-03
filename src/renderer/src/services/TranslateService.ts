@@ -55,7 +55,7 @@ export const addCustomLanguage = async (
   const existing = await db.translate_languages.where('langCode').equals(langCode).first()
   if (existing) {
     logger.error(`Custom language ${langCode} exists.`)
-    throw new Error(`Custom language ${langCode} exists.`)
+    throw new Error(i18n.t('translate.error.langCode.exists'))
   } else {
     try {
       const item = {
@@ -124,6 +124,6 @@ export const getAllCustomLanguages = async () => {
     return languages
   } catch (e) {
     logger.error('Failed to get all custom languages.', e as Error)
-    throw new Error('Failed to get all custom languages.')
+    throw e
   }
 }
