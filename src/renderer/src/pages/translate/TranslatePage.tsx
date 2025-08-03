@@ -382,8 +382,6 @@ const TranslatePage: FC = () => {
     return estimateTextTokens(text + prompt)
   }, [prompt, text])
 
-  const operationBarWidth = 'calc((100vw - var(--navbar-height)) / 2 - 40px)'
-
   return (
     <Container id="translate-page">
       <Navbar>
@@ -396,26 +394,8 @@ const TranslatePage: FC = () => {
           onClose={() => setHistoryDrawerVisible(false)}
         />
         <OperationBar>
-          <OperationBar style={{ width: operationBarWidth }}>
+          <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
             <Flex align="center" gap={8}>
-              <LanguageSelect
-                showSearch
-                value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
-                optionFilterProp="label"
-                onChange={(value) => {
-                  if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
-                  else setSourceLanguage('auto')
-                  db.settings.put({ id: 'translate:source:language', value })
-                }}
-                extraOptionsBefore={[
-                  {
-                    value: 'auto',
-                    label: detectedLanguage
-                      ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
-                      : t('translate.detected.language')
-                  }
-                ]}
-              />
               <ModelSelector
                 providers={providers}
                 predicate={modelPredicate}
@@ -449,15 +429,33 @@ const TranslatePage: FC = () => {
                 {t('translate.button.translate')}
               </TranslateButton>
             </Tooltip>
-          </OperationBar>
-          <OperationBar>
+          </InnerOperationBar>
+          <InnerOperationBar style={{ justifyContent: 'center' }}>
+            <LanguageSelect
+              showSearch
+              value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
+              optionFilterProp="label"
+              onChange={(value) => {
+                if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
+                else setSourceLanguage('auto')
+                db.settings.put({ id: 'translate:source:language', value })
+              }}
+              extraOptionsBefore={[
+                {
+                  value: 'auto',
+                  label: detectedLanguage
+                    ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
+                    : t('translate.detected.language')
+                }
+              ]}
+            />
             <Tooltip title={t('translate.exchange.label')} placement="bottom">
               <Button icon={<SwapOutlined />} onClick={handleExchange} disabled={!couldExchange}></Button>
             </Tooltip>
-          </OperationBar>
-          <OperationBar style={{ width: operationBarWidth }}>
+            {getLanguageDisplay()}
+          </InnerOperationBar>
+          <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
             <HStack alignItems="center" gap={5}>
-              {getLanguageDisplay()}
               <Button
                 type="text"
                 icon={<Settings2 size={18} />}
@@ -478,7 +476,7 @@ const TranslatePage: FC = () => {
               disabled={!translatedContent}
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
-          </OperationBar>
+          </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
           <InputContainer>
@@ -658,13 +656,20 @@ const BidirectionalLanguageDisplay = styled.div`
   text-align: center;
 `
 
-export const OperationBar = styled.div`
+const OperationBar = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-bottom: 4px;
+`
+
+const InnerOperationBar = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   gap: 4px;
-  padding-bottom: 4px;
 `
 
 export default TranslatePage
