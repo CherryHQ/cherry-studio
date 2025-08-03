@@ -53,11 +53,13 @@ const TOPIC_CONTENT_TYPE_CONFIG = {
   [CONTENT_TYPES.FILE]: {
     label: 'chat.save.knowledge.content.file.title',
     description: 'chat.save.knowledge.content.file.description'
-  },
-  [CONTENT_TYPES.IMAGES]: {
-    label: 'chat.save.knowledge.content.images.title',
-    description: 'chat.save.knowledge.content.images.description'
   }
+} as const
+
+// Tag 颜色常量
+const TAG_COLORS = {
+  SELECTED: '#008001',
+  UNSELECTED: '#8c8c8c'
 } as const
 
 interface ContentTypeOption {
@@ -249,58 +251,67 @@ const PopupContainer: React.FC<Props> = ({ topic, title, resolve }) => {
   const renderFormContent = () => (
     <>
       <Form layout="vertical">
-        <Form.Item label={t('chat.save.knowledge.select.base.title')} required>
+        <Form.Item
+          label={t('chat.save.knowledge.select.base.title')}
+          help={!formState.hasValidBase && selectedBaseId ? t('chat.save.knowledge.error.invalid_base') : undefined}
+          validateStatus={!formState.hasValidBase && selectedBaseId ? 'error' : undefined}>
           <Select
             value={selectedBaseId}
             onChange={setSelectedBaseId}
             options={knowledgeBaseOptions}
             placeholder={t('chat.save.knowledge.select.base.placeholder')}
+            showSearch
           />
         </Form.Item>
 
-        <Form.Item
-          label={
-            <Flex align="center" gap={8}>
-              {t('chat.save.topic.knowledge.select.content.label')}
-              <Tooltip title={t('chat.save.topic.knowledge.select.content.tip')}>
-                <CircleHelp size={14} style={{ color: 'var(--color-text-secondary)' }} />
-              </Tooltip>
-            </Flex>
-          }
-          required>
-          <Flex wrap gap={8}>
+        <Form.Item label={t('chat.save.topic.knowledge.select.content.label')}>
+          <Flex gap={8} style={{ flexDirection: 'column' }}>
             {contentTypeOptions.map((option) => (
-              <div key={option.type} onClick={() => handleContentTypeToggle(option.type)} style={{ cursor: 'pointer' }}>
-                <CustomTag
-                  color={selectedTypes.includes(option.type) ? 'var(--color-primary)' : 'var(--color-text-secondary)'}
-                  tooltip={option.description}
-                  icon={selectedTypes.includes(option.type) ? <Check size={12} /> : undefined}>
-                  {option.label} ({option.count})
-                </CustomTag>
-              </div>
+              <ContentTypeItem
+                key={option.type}
+                align="center"
+                justify="space-between"
+                onClick={() => handleContentTypeToggle(option.type)}>
+                <Flex align="center" gap={8}>
+                  <CustomTag
+                    color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
+                    size={12}>
+                    {option.count}
+                  </CustomTag>
+                  <span>{option.label}</span>
+                  <Tooltip title={option.description} mouseLeaveDelay={0}>
+                    <CircleHelp size={16} style={{ cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
+              </ContentTypeItem>
             ))}
           </Flex>
         </Form.Item>
       </Form>
 
-      {formState.selectedCount > 0 && (
-        <InfoContainer>
+      <InfoContainer>
+        {formState.selectedCount > 0 && (
           <Text type="secondary" style={{ fontSize: '12px' }}>
             {t('chat.save.topic.knowledge.select.content.selected_tip', {
               count: formState.selectedCount,
               messages: contentStats?.messages || 0
             })}
           </Text>
-        </InfoContainer>
-      )}
+        )}
 
-      {formState.hasNoSelection && (
-        <InfoContainer>
+        {formState.hasNoSelection && (
           <Text type="warning" style={{ fontSize: '12px' }}>
             {t('chat.save.knowledge.error.no_content_selected')}
           </Text>
-        </InfoContainer>
-      )}
+        )}
+
+        {!formState.hasNoSelection && formState.selectedCount === 0 && (
+          <Text type="secondary" style={{ fontSize: '12px', opacity: 0 }}>
+            &nbsp;
+          </Text>
+        )}
+      </InfoContainer>
     </>
   )
 
@@ -348,9 +359,22 @@ const EmptyContainer = styled.div`
   text-align: center;
 `
 
-const InfoContainer = styled.div`
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: var(--color-background-soft);
+const ContentTypeItem = styled(Flex)`
+  padding: 12px;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  position: relative;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+`
+
+const InfoContainer = styled.div`
+  background: var(--color-background-soft);
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 16px;
 `

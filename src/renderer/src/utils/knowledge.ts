@@ -349,14 +349,15 @@ export async function processTopicContent(topic: Topic, selectedTypes: ContentTy
     textParts.push(`# ${topic.name}`)
   }
 
+  const { default: i18n } = await import('@renderer/i18n')
+
   // 处理每个消息
   for (const message of messages) {
     const messageResult = processMessageContent(message, selectedTypes)
 
     // 合并文本内容
     if (messageResult.text.trim()) {
-      // 为消息添加分隔符和角色标识
-      const rolePrefix = message.role === 'user' ? '**用户：**' : '**助手：**'
+      const rolePrefix = message.role === 'user' ? `## ${i18n.t('common.you')}：` : `## ${i18n.t('common.assistant')}：`
       textParts.push(`${rolePrefix}\n\n${messageResult.text}`)
     }
 
