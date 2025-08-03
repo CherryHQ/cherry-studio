@@ -5,7 +5,7 @@ import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { INITIAL_PROVIDERS } from '@renderer/store/llm'
+import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
 import { Provider, ProviderType } from '@renderer/types'
 import {
   generateColorFromChar,
@@ -401,7 +401,7 @@ const ProvidersList: FC = () => {
     }
 
     if (isSystemProvider(provider)) {
-      if (INITIAL_PROVIDERS.find((p) => p.id === provider.id)) {
+      if (SYSTEM_PROVIDERS.find((p) => p.id === provider.id)) {
         return [noteMenu]
       }
       return [noteMenu, deleteMenu]

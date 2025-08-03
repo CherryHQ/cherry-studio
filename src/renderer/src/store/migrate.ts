@@ -20,7 +20,7 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
-import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from './llm'
+import { initialState as llmInitialState, moveProvider, SYSTEM_PROVIDERS } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -59,7 +59,7 @@ function addMiniApp(state: RootState, id: string) {
 // add provider to state
 function addProvider(state: RootState, id: string) {
   if (!state.llm.providers.find((p) => p.id === id)) {
-    const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
+    const _provider = SYSTEM_PROVIDERS.find((p) => p.id === id)
     if (_provider) {
       state.llm.providers.push(_provider)
     }

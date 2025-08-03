@@ -52,7 +52,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { INITIAL_PROVIDERS } from '@renderer/store/llm'
+import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
 import { Provider, SystemProvider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
@@ -744,5 +744,5 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
  * @returns 是否为系统内置提供商
  */
 export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
-  return INITIAL_PROVIDERS.some((p) => p.id === provider.id)
+  return SYSTEM_PROVIDERS.some((p) => p.id === provider.id)
 }
