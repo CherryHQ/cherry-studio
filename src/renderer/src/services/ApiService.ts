@@ -650,7 +650,7 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 
   const AI = new AiProvider(provider)
 
-  const result = await AI.completions(params)
+  const result = await AI.completionsForTrace(params)
   logger.debug('fetchTranslate', result)
   if (error) {
     throw error
