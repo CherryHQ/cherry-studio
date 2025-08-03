@@ -722,17 +722,17 @@ export const PROVIDER_CONFIG = {
 const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
 
 export const isSupportArrayContentProvider = (provider: Provider) => {
-  return !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
+  return provider.isNotSupportArrayContent !== true || !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
 }
 
 const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
 
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
-  return !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
+  return provider.isNotSupportDeveloperRole !== true || !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
 }
 
 const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
 
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
-  return !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+  return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
 }
