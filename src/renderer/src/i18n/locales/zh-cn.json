@@ -3085,6 +3085,7 @@
           }
         },
         "options": {
+          "array_content": "支持数组格式的 message content",
           "developer_role": "支持 Developer Message",
           "label": "API 设置",
           "stream_options": "支持 stream_options"

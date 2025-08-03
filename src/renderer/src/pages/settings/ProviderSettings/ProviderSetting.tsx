@@ -50,7 +50,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { updateProviders } = useProviders()
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(provider?.isNotSupportArrayContent || false)
   const { t } = useTranslation()
   const { theme } = useTheme()
 
@@ -386,12 +385,6 @@ const ErrorOverlay = styled.div`
   max-width: 300px;
   word-wrap: break-word;
   user-select: text;
-`
-
-const CheckboxLabelContainer = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 4px 0;
 `
 
 export default ProviderSetting

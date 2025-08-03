@@ -4,6 +4,11 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/conf
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import {
+  isSupportArrayContentProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportStreamOptionsProvider
+} from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
@@ -1962,6 +1967,26 @@ const migrateConfig = {
   '127': (state: RootState) => {
     try {
       addProvider(state, 'poe')
+
+      state.llm.providers.forEach((provider) => {
+        // 新字段默认支持
+        const changes = {
+          isNotSupportArrayContent: false,
+          isNotSupportDeveloperRole: false,
+          isNotSupportStreamOptions: false
+        }
+        if (!isSupportArrayContentProvider(provider) || provider.isNotSupportArrayContent) {
+          // 原本开启了兼容模式的provider不受影响
+          changes.isNotSupportArrayContent = true
+        }
+        if (!isSupportDeveloperRoleProvider(provider)) {
+          changes.isNotSupportDeveloperRole = true
+        }
+        if (!isSupportStreamOptionsProvider(provider)) {
+          changes.isNotSupportStreamOptions = true
+        }
+        updateProvider(state, provider.id, changes)
+      })
       return state
     } catch (error) {
       logger.error('migrate 127 error', error as Error)

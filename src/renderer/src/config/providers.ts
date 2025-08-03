@@ -719,6 +719,12 @@ export const PROVIDER_CONFIG = {
   }
 }
 
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
+export const isSupportArrayContentProvider = (provider: Provider) => {
+  return !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
+}
+
 const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
 
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {

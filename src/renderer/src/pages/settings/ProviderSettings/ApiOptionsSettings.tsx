@@ -25,17 +25,25 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         key: 'openai_developer_role',
         label: t('settings.provider.api.options.developer_role'),
         onChange: (checked: boolean) => {
-          updateProvider({ ...provider, isSupportDeveloperRole: checked })
+          updateProvider({ ...provider, isNotSupportDeveloperRole: !checked })
         },
-        checked: provider.isSupportDeveloperRole ?? false
+        checked: !provider.isNotSupportDeveloperRole
       },
       {
         key: 'openai_stream_options',
         label: t('settings.provider.api.options.stream_options'),
         onChange: (checked: boolean) => {
-          updateProvider({ ...provider, isSupportStreamOptions: checked })
+          updateProvider({ ...provider, isNotSupportStreamOptions: !checked })
         },
-        checked: provider.isSupportStreamOptions ?? false
+        checked: !provider.isNotSupportStreamOptions
+      },
+      {
+        key: 'openai_array_content',
+        label: t('settings.provider.api.options.array_content'),
+        onChange: (checked: boolean) => {
+          updateProvider({ ...provider, isNotSupportArrayContent: !checked })
+        },
+        checked: !provider.isNotSupportArrayContent
       }
     ],
     [t, provider, updateProvider]
@@ -48,6 +56,20 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     }
     return items
   }, [openAIOptions, provider.type])
+
+  // <Checkbox
+  //       checked={isNotSupportArrayContent}
+  //       onChange={(e) => {
+  //         setIsNotSupportArrayContent(e.target.checked)
+  //         updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
+  //       }}>
+  //       <CheckboxLabelContainer>
+  //         {t('settings.provider.is_not_support_array_content.label')}
+  //         <Tooltip title={t('settings.provider.is_not_support_array_content.tip')}>
+  //           <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+  //         </Tooltip>
+  //       </CheckboxLabelContainer>
+  //     </Checkbox>
 
   return (
     <>
