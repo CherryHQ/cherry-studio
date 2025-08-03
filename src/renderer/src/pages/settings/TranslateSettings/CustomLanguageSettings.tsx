@@ -24,13 +24,13 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
     async (id: string) => {
       try {
         await deleteCustomLanguage(id)
-        setDisplayedItems(displayedItems.filter((item) => item.id !== id))
+        setDisplayedItems((prev) => prev.filter((item) => item.id !== id))
         window.message.success(t('settings.translate.custom.success.delete'))
       } catch (e) {
         window.message.error(t('settings.translate.custom.error.delete'))
       }
     },
-    [displayedItems, t]
+    [t]
   )
 
   const onClickAdd = () => {
@@ -55,13 +55,13 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
 
   const onItemAdd = (target: CustomTranslateLanguage) => {
     startTransition(async () => {
-      setDisplayedItems([...displayedItems, target])
+      setDisplayedItems((prev) => [...prev, target])
     })
   }
 
   const onItemEdit = (target: CustomTranslateLanguage) => {
     startTransition(async () => {
-      setDisplayedItems(displayedItems.map((item) => (item.id === target.id ? target : item)))
+      setDisplayedItems((prev) => prev.map((item) => (item.id === target.id ? target : item)))
     })
   }
 
