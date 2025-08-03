@@ -51,7 +51,9 @@ const LanguageSelect = (props: Props) => {
     return [...before, ...options, ...after]
   }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, languageRenderer, translateLanguages])
 
-  return <Select {...props} labelRender={labelRender} options={displayedOptions} />
+  return (
+    <Select {...props} labelRender={labelRender} options={displayedOptions} style={{ minWidth: 150, ...props.style }} />
+  )
 }
 
 export default LanguageSelect

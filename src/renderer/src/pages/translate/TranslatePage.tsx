@@ -29,7 +29,6 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { OperationBar } from '.'
 import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
@@ -258,7 +257,6 @@ const TranslatePage: FC = () => {
 
     return (
       <LanguageSelect
-        style={{ width: 160 }}
         value={targetLanguage.langCode}
         onChange={(value) => {
           setTargetLanguage(getLanguageByLangcode(value))
@@ -308,7 +306,6 @@ const TranslatePage: FC = () => {
               <LanguageSelect
                 showSearch
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
-                style={{ width: 180 }}
                 optionFilterProp="label"
                 onChange={(value) => {
                   if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
@@ -327,7 +324,7 @@ const TranslatePage: FC = () => {
               <ModelSelector
                 providers={providers}
                 predicate={modelPredicate}
-                style={{ width: '100%' }}
+                style={{ maxWidth: 200 }}
                 value={defaultTranslateModel}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
@@ -545,6 +542,15 @@ const BidirectionalLanguageDisplay = styled.div`
   font-size: 14px;
   width: 100%;
   text-align: center;
+`
+
+export const OperationBar = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 0px 10px 0px;
 `
 
 export default TranslatePage
