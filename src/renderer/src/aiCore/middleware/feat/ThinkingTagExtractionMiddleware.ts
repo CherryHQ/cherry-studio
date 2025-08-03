@@ -70,7 +70,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         let hasThinkingContent = false
         let thinkingStartTime = 0
 
-        let accumulatingText = true
+        let accumulatingText = false
         let accumulatedThinkingContent = ''
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
