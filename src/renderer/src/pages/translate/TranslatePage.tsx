@@ -470,12 +470,13 @@ const TranslatePage: FC = () => {
                 icon={<HistoryOutlined />}
                 onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
               />
+              <Button
+                type="text"
+                onClick={onCopy}
+                disabled={!translatedContent}
+                icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
+              />
             </HStack>
-            <CopyButton
-              onClick={onCopy}
-              disabled={!translatedContent}
-              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
-            />
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
@@ -643,8 +644,6 @@ const OutputText = styled.div`
 `
 
 const TranslateButton = styled(Button)``
-
-const CopyButton = styled(Button)``
 
 const BidirectionalLanguageDisplay = styled.div`
   padding: 4px 11px;
