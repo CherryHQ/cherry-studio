@@ -12,15 +12,13 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { saveTranslateHistory } from '@renderer/services/TranslateService'
+import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
-import type { Model, TranslateAssistant, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
@@ -82,11 +80,13 @@ const TranslatePage: FC = () => {
   _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
+  // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
   }
 
+  // 控制翻译状态
   const setTranslatedContent = useCallback(
     (content: string) => {
       dispatch(setTranslatedContentAction(content))
@@ -94,7 +94,6 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  // 控制翻译按钮
   const setTranslating = (translating: boolean) => {
     dispatch(setTranslatingAction(translating))
   }
@@ -117,27 +116,11 @@ const TranslatePage: FC = () => {
 
       setTranslating(true)
 
-      let assistant: TranslateAssistant
       try {
-        assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-      } catch (e) {
-        if (e instanceof Error) {
-          window.message.error(e.message)
-          return
-        } else {
-          throw e
-        }
-      }
-
-      try {
-        await fetchTranslate({
-          content: text,
-          assistant,
-          onResponse: throttle(setTranslatedContent, 100)
-        })
+        await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
         logger.error('Failed to translate text', e as Error)
-        window.message.error(t('translate.error.failed'))
+        window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
         setTranslating(false)
         return
       }
@@ -154,13 +137,12 @@ const TranslatePage: FC = () => {
         )
       } catch (e) {
         logger.error('Failed to save translate history', e as Error)
-        window.message.error(t('translate.history.error.save'))
+        window.message.error(t('translate.history.error.save') + ': ' + (e as Error).message)
       }
-
-      setTranslating(false)
     } catch (e) {
       logger.error('Failed to translate', e as Error)
-      window.message.error(t('translate.error.unknown'))
+      window.message.error(t('translate.error.unknown') + ': ' + (e as Error).message)
+    } finally {
       setTranslating(false)
     }
   }

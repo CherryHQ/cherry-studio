@@ -16,14 +16,6 @@ export const translateText = async (
 ) => {
   const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-  if (!assistant.model) {
-    window.message.error({
-      content: i18n.t('translate.error.not_configured'),
-      key: 'translate-message'
-    })
-    return Promise.reject(new Error(i18n.t('translate.error.not_configured')))
-  }
-
   const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
 
   const trimmedText = translatedText.trim()

@@ -3510,6 +3510,7 @@
     },
     "empty": "翻译内容为空",
     "error": {
+      "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
