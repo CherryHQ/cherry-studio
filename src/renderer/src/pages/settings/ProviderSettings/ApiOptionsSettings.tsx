@@ -72,7 +72,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     return items
   }, [openAIOptions, provider.type])
 
-  if (options.length === 0) {
+  if (options.length === 0 || provider.isSystem) {
     return null
   }
 
