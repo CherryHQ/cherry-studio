@@ -72,6 +72,10 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     return items
   }, [openAIOptions, provider.type])
 
+  if (options.length === 0) {
+    return null
+  }
+
   return (
     <>
       <Collapse
