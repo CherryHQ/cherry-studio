@@ -1,4 +1,3 @@
-import { PlusOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
@@ -8,7 +7,7 @@ import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
 import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
-import { Trash } from 'lucide-react'
+import { Plus, Trash } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -161,7 +160,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
             key="add"
             type="primary"
             onClick={handleAddNew}
-            icon={<PlusOutlined />}
+            icon={<Plus size={16} />}
             autoFocus={shouldAutoFocus()}
             disabled={isChecking || !!pendingNewKey}>
             {t('common.add')}

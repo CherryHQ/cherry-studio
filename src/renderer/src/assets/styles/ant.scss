@@ -12,6 +12,13 @@
   outline: none;
 }
 
+// Align lucide icon in Button
+.ant-btn .ant-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ant-tabs-tabpane:focus-visible {
   outline: none;
 }
