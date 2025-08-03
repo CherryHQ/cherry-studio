@@ -395,8 +395,8 @@ const TranslatePage: FC = () => {
           isOpen={historyDrawerVisible}
           onClose={() => setHistoryDrawerVisible(false)}
         />
-        <OperationBar style={{ gap: 4 }}>
-          <OperationBar style={{ width: operationBarWidth, justifyContent: 'space-between', gap: 4 }}>
+        <OperationBar>
+          <OperationBar style={{ width: operationBarWidth }}>
             <Flex align="center" gap={8}>
               <LanguageSelect
                 showSearch
@@ -663,7 +663,7 @@ export const OperationBar = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 4px;
   padding-bottom: 4px;
 `
 
