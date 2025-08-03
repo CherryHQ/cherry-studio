@@ -382,6 +382,8 @@ const TranslatePage: FC = () => {
     return estimateTextTokens(text + prompt)
   }, [prompt, text])
 
+  const operationBarWidth = 'calc((100vw - var(--navbar-height)) / 2 - 40px)'
+
   return (
     <Container id="translate-page">
       <Navbar>
@@ -393,8 +395,8 @@ const TranslatePage: FC = () => {
           isOpen={historyDrawerVisible}
           onClose={() => setHistoryDrawerVisible(false)}
         />
-        <InputContainer>
-          <OperationBar>
+        <OperationBar style={{ gap: 4 }}>
+          <OperationBar style={{ width: operationBarWidth, justifyContent: 'space-between', gap: 4 }}>
             <Flex align="center" gap={8}>
               <LanguageSelect
                 showSearch
@@ -417,7 +419,6 @@ const TranslatePage: FC = () => {
               <ModelSelector
                 providers={providers}
                 predicate={modelPredicate}
-                style={{ maxWidth: 200 }}
                 value={defaultTranslateModel}
                 placeholder={t('settings.models.empty')}
                 onChange={(value) => {
@@ -426,20 +427,6 @@ const TranslatePage: FC = () => {
                     handleModelChange(selectedModel)
                   }
                 }}
-              />
-              <Button
-                type="text"
-                icon={<Settings2 size={18} />}
-                onClick={() => setSettingsVisible(true)}
-                style={{ color: 'var(--color-text-2)', display: 'flex' }}
-              />
-              <Button
-                className="nodrag"
-                color="default"
-                variant={historyDrawerVisible ? 'filled' : 'text'}
-                type="text"
-                icon={<HistoryOutlined />}
-                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
               />
             </Flex>
 
@@ -463,42 +450,28 @@ const TranslatePage: FC = () => {
               </TranslateButton>
             </Tooltip>
           </OperationBar>
-
-          <InputAreaContainer>
-            <Textarea
-              ref={textAreaRef}
-              variant="borderless"
-              placeholder={t('translate.input.placeholder')}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={onKeyDown}
-              onScroll={handleInputScroll}
-              disabled={translating}
-              spellCheck={false}
-              allowClear
-            />
-            <Footer>
-              <Popover content={t('chat.input.estimated_tokens.tip')}>
-                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
-                  {tokenCount}
-                </Typography.Text>
-              </Popover>
-            </Footer>
-          </InputAreaContainer>
-        </InputContainer>
-
-        <ExchangeContainer>
           <OperationBar>
             <Tooltip title={t('translate.exchange.label')} placement="bottom">
               <Button icon={<SwapOutlined />} onClick={handleExchange} disabled={!couldExchange}></Button>
             </Tooltip>
           </OperationBar>
-        </ExchangeContainer>
-
-        <OutputContainer>
-          <OperationBar>
+          <OperationBar style={{ width: operationBarWidth }}>
             <HStack alignItems="center" gap={5}>
               {getLanguageDisplay()}
+              <Button
+                type="text"
+                icon={<Settings2 size={18} />}
+                onClick={() => setSettingsVisible(true)}
+                style={{ color: 'var(--color-text-2)', display: 'flex' }}
+              />
+              <Button
+                className="nodrag"
+                color="default"
+                variant={historyDrawerVisible ? 'filled' : 'text'}
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
+              />
             </HStack>
             <CopyButton
               onClick={onCopy}
@@ -506,20 +479,48 @@ const TranslatePage: FC = () => {
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
           </OperationBar>
-          <OutputAreaContainer>
-            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-              {!translatedContent ? (
-                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
-                  {t('translate.output.placeholder')}
-                </div>
-              ) : enableMarkdown ? (
-                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-              ) : (
-                <div className="plain">{translatedContent}</div>
-              )}
-            </OutputText>
-          </OutputAreaContainer>
-        </OutputContainer>
+        </OperationBar>
+        <AreaContainer>
+          <InputContainer>
+            <InputAreaContainer>
+              <Textarea
+                ref={textAreaRef}
+                variant="borderless"
+                placeholder={t('translate.input.placeholder')}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onKeyDown}
+                onScroll={handleInputScroll}
+                disabled={translating}
+                spellCheck={false}
+                allowClear
+              />
+              <Footer>
+                <Popover content={t('chat.input.estimated_tokens.tip')}>
+                  <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
+                    {tokenCount}
+                  </Typography.Text>
+                </Popover>
+              </Footer>
+            </InputAreaContainer>
+          </InputContainer>
+
+          <OutputContainer>
+            <OutputAreaContainer>
+              <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
+                {!translatedContent ? (
+                  <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
+                    {t('translate.output.placeholder')}
+                  </div>
+                ) : enableMarkdown ? (
+                  <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+                ) : (
+                  <div className="plain">{translatedContent}</div>
+                )}
+              </OutputText>
+            </OutputAreaContainer>
+          </OutputContainer>
+        </AreaContainer>
       </ContentContainer>
 
       <TranslateSettings
@@ -545,11 +546,18 @@ const Container = styled.div`
 
 const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   height: calc(100vh - var(--navbar-height));
+  width: 100%;
   display: flex;
-  gap: 15px;
+  flex-direction: column;
   flex: 1;
   padding: 20px 15px;
   position: relative;
+`
+
+const AreaContainer = styled.div`
+  display: flex;
+  flex: 1;
+  gap: 8px;
 `
 
 const InputContainer = styled.div`
@@ -592,8 +600,6 @@ const Footer = styled.div`
   justify-content: flex-end;
   gap: 10px;
 `
-
-const ExchangeContainer = styled.div``
 
 const OutputContainer = styled.div`
   min-height: 0;
@@ -658,7 +664,7 @@ export const OperationBar = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 10px 0px 10px 0px;
+  padding-bottom: 4px;
 `
 
 export default TranslatePage
