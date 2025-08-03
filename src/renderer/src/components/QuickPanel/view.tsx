@@ -495,15 +495,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
 
-  // 组件卸载时清理定时器
-  useEffect(() => {
-    return () => {
-      if (noMatchTimeoutRef.current) {
-        clearTimeout(noMatchTimeoutRef.current)
-        noMatchTimeoutRef.current = null
-      }
-    }
-  }, [])
 
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
