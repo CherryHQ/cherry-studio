@@ -16,9 +16,9 @@ import {
   AlignJustify,
   ArrowDownAZ,
   ArrowUpAZ,
+  BrushCleaning,
   Check,
   Copy,
-  Eraser,
   Pen,
   Plus,
   Save,
@@ -280,7 +280,7 @@ function getMenuItems({
     {
       label: t('assistants.clear.title'),
       key: 'clear',
-      icon: <Eraser size={14} />,
+      icon: <BrushCleaning size={14} />,
       onClick: () => {
         window.modal.confirm({
           title: t('assistants.clear.title'),
