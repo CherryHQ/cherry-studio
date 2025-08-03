@@ -103,6 +103,10 @@
   background-color: var(--ant-color-bg-elevated);
   overflow: hidden;
   border-radius: var(--ant-border-radius-lg);
+
+  .ant-dropdown-menu-submenu-title {
+    align-items: center;
+  }
 }
 
 .ant-popover {
