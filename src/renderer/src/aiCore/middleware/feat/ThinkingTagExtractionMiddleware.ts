@@ -153,7 +153,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
                 controller.enqueue(chunk)
               } else {
-                logger.silly('since chunk.type is TEXT_START, pass through')
+                logger.silly('since chunk.type is TEXT_START, passed')
               }
             },
             flush(controller) {
