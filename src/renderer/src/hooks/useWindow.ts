@@ -23,7 +23,7 @@ export const useWindowSize = () => {
 
   const callback = useCallback(
     (_, [width, height]) => {
-      logger.debug('Windows_Resize', { width, height })
+      logger.silly('Windows_Resize', { width, height })
       setWidth(width)
       setHeight(height)
       debouncedGetSize()
