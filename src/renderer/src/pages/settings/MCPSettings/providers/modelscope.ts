@@ -1,12 +1,13 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('ModelScopeSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'modelscope_token'
+export const MODELSCOPE_HOST = 'https://www.modelscope.cn'
 
 export const saveModelScopeToken = (token: string): void => {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
@@ -38,6 +39,7 @@ interface ModelScopeSyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
+  updatedServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -49,7 +51,7 @@ export const syncModelScopeServers = async (
   const t = i18next.t
 
   try {
-    const response = await fetch('https://www.modelscope.cn/api/v1/mcp/services/operational', {
+    const response = await fetch(`${MODELSCOPE_HOST}/api/v1/mcp/services/operational`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -63,7 +65,8 @@ export const syncModelScopeServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
@@ -73,6 +76,7 @@ export const syncModelScopeServers = async (
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -85,19 +89,21 @@ export const syncModelScopeServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
     // Transform ModelScope servers to MCP servers format
     const addedServers: MCPServer[] = []
+    const updatedServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
-        // Skip if server already exists
-        if (existingServers.some((s) => s.id === `@modelscope/${server.id}`)) continue
+        // Check if server already exists
+        const existingServer = existingServers.find((s) => s.id === `@modelscope/${server.id}`)
 
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
@@ -110,21 +116,29 @@ export const syncModelScopeServers = async (
           env: {},
           isActive: true,
           provider: 'ModelScope',
-          providerUrl: `https://www.modelscope.cn/mcp/servers/@${server.id}`,
+          providerUrl: `${MODELSCOPE_HOST}/mcp/servers/@${server.id}`,
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }
 
-        addedServers.push(mcpServer)
+        if (existingServer) {
+          // Update existing server with latest info
+          updatedServers.push(mcpServer)
+        } else {
+          // Add new server
+          addedServers.push(mcpServer)
+        }
       } catch (err) {
         logger.error('Error processing ModelScope server:', err as Error)
       }
     }
 
+    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: addedServers.length }),
-      addedServers
+      message: t('settings.mcp.sync.success', { count: totalServers }),
+      addedServers,
+      updatedServers
     }
   } catch (error) {
     logger.error('ModelScope sync error:', error as Error)
@@ -132,6 +146,7 @@ export const syncModelScopeServers = async (
       success: false,
       message: t('settings.mcp.sync.error'),
       addedServers: [],
+      updatedServers: [],
       errorDetails: String(error)
     }
   }

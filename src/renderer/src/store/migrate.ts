@@ -1958,6 +1958,15 @@ const migrateConfig = {
       logger.error('migrate 126 error', error as Error)
       return state
     }
+  },
+  '127': (state: RootState) => {
+    try {
+      addProvider(state, 'poe')
+      return state
+    } catch (error) {
+      logger.error('migrate 127 error', error as Error)
+      return state
+    }
   }
 }
 

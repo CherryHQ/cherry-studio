@@ -1,17 +1,16 @@
 import { PushpinOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import { Model, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
+import { Avatar, Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
-import { Search } from 'lucide-react'
-import {
+import React, {
   startTransition,
   useCallback,
   useDeferredValue,
@@ -21,15 +20,13 @@ import {
   useRef,
   useState
 } from 'react'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { FixedSizeList } from 'react-window'
 import styled from 'styled-components'
 
-import { useScrollState } from './hook'
+import SelectModelSearchBar from './searchbar'
 import { FlatListItem } from './types'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 11
 const ITEM_HEIGHT = 36
 
 interface PopupParams {
@@ -47,8 +44,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
   const [open, setOpen] = useState(true)
-  const inputRef = useRef<InputRef>(null)
-  const listRef = useRef<FixedSizeList>(null)
+  const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
 
@@ -56,49 +52,19 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const currentModelId = model ? getModelUniqId(model) : ''
 
   // 管理滚动和焦点状态
-  const {
-    focusedItemKey,
-    scrollTrigger,
-    lastScrollOffset,
-    stickyGroup,
-    isMouseOver,
-    setFocusedItemKey: _setFocusedItemKey,
-    setScrollTrigger,
-    setLastScrollOffset: _setLastScrollOffset,
-    setStickyGroup: _setStickyGroup,
-    setIsMouseOver,
-    focusNextItem,
-    focusPage,
-    searchChanged,
-    focusOnListChange
-  } = useScrollState()
+  const [focusedItemKey, _setFocusedItemKey] = useState('')
+  const [isMouseOver, setIsMouseOver] = useState(false)
+  const preventScrollToIndex = useRef(false)
 
-  const firstGroupRef = useRef<FlatListItem | null>(null)
-
-  const setFocusedItemKey = useCallback(
-    (key: string) => {
-      startTransition(() => _setFocusedItemKey(key))
-    },
-    [_setFocusedItemKey]
-  )
-
-  const setLastScrollOffset = useCallback(
-    (offset: number) => {
-      startTransition(() => _setLastScrollOffset(offset))
-    },
-    [_setLastScrollOffset]
-  )
-
-  const setStickyGroup = useCallback(
-    (group: FlatListItem | null) => {
-      startTransition(() => _setStickyGroup(group))
-    },
-    [_setStickyGroup]
-  )
+  const setFocusedItemKey = useCallback((key: string) => {
+    startTransition(() => {
+      _setFocusedItemKey(key)
+    })
+  }, [])
 
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
-    (provider) => {
+    (provider: Provider) => {
       let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
@@ -112,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: any, isPinned: boolean): FlatListItem => {
+    (model: Model, provider: Provider, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
 
@@ -143,16 +109,18 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     [currentModelId]
   )
 
-  // 构建扁平化列表数据
-  const listItems = useMemo(() => {
+  // 构建扁平化列表数据，并派生出可选择的模型项
+  const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
+    const pinnedModelIds = new Set(pinnedModels)
+    const finalModelFilter = modelFilter || (() => true)
 
     // 添加置顶模型分组（仅在无搜索文本时）
-    if (searchText.length === 0 && pinnedModels.length > 0) {
+    if (searchText.length === 0 && pinnedModelIds.size > 0) {
       const pinnedItems = providers.flatMap((p) =>
         p.models
-          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-          .filter(modelFilter ? modelFilter : () => true)
+          .filter((m) => pinnedModelIds.has(getModelUniqId(m)))
+          .filter(finalModelFilter)
           .map((m) => createModelItem(m, p, true))
       )
 
@@ -172,8 +140,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     // 添加常规模型分组
     providers.forEach((p) => {
       const filteredModels = getFilteredModels(p)
-        .filter((m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m)))
-        .filter(modelFilter ? modelFilter : () => true)
+        .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
+        .filter(finalModelFilter)
 
       if (filteredModels.length === 0) return
 
@@ -185,92 +153,52 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: false
       })
 
-      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
+      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModelIds.has(getModelUniqId(m)))))
     })
 
-    // 移除第一个分组标题，使用 sticky group banner 替代，模拟 sticky 效果
-    if (items.length > 0 && items[0].type === 'group') {
-      firstGroupRef.current = items[0]
-      items.shift()
-    } else {
-      firstGroupRef.current = null
-    }
-    return items
+    // 获取可选择的模型项（过滤掉分组标题）
+    const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
+    return { listItems: items, modelItems }
   }, [searchText.length, pinnedModels, providers, modelFilter, createModelItem, t, getFilteredModels])
 
-  // 获取可选择的模型项（过滤掉分组标题）
-  const modelItems = useMemo(() => {
-    return listItems.filter((item) => item.type === 'model')
-  }, [listItems])
+  const listHeight = useMemo(() => {
+    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
+  }, [listItems.length])
 
-  // 当搜索文本变化时更新滚动触发器
-  useEffect(() => {
-    searchChanged(searchText)
-  }, [searchText, searchChanged])
-
-  // 基于滚动位置更新sticky分组标题
-  const updateStickyGroup = useCallback(
-    (scrollOffset?: number) => {
-      if (listItems.length === 0) {
-        stickyGroup && setStickyGroup(null)
-        return
-      }
-
-      let newStickyGroup: FlatListItem | null = null
-
-      // 基于滚动位置计算当前可见的第一个项的索引
-      const estimatedIndex = Math.floor((scrollOffset ?? lastScrollOffset) / ITEM_HEIGHT)
-
-      // 从该索引向前查找最近的分组标题
-      for (let i = estimatedIndex - 1; i >= 0; i--) {
-        if (i < listItems.length && listItems[i]?.type === 'group') {
-          newStickyGroup = listItems[i]
-          break
-        }
-      }
-
-      // 找不到则使用第一个分组标题
-      if (!newStickyGroup) newStickyGroup = firstGroupRef.current
-
-      if (stickyGroup?.key !== newStickyGroup?.key) {
-        setStickyGroup(newStickyGroup)
-      }
-    },
-    [listItems, lastScrollOffset, setStickyGroup, stickyGroup]
-  )
-
-  // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
-  const handleScroll = useCallback(
-    ({ scrollOffset }) => {
-      setLastScrollOffset(scrollOffset)
-    },
-    [setLastScrollOffset]
-  )
-
-  // 列表项更新时，更新焦点
-  useEffect(() => {
-    if (!loading) focusOnListChange(modelItems)
-  }, [modelItems, focusOnListChange, loading])
-
-  // 列表项更新时，更新sticky分组
-  useEffect(() => {
-    if (!loading) updateStickyGroup()
-  }, [modelItems, updateStickyGroup, loading])
-
-  // 滚动到聚焦项
+  // 处理程序化滚动（加载、搜索开始、搜索清空）
   useLayoutEffect(() => {
-    if (scrollTrigger === 'none' || !focusedItemKey) return
+    if (loading) return
 
-    const index = listItems.findIndex((item) => item.key === focusedItemKey)
-    if (index < 0) return
+    if (preventScrollToIndex.current) {
+      preventScrollToIndex.current = false
+      return
+    }
 
-    // 根据触发源决定滚动对齐方式
-    const alignment = scrollTrigger === 'keyboard' ? 'auto' : 'center'
-    listRef.current?.scrollToItem(index, alignment)
+    let targetItemKey: string | undefined
 
-    // 滚动后重置触发器
-    setScrollTrigger('none')
-  }, [focusedItemKey, scrollTrigger, listItems, setScrollTrigger])
+    // 启动搜索时，滚动到第一个 item
+    if (searchText) {
+      targetItemKey = modelItems[0]?.key
+    }
+    // 初始加载或清空搜索时，滚动到 selected item
+    else {
+      targetItemKey = modelItems.find((item) => item.isSelected)?.key
+    }
+
+    if (targetItemKey) {
+      setFocusedItemKey(targetItemKey)
+      const index = listItems.findIndex((item) => item.key === targetItemKey)
+      if (index >= 0) {
+        // FIXME: 手动计算偏移量，给 scroller 增加了 scrollPaddingStart 之后，
+        // scrollToIndex 不能准确滚动到 item 中心，但是又需要 padding 来改善体验。
+        const targetScrollTop = index * ITEM_HEIGHT - listHeight / 2
+        listRef.current?.scrollToOffset(targetScrollTop, {
+          align: 'start',
+          behavior: 'auto'
+        })
+      }
+    }
+  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
@@ -285,7 +213,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   // 处理键盘导航
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!open || modelItems.length === 0 || e.isComposing) return
+      const modelCount = modelItems.length
+
+      if (!open || modelCount === 0 || e.isComposing) return
 
       // 键盘操作时禁用鼠标 hover
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
@@ -294,25 +224,31 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         setIsMouseOver(false)
       }
 
+      // 当前聚焦的模型 index
       const currentIndex = modelItems.findIndex((item) => item.key === focusedItemKey)
-      const normalizedIndex = currentIndex < 0 ? 0 : currentIndex
+
+      let nextIndex = -1
 
       switch (e.key) {
-        case 'ArrowUp':
-          focusNextItem(modelItems, -1)
+        case 'ArrowUp': {
+          nextIndex = (currentIndex < 0 ? 0 : currentIndex - 1 + modelCount) % modelCount
           break
-        case 'ArrowDown':
-          focusNextItem(modelItems, 1)
+        }
+        case 'ArrowDown': {
+          nextIndex = (currentIndex < 0 ? 0 : currentIndex + 1) % modelCount
           break
-        case 'PageUp':
-          focusPage(modelItems, normalizedIndex, -PAGE_SIZE)
+        }
+        case 'PageUp': {
+          nextIndex = Math.max(0, (currentIndex < 0 ? 0 : currentIndex) - PAGE_SIZE)
           break
-        case 'PageDown':
-          focusPage(modelItems, normalizedIndex, PAGE_SIZE)
+        }
+        case 'PageDown': {
+          nextIndex = Math.min(modelCount - 1, (currentIndex < 0 ? 0 : currentIndex) + PAGE_SIZE)
           break
+        }
         case 'Enter':
-          if (focusedItemKey) {
-            const selectedItem = modelItems.find((item) => item.key === focusedItemKey)
+          if (currentIndex >= 0) {
+            const selectedItem = modelItems[currentIndex]
             if (selectedItem) {
               handleItemClick(selectedItem)
             }
@@ -324,8 +260,20 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           resolve(undefined)
           break
       }
+
+      // 没有键盘导航，直接返回
+      if (nextIndex < 0) return
+
+      const nextKey = modelItems[nextIndex]?.key || ''
+      if (nextKey) {
+        setFocusedItemKey(nextKey)
+        const index = listItems.findIndex((item) => item.key === nextKey)
+        if (index >= 0) {
+          listRef.current?.scrollToIndex(index, { align: 'auto' })
+        }
+      }
     },
-    [focusedItemKey, modelItems, handleItemClick, open, resolve, setIsMouseOver, focusNextItem, focusPage]
+    [modelItems, open, focusedItemKey, resolve, handleItemClick, setFocusedItemKey, listItems]
   )
 
   useEffect(() => {
@@ -338,40 +286,57 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   }, [])
 
   const onAfterClose = useCallback(async () => {
-    setScrollTrigger('initial')
     resolve(undefined)
     SelectModelPopup.hide()
-  }, [resolve, setScrollTrigger])
-
-  // 初始化焦点和滚动位置
-  useEffect(() => {
-    if (!open) return
-    const timer = setTimeout(() => inputRef.current?.focus(), 0)
-    return () => clearTimeout(timer)
-  }, [open])
+  }, [resolve])
 
   const togglePin = useCallback(
     async (modelId: string) => {
       await togglePinnedModel(modelId)
+      preventScrollToIndex.current = true
     },
     [togglePinnedModel]
   )
 
-  const RowData = useMemo(
-    (): VirtualizedRowData => ({
-      listItems,
-      focusedItemKey,
-      setFocusedItemKey,
-      stickyGroup,
-      handleItemClick,
-      togglePin
-    }),
-    [stickyGroup, focusedItemKey, handleItemClick, listItems, togglePin, setFocusedItemKey]
-  )
+  const getItemKey = useCallback((index: number) => listItems[index].key, [listItems])
+  const estimateSize = useCallback(() => ITEM_HEIGHT, [])
+  const isSticky = useCallback((index: number) => listItems[index].type === 'group', [listItems])
 
-  const listHeight = useMemo(() => {
-    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
-  }, [listItems.length])
+  const rowRenderer = useCallback(
+    (item: FlatListItem) => {
+      const isFocused = item.key === focusedItemKey
+      if (item.type === 'group') {
+        return <GroupItem>{item.name}</GroupItem>
+      }
+      return (
+        <ModelItem
+          className={classNames({
+            focused: isFocused,
+            selected: item.isSelected
+          })}
+          onClick={() => handleItemClick(item)}
+          onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
+          <ModelItemLeft>
+            {item.icon}
+            {item.name}
+            {item.tags}
+          </ModelItemLeft>
+          <PinIconWrapper
+            onClick={(e) => {
+              e.stopPropagation()
+              if (item.model) {
+                togglePin(getModelUniqId(item.model))
+              }
+            }}
+            data-pinned={item.isPinned}
+            $isPinned={item.isPinned}>
+            <PushpinOutlined />
+          </PinIconWrapper>
+        </ModelItem>
+      )
+    },
+    [focusedItemKey, handleItemClick, setFocusedItemKey, togglePin]
+  )
 
   return (
     <Modal
@@ -396,50 +361,23 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       closeIcon={null}
       footer={null}>
       {/* 搜索框 */}
-      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
-        <Input
-          prefix={
-            <SearchIcon>
-              <Search size={15} />
-            </SearchIcon>
-          }
-          ref={inputRef}
-          placeholder={t('models.search')}
-          value={_searchText} // 使用 _searchText，需要实时更新
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          autoFocus
-          spellCheck={false}
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-          onKeyDown={(e) => {
-            // 防止上下键移动光标
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
-              e.preventDefault()
-            }
-          }}
-        />
-      </HStack>
+      <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => !isMouseOver && startTransition(() => setIsMouseOver(true))}>
-          {/* Sticky Group Banner，它会替换第一个分组名称 */}
-          <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
-          <FixedSizeList
+        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
+          <DynamicVirtualList
             ref={listRef}
-            height={listHeight}
-            width="100%"
-            itemCount={listItems.length}
-            itemSize={ITEM_HEIGHT}
-            itemData={RowData}
-            itemKey={(index, data) => data.listItems[index].key}
-            overscanCount={4}
-            onScroll={handleScroll}
-            style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-            {VirtualizedRow}
-          </FixedSizeList>
+            list={listItems}
+            size={listHeight}
+            getItemKey={getItemKey}
+            estimateSize={estimateSize}
+            isSticky={isSticky}
+            scrollPaddingStart={ITEM_HEIGHT} // 留出 sticky header 高度
+            overscan={5}
+            scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
+            {rowRenderer}
+          </DynamicVirtualList>
         </ListContainer>
       ) : (
         <EmptyState>
@@ -450,73 +388,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   )
 }
 
-interface VirtualizedRowData {
-  listItems: FlatListItem[]
-  focusedItemKey: string
-  setFocusedItemKey: (key: string) => void
-  stickyGroup: FlatListItem | null
-  handleItemClick: (item: FlatListItem) => void
-  togglePin: (modelId: string) => void
-}
-
-/**
- * 虚拟化列表行组件，用于避免重新渲染
- */
-const VirtualizedRow = React.memo(
-  ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
-    const { listItems, focusedItemKey, setFocusedItemKey, handleItemClick, togglePin, stickyGroup } = data
-
-    const item = listItems[index]
-
-    if (!item) {
-      return <div style={style} />
-    }
-
-    const isFocused = item.key === focusedItemKey
-
-    return (
-      <div style={style}>
-        {item.type === 'group' ? (
-          <GroupItem $isSticky={item.key === stickyGroup?.key}>{item.name}</GroupItem>
-        ) : (
-          <ModelItem
-            className={classNames({
-              focused: isFocused,
-              selected: item.isSelected
-            })}
-            onClick={() => handleItemClick(item)}
-            onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
-            <ModelItemLeft>
-              {item.icon}
-              {item.name}
-              {item.tags}
-            </ModelItemLeft>
-            <PinIconWrapper
-              onClick={(e) => {
-                e.stopPropagation()
-                if (item.model) {
-                  togglePin(getModelUniqId(item.model))
-                }
-              }}
-              data-pinned={item.isPinned}
-              $isPinned={item.isPinned}>
-              <PushpinOutlined />
-            </PinIconWrapper>
-          </ModelItem>
-        )}
-      </div>
-    )
-  }
-)
-
-VirtualizedRow.displayName = 'VirtualizedRow'
-
 const ListContainer = styled.div`
   position: relative;
   overflow: hidden;
 `
 
-const GroupItem = styled.div<{ $isSticky?: boolean }>`
+const GroupItem = styled.div`
   display: flex;
   align-items: center;
   position: relative;
@@ -526,12 +403,6 @@ const GroupItem = styled.div<{ $isSticky?: boolean }>`
   padding: 5px 10px 5px 18px;
   color: var(--color-text-3);
   z-index: 1;
-
-  visibility: ${(props) => (props.$isSticky ? 'hidden' : 'visible')};
-`
-
-const StickyGroupBanner = styled(GroupItem)`
-  position: sticky;
   background: var(--modal-background);
 `
 
@@ -611,18 +482,6 @@ const EmptyState = styled.div`
   justify-content: center;
   align-items: center;
   height: 200px;
-`
-
-const SearchIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background-soft);
-  margin-right: 2px;
 `
 
 const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?: boolean }>`

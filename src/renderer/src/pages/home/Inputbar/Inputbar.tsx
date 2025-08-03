@@ -189,6 +189,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const resizeTextArea = useCallback(
     (force: boolean = false) => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -470,9 +474,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         setTimeout(() => resizeTextArea(), 0)
         return newText
       })
-      textareaRef.current?.focus()
+      focusTextarea()
     },
-    [resizeTextArea]
+    [resizeTextArea, focusTextarea]
   )
 
   const onPause = async () => {
@@ -485,6 +489,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       await delay(1)
     }
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    focusTextarea()
   }
 
   const onNewContext = () => {
@@ -670,7 +675,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useShortcut('new_topic', () => {
     addNewTopic()
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    textareaRef.current?.focus()
+    focusTextarea()
   })
 
   useShortcut('clear_topic', clearTopic)
@@ -704,12 +709,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
-      const lastFocusedComponent = PasteService.getLastFocusedComponent()
-      if (lastFocusedComponent === 'inputbar') {
-        textareaRef.current?.focus()
-      }
+      focusTextarea()
     }
-  }, [assistant, topic])
+  }, [
+    topic.id,
+    assistant.mcpServers,
+    assistant.knowledge_bases,
+    assistant.enableWebSearch,
+    assistant.webSearchProviderId,
+    mentionedModels,
+    focusTextarea
+  ])
 
   useEffect(() => {
     const timerId = requestAnimationFrame(() => resizeTextArea())
@@ -734,12 +744,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const lastFocusedComponent = PasteService.getLastFocusedComponent()
 
       if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
-        textareaRef.current?.focus()
+        focusTextarea()
       }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [])
+  }, [focusTextarea])
 
   useEffect(() => {
     // if assistant knowledge bases are undefined return []
@@ -819,7 +829,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     }
 
-    textareaRef.current?.focus()
+    focusTextarea()
   }
 
   const isExpended = expended || !!textareaHeight
