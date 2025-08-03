@@ -3439,8 +3439,8 @@
           "placeholder": "日本語"
         }
       },
-      "prompt": "翻译提示词",
-      "title": "翻译设置"
+      "prompt": "翻訳プロンプト",
+      "title": "翻訳設定"
     },
     "tray": {
       "onclose": "閉じるときにトレイに最小化",
