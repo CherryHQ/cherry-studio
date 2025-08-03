@@ -3425,7 +3425,7 @@
         "langCode": {
           "help": "[语言+区域]的格式，[2~3位小写字母]-[2~3位小写字母]",
           "label": "语言代码",
-          "placeholder": "zh-CN"
+          "placeholder": "zh-cn"
         },
         "success": {
           "add": "添加成功",
