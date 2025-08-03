@@ -1,4 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
+import { isSystemProvider } from '@renderer/config/providers'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -32,11 +33,11 @@ export function useProviders() {
 }
 
 export function useSystemProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => isSystemProvider(p)))
 }
 
 export function useUserProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => !p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => !isSystemProvider(p)))
 }
 
 export function useAllProviders() {

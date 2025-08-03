@@ -64,6 +64,7 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
+  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
   return provider.isSystem ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
 }
 

@@ -53,7 +53,7 @@ import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
-import { Provider } from '@renderer/types'
+import { Provider, SystemProvider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -738,8 +738,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
 }
 
-const SYSTEM_PROVIDER_IDS = INITIAL_PROVIDERS.map((provider) => provider.id)
-
-export const isSystemProvider = (provider: Provider) => {
-  return SYSTEM_PROVIDER_IDS.includes(provider.id)
+/**
+ * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
+ * @param provider - Provider对象，包含提供商的信息
+ * @returns 是否为系统内置提供商
+ */
+export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
+  return INITIAL_PROVIDERS.some((p) => p.id === provider.id)
 }

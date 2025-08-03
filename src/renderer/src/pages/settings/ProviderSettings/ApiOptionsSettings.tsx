@@ -1,5 +1,6 @@
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
+import { isSystemProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { Collapse, Flex, Switch } from 'antd'
@@ -72,7 +73,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
     return items
   }, [openAIOptions, provider.type])
 
-  if (options.length === 0 || provider.isSystem) {
+  if (options.length === 0 || isSystemProvider(provider)) {
     return null
   }
 

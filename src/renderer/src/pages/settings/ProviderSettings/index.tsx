@@ -1,7 +1,7 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
-import { getProviderLogo } from '@renderer/config/providers'
+import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
@@ -108,7 +108,7 @@ const ProvidersList: FC = () => {
         }
       }
 
-      const providerDisplayName = existingProvider.isSystem
+      const providerDisplayName = isSystemProvider(existingProvider)
         ? getProviderLabel(existingProvider.id)
         : existingProvider.name
 
@@ -387,7 +387,7 @@ const ProvidersList: FC = () => {
               }
             }
 
-            setSelectedProvider(providers.filter((p) => p.isSystem)[0])
+            setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
             removeProvider(provider)
           }
         })
@@ -400,18 +400,16 @@ const ProvidersList: FC = () => {
       return menus
     }
 
-    if (provider.isSystem) {
+    if (isSystemProvider(provider)) {
       if (INITIAL_PROVIDERS.find((p) => p.id === provider.id)) {
         return [noteMenu]
       }
       return [noteMenu, deleteMenu]
     }
-
-    return menus
   }
 
   const getProviderAvatar = (provider: Provider) => {
-    if (provider.isSystem) {
+    if (isSystemProvider(provider)) {
       return <ProviderLogo shape="circle" src={getProviderLogo(provider.id)} size={25} />
     }
 
