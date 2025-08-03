@@ -1,7 +1,7 @@
 name: 🐛 Bug Report (English)
 description: Create a report to help us improve
 title: '[Bug]: '
-labels: ['kind/bug']
+labels: ['bug']
 body:
   - type: markdown
     attributes:
