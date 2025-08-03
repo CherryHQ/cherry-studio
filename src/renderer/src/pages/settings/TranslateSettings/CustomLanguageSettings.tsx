@@ -92,7 +92,9 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
                 title={t('settings.translate.custom.delete.title')}
                 description={t('settings.translate.custom.delete.description')}
                 onConfirm={() => onDelete(record.id)}>
-                <Button icon={<DeleteOutlined />}>{t('common.delete')}</Button>
+                <Button icon={<DeleteOutlined />} danger>
+                  {t('common.delete')}
+                </Button>
               </Popconfirm>
             </Space>
           )
