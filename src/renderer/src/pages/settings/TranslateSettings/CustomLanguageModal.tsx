@@ -125,21 +125,21 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       }}>
       <Form form={form} onFinish={handleSubmit}>
         <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }}>
-          <Popover
-            content={
-              <EmojiPicker
-                onEmojiClick={(emoji) => {
-                  form.setFieldsValue({ emoji })
-                  setEmoji(emoji)
-                }}
-              />
-            }
-            arrow
-            trigger="click">
-            <ButtonContainer>
+          <ButtonContainer>
+            <Popover
+              content={
+                <EmojiPicker
+                  onEmojiClick={(emoji) => {
+                    form.setFieldsValue({ emoji })
+                    setEmoji(emoji)
+                  }}
+                />
+              }
+              arrow
+              trigger="click">
               <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
-            </ButtonContainer>
-          </Popover>
+            </Popover>
+          </ButtonContainer>
         </Form.Item>
         <Form.Item
           name="value"
