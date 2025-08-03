@@ -164,14 +164,11 @@ export class ProxyManager {
       return
     }
 
+    // axios 使用 fetch 代理
+    axios.defaults.adapter = 'fetch'
+
     // ProxyAgent 从环境变量读取代理配置
     const agent = new ProxyAgent()
-
-    // axios 使用代理
-    axios.defaults.proxy = false
-    axios.defaults.httpAgent = agent
-    axios.defaults.httpsAgent = agent
-
     http.get = this.bindHttpMethod(this.originalHttpGet, agent)
     http.request = this.bindHttpMethod(this.originalHttpRequest, agent)
 
