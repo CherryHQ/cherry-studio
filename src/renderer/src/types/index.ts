@@ -35,7 +35,7 @@ export type Assistant = {
 }
 
 export type TranslateAssistant = Assistant & {
-  targetLanguage?: Language
+  targetLanguage?: TranslateLanguage
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -502,12 +502,12 @@ export type GenerateImageResponse = {
 }
 
 // 为了支持自定义语言，设置为string别名
-export type LanguageCode = string
+export type TranslateLanguageCode = string
 
 // langCode应当能够唯一确认一种语言
-export type Language = {
+export type TranslateLanguage = {
   value: string
-  langCode: LanguageCode
+  langCode: TranslateLanguageCode
   label: () => string
   emoji: string
 }
@@ -516,14 +516,14 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: LanguageCode
-  targetLanguage: LanguageCode
+  sourceLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLanguageCode
   createdAt: string
 }
 
 export type CustomTranslateLanguage = {
   id: string
-  langCode: LanguageCode
+  langCode: TranslateLanguageCode
   value: string
   emoji: string
 }

@@ -6,7 +6,7 @@ import { getDefaultTranslateAssistant } from '@renderer/services/AssistantServic
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as _setTranslating } from '@renderer/store/runtime'
 import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
-import { Language, LanguageCode, TranslateAssistant, TranslateHistory } from '@renderer/types'
+import { TranslateAssistant, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import { getTranslateOptions } from '@renderer/utils/translate'
 import { t } from 'i18next'
@@ -34,7 +34,7 @@ const logger = loggerService.withContext('useTranslate')
 export default function useTranslate() {
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
-  const [translateLanguages, setTranslateLanguages] = useState<Language[]>(builtinLanguages)
+  const [translateLanguages, setTranslateLanguages] = useState<TranslateLanguage[]>(builtinLanguages)
 
   const dispatch = useAppDispatch()
 
@@ -54,8 +54,8 @@ export default function useTranslate() {
    */
   const translate = async (
     text: string,
-    actualSourceLanguage: Language,
-    actualTargetLanguage: Language
+    actualSourceLanguage: TranslateLanguage,
+    actualTargetLanguage: TranslateLanguage
   ): Promise<void> => {
     try {
       if (translating) {
@@ -123,8 +123,8 @@ export default function useTranslate() {
   const saveTranslateHistory = async (
     sourceText: string,
     targetText: string,
-    sourceLanguage: LanguageCode,
-    targetLanguage: LanguageCode
+    sourceLanguage: TranslateLanguageCode,
+    targetLanguage: TranslateLanguageCode
   ) => {
     const history: TranslateHistory = {
       id: uuid(),

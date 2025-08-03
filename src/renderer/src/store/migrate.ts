@@ -6,7 +6,7 @@ import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
+import { Assistant, Model, Provider, TranslateLanguageCode, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -1775,7 +1775,7 @@ const migrateConfig = {
         state.settings.s3 = settingsInitialState.s3
       }
 
-      const langMap: Record<string, LanguageCode> = {
+      const langMap: Record<string, TranslateLanguageCode> = {
         english: 'en-us',
         chinese: 'zh-cn',
         'chinese-traditional': 'zh-tw',

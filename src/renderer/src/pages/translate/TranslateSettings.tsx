@@ -7,7 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
-import { Language, Model } from '@renderer/types'
+import { Model, TranslateLanguage } from '@renderer/types'
 import { Button, Flex, Input, Modal, Space, Switch, Tooltip } from 'antd'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
@@ -23,8 +23,8 @@ const TranslateSettings: FC<{
   setIsBidirectional: (value: boolean) => void
   enableMarkdown: boolean
   setEnableMarkdown: (value: boolean) => void
-  bidirectionalPair: [Language, Language]
-  setBidirectionalPair: (value: [Language, Language]) => void
+  bidirectionalPair: [TranslateLanguage, TranslateLanguage]
+  setBidirectionalPair: (value: [TranslateLanguage, TranslateLanguage]) => void
   translateModel: Model | undefined
 }> = ({
   visible,
@@ -41,7 +41,7 @@ const TranslateSettings: FC<{
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
   const dispatch = useAppDispatch()
-  const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
+  const [localPair, setLocalPair] = useState<[TranslateLanguage, TranslateLanguage]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
   const { getLanguageByLangcode } = useTranslate()

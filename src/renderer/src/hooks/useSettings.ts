@@ -23,7 +23,7 @@ import {
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { LanguageCode, SidebarIcon, ThemeMode } from '@renderer/types'
+import { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
 import { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
@@ -80,7 +80,7 @@ export function useSettings() {
     setWindowStyle(windowStyle: 'transparent' | 'opaque') {
       dispatch(setWindowStyle(windowStyle))
     },
-    setTargetLanguage(targetLanguage: LanguageCode) {
+    setTargetLanguage(targetLanguage: TranslateLanguageCode) {
       dispatch(setTargetLanguage(targetLanguage))
     },
     setTopicPosition(topicPosition: 'left' | 'right') {

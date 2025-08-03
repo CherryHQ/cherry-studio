@@ -13,7 +13,7 @@ import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import type { Language, Model, TranslateHistory } from '@renderer/types'
+import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
@@ -37,7 +37,7 @@ const logger = loggerService.withContext('TranslatePage')
 
 // cache variables
 let _text = ''
-let _sourceLanguage: Language | 'auto' = 'auto'
+let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
 const TranslatePage: FC = () => {
@@ -51,14 +51,14 @@ const TranslatePage: FC = () => {
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
   const [enableMarkdown, setEnableMarkdown] = useState(false)
-  const [bidirectionalPair, setBidirectionalPair] = useState<[Language, Language]>([
+  const [bidirectionalPair, setBidirectionalPair] = useState<[TranslateLanguage, TranslateLanguage]>([
     LanguagesEnum.enUS,
     LanguagesEnum.zhCN
   ])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<Language | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<Language | 'auto'>(_sourceLanguage)
-  const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
+  const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
 
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
@@ -87,7 +87,7 @@ const TranslatePage: FC = () => {
 
     try {
       // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
-      let actualSourceLanguage: Language
+      let actualSourceLanguage: TranslateLanguage
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = await detectLanguage(text)
         setDetectedLanguage(actualSourceLanguage)
@@ -111,7 +111,7 @@ const TranslatePage: FC = () => {
         return
       }
 
-      const actualTargetLanguage = result.language as Language
+      const actualTargetLanguage = result.language as TranslateLanguage
       if (isBidirectional) {
         setTargetLanguage(actualTargetLanguage)
       }
@@ -138,7 +138,9 @@ const TranslatePage: FC = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
+  const onHistoryItemClick = (
+    history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }
+  ) => {
     setText(history.sourceText)
     setTranslatedContent(history.targetText)
     if (history._sourceLanguage === UNKNOWN) {
@@ -195,8 +197,8 @@ const TranslatePage: FC = () => {
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
         const langPair = bidirectionalPairSetting.value
-        let source: undefined | Language
-        let target: undefined | Language
+        let source: undefined | TranslateLanguage
+        let target: undefined | TranslateLanguage
 
         if (Array.isArray(langPair) && langPair.length === 2 && langPair[0] !== langPair[1]) {
           source = getLanguageByLangcode(langPair[0])
@@ -206,7 +208,7 @@ const TranslatePage: FC = () => {
         if (source && target) {
           setBidirectionalPair([source, target])
         } else {
-          const defaultPair: [Language, Language] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
+          const defaultPair: [TranslateLanguage, TranslateLanguage] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
           setBidirectionalPair(defaultPair)
           db.settings.put({
             id: 'translate:bidirectional:pair',

@@ -2,7 +2,7 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { Language, TranslateHistory } from '@renderer/types'
+import { TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { Button, Drawer, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -11,7 +11,10 @@ import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-type DisplayedTranslateHistory = TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }
+type DisplayedTranslateHistory = TranslateHistory & {
+  _sourceLanguage: TranslateLanguage
+  _targetLanguage: TranslateLanguage
+}
 
 type TranslateHistoryProps = {
   isOpen: boolean

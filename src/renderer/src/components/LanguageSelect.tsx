@@ -1,18 +1,18 @@
 import { UNKNOWN } from '@renderer/config/translate'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { Language, LanguageCode } from '@renderer/types'
+import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { Select, SelectProps, Space } from 'antd'
 import { ReactNode, useMemo } from 'react'
 
 export type LanguageOption = {
-  value: LanguageCode
+  value: TranslateLanguageCode
   label: ReactNode
 }
 
 type Props = {
   extraOptionsBefore?: LanguageOption[]
   extraOptionsAfter?: LanguageOption[]
-  languageRenderer?: (lang: Language) => ReactNode
+  languageRenderer?: (lang: TranslateLanguage) => ReactNode
 } & Omit<SelectProps, 'labelRender' | 'options'>
 
 const LanguageSelect = (props: Props) => {

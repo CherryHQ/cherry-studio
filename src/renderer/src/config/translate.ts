@@ -1,147 +1,147 @@
 import i18n from '@renderer/i18n'
-import { Language } from '@renderer/types'
+import { TranslateLanguage } from '@renderer/types'
 
-export const UNKNOWN: Language = {
+export const UNKNOWN: TranslateLanguage = {
   value: 'Unknown',
   langCode: 'unknown',
   label: () => i18n.t('languages.unknown'),
   emoji: '🏳️'
 }
 
-export const ENGLISH: Language = {
+export const ENGLISH: TranslateLanguage = {
   value: 'English',
   langCode: 'en-us',
   label: () => i18n.t('languages.english'),
   emoji: '🇬🇧'
 }
 
-export const CHINESE_SIMPLIFIED: Language = {
+export const CHINESE_SIMPLIFIED: TranslateLanguage = {
   value: 'Chinese (Simplified)',
   langCode: 'zh-cn',
   label: () => i18n.t('languages.chinese'),
   emoji: '🇨🇳'
 }
 
-export const CHINESE_TRADITIONAL: Language = {
+export const CHINESE_TRADITIONAL: TranslateLanguage = {
   value: 'Chinese (Traditional)',
   langCode: 'zh-tw',
   label: () => i18n.t('languages.chinese-traditional'),
   emoji: '🇭🇰'
 }
 
-export const JAPANESE: Language = {
+export const JAPANESE: TranslateLanguage = {
   value: 'Japanese',
   langCode: 'ja-jp',
   label: () => i18n.t('languages.japanese'),
   emoji: '🇯🇵'
 }
 
-export const KOREAN: Language = {
+export const KOREAN: TranslateLanguage = {
   value: 'Korean',
   langCode: 'ko-kr',
   label: () => i18n.t('languages.korean'),
   emoji: '🇰🇷'
 }
 
-export const FRENCH: Language = {
+export const FRENCH: TranslateLanguage = {
   value: 'French',
   langCode: 'fr-fr',
   label: () => i18n.t('languages.french'),
   emoji: '🇫🇷'
 }
 
-export const GERMAN: Language = {
+export const GERMAN: TranslateLanguage = {
   value: 'German',
   langCode: 'de-de',
   label: () => i18n.t('languages.german'),
   emoji: '🇩🇪'
 }
 
-export const ITALIAN: Language = {
+export const ITALIAN: TranslateLanguage = {
   value: 'Italian',
   langCode: 'it-it',
   label: () => i18n.t('languages.italian'),
   emoji: '🇮🇹'
 }
 
-export const SPANISH: Language = {
+export const SPANISH: TranslateLanguage = {
   value: 'Spanish',
   langCode: 'es-es',
   label: () => i18n.t('languages.spanish'),
   emoji: '🇪🇸'
 }
 
-export const PORTUGUESE: Language = {
+export const PORTUGUESE: TranslateLanguage = {
   value: 'Portuguese',
   langCode: 'pt-pt',
   label: () => i18n.t('languages.portuguese'),
   emoji: '🇵🇹'
 }
 
-export const RUSSIAN: Language = {
+export const RUSSIAN: TranslateLanguage = {
   value: 'Russian',
   langCode: 'ru-ru',
   label: () => i18n.t('languages.russian'),
   emoji: '🇷🇺'
 }
 
-export const POLISH: Language = {
+export const POLISH: TranslateLanguage = {
   value: 'Polish',
   langCode: 'pl-pl',
   label: () => i18n.t('languages.polish'),
   emoji: '🇵🇱'
 }
 
-export const ARABIC: Language = {
+export const ARABIC: TranslateLanguage = {
   value: 'Arabic',
   langCode: 'ar-ar',
   label: () => i18n.t('languages.arabic'),
   emoji: '🇸🇦'
 }
 
-export const TURKISH: Language = {
+export const TURKISH: TranslateLanguage = {
   value: 'Turkish',
   langCode: 'tr-tr',
   label: () => i18n.t('languages.turkish'),
   emoji: '🇹🇷'
 }
 
-export const THAI: Language = {
+export const THAI: TranslateLanguage = {
   value: 'Thai',
   langCode: 'th-th',
   label: () => i18n.t('languages.thai'),
   emoji: '🇹🇭'
 }
 
-export const VIETNAMESE: Language = {
+export const VIETNAMESE: TranslateLanguage = {
   value: 'Vietnamese',
   langCode: 'vi-vn',
   label: () => i18n.t('languages.vietnamese'),
   emoji: '🇻🇳'
 }
 
-export const INDONESIAN: Language = {
+export const INDONESIAN: TranslateLanguage = {
   value: 'Indonesian',
   langCode: 'id-id',
   label: () => i18n.t('languages.indonesian'),
   emoji: '🇮🇩'
 }
 
-export const URDU: Language = {
+export const URDU: TranslateLanguage = {
   value: 'Urdu',
   langCode: 'ur-pk',
   label: () => i18n.t('languages.urdu'),
   emoji: '🇵🇰'
 }
 
-export const MALAY: Language = {
+export const MALAY: TranslateLanguage = {
   value: 'Malay',
   langCode: 'ms-my',
   label: () => i18n.t('languages.malay'),
   emoji: '🇲🇾'
 }
 
-export const UKRAINIAN: Language = {
+export const UKRAINIAN: TranslateLanguage = {
   value: 'Ukrainian',
   langCode: 'uk-ua',
   label: () => i18n.t('languages.ukrainian'),
@@ -171,7 +171,7 @@ export const LanguagesEnum = {
   ukUA: UKRAINIAN
 } as const
 
-export const builtinLanguages: Language[] = Object.values(LanguagesEnum)
+export const builtinLanguages: TranslateLanguage[] = Object.values(LanguagesEnum)
 
 export const builtinLangCodeList = builtinLanguages.map((lang) => lang.langCode)
 
@@ -268,7 +268,7 @@ const QwenMTMap = {
   fa: 'Western Persian'
 }
 
-export function mapLanguageToQwenMTModel(language: Language): string | undefined {
+export function mapLanguageToQwenMTModel(language: TranslateLanguage): string | undefined {
   if (language.langCode === UNKNOWN.langCode) {
     return undefined
   }

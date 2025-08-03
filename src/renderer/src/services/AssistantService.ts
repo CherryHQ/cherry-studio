@@ -14,11 +14,11 @@ import type {
   Agent,
   Assistant,
   AssistantSettings,
-  Language,
   Model,
   Provider,
   Topic,
-  TranslateAssistant
+  TranslateAssistant,
+  TranslateLanguage
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
@@ -49,7 +49,7 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): TranslateAssistant {
+export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
   assistant.model = translateModel

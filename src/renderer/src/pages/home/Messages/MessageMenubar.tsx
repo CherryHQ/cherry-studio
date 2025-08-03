@@ -16,7 +16,7 @@ import store, { RootState, useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Language, Model, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -168,7 +168,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
-    async (language: Language) => {
+    async (language: TranslateLanguage) => {
       if (isTranslating) return
 
       setIsTranslating(true)

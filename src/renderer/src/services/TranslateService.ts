@@ -1,7 +1,7 @@
 import { db } from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { CustomTranslateLanguage, Language } from '@renderer/types'
+import { CustomTranslateLanguage, TranslateLanguage } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 import { fetchTranslate } from './ApiService'
@@ -12,7 +12,7 @@ const logger = loggerService.withContext('TranslateService')
 
 export const translateText = async (
   text: string,
-  targetLanguage: Language,
+  targetLanguage: TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void
 ) => {
   const translateModel = store.getState().llm.translateModel

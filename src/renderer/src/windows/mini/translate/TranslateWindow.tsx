@@ -8,7 +8,7 @@ import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Language } from '@renderer/types'
+import { Assistant, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
@@ -27,7 +27,7 @@ let _targetLanguage = (await db.settings.get({ id: 'translate:target:language' }
 
 const Translate: FC<Props> = ({ text }) => {
   const [result, setResult] = useState('')
-  const [targetLanguage, setTargetLanguage] = useState<Language>(_targetLanguage)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
