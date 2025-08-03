@@ -21,6 +21,7 @@ import {
   isSupportedThinkingTokenZhipuModel,
   isVisionModel
 } from '@renderer/config/models'
+import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -47,7 +48,6 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
