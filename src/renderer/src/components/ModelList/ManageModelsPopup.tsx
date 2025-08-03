@@ -76,6 +76,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const systemModels = SYSTEM_MODELS[provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
 
+  const isLoading = useMemo(
+    () => loadingModels || isFilterTypePending || isSearchPending,
+    [loadingModels, isFilterTypePending, isSearchPending]
+  )
+
   const list = useMemo(
     () =>
       filterModelsByKeywords(filterSearchText, allModels).filter((model) => {
@@ -288,7 +293,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       <SearchContainer>
         <TopToolsWrapper>
           <Input
-            prefix={<Search size={14} />}
+            prefix={<Search size={16} style={{ marginRight: 4 }} />}
             size="large"
             ref={searchInputRef}
             placeholder={t('settings.provider.search_placeholder')}
@@ -299,6 +304,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               setSearchText(newSearchValue) // Update input field immediately
               debouncedSetFilterText(newSearchValue)
             }}
+            disabled={loadingModels}
           />
           {renderTopTools()}
         </TopToolsWrapper>
@@ -324,23 +330,26 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           }}
         />
       </SearchContainer>
-      <ListContainer>
-        {loadingModels || isFilterTypePending || isSearchPending ? (
-          <Flex justify="center" align="center" style={{ height: '70%' }}>
-            <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
-          </Flex>
-        ) : (
-          <ManageModelsList
-            modelGroups={modelGroups}
-            provider={provider}
-            onAddModel={onAddModel}
-            onRemoveModel={onRemoveModel}
-          />
-        )}
-        {!(loadingModels || isFilterTypePending || isSearchPending) && isEmpty(list) && (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />
-        )}
-      </ListContainer>
+      <Spin
+        spinning={isLoading}
+        indicator={<SvgSpinners180Ring color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}>
+        <ListContainer>
+          {loadingModels || isEmpty(list) ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={t('settings.models.empty')}
+              style={{ visibility: loadingModels ? 'hidden' : 'visible' }}
+            />
+          ) : (
+            <ManageModelsList
+              modelGroups={modelGroups}
+              provider={provider}
+              onAddModel={onAddModel}
+              onRemoveModel={onRemoveModel}
+            />
+          )}
+        </ListContainer>
+      </Spin>
     </Modal>
   )
 }
