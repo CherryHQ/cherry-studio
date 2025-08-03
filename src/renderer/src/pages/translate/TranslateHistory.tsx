@@ -2,6 +2,7 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { clearHistory, deleteHistory } from '@renderer/services/TranslateService'
 import { TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { Button, Drawer, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -27,7 +28,7 @@ const ITEM_HEIGHT = 120
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t } = useTranslation()
-  const { clearHistory, deleteHistory, getLanguageByLangcode } = useTranslate()
+  const { getLanguageByLangcode } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
   const translateHistory: DisplayedTranslateHistory[] = useMemo(() => {
