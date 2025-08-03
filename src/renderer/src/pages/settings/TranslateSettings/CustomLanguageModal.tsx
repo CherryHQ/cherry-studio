@@ -22,7 +22,7 @@ const logger = loggerService.withContext('CustomLanguageModal')
 
 const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
   const { t } = useTranslation()
-  const [emoji, setEmoji] = useState(editingCustomLanguage?.emoji ?? '')
+  const [emoji, setEmoji] = useState(editingCustomLanguage?.emoji ?? '🏳️')
   const [value, setValue] = useState(editingCustomLanguage?.value ?? '')
   const [langCode, setLangCode] = useState(editingCustomLanguage?.langCode ?? '')
 
