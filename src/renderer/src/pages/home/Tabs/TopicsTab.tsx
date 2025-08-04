@@ -144,6 +144,22 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     [assistant.topics, editingTopicName, updateTopic]
   )
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (editingTopicId && editInputRef.current && !editInputRef.current.contains(event.target as Node)) {
+        handleSaveEdit(editingTopicId)
+      }
+    }
+
+    if (editingTopicId) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+    return
+  }, [editingTopicId, handleSaveEdit])
+
   const handleCancelEdit = useCallback(() => {
     setEditingTopicId(null)
     setEditingTopicName('')
@@ -499,8 +515,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={() => onSwitchTopic(topic)}
-              style={{ borderRadius }}>
+              onClick={editingTopicId === topic.id ? undefined : () => onSwitchTopic(topic)}
+              style={{ borderRadius, cursor: editingTopicId === topic.id ? 'default' : 'pointer' }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
@@ -510,7 +526,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                     value={editingTopicName}
                     onChange={(e) => setEditingTopicName(e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, topic.id)}
-                    onBlur={() => handleSaveEdit(topic.id)}
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
