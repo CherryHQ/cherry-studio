@@ -1,5 +1,5 @@
-import { EditOutlined, InfoCircleOutlined, SyncOutlined } from '@ant-design/icons'
-import { CopyIcon } from '@renderer/components/Icons'
+import { InfoCircleOutlined } from '@ant-design/icons'
+import { CopyIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -441,14 +441,14 @@ const MessageMenubar: FC<Props> = (props) => {
               className="message-action-button"
               onClick={() => handleResendUserMessage()}
               $softHoverBg={isBubbleStyle}>
-              <SyncOutlined />
+              <RefreshCw size={15} />
             </ActionButton>
           </Tooltip>
         )}
         {message.role === 'user' && (
           <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
-              <EditOutlined />
+              <EditIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
