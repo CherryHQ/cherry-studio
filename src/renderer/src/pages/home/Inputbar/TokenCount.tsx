@@ -49,14 +49,14 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
       <Popover content={PopoverContent} arrow={false}>
         <HStack>
           <HStack style={{ alignItems: 'center' }}>
-            <MenuIcon size={12} style={{ marginRight: 4 }} />
+            <MenuIcon size={12} className="icon" />
             {contextCount.current}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             <MaxContextCount maxContext={contextCount.max} />
           </HStack>
           <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
           <HStack style={{ alignItems: 'center' }}>
-            <ArrowUp size={12} style={{ marginRight: 4 }} />
+            <ArrowUp size={12} className="icon" />
             {inputTokenCount}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             {estimateTokenCount}
@@ -78,8 +78,8 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  .anticon {
-    font-size: 10px;
+  .icon {
+    margin-top: 1px;
     margin-right: 3px;
   }
   @media (max-width: 800px) {
