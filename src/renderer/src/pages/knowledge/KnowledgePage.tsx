@@ -1,6 +1,6 @@
-import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -9,7 +9,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
-import { Book, Plus } from 'lucide-react'
+import { Book, Plus, Settings } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -49,7 +49,7 @@ const KnowledgePage: FC = () => {
         {
           label: t('knowledge.rename'),
           key: 'rename',
-          icon: <EditOutlined />,
+          icon: <EditIcon size={14} />,
           async onClick() {
             const name = await PromptPopup.show({
               title: t('knowledge.rename'),
@@ -62,9 +62,9 @@ const KnowledgePage: FC = () => {
           }
         },
         {
-          label: t('knowledge.settings.title'),
+          label: t('common.settings'),
           key: 'settings',
-          icon: <SettingOutlined />,
+          icon: <Settings size={14} />,
           onClick: () => handleEditKnowledgeBase(base)
         },
         { type: 'divider' },
@@ -72,7 +72,7 @@ const KnowledgePage: FC = () => {
           label: t('common.delete'),
           danger: true,
           key: 'delete',
-          icon: <DeleteOutlined />,
+          icon: <DeleteIcon size={14} className="lucide-custom" />,
           onClick: () => {
             window.modal.confirm({
               title: t('knowledge.delete_confirm'),

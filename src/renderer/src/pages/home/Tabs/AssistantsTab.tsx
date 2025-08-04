@@ -1,4 +1,4 @@
-import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
+import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -6,8 +6,9 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { Tooltip, Typography } from 'antd'
+import { Plus } from 'lucide-react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -69,6 +70,19 @@ const Assistants: FC<AssistantsTabProps> = ({
     [assistants, t, updateAssistants]
   )
 
+  const renderAddAssistantButton = useMemo(() => {
+    return (
+      <AssistantAddItem onClick={onCreateAssistant}>
+        <AddItemWrapper>
+          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.assistant.title') }}>
+            {t('chat.add.assistant.title')}
+          </Typography.Text>
+        </AddItemWrapper>
+      </AssistantAddItem>
+    )
+  }, [onCreateAssistant, t])
+
   if (assistantsTabSortType === 'tags') {
     return (
       <Container className="assistants-tab" ref={containerRef}>
@@ -117,12 +131,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             </TagsContainer>
           ))}
         </div>
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
+        {renderAddAssistantButton}
       </Container>
     )
   }
@@ -149,14 +158,7 @@ const Assistants: FC<AssistantsTabProps> = ({
           />
         )}
       </DraggableList>
-      {!dragging && (
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
-      )}
+      {!dragging && renderAddAssistantButton}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )
@@ -224,13 +226,13 @@ const GroupTitleDivider = styled.div`
   border-top: 1px solid var(--color-border);
 `
 
-const AssistantName = styled.div`
-  color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+const AddItemWrapper = styled.div`
+  color: var(--color-text-2);
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
 `
 
 export default Assistants

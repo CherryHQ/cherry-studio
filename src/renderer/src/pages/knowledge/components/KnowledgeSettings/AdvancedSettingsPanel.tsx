@@ -1,7 +1,7 @@
-import { WarningOutlined } from '@ant-design/icons'
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { KnowledgeBase } from '@renderer/types'
 import { Alert, InputNumber } from 'antd'
+import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -68,7 +68,12 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
         />
       </SettingsItem>
 
-      <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
+      <Alert
+        message={t('knowledge.chunk_size_change_warning')}
+        type="warning"
+        showIcon
+        icon={<TriangleAlert size={16} className="lucide-custom" />}
+      />
     </SettingsPanel>
   )
 }

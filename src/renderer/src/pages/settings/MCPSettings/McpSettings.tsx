@@ -1,5 +1,5 @@
-import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
@@ -7,7 +7,7 @@ import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
@@ -732,7 +732,12 @@ const McpSettings: React.FC = () => {
               <ServerName className="text-nowrap">{server?.name}</ServerName>
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
             </Flex>
-            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+            <Button
+              danger
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
+              type="text"
+              onClick={() => onDeleteMcpServer(server)}
+            />
           </Flex>
           <Flex align="center" gap={16}>
             <Switch
@@ -743,7 +748,7 @@ const McpSettings: React.FC = () => {
             />
             <Button
               type="primary"
-              icon={<SaveOutlined />}
+              icon={<SaveIcon size={14} />}
               onClick={onSave}
               loading={loading}
               shape="round"

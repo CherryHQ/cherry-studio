@@ -1,7 +1,7 @@
-import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
@@ -173,7 +173,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
     registerTool({
       ...TOOL_SPECS.run,
-      icon: isRunning ? <LoadingOutlined /> : <CirclePlay className="icon" />,
+      icon: isRunning ? <LoadingIcon /> : <CirclePlay className="icon" />,
       tooltip: t('code_block.run'),
       onClick: () => !isRunning && handleRunScript()
     })

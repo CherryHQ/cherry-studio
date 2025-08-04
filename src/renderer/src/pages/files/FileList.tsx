@@ -1,4 +1,5 @@
-import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { handleDelete } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
@@ -68,7 +69,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                         icon: <ExclamationCircleOutlined style={{ color: 'red' }} />
                       })
                     }}>
-                    <DeleteOutlined />
+                    <DeleteIcon size={14} className="lucide-custom" />
                   </DeleteButton>
                 </ImageWrapper>
               </Col>

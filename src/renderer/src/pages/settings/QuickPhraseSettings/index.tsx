@@ -1,10 +1,12 @@
-import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
 import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
+import { PlusIcon } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -74,7 +76,7 @@ const QuickPhraseSettings: FC = () => {
       <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.quickPhrase.title')}
-          <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
+          <Button type="text" icon={<PlusIcon size={18} />} onClick={handleAdd} />
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -94,7 +96,12 @@ const QuickPhraseSettings: FC = () => {
                     extra: phrase.content,
                     actions: (
                       <Flex gap={4} style={{ opacity: 0.6 }}>
-                        <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(phrase)} />
+                        <Button
+                          key="edit"
+                          type="text"
+                          icon={<EditIcon size={14} />}
+                          onClick={() => handleEdit(phrase)}
+                        />
                         <Popconfirm
                           title={t('settings.quickPhrase.delete')}
                           description={t('settings.quickPhrase.deleteConfirm')}
@@ -102,7 +109,12 @@ const QuickPhraseSettings: FC = () => {
                           cancelText={t('common.cancel')}
                           onConfirm={() => handleDelete(phrase.id)}
                           icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
+                          <Button
+                            key="delete"
+                            type="text"
+                            danger
+                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                          />
                         </Popconfirm>
                       </Flex>
                     )

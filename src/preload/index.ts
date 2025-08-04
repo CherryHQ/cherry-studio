@@ -41,7 +41,8 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
-  setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
+  setProxy: (proxy: string | undefined, bypassRules?: string) =>
+    ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),

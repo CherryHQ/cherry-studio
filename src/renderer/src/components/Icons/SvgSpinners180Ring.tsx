@@ -1,6 +1,7 @@
 import { SVGProps } from 'react'
 
-export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement>) {
+export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: number | string }) {
+  const { size = '1em', ...svgProps } = props
   // 避免与全局样式冲突
   const animationClassName = 'svg-spinner-anim-180-ring'
 
@@ -25,11 +26,11 @@ export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement>) {
       </style>
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="1em"
-        height="1em"
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
-        {...props}
-        className={`${animationClassName} ${props.className || ''}`.trim()}>
+        {...svgProps}
+        className={`${animationClassName} ${svgProps.className || ''}`.trim()}>
         {/* Icon from SVG Spinners by Utkarsh Verma - https://github.com/n3r4zzurr0/svg-spinners/blob/main/LICENSE */}
         <path
           fill="currentColor"

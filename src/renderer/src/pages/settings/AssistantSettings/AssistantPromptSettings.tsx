@@ -165,10 +165,6 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-
-  .ant-btn {
-    line-height: 0;
-  }
 `
 
 const EmojiButtonWrapper = styled.div`

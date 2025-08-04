@@ -1,13 +1,13 @@
-import { EditOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
-import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { MonitorCheck, Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -139,7 +139,7 @@ const McpServersList: FC = () => {
       <ListHeader>
         <SettingTitle style={{ gap: 3 }}>
           <span>{t('settings.mcp.newServer')}</span>
-          <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
+          <Button icon={<EditIcon size={14} />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
@@ -176,7 +176,7 @@ const McpServersList: FC = () => {
               {t('settings.mcp.addServer.label')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
+          <Button icon={<RefreshIcon size={16} />} type="default" onClick={onSyncServers} shape="round">
             {t('settings.mcp.sync.title', 'Sync Servers')}
           </Button>
         </ButtonGroup>

@@ -596,7 +596,7 @@
       "list": "话题列表",
       "move_to": "移动到",
       "new": "开始新对话",
-      "pinned": "固定话题",
+      "pin": "固定话题",
       "prompt": {
         "edit": {
           "title": "编辑话题提示词"
@@ -605,7 +605,7 @@
         "tips": "话题提示词：针对当前话题提供额外的补充提示词"
       },
       "title": "话题",
-      "unpinned": "取消固定"
+      "unpin": "取消固定"
     },
     "translate": "翻译"
   },
@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "编辑",
       "generate": "绘图",
+      "merge": "合并",
       "remix": "混合",
       "upscale": "高清增强"
     },
@@ -2991,6 +2992,7 @@
           "label": "添加列表中的模型"
         },
         "add_whole_group": "添加整个分组",
+        "refetch_list": "重新获取模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
         "remove_whole_group": "移除整个分组"
@@ -3084,6 +3086,21 @@
             "placeholder": "输入一个或多个密钥"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "该提供商是否支持 message 的 content 字段为 array 类型",
+            "label": "支持数组格式的 message content"
+          },
+          "developer_role": {
+            "help": "该提供商是否支持 role: \"developer\" 的消息",
+            "label": "支持 Developer Message"
+          },
+          "label": "API 设置",
+          "stream_options": {
+            "help": "该提供商是否支持 stream_options 参数",
+            "label": "支持 stream_options"
+          }
+        },
         "url": {
           "preview": "预览: {{url}}",
           "reset": "重置",
@@ -3174,7 +3191,7 @@
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
       "get_api_key": "点击这里获取密钥",
-      "is_not_support_array_content": "开启兼容模式",
+      "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
       "not_checked": "未检测",
       "notes": {
@@ -3221,6 +3238,7 @@
     },
     "proxy": {
       "address": "代理地址",
+      "bypass": "代理绕过规则",
       "mode": {
         "custom": "自定义代理",
         "none": "不使用代理",

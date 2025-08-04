@@ -596,7 +596,7 @@
       "list": "Topic List",
       "move_to": "Move to",
       "new": "New Topic",
-      "pinned": "Pinned Topics",
+      "pin": "Pin Topic",
       "prompt": {
         "edit": {
           "title": "Edit Topic Prompts"
@@ -605,7 +605,7 @@
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
       },
       "title": "Topics",
-      "unpinned": "Unpinned Topics"
+      "unpin": "Unpin Topic"
     },
     "translate": "Translate"
   },
@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "Edit",
       "generate": "Draw",
+      "merge": "Merge",
       "remix": "Remix",
       "upscale": "Upscale"
     },
@@ -2991,6 +2992,7 @@
           "label": "Add models to the list"
         },
         "add_whole_group": "Add the whole group",
+        "refetch_list": "Refetch model list",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",
         "remove_whole_group": "Remove the whole group"
@@ -3084,6 +3086,21 @@
             "placeholder": "Enter one or more keys"
           }
         },
+        "options": {
+          "array_content": {
+            "help": "Does the provider support the content field of the message being of array type?",
+            "label": "Supports array format message content"
+          },
+          "developer_role": {
+            "help": "Does the provider support messages with role: \"developer\"?",
+            "label": "Support Developer Message"
+          },
+          "label": "API Settings",
+          "stream_options": {
+            "help": "Does the provider support the stream_options parameter?",
+            "label": "Support stream_options"
+          }
+        },
         "url": {
           "preview": "Preview: {{url}}",
           "reset": "Reset",
@@ -3174,7 +3191,7 @@
       "docs_check": "Check",
       "docs_more_details": "for more details",
       "get_api_key": "Get API Key",
-      "is_not_support_array_content": "Enable compatible mode",
+      "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
       "notes": {
@@ -3221,6 +3238,7 @@
     },
     "proxy": {
       "address": "Proxy Address",
+      "bypass": "Bypass Rules",
       "mode": {
         "custom": "Custom Proxy",
         "none": "No Proxy",

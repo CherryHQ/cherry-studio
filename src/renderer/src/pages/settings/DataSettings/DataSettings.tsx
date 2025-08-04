@@ -2,9 +2,7 @@ import {
   CloudServerOutlined,
   CloudSyncOutlined,
   FileSearchOutlined,
-  FolderOpenOutlined,
   LoadingOutlined,
-  SaveOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -22,7 +20,7 @@ import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -588,10 +586,10 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button onClick={BackupPopup.show} icon={<SaveOutlined />}>
+                  <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button onClick={RestorePopup.show} icon={<FolderOpenOutlined />}>
+                  <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
                     {t('settings.general.restore.button')}
                   </Button>
                 </HStack>

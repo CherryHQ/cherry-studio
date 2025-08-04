@@ -1,5 +1,5 @@
 diff --git a/es/dropdown/dropdown.js b/es/dropdown/dropdown.js
-index 986877a762b9ad0aca596a8552732cd12d2eaabb..1f18aa2ea745e68950e4cee16d4d655f5c835fd5 100644
+index 2e45574398ff68450022a0078e213cc81fe7454e..58ba7789939b7805a89f92b93d222f8fb1168bdf 100644
 --- a/es/dropdown/dropdown.js
 +++ b/es/dropdown/dropdown.js
 @@ -2,7 +2,7 @@
@@ -11,7 +11,7 @@ index 986877a762b9ad0aca596a8552732cd12d2eaabb..1f18aa2ea745e68950e4cee16d4d655f
  import classNames from 'classnames';
  import RcDropdown from 'rc-dropdown';
  import useEvent from "rc-util/es/hooks/useEvent";
-@@ -158,8 +158,10 @@ const Dropdown = props => {
+@@ -160,8 +160,10 @@ const Dropdown = props => {
          className: `${prefixCls}-menu-submenu-arrow`
        }, direction === 'rtl' ? (/*#__PURE__*/React.createElement(LeftOutlined, {
          className: `${prefixCls}-menu-submenu-arrow-icon`
@@ -24,22 +24,8 @@ index 986877a762b9ad0aca596a8552732cd12d2eaabb..1f18aa2ea745e68950e4cee16d4d655f
        }))),
        mode: "vertical",
        selectable: false,
-diff --git a/es/dropdown/style/index.js b/es/dropdown/style/index.js
-index 768c01783002c6901c85a73061ff6b3e776a60ce..39b1b95a56cdc9fb586a193c3adad5141f5cf213 100644
---- a/es/dropdown/style/index.js
-+++ b/es/dropdown/style/index.js
-@@ -240,7 +240,8 @@ const genBaseStyle = token => {
-               marginInlineEnd: '0 !important',
-               color: token.colorTextDescription,
-               fontSize: fontSizeIcon,
--              fontStyle: 'normal'
-+              fontStyle: 'normal',
-+              marginTop: 3,
-             }
-           }
-         }),
 diff --git a/es/select/useIcons.js b/es/select/useIcons.js
-index 959115be936ef8901548af2658c5dcfdc5852723..c812edd52123eb0faf4638b1154fcfa1b05b513b 100644
+index 572aaaa0899f429cbf8a7181f2eeada545f76dcb..4e175c8d7713dd6422f8bcdc74ee671a835de6ce 100644
 --- a/es/select/useIcons.js
 +++ b/es/select/useIcons.js
 @@ -4,10 +4,10 @@ import * as React from 'react';
@@ -51,10 +37,10 @@ index 959115be936ef8901548af2658c5dcfdc5852723..c812edd52123eb0faf4638b1154fcfa1
  import SearchOutlined from "@ant-design/icons/es/icons/SearchOutlined";
  import { devUseWarning } from '../_util/warning';
 +import { ChevronDown } from 'lucide-react';
- export default function useIcons(_ref) {
-   let {
-     suffixIcon,
-@@ -56,8 +56,10 @@ export default function useIcons(_ref) {
+ export default function useIcons({
+   suffixIcon,
+   clearIcon,
+@@ -54,8 +54,10 @@ export default function useIcons({
            className: iconCls
          }));
        }

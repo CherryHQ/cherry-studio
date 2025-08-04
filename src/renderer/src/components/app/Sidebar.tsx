@@ -21,6 +21,7 @@ import {
   Languages,
   LayoutGrid,
   MessageSquare,
+  Monitor,
   Moon,
   Palette,
   Settings,
@@ -44,7 +45,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, setTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -105,11 +106,17 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + getThemeModeLabel(theme)}
+          title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
           mouseEnterDelay={0.8}
           placement="right">
-          <Icon theme={theme} onClick={() => setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)}>
-            {theme === ThemeMode.dark ? <Moon size={20} className="icon" /> : <Sun size={20} className="icon" />}
+          <Icon theme={theme} onClick={toggleTheme}>
+            {settedTheme === ThemeMode.dark ? (
+              <Moon size={20} className="icon" />
+            ) : settedTheme === ThemeMode.light ? (
+              <Sun size={20} className="icon" />
+            ) : (
+              <Monitor size={20} className="icon" />
+            )}
           </Icon>
         </Tooltip>
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">

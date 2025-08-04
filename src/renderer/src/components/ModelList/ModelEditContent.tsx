@@ -13,7 +13,7 @@ import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch } from 'antd'
 import { cloneDeep } from 'lodash'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -167,8 +167,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 const val = form.getFieldValue('name')
                 navigator.clipboard.writeText((val.id || model.id) as string)
                 message.success(t('message.copied'))
-              }}>
-              <CopyIcon /> {t('chat.topics.copy.title')}
+              }}
+              icon={<CopyIcon size={16} />}>
+              {t('chat.topics.copy.title')}
             </Button>
           </Flex>
         </Form.Item>
@@ -210,7 +211,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               style={{ color: 'var(--color-text-3)' }}>
               {t('settings.moresetting.label')}
             </Button>
-            <Button type="primary" htmlType="submit" size="middle">
+            <Button type="primary" htmlType="submit" icon={<SaveIcon size={16} />}>
               {t('common.save')}
             </Button>
           </Flex>

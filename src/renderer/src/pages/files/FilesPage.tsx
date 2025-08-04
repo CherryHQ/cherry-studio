@@ -1,11 +1,6 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  ExclamationCircleOutlined,
-  SortAscendingOutlined,
-  SortDescendingOutlined
-} from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
 import { getFileFieldLabel } from '@renderer/i18n/label'
@@ -16,7 +11,14 @@ import { formatFileSize } from '@renderer/utils'
 import { Button, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { File as FileIcon, FileImage, FileText, FileType as FileTypeIcon } from 'lucide-react'
+import {
+  ArrowDownNarrowWide,
+  ArrowUpWideNarrow,
+  File as FileIcon,
+  FileImage,
+  FileText,
+  FileType as FileTypeIcon
+} from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -54,7 +56,7 @@ const FilesPage: FC = () => {
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
         <Flex align="center" gap={0} style={{ opacity: 0.7 }}>
-          <Button type="text" icon={<EditOutlined />} onClick={() => handleRename(file.id)} />
+          <Button type="text" icon={<EditIcon size={14} />} onClick={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
             description={t('files.delete.content')}
@@ -62,7 +64,7 @@ const FilesPage: FC = () => {
             cancelText={t('common.cancel')}
             onConfirm={() => handleDelete(file.id, t)}
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-            <Button type="text" danger icon={<DeleteOutlined />} />
+            <Button type="text" danger icon={<DeleteIcon size={14} className="lucide-custom" />} />
           </Popconfirm>
         </Flex>
       )
@@ -108,7 +110,8 @@ const FilesPage: FC = () => {
                   }
                 }}>
                 {getFileFieldLabel(field)}
-                {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
+                {sortField === field &&
+                  (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
               </SortButton>
             ))}
           </SortContainer>

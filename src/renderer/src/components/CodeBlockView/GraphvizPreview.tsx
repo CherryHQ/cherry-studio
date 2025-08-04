@@ -1,5 +1,5 @@
 import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
 import { Flex, Spin } from 'antd'
 import { debounce } from 'lodash'
@@ -86,7 +86,7 @@ const GraphvizPreview: React.FC<BasicPreviewProps> = ({ children, setTools }) =>
   }, [children, debouncedRender])
 
   return (
-    <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+    <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
       <Flex vertical style={{ minHeight: isLoading ? '2rem' : 'auto' }}>
         {error && <PreviewError>{error}</PreviewError>}
         <StyledGraphviz ref={graphvizRef} className="graphviz special-preview" />
