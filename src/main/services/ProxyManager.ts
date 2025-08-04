@@ -12,7 +12,7 @@ const logger = loggerService.withContext('ProxyManager')
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 let byPassRules = defaultByPassRules
 
-const isLocalhost = (hostname: string) => {
+const isByPass = (hostname: string) => {
   return byPassRules.split(',').includes(hostname)
 }
 
@@ -30,7 +30,7 @@ class SelectiveDispatcher extends Dispatcher {
     if (opts.origin) {
       const url = new URL(opts.origin)
       // 检查是否为 localhost 或本地地址
-      if (isLocalhost(url.hostname)) {
+      if (isByPass(url.hostname)) {
         return this.directDispatcher.dispatch(opts, handler)
       }
     }
@@ -211,13 +211,13 @@ export class ProxyManager {
       if (url) {
         if (typeof url === 'string') {
           const urlObj = new URL(url)
-          if (isLocalhost(urlObj.hostname)) {
+          if (isByPass(urlObj.hostname)) {
             return originalMethod(url, options, callback)
           }
         }
 
         if (url instanceof URL) {
-          if (isLocalhost(url.hostname)) {
+          if (isByPass(url.hostname)) {
             return originalMethod(url, options, callback)
           }
         }

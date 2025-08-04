@@ -10,9 +10,9 @@ import {
   setEnableSpellCheck,
   setLanguage,
   setNotificationSettings,
+  setProxyBypassRules as _setProxyBypassRules,
   setProxyMode,
   setProxyUrl as _setProxyUrl,
-  setProxyBypassRules as _setProxyBypassRules,
   setSpellCheckLanguages
 } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
