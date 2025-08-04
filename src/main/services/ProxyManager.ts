@@ -138,6 +138,7 @@ export class ProxyManager {
     }
 
     process.env.grpc_proxy = url
+    process.env.HTTP_PROXY = url
     process.env.HTTPS_PROXY = url
     process.env.http_proxy = url
     process.env.https_proxy = url
