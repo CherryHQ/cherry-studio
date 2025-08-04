@@ -7,7 +7,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -64,7 +64,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddNote()

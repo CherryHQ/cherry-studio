@@ -30,7 +30,7 @@ export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: num
         height={size}
         viewBox="0 0 24 24"
         {...svgProps}
-        className={`${animationClassName} ${props.className || ''}`.trim()}>
+        className={`${animationClassName} ${svgProps.className || ''}`.trim()}>
         {/* Icon from SVG Spinners by Utkarsh Verma - https://github.com/n3r4zzurr0/svg-spinners/blob/main/LICENSE */}
         <path
           fill="currentColor"
