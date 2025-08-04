@@ -79,7 +79,6 @@ const Container = styled.div`
   align-items: center;
   cursor: pointer;
   .icon {
-    margin-top: 1px;
     margin-right: 3px;
   }
   @media (max-width: 800px) {
