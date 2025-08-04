@@ -907,7 +907,6 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
           throw e
         }
       } finally {
-        removeAbortController(taskId, abortFn)
         clearTimeout(timer)
       }
     }
@@ -927,5 +926,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
     } else {
       throw error
     }
+  } finally {
+    removeAbortController(taskId, abortFn)
   }
 }
