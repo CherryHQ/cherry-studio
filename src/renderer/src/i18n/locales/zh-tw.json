@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "編輯",
       "generate": "繪圖",
+      "merge": "合併",
       "remix": "混合",
       "upscale": "放大"
     },

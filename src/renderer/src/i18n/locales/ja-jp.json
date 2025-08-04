@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "部分編集",
       "generate": "画像生成",
+      "merge": "マージ",
       "remix": "混合",
       "upscale": "拡大"
     },

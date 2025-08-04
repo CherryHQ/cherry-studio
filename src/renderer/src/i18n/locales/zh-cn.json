@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "编辑",
       "generate": "绘图",
+      "merge": "合并",
       "remix": "混合",
       "upscale": "高清增强"
     },

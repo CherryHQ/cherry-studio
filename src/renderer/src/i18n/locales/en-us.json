@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "Edit",
       "generate": "Draw",
+      "merge": "Merge",
       "remix": "Remix",
       "upscale": "Upscale"
     },
