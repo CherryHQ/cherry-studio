@@ -4,10 +4,12 @@ import type { Message } from '@renderer/types/newMessage' // Assuming correct Me
 import { MessageBlockType } from '@renderer/types/newMessage'
 // May need Block types if refactoring to use them
 // import type { MessageBlock, MainTextMessageBlock } from '@renderer/types/newMessageTypes';
-import { remove } from 'lodash'
+import { remove, takeRight } from 'lodash'
 import { isEmpty } from 'lodash'
 // Assuming getGroupedMessages is also moved here or imported
 // import { getGroupedMessages } from './path/to/getGroupedMessages';
+
+// const logger = loggerService.withContext('Utils.filter')
 
 /**
  * Filters out messages of type '@' or 'clear' and messages without main text content.
@@ -154,3 +156,24 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 //   })
 //   return groups
 // }
+
+/**
+ * Filters and processes messages based on context requirements
+ * @param messages - Array of messages to be filtered
+ * @param contextCount - Number of messages to keep in context (excluding new user and assistant messages)
+ * @returns Filtered array of messages that:
+ * 1. Only includes messages after the last context clear
+ * 2. Only includes useful message in a group (based on useful flag)
+ * 3. Limited to contextCount + 2 messages (including space for new user/assistant messages)
+ * 4. Starts from first user message
+ * 5. Excludes empty messages
+ */
+export function filterContextMessages(messages: Message[], contextCount: number): Message[] {
+  // NOTE: 和 fetchCompletions 中过滤消息的逻辑相同。
+  // 按理说 fetchCompletions 也可以复用这个函数，不过 fetchCompletions 不敢随便乱改，后面再考虑重构吧
+  const afterContextClearMsgs = filterAfterContextClearMessages(messages)
+  const usefulMsgs = filterUsefulMessages(afterContextClearMsgs)
+  // +2 是算上了新的用户消息和助手消息
+  const filteredMessages = filterUserRoleStartMessages(filterEmptyMessages(takeRight(usefulMsgs, contextCount + 2)))
+  return filteredMessages
+}
