@@ -170,6 +170,19 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
   }, [messages, registerMessageElement])
 
+  const onUpdateUseful = useCallback(
+    (msgId: string) => {
+      const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
+      toResetUsefulMsgs.forEach(async (msg) => {
+        editMessage(msg.id, {
+          useful: undefined
+        })
+      })
+      editMessage(msgId, { useful: true })
+    },
+    [editMessage, messages]
+  )
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
@@ -190,7 +203,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
               selected: message.id === selectedMessageId
             }
           ])}>
-          <MessageItem {...messageProps} />
+          <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
         </MessageWrapper>
       )
 
@@ -208,7 +221,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                     selected: message.id === selectedMessageId
                   }
                 ])}>
-                <MessageItem {...messageProps} />
+                <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
@@ -223,7 +236,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
+    [
+      isGrid,
+      isGrouped,
+      topic,
+      multiModelMessageStyle,
+      messages.length,
+      selectedMessageId,
+      onUpdateUseful,
+      gridPopoverTrigger
+    ]
   )
 
   return (
