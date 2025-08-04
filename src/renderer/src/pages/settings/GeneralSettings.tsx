@@ -239,7 +239,7 @@ const GeneralSettings: FC = () => {
                 placeholder="127.0.0.1,localhost,::1"
                 value={proxyBypassRules}
                 onChange={(e) => setProxyBypassRules(e.target.value)}
-                style={{ width: 300 }}
+                style={{ width: 180 }}
                 onBlur={() => onSetProxyBypassRules()}
               />
             </SettingRow>
