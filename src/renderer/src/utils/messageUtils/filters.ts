@@ -122,8 +122,8 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
           }
         })
       } else if (groupedMsgs.length > 0) {
-        // Keep only the last message if none are marked useful
-        const messagesToRemove = groupedMsgs.slice(0, -1)
+        // Keep only the first message if none are marked useful
+        const messagesToRemove = groupedMsgs.slice(1)
         messagesToRemove.forEach((m) => {
           remove(_messages, (o) => o.id === m.id)
         })
