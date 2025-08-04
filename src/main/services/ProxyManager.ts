@@ -62,6 +62,7 @@ export class ProxyManager {
   private isSettingProxy = false
 
   private proxyDispatcher: Dispatcher | null = null
+  private proxyAgent: ProxyAgent | null = null
 
   private originalGlobalDispatcher: Dispatcher
   private originalSocksDispatcher: Dispatcher
@@ -175,11 +176,18 @@ export class ProxyManager {
       http.request = this.originalHttpRequest
       https.get = this.originalHttpsGet
       https.request = this.originalHttpsRequest
+      try {
+        this.proxyAgent?.destroy()
+      } catch (error) {
+        logger.error('Failed to destroy proxy agent:', error as Error)
+      }
+      this.proxyAgent = null
       return
     }
 
     // ProxyAgent 从环境变量读取代理配置
     const agent = new ProxyAgent()
+    this.proxyAgent = agent
     http.get = this.bindHttpMethod(this.originalHttpGet, agent)
     http.request = this.bindHttpMethod(this.originalHttpRequest, agent)
 
