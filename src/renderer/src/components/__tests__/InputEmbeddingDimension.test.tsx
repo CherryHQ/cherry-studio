@@ -47,9 +47,9 @@ vi.mock('antd', () => {
     />
   )
 
-  const MockButton: React.FC<any> = ({ children, onClick, loading, disabled, icon, ...rest }) => (
-    <button type="button" onClick={onClick} disabled={disabled || loading} {...rest}>
-      {loading ? 'Loading...' : icon}
+  const MockButton: React.FC<any> = ({ children, onClick, disabled, icon, className, ...rest }) => (
+    <button type="button" onClick={onClick} disabled={disabled} {...rest} className={className}>
+      {icon}
       {children}
     </button>
   )
