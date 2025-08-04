@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -33,19 +33,7 @@ import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import {
-  AtSign,
-  Check,
-  FilePenLine,
-  Languages,
-  ListChecks,
-  Menu,
-  RefreshCw,
-  Save,
-  Split,
-  ThumbsUp,
-  Upload
-} from 'lucide-react'
+import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -440,7 +428,7 @@ const MessageMenubar: FC<Props> = (props) => {
               className="message-action-button"
               onClick={() => handleResendUserMessage()}
               $softHoverBg={isBubbleStyle}>
-              <RefreshCw size={15} />
+              <RefreshIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
@@ -470,7 +458,7 @@ const MessageMenubar: FC<Props> = (props) => {
               open={showRegenerateTooltip}
               onOpenChange={setShowRegenerateTooltip}>
               <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-                <RefreshCw size={15} />
+                <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
           </Popconfirm>

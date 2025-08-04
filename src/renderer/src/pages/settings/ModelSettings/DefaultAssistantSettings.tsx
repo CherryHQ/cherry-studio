@@ -1,5 +1,6 @@
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
+import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
@@ -9,7 +10,6 @@ import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
 import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { RotateCw } from 'lucide-react'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -157,7 +157,7 @@ const AssistantSettings: FC = () => {
         }}>
         {t('settings.assistant.model_params')}
         <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
-          <Button type="text" onClick={onReset} icon={<RotateCw size={16} />} />
+          <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>

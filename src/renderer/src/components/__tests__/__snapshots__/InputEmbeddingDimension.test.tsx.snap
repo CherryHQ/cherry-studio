@@ -27,7 +27,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
         role="img"
         size="16"
       >
-        RefreshCw
+        RefreshIcon
       </svg>
     </button>
   </div>

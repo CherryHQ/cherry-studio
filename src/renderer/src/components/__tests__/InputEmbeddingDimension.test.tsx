@@ -90,10 +90,10 @@ vi.mock('react-i18next', () => ({
   }
 }))
 
-vi.mock('lucide-react', () => ({
-  RefreshCw: (props: React.SVGProps<SVGSVGElement>) => (
+vi.mock('@renderer/components/Icons', () => ({
+  RefreshIcon: (props: React.SVGProps<SVGSVGElement>) => (
     <svg data-testid="refresh-icon" aria-label="refresh" role="img" {...props}>
-      RefreshCw
+      RefreshIcon
     </svg>
   )
 }))

@@ -1,5 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { CircleX, Copy, Pause, RefreshCw } from 'lucide-react'
+import { RefreshIcon } from '@renderer/components/Icons'
+import { CircleX, Copy, Pause } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -165,7 +166,7 @@ const WindowFooter: FC<FooterProps> = ({
         </OpButton>
         {onRegenerate && (
           <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
-            <RefreshCw size={14} className="btn-icon" />
+            <RefreshIcon size={14} className="btn-icon" />
             {t('selection.action.window.r_regenerate')}
           </OpButton>
         )}

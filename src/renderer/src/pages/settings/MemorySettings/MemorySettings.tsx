@@ -1,6 +1,6 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { DeleteIcon, EditIcon, LoadingIcon } from '@renderer/components/Icons'
+import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -18,17 +18,7 @@ import type { MemoryItem } from '@types'
 import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import {
-  Brain,
-  Calendar,
-  MenuIcon,
-  PlusIcon,
-  RotateCw,
-  Settings2,
-  UserRound,
-  UserRoundMinus,
-  UserRoundPlus
-} from 'lucide-react'
+import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
@@ -654,7 +644,7 @@ const MemorySettings = () => {
                   {
                     key: 'refresh',
                     label: t('common.refresh'),
-                    icon: <RotateCw size={14} />,
+                    icon: <RefreshIcon size={14} />,
                     onClick: () => loadMemories(currentUser)
                   },
                   {

@@ -1,7 +1,7 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
-import { DeleteIcon } from '@renderer/components/Icons'
+import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
@@ -488,7 +488,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       ))}
       <Divider style={{ margin: '15px 0' }} />
       <HStack justifyContent="flex-end">
-        <Button onClick={onReset} style={{ width: 80 }} danger type="primary">
+        <Button onClick={onReset} danger type="primary" icon={<ResetIcon size={16} />}>
           {t('chat.settings.reset')}
         </Button>
       </HStack>
