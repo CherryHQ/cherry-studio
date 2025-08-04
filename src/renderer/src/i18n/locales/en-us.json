@@ -3221,6 +3221,7 @@
     },
     "proxy": {
       "address": "Proxy Address",
+      "bypass": "Bypass Rules",
       "mode": {
         "custom": "Custom Proxy",
         "none": "No Proxy",

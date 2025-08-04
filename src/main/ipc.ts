@@ -90,7 +90,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     installPath: path.dirname(app.getPath('exe'))
   }))
 
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
+  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
     let proxyConfig: ProxyConfig
 
     if (proxy === 'system') {
@@ -99,6 +99,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
     } else {
       proxyConfig = { mode: 'direct' }
+    }
+
+    if (bypassRules) {
+      proxyConfig.proxyBypassRules = bypassRules
     }
 
     await proxyManager.configureProxy(proxyConfig)

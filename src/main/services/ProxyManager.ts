@@ -9,9 +9,11 @@ import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 const logger = loggerService.withContext('ProxyManager')
+const defaultByPassRules = 'localhost,127.0.0.1,::1'
+let byPassRules = defaultByPassRules
 
 const isLocalhost = (hostname: string) => {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  return byPassRules.split(',').includes(hostname)
 }
 
 class SelectiveDispatcher extends Dispatcher {
@@ -92,7 +94,11 @@ export class ProxyManager {
     this.isSettingProxy = true
 
     try {
-      if (config?.mode === this.config?.mode && config?.proxyRules === this.config?.proxyRules) {
+      if (
+        config?.mode === this.config?.mode &&
+        config?.proxyRules === this.config?.proxyRules &&
+        config?.proxyBypassRules === this.config?.proxyBypassRules
+      ) {
         logger.debug('proxy config is the same, skip configure')
         return
       }
@@ -108,7 +114,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      this.config.proxyBypassRules = 'localhost,127.0.0.1,::1'
+      byPassRules = config.proxyBypassRules || defaultByPassRules
       this.setGlobalProxy()
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -132,7 +138,6 @@ export class ProxyManager {
     }
 
     process.env.grpc_proxy = url
-    process.env.HTTP_PROXY = url
     process.env.HTTPS_PROXY = url
     process.env.http_proxy = url
     process.env.https_proxy = url

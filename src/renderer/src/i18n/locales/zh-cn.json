@@ -3221,6 +3221,7 @@
     },
     "proxy": {
       "address": "代理地址",
+      "bypass": "代理绕过规则",
       "mode": {
         "custom": "自定义代理",
         "none": "不使用代理",

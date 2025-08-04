@@ -12,6 +12,7 @@ import {
   setNotificationSettings,
   setProxyMode,
   setProxyUrl as _setProxyUrl,
+  setProxyBypassRules as _setProxyBypassRules,
   setSpellCheckLanguages
 } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
@@ -29,6 +30,7 @@ const GeneralSettings: FC = () => {
   const {
     language,
     proxyUrl: storeProxyUrl,
+    proxyBypassRules: storeProxyBypassRules,
     setLaunch,
     setTray,
     launchOnBoot,
@@ -42,6 +44,7 @@ const GeneralSettings: FC = () => {
     setDisableHardwareAcceleration
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
+  const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
 
@@ -97,6 +100,10 @@ const GeneralSettings: FC = () => {
     dispatch(_setProxyUrl(proxyUrl))
   }
 
+  const onSetProxyBypassRules = () => {
+    dispatch(_setProxyBypassRules(proxyBypassRules))
+  }
+
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
     { value: 'custom', label: t('settings.proxy.mode.custom') },
@@ -109,6 +116,7 @@ const GeneralSettings: FC = () => {
       dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       dispatch(_setProxyUrl(undefined))
+      dispatch(_setProxyBypassRules(undefined))
     }
   }
 
@@ -210,12 +218,29 @@ const GeneralSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
               <Input
+                spellCheck={false}
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 style={{ width: 180 }}
                 onBlur={() => onSetProxyUrl()}
                 type="url"
+              />
+            </SettingRow>
+          </>
+        )}
+        {(storeProxyMode === 'custom' || storeProxyMode === 'system') && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <Input
+                spellCheck={false}
+                placeholder="127.0.0.1,localhost,::1"
+                value={proxyBypassRules}
+                onChange={(e) => setProxyBypassRules(e.target.value)}
+                style={{ width: 300 }}
+                onBlur={() => onSetProxyBypassRules()}
               />
             </SettingRow>
           </>

@@ -3203,6 +3203,7 @@
     },
     "proxy": {
       "address": "Endereço do proxy",
+      "bypass": "Regras de Contorno",
       "mode": {
         "custom": "Proxy Personalizado",
         "none": "Não Usar Proxy",

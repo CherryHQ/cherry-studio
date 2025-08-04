@@ -1962,6 +1962,11 @@ const migrateConfig = {
   '127': (state: RootState) => {
     try {
       addProvider(state, 'poe')
+
+      if (!state.settings.proxyBypassRules) {
+        state.settings.proxyBypassRules = 'localhost,127.0.0.1,::1'
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 127 error', error as Error)
