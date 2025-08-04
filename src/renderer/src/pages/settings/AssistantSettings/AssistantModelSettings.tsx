@@ -215,13 +215,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Label>{t('assistants.settings.default_model')}</Label>
         <HStack alignItems="center" gap={5}>
           <ModelSelectButton
-            icon={
-              defaultModel ? (
-                <ModelAvatar model={defaultModel} size={20} />
-              ) : (
-                <PlusIcon size={18} color="var(--color-text-2)" />
-              )
-            }
+            icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             onClick={onSelectModel}>
             <ModelName>{defaultModel ? defaultModel.name : t('agents.edit.model.select.title')}</ModelName>
           </ModelSelectButton>
@@ -457,7 +451,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
-        <Button icon={<PlusIcon size={18} color="var(--color-text-2)" />} onClick={onAddCustomParameter}>
+        <Button icon={<PlusIcon size={18} />} onClick={onAddCustomParameter}>
           {t('models.add_parameter')}
         </Button>
       </SettingRow>
