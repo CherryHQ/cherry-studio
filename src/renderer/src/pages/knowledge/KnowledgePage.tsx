@@ -62,7 +62,7 @@ const KnowledgePage: FC = () => {
           }
         },
         {
-          label: t('knowledge.settings.title'),
+          label: t('common.settings'),
           key: 'settings',
           icon: <Settings size={14} />,
           onClick: () => handleEditKnowledgeBase(base)
