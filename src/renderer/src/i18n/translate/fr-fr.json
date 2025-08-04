@@ -404,7 +404,7 @@
       "regenerate": {
         "model": "Changer de modèle"
       },
-      "useful": "Utile"
+      "useful": "[to be translated]:设置为上下文"
     },
     "multiple": {
       "select": {
@@ -1561,6 +1561,7 @@
     "mode": {
       "edit": "Редактировать",
       "generate": "Создать изображение",
+      "merge": "[to be translated]:合并",
       "remix": "Смешать",
       "upscale": "Увеличить"
     },
@@ -2715,6 +2716,8 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
+      "longRunning": "[to be translated]:长时间运行模式",
+      "longRunningTooltip": "[to be translated]:启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
