@@ -1,8 +1,10 @@
-import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, QuickPhrase } from '@renderer/types'
 import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
+import { PlusIcon } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -82,7 +84,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
     <Container>
       <SettingTitle>
         {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
-        <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
+        <Button type="text" icon={<PlusIcon size={18} />} onClick={handleAdd} />
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -102,7 +104,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                   extra: prompt.content,
                   actions: (
                     <Flex gap={4} style={{ opacity: 0.6 }}>
-                      <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(prompt)} />
+                      <Button key="edit" type="text" icon={<EditIcon size={14} />} onClick={() => handleEdit(prompt)} />
                       <Popconfirm
                         title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
                         description={t(
@@ -113,7 +115,12 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                         cancelText={t('common.cancel')}
                         onConfirm={() => handleDelete(prompt.id)}
                         icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                        <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
+                        <Button
+                          key="delete"
+                          type="text"
+                          danger
+                          icon={<DeleteIcon size={14} className="lucide-custom" />}
+                        />
                       </Popconfirm>
                     </Flex>
                   )

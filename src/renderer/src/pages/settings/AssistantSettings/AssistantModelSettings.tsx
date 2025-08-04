@@ -1,6 +1,7 @@
-import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
@@ -10,6 +11,7 @@ import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
+import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -213,7 +215,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Label>{t('assistants.settings.default_model')}</Label>
         <HStack alignItems="center" gap={5}>
           <ModelSelectButton
-            icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusOutlined />}
+            icon={
+              defaultModel ? (
+                <ModelAvatar model={defaultModel} size={20} />
+              ) : (
+                <PlusIcon size={18} color="var(--color-text-2)" />
+              )
+            }
             onClick={onSelectModel}>
             <ModelName>{defaultModel ? defaultModel.name : t('agents.edit.model.select.title')}</ModelName>
           </ModelSelectButton>
@@ -221,7 +229,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Button
               color="danger"
               variant="filled"
-              icon={<DeleteOutlined />}
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
               onClick={() => {
                 setDefaultModel(undefined)
                 updateAssistant({ ...assistant, defaultModel: undefined })
@@ -449,7 +457,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
-        <Button icon={<PlusOutlined />} onClick={onAddCustomParameter}>
+        <Button icon={<PlusIcon size={18} color="var(--color-text-2)" />} onClick={onAddCustomParameter}>
           {t('models.add_parameter')}
         </Button>
       </SettingRow>
@@ -478,7 +486,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Button
               color="danger"
               variant="filled"
-              icon={<DeleteOutlined />}
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
               onClick={() => onDeleteCustomParameter(index)}
             />
           </Col>
