@@ -22,7 +22,7 @@ import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
-import { Eraser, ListPlus, RefreshCcw, Search } from 'lucide-react'
+import { ListMinus, ListPlus, RefreshCcw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -251,7 +251,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           mouseLeaveDelay={0}>
           <Button
             type="default"
-            icon={isAllFilteredInProvider ? <Eraser size={18} /> : <ListPlus size={18} />}
+            icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
             size="large"
             onClick={(e) => {
               e.stopPropagation()
