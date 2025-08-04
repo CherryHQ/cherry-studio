@@ -395,7 +395,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         label: t('common.delete'),
         danger: true,
         key: 'delete',
-        icon: <Trash size={14} color="var(--color-error)" />,
+        icon: <Trash size={14} className="lucide-custom" />,
         onClick: () => onDeleteTopic(topic)
       })
     }

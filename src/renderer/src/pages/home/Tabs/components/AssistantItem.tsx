@@ -363,7 +363,7 @@ function getMenuItems({
     {
       label: t('common.delete'),
       key: 'delete',
-      icon: <Trash size={14} color="var(--color-error)" />,
+      icon: <Trash size={14} className="lucide-custom" />,
       danger: true,
       onClick: () => {
         window.modal.confirm({
