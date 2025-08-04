@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "Switch Model"
       },
-      "useful": "[to be translated]:设置为上下文"
+      "useful": {
+        "label": "Set as context",
+        "tip": "This message will be set as the message to join the context within this group of messages."
+      }
     },
     "multiple": {
       "select": {

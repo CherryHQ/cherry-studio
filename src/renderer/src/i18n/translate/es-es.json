@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "Cambiar modelo"
       },
-      "useful": "[to be translated]:设置为上下文"
+      "useful": {
+        "label": "establecer como contexto",
+        "tip": "Este mensaje se configurará como el mensaje que se une al contexto dentro de este grupo de mensajes."
+      }
     },
     "multiple": {
       "select": {
@@ -1561,7 +1564,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Generar imagen",
-      "merge": "[to be translated]:合并",
+      "merge": "combinar",
       "remix": "Mezclar",
       "upscale": "Ampliar"
     },
@@ -2716,8 +2719,8 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
-      "longRunning": "[to be translated]:长时间运行模式",
-      "longRunningTooltip": "[to be translated]:启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
+      "longRunning": "Modo de ejecución prolongada",
+      "longRunningTooltip": "Habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de espera al recibir notificaciones de progreso y extiende el tiempo máximo de espera hasta 10 minutos",
       "missingDependencies": "Faltan, instalelas para continuar",
       "more": {
         "awesome": "Lista seleccionada de servidores MCP",

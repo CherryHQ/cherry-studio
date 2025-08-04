@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "モデルを切り替え"
       },
-      "useful": "[to be translated]:设置为上下文"
+      "useful": {
+        "label": "上下文として設定する",
+        "tip": "このメッセージは、このメッセージ群の中でコンテキストに追加されるメッセージとして設定されます。"
+      }
     },
     "multiple": {
       "select": {

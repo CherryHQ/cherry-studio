@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "切換模型"
       },
-      "useful": "[to be translated]:设置为上下文"
+      "useful": {
+        "label": "設置為上下文",
+        "tip": "該訊息將會在這組訊息中被設置為加入上下文的訊息"
+      }
     },
     "multiple": {
       "select": {

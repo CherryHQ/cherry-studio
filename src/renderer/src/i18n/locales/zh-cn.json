@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "切换模型"
       },
-      "useful": "设置为上下文"
+      "useful": {
+        "label": "设置为上下文",
+        "tip": "该消息将会在这组消息中被设置为加入上下文的消息"
+      }
     },
     "multiple": {
       "select": {
