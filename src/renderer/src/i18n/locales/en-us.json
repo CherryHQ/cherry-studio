@@ -383,6 +383,15 @@
         "settings": "Web Search Settings"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
+        "no_tool": "No matching MCP tool found for {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {

@@ -383,6 +383,15 @@
         "settings": "Configurações de Pesquisa na Web"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
+        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {
@@ -2991,6 +3000,7 @@
           "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",
         "remove_whole_group": "Remover todo o grupo"

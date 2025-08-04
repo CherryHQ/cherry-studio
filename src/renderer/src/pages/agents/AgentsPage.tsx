@@ -44,27 +44,22 @@ const AgentsPage: FC = () => {
   }, [systemAgents, userAgents])
 
   const filteredAgents = useMemo(() => {
-    let agents: Agent[] = []
-
-    if (search.trim()) {
-      const uniqueAgents = new Map<string, Agent>()
-
-      Object.entries(agentGroups).forEach(([, agents]) => {
-        agents.forEach((agent) => {
-          if (
-            (agent.name.toLowerCase().includes(search.toLowerCase()) ||
-              agent.description?.toLowerCase().includes(search.toLowerCase())) &&
-            !uniqueAgents.has(agent.name)
-          ) {
-            uniqueAgents.set(agent.name, agent)
-          }
-        })
-      })
-      agents = Array.from(uniqueAgents.values())
-    } else {
-      agents = agentGroups[activeGroup] || []
+    // 搜索框为空直接返回「我的」分组下的 agent
+    if (!search.trim()) {
+      return agentGroups[activeGroup] || []
     }
-    return agents.filter((agent) => agent.name.toLowerCase().includes(search.toLowerCase()))
+    const uniqueAgents = new Map<string, Agent>()
+    Object.entries(agentGroups).forEach(([, agents]) => {
+      agents.forEach((agent) => {
+        if (
+          agent.name.toLowerCase().includes(search.toLowerCase()) ||
+          agent.description?.toLowerCase().includes(search.toLowerCase())
+        ) {
+          uniqueAgents.set(agent.id, agent)
+        }
+      })
+    })
+    return Array.from(uniqueAgents.values())
   }, [agentGroups, activeGroup, search])
 
   const { t, i18n } = useTranslation()

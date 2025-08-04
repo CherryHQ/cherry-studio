@@ -383,6 +383,15 @@
         "settings": "網路搜尋設定"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "存在多個匹配的MCP工具，已選擇 {{tool}}",
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {
