@@ -1,6 +1,6 @@
-import { EditOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
@@ -139,7 +139,7 @@ const McpServersList: FC = () => {
       <ListHeader>
         <SettingTitle style={{ gap: 3 }}>
           <span>{t('settings.mcp.newServer')}</span>
-          <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
+          <Button icon={<EditIcon size={14} />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
