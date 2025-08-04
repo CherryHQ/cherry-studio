@@ -254,26 +254,28 @@ export function openAIToolsToMcpTool(
   mcpTools: MCPTool[],
   toolCall: OpenAI.Responses.ResponseFunctionToolCall | ChatCompletionMessageToolCall
 ): MCPTool | undefined {
-  const tools = mcpTools.filter((mcpTool) => {
-    if ('name' in toolCall) {
-      return mcpTool.id === toolCall.name || mcpTool.name === toolCall.name
-    } else {
-      return mcpTool.id === toolCall.function.name || mcpTool.name === toolCall.function.name
-    }
-  })
-  if (tools.length > 1) {
-    logger.warn('Multiple MCP Tools found for tool call:', toolCall)
-    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
-  }
-
-  if (tools.length === 0) {
-    logger.warn('No MCP Tool found for tool call:', toolCall)
-    let toolName = ''
+  let toolName = ''
+  try {
     if ('name' in toolCall) {
       toolName = toolCall.name
     } else {
       toolName = toolCall.function.name
     }
+  } catch (error) {
+    logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
+    window.message.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
+    return undefined
+  }
+  const tools = mcpTools.filter((mcpTool) => {
+    return mcpTool.id === toolName || mcpTool.name === toolName
+  })
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
+
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
     window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
@@ -372,12 +374,12 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   if (!mcpTools) return undefined
   const tools = mcpTools.filter((tool) => tool.id === toolUse.name)
   if (tools.length === 0) {
-    logger.warn('No MCP Tool found for tool call:', toolUse)
+    logger.warn(`No MCP Tool found for tool call: ${toolUse.name}`)
     window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
     return undefined
   }
   if (tools.length > 1) {
-    logger.warn('Multiple MCP Tools found for tool call:', toolUse)
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolUse.name}`)
     window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
   }
   return tools[0]
@@ -444,12 +446,12 @@ export function geminiFunctionCallToMcpTool(
 
   const tools = mcpTools.filter((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
   if (tools.length > 1) {
-    logger.warn('Multiple MCP Tools found for tool call:', toolCall)
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
     window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
   }
 
   if (tools.length === 0) {
-    logger.warn('No MCP Tool found for tool call:', toolCall)
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
     window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
