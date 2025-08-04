@@ -406,7 +406,7 @@
       },
       "useful": {
         "label": "Set as context",
-        "tip": "This message will be set as the message to join the context within this group of messages."
+        "tip": "In this group of messages, this message will be selected to join the context"
       }
     },
     "multiple": {

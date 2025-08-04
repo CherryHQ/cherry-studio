@@ -406,7 +406,7 @@
       },
       "useful": {
         "label": "establecer como contexto",
-        "tip": "Este mensaje se configurará como el mensaje que se une al contexto dentro de este grupo de mensajes."
+        "tip": "En este grupo de mensajes, este mensaje se seleccionará para unirse al contexto"
       }
     },
     "multiple": {

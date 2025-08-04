@@ -406,7 +406,7 @@
       },
       "useful": {
         "label": "Définir comme contexte",
-        "tip": "Ce message sera défini comme le message inclus dans le contexte au sein de ce groupe de messages."
+        "tip": "Dans ce groupe de messages, ce message sera sélectionné pour être inclus dans le contexte"
       }
     },
     "multiple": {
