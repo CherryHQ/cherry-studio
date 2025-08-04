@@ -10,10 +10,10 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 
 const logger = loggerService.withContext('ProxyManager')
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
-let byPassRules = defaultByPassRules
+let byPassRules = defaultByPassRules.split(',')
 
 const isByPass = (hostname: string) => {
-  return byPassRules.split(',').includes(hostname)
+  return byPassRules.includes(hostname)
 }
 
 class SelectiveDispatcher extends Dispatcher {
@@ -114,7 +114,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules || defaultByPassRules
+      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
       this.setGlobalProxy()
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
