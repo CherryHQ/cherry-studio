@@ -17,6 +17,7 @@ import {
   Languages,
   LayoutGrid,
   Moon,
+  Monitor,
   Palette,
   Settings,
   Sparkle,
@@ -69,7 +70,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const tabs = useAppSelector((state) => state.tabs.tabs)
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
-  const { theme, setTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
 
   const getTabId = (path: string): string => {
@@ -162,8 +163,14 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         </AddTabButton>
         <RightButtonsContainer>
           <TopNavbarOpenedMinappTabs />
-          <ThemeButton onClick={() => setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)}>
-            {theme === ThemeMode.dark ? <Moon size={16} /> : <Sun size={16} />}
+          <ThemeButton onClick={toggleTheme}>
+            {settedTheme === ThemeMode.dark ? (
+              <Moon size={16} />
+            ) : settedTheme === ThemeMode.light ? (
+              <Sun size={16} />
+            ) : (
+              <Monitor size={16} />
+            )}
           </ThemeButton>
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
