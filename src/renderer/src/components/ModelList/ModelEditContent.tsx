@@ -168,7 +168,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
                 navigator.clipboard.writeText((val.id || model.id) as string)
                 message.success(t('message.copied'))
               }}>
-              <CopyIcon size={16} /> {t('chat.topics.copy.title')}
+              <CopyIcon size={16} className="lucide-custom" /> {t('chat.topics.copy.title')}
             </Button>
           </Flex>
         </Form.Item>
@@ -210,7 +210,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ provider, model, onUpdate
               style={{ color: 'var(--color-text-3)' }}>
               {t('settings.moresetting.label')}
             </Button>
-            <Button type="primary" htmlType="submit" icon={<SaveIcon size={16} />}>
+            <Button type="primary" htmlType="submit" icon={<SaveIcon size={16} className="lucide-custom" />}>
               {t('common.save')}
             </Button>
           </Flex>
