@@ -27,7 +27,16 @@ const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    proxyBypassRules,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -77,13 +86,13 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system')
+      window.api.setProxy('system', proxyBypassRules)
     } else if (proxyMode === 'custom') {
-      proxyUrl && window.api.setProxy(proxyUrl)
+      proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
     } else {
       window.api.setProxy('')
     }
-  }, [proxyUrl, proxyMode])
+  }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)

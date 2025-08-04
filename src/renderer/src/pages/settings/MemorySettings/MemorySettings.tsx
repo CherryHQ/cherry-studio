@@ -1,16 +1,6 @@
-import {
-  CalendarOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ExclamationCircleOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  UserAddOutlined,
-  UserDeleteOutlined,
-  UserOutlined
-} from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -25,24 +15,10 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import {
-  Avatar,
-  Badge,
-  Button,
-  Dropdown,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Pagination,
-  Select,
-  Space,
-  Spin,
-  Switch
-} from 'antd'
+import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { Brain, Settings2 } from 'lucide-react'
+import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
@@ -57,13 +33,13 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '../index'
+import { DEFAULT_USER_ID } from './constants'
+import UserSelector from './UserSelector'
 
 const logger = loggerService.withContext('MemorySettings')
 
 dayjs.extend(relativeTime)
 
-const DEFAULT_USER_ID = 'default-user'
-const { Option } = Select
 const { TextArea } = Input
 
 interface AddMemoryModalProps {
@@ -112,10 +88,10 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
       onOk={() => form.submit()}
       okButtonProps={{ loading: loading }}
       title={
-        <Space>
-          <PlusOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <PlusIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.add_memory')}</span>
-        </Space>
+        </Flex>
       }
       styles={{
         header: {
@@ -170,10 +146,10 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
   return (
     <Modal
       title={
-        <Space>
-          <EditOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <EditIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.edit_memory')}</span>
-        </Space>
+        </Flex>
       }
       open={visible}
       onCancel={onCancel}
@@ -268,10 +244,10 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
         }
       }}
       title={
-        <Space>
-          <UserAddOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
-        </Space>
+        </Flex>
       }>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item label={t('memory.new_user_id')} name="userId" rules={[{ validator: validateUserId }]}>
@@ -279,7 +255,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
             placeholder={t('memory.new_user_id_placeholder')}
             maxLength={50}
             size="large"
-            prefix={<UserOutlined />}
+            prefix={<UserRound size={16} />}
           />
         </Form.Item>
         <div
@@ -322,10 +298,6 @@ const MemorySettings = () => {
   // Utility functions
   const getUserDisplayName = (user: string) => {
     return user === DEFAULT_USER_ID ? t('memory.default_user') : user
-  }
-
-  const getUserAvatar = (user: string) => {
-    return user === DEFAULT_USER_ID ? user.slice(0, 1).toUpperCase() : user.slice(0, 2).toUpperCase()
   }
 
   // Load unique users from database
@@ -616,7 +588,7 @@ const MemorySettings = () => {
           </HStack>
           <HStack style={{ alignItems: 'center', gap: 10 }}>
             <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
-            <Button icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
+            <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
           </HStack>
         </HStack>
       </SettingGroup>
@@ -632,52 +604,12 @@ const MemorySettings = () => {
               {allMemories.length} {t('memory.total_memories')}
             </SettingHelpText>
           </div>
-          <Select
-            value={currentUser}
-            onChange={handleUserSwitch}
-            style={{ width: 200 }}
-            dropdownRender={(menu) => (
-              <>
-                {menu}
-                <div style={{ padding: '8px' }}>
-                  <Button
-                    type="text"
-                    onClick={() => setAddUserModalVisible(true)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start'
-                    }}>
-                    <HStack alignItems="center" gap={10}>
-                      <UserAddOutlined />
-                      <span>{t('memory.add_new_user')}</span>
-                    </HStack>
-                  </Button>
-                </div>
-              </>
-            )}>
-            <Option value={DEFAULT_USER_ID}>
-              <HStack alignItems="center" gap={10}>
-                <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                  {getUserAvatar(DEFAULT_USER_ID)}
-                </Avatar>
-                <span>{t('memory.default_user')}</span>
-              </HStack>
-            </Option>
-            {uniqueUsers
-              .filter((user) => user !== DEFAULT_USER_ID)
-              .map((user) => (
-                <Option key={user} value={user}>
-                  <HStack alignItems="center" gap={10}>
-                    <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                      {getUserAvatar(user)}
-                    </Avatar>
-                    <span>{user}</span>
-                  </HStack>
-                </Option>
-              ))}
-          </Select>
+          <UserSelector
+            currentUser={currentUser}
+            uniqueUsers={uniqueUsers}
+            onUserSwitch={handleUserSwitch}
+            onAddUser={() => setAddUserModalVisible(true)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -703,7 +635,7 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddMemoryModalVisible(true)}>
+            <Button type="primary" icon={<PlusIcon size={18} />} onClick={() => setAddMemoryModalVisible(true)}>
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -712,7 +644,7 @@ const MemorySettings = () => {
                   {
                     key: 'refresh',
                     label: t('common.refresh'),
-                    icon: <ReloadOutlined />,
+                    icon: <RefreshIcon size={14} />,
                     onClick: () => loadMemories(currentUser)
                   },
                   {
@@ -722,7 +654,7 @@ const MemorySettings = () => {
                   {
                     key: 'reset',
                     label: t('memory.reset_memories'),
-                    icon: <DeleteOutlined />,
+                    icon: <DeleteIcon size={14} className="lucide-custom" />,
                     danger: true,
                     onClick: () => handleResetMemories(currentUser)
                   },
@@ -735,7 +667,7 @@ const MemorySettings = () => {
                         {
                           key: 'deleteUser',
                           label: t('memory.delete_user'),
-                          icon: <UserDeleteOutlined />,
+                          icon: <UserRoundMinus size={14} className="lucide-custom" />,
                           danger: true,
                           onClick: () => handleDeleteUser(currentUser)
                         }
@@ -745,7 +677,7 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
+              <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
         </div>
@@ -765,7 +697,7 @@ const MemorySettings = () => {
                   </div>
                   <Button
                     type="primary"
-                    icon={<PlusOutlined />}
+                    icon={<PlusIcon size={18} />}
                     onClick={() => setAddMemoryModalVisible(true)}
                     size="large">
                     {t('memory.add_first_memory')}
@@ -777,7 +709,7 @@ const MemorySettings = () => {
             <>
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-                  <Spin size="large" />
+                  <Spin indicator={<LoadingIcon color="var(--color-text-2)" />} />
                 </div>
               )}
 
@@ -792,21 +724,21 @@ const MemorySettings = () => {
                       <MemoryItem key={memory.id}>
                         <div className="memory-header">
                           <div className="memory-meta">
-                            <CalendarOutlined style={{ marginRight: 4 }} />
+                            <Calendar size={14} style={{ marginRight: 4 }} />
                             <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                           </div>
                           <Space size="small">
                             <Button
                               type="text"
                               size="small"
-                              icon={<EditOutlined />}
+                              icon={<EditIcon size={14} />}
                               onClick={() => handleEditMemory(memory)}
                             />
                             <Button
                               type="text"
                               size="small"
                               danger
-                              icon={<DeleteOutlined />}
+                              icon={<DeleteIcon size={14} className="lucide-custom" />}
                               onClick={() => {
                                 window.modal.confirm({
                                   centered: true,

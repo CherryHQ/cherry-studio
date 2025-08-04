@@ -1,6 +1,6 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -15,7 +15,7 @@ import {
   uuid
 } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
-import { Eye, EyeOff, Search, UserPen } from 'lucide-react'
+import { Eye, EyeOff, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -324,7 +324,7 @@ const ProvidersList: FC = () => {
     const editMenu = {
       label: t('common.edit'),
       key: 'edit',
-      icon: <EditOutlined />,
+      icon: <EditIcon size={14} />,
       async onClick() {
         const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
 
@@ -362,7 +362,7 @@ const ProvidersList: FC = () => {
     const deleteMenu = {
       label: t('common.delete'),
       key: 'delete',
-      icon: <DeleteOutlined />,
+      icon: <DeleteIcon size={14} className="lucide-custom" />,
       danger: true,
       async onClick() {
         window.modal.confirm({
@@ -492,7 +492,7 @@ const ProvidersList: FC = () => {
         <AddButtonWrapper>
           <Button
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusOutlined />}
+            icon={<PlusIcon size={16} />}
             onClick={onAddProvider}
             disabled={dragging}>
             {t('button.add')}

@@ -1,10 +1,10 @@
-import { MinusOutlined } from '@ant-design/icons'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
+import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
-import { Check, PenLine, X } from 'lucide-react'
+import { Check, Minus, X } from 'lucide-react'
 import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -142,14 +142,14 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
                   <Button
                     type="text"
-                    icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
+                    icon={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
                     onClick={onCheck}
                     disabled={disabled}
                   />
                 </Tooltip>
               )}
               <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
-                <Button type="text" icon={<PenLine size={16} />} onClick={handleEdit} disabled={disabled} />
+                <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>
               <Popconfirm
                 title={t('common.delete_confirm')}
@@ -159,7 +159,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
                 <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
-                  <Button type="text" icon={<MinusOutlined />} disabled={disabled} />
+                  <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
                 </Tooltip>
               </Popconfirm>
             </Flex>

@@ -26,7 +26,7 @@ function streamToBuffer(stream: Readable): Promise<Buffer> {
 }
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
-const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com']
+const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
 /**
  * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。

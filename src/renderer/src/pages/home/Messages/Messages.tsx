@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -309,7 +309,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
               ))}
               {isLoadingMore && (
                 <LoaderContainer>
-                  <SvgSpinners180Ring color="var(--color-text-2)" />
+                  <LoadingIcon color="var(--color-text-2)" />
                 </LoaderContainer>
               )}
             </ScrollContainer>

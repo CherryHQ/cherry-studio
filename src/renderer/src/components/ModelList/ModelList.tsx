@@ -1,7 +1,6 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import CustomTag from '@renderer/components/CustomTag'
-import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
 import EditModelPopup from '@renderer/components/ModelList/EditModelPopup'
@@ -160,7 +159,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
         </HStack>
       </SettingSubtitle>
-      <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) ? (
           <Flex gap={12} vertical>
             {Object.keys(displayedModelGroups).map((group, i) => (

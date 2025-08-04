@@ -85,7 +85,8 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             key: 'settings',
             styles: {
               header: {
-                paddingLeft: 0
+                paddingLeft: 0,
+                paddingRight: 6
               },
               body: {
                 padding: 0

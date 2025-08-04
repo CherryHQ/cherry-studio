@@ -596,7 +596,7 @@
       "list": "Topic List",
       "move_to": "Move to",
       "new": "New Topic",
-      "pinned": "Pinned Topics",
+      "pin": "Pin Topic",
       "prompt": {
         "edit": {
           "title": "Edit Topic Prompts"
@@ -605,7 +605,7 @@
         "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
       },
       "title": "Topics",
-      "unpinned": "Unpinned Topics"
+      "unpin": "Unpin Topic"
     },
     "translate": "Translate"
   },
@@ -1552,6 +1552,7 @@
     "mode": {
       "edit": "Edit",
       "generate": "Draw",
+      "merge": "Merge",
       "remix": "Remix",
       "upscale": "Upscale"
     },
@@ -3237,6 +3238,7 @@
     },
     "proxy": {
       "address": "Proxy Address",
+      "bypass": "Bypass Rules",
       "mode": {
         "custom": "Custom Proxy",
         "none": "No Proxy",

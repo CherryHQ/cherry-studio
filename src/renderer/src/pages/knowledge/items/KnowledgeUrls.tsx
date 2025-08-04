@@ -1,5 +1,5 @@
-import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -8,7 +8,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Dropdown, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -115,7 +115,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddUrl()
@@ -143,13 +143,13 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       items: [
                         {
                           key: 'edit',
-                          icon: <EditOutlined />,
+                          icon: <EditIcon size={14} />,
                           label: t('knowledge.edit_remark'),
                           onClick: () => handleEditRemark(item)
                         },
                         {
                           key: 'copy',
-                          icon: <CopyOutlined />,
+                          icon: <CopyIcon size={14} />,
                           label: t('common.copy'),
                           onClick: () => {
                             navigator.clipboard.writeText(item.content as string)
@@ -178,7 +178,12 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     <StatusIconWrapper>
                       <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
                     </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(item)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
+                    />
                   </FlexAlignCenter>
                 )
               }}

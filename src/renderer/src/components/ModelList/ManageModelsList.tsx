@@ -1,4 +1,3 @@
-import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
@@ -9,7 +8,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { Model, Provider } from '@renderer/types'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -120,7 +119,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           placement="top">
           <Button
             type="text"
-            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
             onClick={(e) => {
               e.stopPropagation()
               handleGroupAction()
@@ -205,9 +204,9 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
           extra: model.description && <ExpandableText text={model.description} />,
           ext: '.model',
           actions: isAdded ? (
-            <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
+            <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
           ) : (
-            <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
+            <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
           )
         }}
       />

@@ -76,8 +76,8 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
 
 export const MODEOPTIONS = [
   { label: 'paintings.mode.generate', value: generationModeType.GENERATION },
-  { label: '改图', value: generationModeType.EDIT },
-  { label: '合并图', value: generationModeType.MERGE }
+  { label: 'paintings.mode.edit', value: generationModeType.EDIT },
+  { label: 'paintings.mode.merge', value: generationModeType.MERGE }
 ]
 
 // 获取模型分组数据

@@ -1,6 +1,6 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DeleteIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -9,7 +9,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, message, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -87,7 +87,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddSitemap()
@@ -133,7 +133,12 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="sitemap"
                       />
                     </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(item)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
+                    />
                   </FlexAlignCenter>
                 )
               }}
