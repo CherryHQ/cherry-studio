@@ -1,4 +1,4 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, InfoCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -41,10 +41,10 @@ import {
   Menu,
   RefreshCw,
   Save,
-  Share,
   Split,
   ThumbsUp,
-  Trash
+  Trash,
+  Upload
 } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -223,7 +223,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.save.label'),
         key: 'save',
-        icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Save size={15} />,
         children: [
           {
             label: t('chat.save.file.title'),
@@ -245,7 +245,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <Share size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Upload size={15} />,
         children: [
           exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
@@ -461,7 +461,7 @@ const MessageMenubar: FC<Props> = (props) => {
           <Popconfirm
             title={t('message.regenerate.confirm')}
             okButtonProps={{ danger: true }}
-            icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+            icon={<InfoCircleOutlined style={{ color: 'red' }} />}
             onConfirm={onRegenerate}
             onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
             <Tooltip
@@ -571,7 +571,7 @@ const MessageMenubar: FC<Props> = (props) => {
         <Popconfirm
           title={t('message.message.delete.content')}
           okButtonProps={{ danger: true }}
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+          icon={<InfoCircleOutlined style={{ color: 'red' }} />}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
           onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
           <ActionButton

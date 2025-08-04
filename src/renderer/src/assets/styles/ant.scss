@@ -93,6 +93,7 @@
     border: 0.5px solid var(--color-border);
 
     // Align lucide icon in dropdown menu item extra
+    .ant-dropdown-menu-submenu-expand-icon,
     .ant-dropdown-menu-item-extra {
       display: inline-flex;
       align-items: center;
