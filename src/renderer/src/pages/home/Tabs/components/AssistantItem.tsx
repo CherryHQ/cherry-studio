@@ -1,6 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -19,7 +19,6 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
-  Copy,
   Plus,
   Save,
   Settings2,
@@ -269,7 +268,7 @@ function getMenuItems({
     {
       label: t('assistants.copy.title'),
       key: 'duplicate',
-      icon: <Copy size={14} />,
+      icon: <CopyIcon size={14} />,
       onClick: async () => {
         const _assistant = copyAssistant(assistant)
         if (_assistant) {

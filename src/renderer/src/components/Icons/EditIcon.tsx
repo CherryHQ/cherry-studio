@@ -1,3 +1,5 @@
 import { Pen } from 'lucide-react'
 
-export default Pen
+const EditIcon = (props: React.ComponentProps<typeof Pen>) => <Pen size="1rem" {...props} />
+
+export default EditIcon

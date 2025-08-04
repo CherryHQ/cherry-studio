@@ -1,5 +1,5 @@
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
-import { EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
@@ -30,7 +30,6 @@ import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
-  CopyIcon,
   FolderOpen,
   HelpCircle,
   MenuIcon,

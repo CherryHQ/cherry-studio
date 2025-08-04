@@ -71,32 +71,10 @@ exports[`Table > rendering > should match snapshot 1`] = `
         class="c2"
         role="button"
       >
-        <svg
-          aria-hidden="true"
-          class="lucide lucide-copy"
+        <div
           data-testid="copy-icon"
-          fill="none"
-          height="14"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          viewBox="0 0 24 24"
-          width="14"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect
-            height="14"
-            rx="2"
-            ry="2"
-            width="14"
-            x="8"
-            y="8"
-          />
-          <path
-            d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
-          />
-        </svg>
+          style="width: 14px; height: 14px;"
+        />
       </div>
     </div>
   </div>

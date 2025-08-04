@@ -1,4 +1,5 @@
-import { CheckOutlined, EditOutlined, InfoCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { EditOutlined, InfoCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CopyIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -34,7 +35,7 @@ import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import {
   AtSign,
-  Copy,
+  Check,
   FilePenLine,
   Languages,
   ListChecks,
@@ -453,8 +454,8 @@ const MessageMenubar: FC<Props> = (props) => {
         )}
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
-            {!copied && <Copy size={15} />}
-            {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+            {!copied && <CopyIcon size={15} />}
+            {copied && <Check size={15} color="var(--color-primary)" />}
           </ActionButton>
         </Tooltip>
         {isAssistantMessage && (
