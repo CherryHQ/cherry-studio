@@ -32,7 +32,7 @@ export default function useTranslate() {
       if (result) {
         return result
       } else {
-        logger.warn(`Unkonwn language ${langCode}`)
+        logger.warn(`Unknown language ${langCode}`)
         return UNKNOWN
       }
     },
