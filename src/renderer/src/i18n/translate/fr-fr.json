@@ -488,25 +488,25 @@
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "[to be translated]:包括话题标题和所有消息的主要文本内容"
+              "description": "Inclure le titre du sujet et le contenu principal de tous les messages"
             }
           },
           "empty": {
-            "no_content": "[to be translated]:此话题没有可保存的内容"
+            "no_content": "Ce sujet ne contient aucun contenu à enregistrer"
           },
           "error": {
-            "save_failed": "[to be translated]:保存话题失败，请检查知识库配置"
+            "save_failed": "Échec de l’enregistrement du sujet, veuillez vérifier la configuration de la base de connaissances"
           },
-          "loading": "[to be translated]:正在分析话题内容...",
+          "loading": "Analyse du contenu du sujet en cours...",
           "select": {
             "content": {
-              "label": "[to be translated]:选择要保存的内容类型",
-              "selected_tip": "[to be translated]:已选择 {{count}} 项内容，来自 {{messages}} 条消息",
-              "tip": "[to be translated]:话题将以包含完整对话上下文的形式保存到知识库"
+              "label": "Sélectionner le type de contenu à enregistrer",
+              "selected_tip": "{{count}} éléments sélectionnés, provenant de {{messages}} messages",
+              "tip": "Le sujet sera enregistré dans la base de connaissances sous la forme d’un contexte de conversation complet."
             }
           },
-          "success": "[to be translated]:话题已成功保存到知识库（{{count}} 项内容）",
-          "title": "[to be translated]:保存话题到知识库"
+          "success": "Le sujet a été enregistré avec succès dans la base de connaissances ({{count}} éléments de contenu)",
+          "title": "Enregistrer le sujet dans la base de connaissances"
         }
       }
     },
