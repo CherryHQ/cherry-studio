@@ -865,20 +865,22 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
     if (isEmbeddingModel(model)) {
       await ai.getEmbeddingDimensions(model)
     } else {
-      let success = false
+      // 通过该状态判断abort原因
+      let streamError: Error | undefined = undefined
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        shouldThrow: true,
         onChunk: () => {
           // 接收到任意chunk都直接abort
           abortCompletion(taskId)
         },
-        onError: () => {
-          throw new Error('Check failed.')
+        onError: (e) => {
+          // 捕获stream error
+          streamError = e
+          abortCompletion(taskId)
         }
       }
 
@@ -887,15 +889,14 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         await createAbortPromise(controller.signal, ai.completions(params))
       } catch (e: any) {
         if (e.name === 'AbortError') {
-          success = true
+          if (streamError) {
+            throw streamError
+          }
         } else {
           throw e
         }
       } finally {
         removeAbortController(taskId, abortFn)
-      }
-      if (!success) {
-        throw new Error('Check failed.')
       }
     }
   } catch (error: any) {
