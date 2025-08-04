@@ -18,7 +18,7 @@ import {
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -236,7 +236,7 @@ const GeneralSettings: FC = () => {
               <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
               <Input
                 spellCheck={false}
-                placeholder="127.0.0.1,localhost,::1"
+                placeholder={defaultByPassRules}
                 value={proxyBypassRules}
                 onChange={(e) => setProxyBypassRules(e.target.value)}
                 style={{ width: 180 }}

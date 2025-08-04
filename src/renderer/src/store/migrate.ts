@@ -14,7 +14,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
+import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1970,7 +1970,7 @@ const migrateConfig = {
       addProvider(state, 'poe')
 
       if (!state.settings.proxyBypassRules) {
-        state.settings.proxyBypassRules = 'localhost,127.0.0.1,::1'
+        state.settings.proxyBypassRules = defaultByPassRules
       }
 
       // 迁移api选项设置

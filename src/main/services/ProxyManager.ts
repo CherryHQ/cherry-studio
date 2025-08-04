@@ -7,10 +7,10 @@ import https from 'https'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+import { defaultByPassRules } from '@shared/config/constant'
 
 const logger = loggerService.withContext('ProxyManager')
-const defaultByPassRules = 'localhost,127.0.0.1,::1'.split(',')
-let byPassRules = defaultByPassRules
+let byPassRules = defaultByPassRules.split(',')
 
 const isByPass = (hostname: string) => {
   return byPassRules.includes(hostname)
@@ -127,7 +127,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules
+      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -222,17 +222,9 @@ export class ProxyManager {
 
       // filter localhost
       if (url) {
-        if (typeof url === 'string') {
-          const urlObj = new URL(url)
-          if (isByPass(urlObj.hostname)) {
-            return originalMethod(url, options, callback)
-          }
-        }
-
-        if (url instanceof URL) {
-          if (isByPass(url.hostname)) {
-            return originalMethod(url, options, callback)
-          }
+        const hostname = typeof url === 'string' ? new URL(url).hostname : url.hostname
+        if (isByPass(hostname)) {
+          return originalMethod(url, options, callback)
         }
       }
 
