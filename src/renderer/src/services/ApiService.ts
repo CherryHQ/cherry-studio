@@ -852,6 +852,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model): Promise<void> {
   checkApiProvider(provider)
 
+  const timeout = 15000
   const controller = new AbortController()
   const abortFn = () => controller.abort()
   const taskId = uuid()
@@ -863,10 +864,20 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      await ai.getEmbeddingDimensions(model)
+      // race 超时 15s
+      logger.silly("it's a embedding model")
+      const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
       // 通过该状态判断abort原因
       let streamError: Error | undefined = undefined
+
+      // 15s超时
+      const timer = setTimeout(() => {
+        abortCompletion(taskId)
+        streamError = new Error('Timeout')
+      }, timeout)
+
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
@@ -888,7 +899,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
       try {
         await createAbortPromise(controller.signal, ai.completions(params))
       } catch (e: any) {
-        if (e.name === 'AbortError') {
+        if (isAbortError(e)) {
           if (streamError) {
             throw streamError
           }
@@ -897,9 +908,11 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         }
       } finally {
         removeAbortController(taskId, abortFn)
+        clearTimeout(timer)
       }
     }
   } catch (error: any) {
+    // FIXME: 这种判断方法无法严格保证错误是流式引起的
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
         callType: 'check',
@@ -908,10 +921,9 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         streamOutput: false,
         shouldThrow: true
       }
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
-      }
+      // 超时判断
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.completions(params), timeoutPromise])
     } else {
       throw error
     }
