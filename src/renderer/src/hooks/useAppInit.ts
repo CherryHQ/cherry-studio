@@ -90,7 +90,7 @@ export function useAppInit() {
     } else if (proxyMode === 'custom') {
       proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
     } else {
-      window.api.setProxy('', proxyBypassRules)
+      window.api.setProxy('')
     }
   }, [proxyUrl, proxyMode, proxyBypassRules])
 

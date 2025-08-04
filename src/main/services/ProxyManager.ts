@@ -73,7 +73,8 @@ export class ProxyManager {
 
       await this.configureProxy({
         mode: 'system',
-        proxyRules: currentProxy?.proxyUrl.toLowerCase()
+        proxyRules: currentProxy?.proxyUrl.toLowerCase(),
+        proxyBypassRules: this.config.proxyBypassRules
       })
     }, 1000 * 60)
   }
@@ -86,7 +87,8 @@ export class ProxyManager {
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
-    logger.debug(`configureProxy: ${config?.mode} ${config?.proxyRules}`)
+    logger.info(`configureProxy: ${config?.mode} ${config?.proxyRules} ${config?.proxyBypassRules}`)
+
     if (this.isSettingProxy) {
       return
     }
@@ -94,15 +96,6 @@ export class ProxyManager {
     this.isSettingProxy = true
 
     try {
-      if (
-        config?.mode === this.config?.mode &&
-        config?.proxyRules === this.config?.proxyRules &&
-        config?.proxyBypassRules === this.config?.proxyBypassRules
-      ) {
-        logger.debug('proxy config is the same, skip configure')
-        return
-      }
-
       this.config = config
       this.clearSystemProxyMonitor()
       if (config.mode === 'system') {
@@ -115,7 +108,7 @@ export class ProxyManager {
       }
 
       byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules
-      this.setGlobalProxy()
+      this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
       throw error
@@ -149,12 +142,12 @@ export class ProxyManager {
     }
   }
 
-  private setGlobalProxy() {
-    this.setEnvironment(this.config.proxyRules || '')
-    this.setGlobalFetchProxy(this.config)
-    this.setSessionsProxy(this.config)
+  private setGlobalProxy(config: ProxyConfig) {
+    this.setEnvironment(config.proxyRules || '')
+    this.setGlobalFetchProxy(config)
+    this.setSessionsProxy(config)
 
-    this.setGlobalHttpProxy(this.config)
+    this.setGlobalHttpProxy(config)
   }
 
   private setGlobalHttpProxy(config: ProxyConfig) {
@@ -163,15 +156,8 @@ export class ProxyManager {
       http.request = this.originalHttpRequest
       https.get = this.originalHttpsGet
       https.request = this.originalHttpsRequest
-
-      axios.defaults.proxy = undefined
-      axios.defaults.httpAgent = undefined
-      axios.defaults.httpsAgent = undefined
       return
     }
-
-    // axios 使用 fetch 代理
-    axios.defaults.adapter = 'fetch'
 
     // ProxyAgent 从环境变量读取代理配置
     const agent = new ProxyAgent()
@@ -240,8 +226,12 @@ export class ProxyManager {
     if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
+      axios.defaults.adapter = 'http'
       return
     }
+
+    // axios 使用 fetch 代理
+    axios.defaults.adapter = 'fetch'
 
     const url = new URL(proxyUrl)
     if (url.protocol === 'http:' || url.protocol === 'https:') {
