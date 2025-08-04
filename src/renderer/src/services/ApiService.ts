@@ -37,7 +37,13 @@ import {
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
-import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
+import {
+  abortCompletion,
+  addAbortController,
+  createAbortPromise,
+  removeAbortController
+} from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -846,6 +852,11 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model): Promise<void> {
   checkApiProvider(provider)
 
+  const controller = new AbortController()
+  const abortFn = () => controller.abort()
+  const taskId = uuid()
+  addAbortController(taskId, abortFn)
+
   const ai = new AiProvider(provider)
 
   const assistant = getDefaultAssistant()
@@ -854,18 +865,31 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
     if (isEmbeddingModel(model)) {
       await ai.getEmbeddingDimensions(model)
     } else {
+      let success = false
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        shouldThrow: true
+        shouldThrow: true,
+        onChunk: () => {
+          // 接收到任意chunk都直接abort
+          abortCompletion(taskId)
+        }
       }
 
       // Try streaming check first
-      const result = await ai.completions(params)
-      if (!result.getText()) {
+      try {
+        await createAbortPromise(controller.signal, ai.completions(params))
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          success = true
+        }
+      } finally {
+        removeAbortController(taskId, abortFn)
+      }
+      if (!success) {
         throw new Error('No response received')
       }
     }
