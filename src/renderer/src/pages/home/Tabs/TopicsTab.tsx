@@ -1,4 +1,5 @@
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
+import { EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
@@ -34,7 +35,6 @@ import {
   HelpCircle,
   MenuIcon,
   PackagePlus,
-  Pen,
   PinIcon,
   PinOffIcon,
   PlusIcon,
@@ -203,7 +203,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       {
         label: t('chat.topics.edit.title'),
         key: 'rename',
-        icon: <Pen size={14} />,
+        icon: <EditIcon size={14} />,
         disabled: isRenaming(topic.id),
         async onClick() {
           const name = await PromptPopup.show({

@@ -1,9 +1,10 @@
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
+import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
-import { Check, Minus, Pen, X } from 'lucide-react'
+import { Check, Minus, X } from 'lucide-react'
 import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -148,7 +149,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 </Tooltip>
               )}
               <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
-                <Button type="text" icon={<Pen size={16} />} onClick={handleEdit} disabled={disabled} />
+                <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>
               <Popconfirm
                 title={t('common.delete_confirm')}

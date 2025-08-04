@@ -1,4 +1,5 @@
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
+import { EditIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
@@ -6,7 +7,7 @@ import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
-import { Minus, Pen } from 'lucide-react'
+import { Minus } from 'lucide-react'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -51,7 +52,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
         <HStack alignItems="center" gap={0}>
           <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
-            <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Pen size={14} />} />
+            <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<EditIcon size={14} />} />
           </Tooltip>
           <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />

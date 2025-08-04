@@ -1,5 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -19,7 +20,6 @@ import {
   BrushCleaning,
   Check,
   Copy,
-  Pen,
   Plus,
   Save,
   Settings2,
@@ -263,7 +263,7 @@ function getMenuItems({
     {
       label: t('assistants.edit.title'),
       key: 'edit',
-      icon: <Pen size={14} />,
+      icon: <EditIcon size={14} />,
       onClick: () => AssistantSettingsPopup.show({ assistant })
     },
     {
