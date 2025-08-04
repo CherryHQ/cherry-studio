@@ -9,6 +9,7 @@ import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
 import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { RotateCw } from 'lucide-react'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -155,9 +156,9 @@ const AssistantSettings: FC = () => {
           marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
-        <Button onClick={onReset} style={{ width: 81 }}>
-          {t('chat.settings.reset')}
-        </Button>
+        <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
+          <Button type="text" onClick={onReset} icon={<RotateCw size={16} />} />
+        </Tooltip>
       </SettingSubtitle>
       <SettingRow>
         <HStack alignItems="center">
