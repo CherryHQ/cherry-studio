@@ -18,16 +18,22 @@ const logger = loggerService.withContext('useTranslate')
 export default function useTranslate() {
   const prompt = useAppSelector((state) => state.settings.translateModelPrompt)
   const [translateLanguages, setTranslateLanguages] = useState<TranslateLanguage[]>(builtinLanguages)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     runAsyncFunction(async () => {
       const options = await getTranslateOptions()
       setTranslateLanguages(options)
+      setIsLoaded(true)
     })
   }, [])
 
   const getLanguageByLangcode = useCallback(
     (langCode: string) => {
+      if (!isLoaded) {
+        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
+        return UNKNOWN
+      }
       const result = translateLanguages.find((item) => item.langCode === langCode)
       if (result) {
         return result
@@ -36,7 +42,7 @@ export default function useTranslate() {
         return UNKNOWN
       }
     },
-    [translateLanguages]
+    [isLoaded, translateLanguages]
   )
 
   return {
