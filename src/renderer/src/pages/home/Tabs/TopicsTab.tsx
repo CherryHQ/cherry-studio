@@ -70,6 +70,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+  const [editingTopicName, setEditingTopicName] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
   const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
@@ -126,6 +129,37 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       setDeletingTopicId(null)
     },
     [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+  )
+
+  const handleSaveEdit = useCallback(
+    (topicId: string) => {
+      const topic = assistant.topics.find((t) => t.id === topicId)
+      if (topic && editingTopicName.trim() && editingTopicName !== topic.name) {
+        const updatedTopic = { ...topic, name: editingTopicName.trim(), isNameManuallyEdited: true }
+        updateTopic(updatedTopic)
+      }
+      setEditingTopicId(null)
+      setEditingTopicName('')
+    },
+    [assistant.topics, editingTopicName, updateTopic]
+  )
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingTopicId(null)
+    setEditingTopicName('')
+  }, [])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, topicId: string) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSaveEdit(topicId)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        handleCancelEdit()
+      }
+    },
+    [handleSaveEdit, handleCancelEdit]
   )
 
   const onPinTopic = useCallback(
@@ -203,16 +237,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         key: 'rename',
         icon: <EditIcon size={14} />,
         disabled: isRenaming(topic.id),
-        async onClick() {
-          const name = await PromptPopup.show({
-            title: t('chat.topics.edit.title'),
-            message: '',
-            defaultValue: topic?.name || ''
-          })
-          if (name && topic?.name !== name) {
-            const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
-            updateTopic(updatedTopic)
-          }
+        onClick() {
+          setEditingTopicId(topic.id)
+          setEditingTopicName(topic.name)
+          setTimeout(() => {
+            editInputRef.current?.focus()
+            editInputRef.current?.select()
+          }, 0)
         }
       },
       {
@@ -473,9 +504,20 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
-                <TopicName className={getTopicNameClassName()} title={topicName}>
-                  {topicName}
-                </TopicName>
+                {editingTopicId === topic.id ? (
+                  <TopicEditInput
+                    ref={editInputRef}
+                    value={editingTopicName}
+                    onChange={(e) => setEditingTopicName(e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, topic.id)}
+                    onBlur={() => handleSaveEdit(topic.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <TopicName className={getTopicNameClassName()} title={topicName}>
+                    {topicName}
+                  </TopicName>
+                )}
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
@@ -623,6 +665,23 @@ const TopicName = styled.div`
     to {
       width: 100%;
     }
+  }
+`
+
+const TopicEditInput = styled.input`
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+
+  &:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-alpha);
   }
 `
 

@@ -115,6 +115,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      maskClosable={false}
       width={800}
       height="80vh"
       loading={jsonSaving}
