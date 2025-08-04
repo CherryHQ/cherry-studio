@@ -383,6 +383,12 @@
         "settings": "Web Search Settings"
       }
     },
+    "mcp": {
+      "warning": {
+        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
+        "no_tool": "No matching MCP tool found for {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {

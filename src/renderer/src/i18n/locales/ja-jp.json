@@ -383,6 +383,12 @@
         "settings": "ウェブ検索設定"
       }
     },
+    "mcp": {
+      "warning": {
+        "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
+        "no_tool": "必要なMCPツール {{tool}} が見つかりません"
+      }
+    },
     "message": {
       "new": {
         "branch": {
