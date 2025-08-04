@@ -264,6 +264,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       messages.length,
       selectedMessageId,
       onUpdateUseful,
+      groupContextMessageId,
       gridPopoverTrigger
     ]
   )
