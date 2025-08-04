@@ -105,6 +105,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
 
 /**
  * Filters messages based on the 'useful' flag and message role sequences.
+ * Only remain one message in a group. Either useful or fallback to the last message in the group.
  */
 export function filterUsefulMessages(messages: Message[]): Message[] {
   const _messages = [...messages]

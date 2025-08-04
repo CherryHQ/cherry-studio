@@ -10,6 +10,7 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
+import { last } from 'lodash'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -192,7 +193,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     if (usefulMsg) {
       return usefulMsg.id
     } else if (messages.length > 0) {
-      return messages[0].id
+      return last(messages)!.id
     } else {
       logger.warn('Empty message group')
       return ''
