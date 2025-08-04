@@ -175,13 +175,23 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const onUpdateUseful = useCallback(
     (msgId: string) => {
-      const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
-      toResetUsefulMsgs.forEach(async (msg) => {
-        editMessage(msg.id, {
-          useful: undefined
+      const message = messages.find((msg) => msg.id === msgId)
+      if (!message) {
+        logger.error("the message to update doesn't exist in this group")
+        return
+      }
+      if (message.useful) {
+        editMessage(msgId, { useful: undefined })
+        return
+      } else {
+        const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
+        toResetUsefulMsgs.forEach(async (msg) => {
+          editMessage(msg.id, {
+            useful: undefined
+          })
         })
-      })
-      editMessage(msgId, { useful: true })
+        editMessage(msgId, { useful: true })
+      }
     },
     [editMessage, messages]
   )
