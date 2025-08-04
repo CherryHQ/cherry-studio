@@ -37,12 +37,31 @@ class SelectiveDispatcher extends Dispatcher {
 
     return this.proxyDispatcher.dispatch(opts, handler)
   }
+
+  async close(): Promise<void> {
+    try {
+      await this.proxyDispatcher.close()
+    } catch (error) {
+      logger.error('Failed to close dispatcher:', error as Error)
+      this.proxyDispatcher.destroy()
+    }
+  }
+
+  async destroy(): Promise<void> {
+    try {
+      await this.proxyDispatcher.destroy()
+    } catch (error) {
+      logger.error('Failed to destroy dispatcher:', error as Error)
+    }
+  }
 }
 
 export class ProxyManager {
   private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
   private isSettingProxy = false
+
+  private proxyDispatcher: Dispatcher | null = null
 
   private originalGlobalDispatcher: Dispatcher
   private originalSocksDispatcher: Dispatcher
@@ -227,6 +246,8 @@ export class ProxyManager {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
       axios.defaults.adapter = 'http'
+      this.proxyDispatcher?.close()
+      this.proxyDispatcher = null
       return
     }
 
@@ -235,11 +256,12 @@ export class ProxyManager {
 
     const url = new URL(proxyUrl)
     if (url.protocol === 'http:' || url.protocol === 'https:') {
-      setGlobalDispatcher(new SelectiveDispatcher(new EnvHttpProxyAgent(), this.originalGlobalDispatcher))
+      this.proxyDispatcher = new SelectiveDispatcher(new EnvHttpProxyAgent(), this.originalGlobalDispatcher)
+      setGlobalDispatcher(this.proxyDispatcher)
       return
     }
 
-    global[Symbol.for('undici.globalDispatcher.1')] = new SelectiveDispatcher(
+    this.proxyDispatcher = new SelectiveDispatcher(
       socksDispatcher({
         port: parseInt(url.port),
         type: url.protocol === 'socks4:' ? 4 : 5,
@@ -249,6 +271,7 @@ export class ProxyManager {
       }),
       this.originalSocksDispatcher
     )
+    global[Symbol.for('undici.globalDispatcher.1')] = this.proxyDispatcher
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
