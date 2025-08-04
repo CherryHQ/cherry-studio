@@ -98,7 +98,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
     }
     groups[key].push({ ...message, index }) // Add message with its original index
     // Sort by index within group to maintain original order
-    groups[key].sort((a, b) => b.index - a.index)
+    groups[key].sort((a, b) => a.index - b.index)
   })
   return groups
 }
