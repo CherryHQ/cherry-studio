@@ -172,7 +172,7 @@ export type Message = {
   modelId?: string
   model?: Model
   type?: 'clear'
-  useful?: boolean // transferred as best answer flag
+  useful?: boolean
   askId?: string // 关联的问题消息ID
   mentions?: Model[]
   /**
