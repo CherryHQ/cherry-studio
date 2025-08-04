@@ -3,17 +3,13 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { useWindowSize } from '@renderer/hooks/useWindow'
-import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -29,7 +25,7 @@ import {
 } from '@renderer/utils/translate'
 import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import { find, isEmpty, throttle } from 'lodash'
+import { isEmpty, throttle } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,8 +47,6 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
-  const { width } = useWindowSize()
-  const { isLeftNavbar } = useNavbarPosition()
 
   // states
   const [text, setText] = useState(_text)
@@ -357,17 +351,9 @@ const TranslatePage: FC = () => {
   }
 
   // 控制模型选择器
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
-
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
     []
-  )
-
-  const defaultTranslateModel = useMemo(
-    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
-    [translateModel]
   )
 
   // 控制翻译按钮是否可用
@@ -386,10 +372,6 @@ const TranslatePage: FC = () => {
     return estimateTextTokens(text + prompt)
   }, [prompt, text])
 
-  // FIXME: 很复杂的样式控制！但是有更好的方法吗？
-  // var(--sidebar-width) is 50px, padding and gap is ... 差不多就行了
-  const modelSelectorWidth = useMemo(() => (width - (isLeftNavbar ? 50 : 0) - 60) / 3, [isLeftNavbar, width])
-
   return (
     <Container id="translate-page">
       <Navbar>
@@ -403,18 +385,26 @@ const TranslatePage: FC = () => {
         />
         <OperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
-            <ModelSelector
-              style={{ width: modelSelectorWidth }}
-              providers={providers}
-              predicate={modelPredicate}
-              value={defaultTranslateModel}
-              placeholder={t('settings.models.empty')}
-              onChange={(value) => {
-                const selectedModel = find(allModels, JSON.parse(value)) as Model
-                if (selectedModel) {
-                  handleModelChange(selectedModel)
-                }
-              }}
+            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
+            <ModelSelectButton
+              model={translateModel}
+              onSelectModel={handleModelChange}
+              modelFilter={modelPredicate}
+              tooltipProps={{ placement: 'bottom' }}
+            />
+            <Button
+              type="text"
+              icon={<Settings2 size={18} />}
+              onClick={() => setSettingsVisible(true)}
+              style={{ color: 'var(--color-text-2)', display: 'flex' }}
+            />
+            <Button
+              className="nodrag"
+              color="default"
+              variant={historyDrawerVisible ? 'filled' : 'text'}
+              type="text"
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
             />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'center' }}>
@@ -449,44 +439,10 @@ const TranslatePage: FC = () => {
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
             <Button
               type="text"
-              icon={<Settings2 size={18} />}
-              onClick={() => setSettingsVisible(true)}
-              style={{ color: 'var(--color-text-2)', display: 'flex' }}
-            />
-            <Button
-              className="nodrag"
-              color="default"
-              variant={historyDrawerVisible ? 'filled' : 'text'}
-              type="text"
-              icon={<HistoryOutlined />}
-              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-            />
-            <Button
-              type="text"
               onClick={onCopy}
               disabled={!translatedContent}
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
-            <Tooltip
-              mouseEnterDelay={0.5}
-              placement="bottom"
-              styles={{ body: { fontSize: '12px' } }}
-              title={
-                <div style={{ textAlign: 'center' }}>
-                  Enter: {t('translate.button.translate')}
-                  <br />
-                  Shift + Enter: {t('translate.tooltip.newline')}
-                </div>
-              }>
-              <TranslateButton
-                type="primary"
-                loading={translating}
-                onClick={onTranslate}
-                disabled={!couldTranslate}
-                icon={<SendOutlined />}>
-                {t('translate.button.translate')}
-              </TranslateButton>
-            </Tooltip>
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
@@ -653,7 +609,39 @@ const OutputText = styled.div`
   }
 `
 
-const TranslateButton = styled(Button)``
+const TranslateButton = ({
+  translating,
+  onTranslate,
+  couldTranslate
+}: {
+  translating: boolean
+  onTranslate: () => void
+  couldTranslate: boolean
+}) => {
+  const { t } = useTranslation()
+  return (
+    <Tooltip
+      mouseEnterDelay={0.5}
+      placement="bottom"
+      styles={{ body: { fontSize: '12px' } }}
+      title={
+        <div style={{ textAlign: 'center' }}>
+          Enter: {t('translate.button.translate')}
+          <br />
+          Shift + Enter: {t('translate.tooltip.newline')}
+        </div>
+      }>
+      <Button
+        type="primary"
+        loading={translating}
+        onClick={onTranslate}
+        disabled={!couldTranslate}
+        icon={<SendOutlined />}>
+        {t('translate.button.translate')}
+      </Button>
+    </Tooltip>
+  )
+}
 
 const BidirectionalLanguageDisplay = styled.div`
   padding: 4px 11px;
