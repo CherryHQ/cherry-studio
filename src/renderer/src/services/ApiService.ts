@@ -40,6 +40,7 @@ import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
   buildSystemPromptWithThinkTool,
@@ -439,7 +440,8 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterAfterContextClearMessages(messages)
+  const filteredMessages1 = filterAfterContextClearMessages(messages)
+  logger.silly('filter 1', filteredMessages1)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -455,11 +457,19 @@ export async function fetchChatCompletion({
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const filteredMessages2 = filterUsefulMessages(filteredMessages1)
+  logger.silly('filter 2', filteredMessages2)
+
+  const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+  logger.silly('filter 3', filteredMessages3)
+
+  const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
+  logger.silly('filter 4', filteredMessages3)
 
   const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
+  logger.silly('filter 5', _messages)
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
