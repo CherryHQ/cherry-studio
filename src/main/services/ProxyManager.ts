@@ -9,8 +9,8 @@ import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 const logger = loggerService.withContext('ProxyManager')
-const defaultByPassRules = 'localhost,127.0.0.1,::1'
-let byPassRules = defaultByPassRules.split(',')
+const defaultByPassRules = 'localhost,127.0.0.1,::1'.split(',')
+let byPassRules = defaultByPassRules
 
 const isByPass = (hostname: string) => {
   return byPassRules.includes(hostname)
@@ -114,7 +114,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
+      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules
       this.setGlobalProxy()
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
