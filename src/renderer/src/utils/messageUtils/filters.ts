@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage' // Assuming correct Message type import
@@ -9,7 +10,7 @@ import { isEmpty } from 'lodash'
 // Assuming getGroupedMessages is also moved here or imported
 // import { getGroupedMessages } from './path/to/getGroupedMessages';
 
-// const logger = loggerService.withContext('Utils.filter')
+const logger = loggerService.withContext('Utils.filter')
 
 /**
  * Filters out messages of type '@' or 'clear' and messages without main text content.
@@ -107,7 +108,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
  * Filters messages based on the 'useful' flag and message role sequences.
  */
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  let _messages = [...messages]
+  const _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, groupedMsgs]) => {
@@ -130,17 +131,23 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
     }
   })
 
+  return _messages
+}
+
+export function filterLastAssistantMessage(messages: Message[]): Message[] {
+  const _messages = [...messages]
   // Remove trailing assistant messages
   while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
     _messages.pop()
   }
+  return _messages
+}
 
+export function filterAdjacentUserMessaegs(messages: Message[]): Message[] {
   // Filter adjacent user messages, keeping only the last one
-  _messages = _messages.filter((message, index, origin) => {
+  return messages.filter((message, index, origin) => {
     return !(message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user')
   })
-
-  return _messages
 }
 
 // Note: getGroupedMessages might also need to be moved or imported.
@@ -172,8 +179,11 @@ export function filterContextMessages(messages: Message[], contextCount: number)
   // NOTE: 和 fetchCompletions 中过滤消息的逻辑相同。
   // 按理说 fetchCompletions 也可以复用这个函数，不过 fetchCompletions 不敢随便乱改，后面再考虑重构吧
   const afterContextClearMsgs = filterAfterContextClearMessages(messages)
+  logger.silly('afterContextClearMsgs', afterContextClearMsgs)
   const usefulMsgs = filterUsefulMessages(afterContextClearMsgs)
-  // +2 是算上了新的用户消息和助手消息
-  const filteredMessages = filterUserRoleStartMessages(filterEmptyMessages(takeRight(usefulMsgs, contextCount + 2)))
+  logger.silly('usefulMessage', usefulMsgs)
+  const filteredMessages = filterUserRoleStartMessages(filterEmptyMessages(takeRight(usefulMsgs, contextCount)))
+  logger.silly('filteredMessages', filteredMessages)
+
   return filteredMessages
 }
