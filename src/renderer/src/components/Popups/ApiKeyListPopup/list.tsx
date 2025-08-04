@@ -1,3 +1,4 @@
+import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
@@ -7,7 +8,7 @@ import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
 import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
-import { Plus, Trash } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -139,7 +140,12 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
                 <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
-                  <Button type="text" icon={<Trash size={16} />} disabled={isChecking || !!pendingNewKey} danger />
+                  <Button
+                    type="text"
+                    icon={<DeleteIcon size={16} className="lucide-custom" />}
+                    disabled={isChecking || !!pendingNewKey}
+                    danger
+                  />
                 </Tooltip>
               </Popconfirm>
 

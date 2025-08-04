@@ -1,6 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { CopyIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -24,8 +24,7 @@ import {
   Settings2,
   Smile,
   Tag,
-  Tags,
-  Trash
+  Tags
 } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -362,7 +361,7 @@ function getMenuItems({
     {
       label: t('common.delete'),
       key: 'delete',
-      icon: <Trash size={14} className="lucide-custom" />,
+      icon: <DeleteIcon size={14} className="lucide-custom" />,
       danger: true,
       onClick: () => {
         window.modal.confirm({

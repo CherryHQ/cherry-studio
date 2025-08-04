@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { CopyIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
@@ -44,7 +44,6 @@ import {
   Save,
   Split,
   ThumbsUp,
-  Trash,
   Upload
 } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
@@ -584,7 +583,7 @@ const MessageMenubar: FC<Props> = (props) => {
               mouseEnterDelay={1}
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
-              <Trash size={15} />
+              <DeleteIcon size={15} />
             </Tooltip>
           </ActionButton>
         </Popconfirm>

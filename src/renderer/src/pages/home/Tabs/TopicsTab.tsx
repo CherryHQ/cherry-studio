@@ -1,5 +1,5 @@
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
-import { CopyIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
@@ -38,7 +38,6 @@ import {
   PinOffIcon,
   PlusIcon,
   Sparkles,
-  Trash,
   UploadIcon,
   XIcon
 } from 'lucide-react'
@@ -394,7 +393,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         label: t('common.delete'),
         danger: true,
         key: 'delete',
-        icon: <Trash size={14} className="lucide-custom" />,
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
         onClick: () => onDeleteTopic(topic)
       })
     }
@@ -500,7 +499,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                         }
                       }}>
                       {deletingTopicId === topic.id ? (
-                        <Trash size={14} color="var(--color-error)" />
+                        <DeleteIcon size={14} color="var(--color-error)" />
                       ) : (
                         <XIcon size={14} color="var(--color-text-3)" />
                       )}
