@@ -244,7 +244,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         }
       },
       {
-        label: topic.pinned ? t('chat.topics.unpinned') : t('chat.topics.pinned'),
+        label: topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
         key: 'pin',
         icon: topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
         onClick() {

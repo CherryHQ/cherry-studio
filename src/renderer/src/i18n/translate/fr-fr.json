@@ -596,7 +596,7 @@
       "list": "Liste des sujets",
       "move_to": "Déplacer vers",
       "new": "Commencer une nouvelle conversation",
-      "pinned": "Fixer le sujet",
+      "pin": "Fixer le sujet",
       "prompt": {
         "edit": {
           "title": "Modifier les indicateurs de sujet"
@@ -605,7 +605,7 @@
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
       },
       "title": "Sujet",
-      "unpinned": "Annuler le fixage"
+      "unpin": "Annuler le fixage"
     },
     "translate": "Traduire"
   },

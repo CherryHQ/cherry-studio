@@ -596,7 +596,7 @@
       "list": "Lista de temas",
       "move_to": "Mover a",
       "new": "Iniciar nueva conversación",
-      "pinned": "Fijar tema",
+      "pin": "Fijar tema",
       "prompt": {
         "edit": {
           "title": "Editar palabras clave del tema"
@@ -605,7 +605,7 @@
         "tips": "Palabras clave del tema: proporcionar indicaciones adicionales para el tema actual"
       },
       "title": "Tema",
-      "unpinned": "Quitar fijación"
+      "unpin": "Quitar fijación"
     },
     "translate": "Traducir"
   },
