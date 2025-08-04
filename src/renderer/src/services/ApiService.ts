@@ -62,7 +62,7 @@ import {
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
 import {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
@@ -439,7 +439,7 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
+  messages = filterAfterContextClearMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -458,7 +458,7 @@ export async function fetchChatCompletion({
   const filteredMessages = filterUsefulMessages(messages)
 
   const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
   )
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true

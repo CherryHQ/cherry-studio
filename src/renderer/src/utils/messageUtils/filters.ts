@@ -27,7 +27,7 @@ export const filterMessages = (messages: Message[]) => {
 /**
  * Filters messages to include only those after the last 'clear' type message.
  */
-export function filterContextMessages(messages: Message[]): Message[] {
+export function filterAfterContextClearMessages(messages: Message[]): Message[] {
   const clearIndex = messages.findLastIndex((message) => message.type === 'clear')
 
   if (clearIndex === -1) {

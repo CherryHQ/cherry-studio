@@ -34,7 +34,7 @@ import FileManager from './FileManager'
 const logger = loggerService.withContext('MessagesService')
 
 export {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterMessages,
   filterUsefulMessages,
