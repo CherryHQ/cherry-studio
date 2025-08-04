@@ -125,6 +125,7 @@ const GoogleLoginTip = ({
       type="warning"
       showIcon
       closable
+      banner
       onClose={handleClose}
       action={
         <Button type="primary" size="small" onClick={openGoogleMinApp}>

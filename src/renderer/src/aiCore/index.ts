@@ -20,7 +20,6 @@ import { MIDDLEWARE_NAME as FinalChunkConsumerMiddlewareName } from './middlewar
 import { applyCompletionsMiddlewares } from './middleware/composer'
 import { MIDDLEWARE_NAME as McpToolChunkMiddlewareName } from './middleware/core/McpToolChunkMiddleware'
 import { MIDDLEWARE_NAME as RawStreamListenerMiddlewareName } from './middleware/core/RawStreamListenerMiddleware'
-import { MIDDLEWARE_NAME as ThinkChunkMiddlewareName } from './middleware/core/ThinkChunkMiddleware'
 import { MIDDLEWARE_NAME as WebSearchMiddlewareName } from './middleware/core/WebSearchMiddleware'
 import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from './middleware/feat/ImageGenerationMiddleware'
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from './middleware/feat/ThinkingTagExtractionMiddleware'
@@ -120,8 +119,6 @@ export default class AiProvider {
         logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
         logger.silly('FinalChunkConsumerMiddleware is removed')
-        builder.insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
-        logger.silly('ThinkingTagExtractionMiddleware is inserted')
       }
     }
 
