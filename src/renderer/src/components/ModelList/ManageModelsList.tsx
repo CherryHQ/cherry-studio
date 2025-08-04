@@ -1,4 +1,3 @@
-import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
@@ -9,7 +8,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { Model, Provider } from '@renderer/types'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -26,6 +25,7 @@ interface GroupRowData {
 interface ModelRowData {
   type: 'model'
   model: Model
+  last?: boolean
 }
 
 type RowData = GroupRowData | ModelRowData
@@ -62,9 +62,16 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
         // 只添加非空组
         rows.push({ type: 'group', groupName, models })
         if (!collapsedGroups.has(groupName)) {
-          models.forEach((model) => {
-            rows.push({ type: 'model', model })
-          })
+          rows.push(
+            ...models.map(
+              (model, index) =>
+                ({
+                  type: 'model',
+                  model,
+                  last: index === models.length - 1 ? true : undefined
+                }) as const
+            )
+          )
         }
       }
     })
@@ -112,7 +119,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           placement="top">
           <Button
             type="text"
-            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
             onClick={(e) => {
               e.stopPropagation()
               handleGroupAction()
@@ -131,37 +138,41 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
       isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
       overscan={5}
       scrollerStyle={{
-        paddingRight: '10px'
-      }}
-      itemContainerStyle={{
-        paddingBottom: '8px'
+        paddingRight: '10px',
+        borderRadius: '8px'
       }}>
       {(row) => {
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <GroupHeader
-              style={{ background: 'var(--color-background)' }}
-              onClick={() => handleGroupToggle(row.groupName)}>
-              <Flex align="center" gap={10} style={{ flex: 1 }}>
-                <ChevronRight
-                  size={16}
-                  color="var(--color-text-3)"
-                  strokeWidth={1.5}
-                  style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
-                />
-                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
-                <CustomTag color="#02B96B" size={10}>
-                  {row.models.length}
-                </CustomTag>
-              </Flex>
-              {renderGroupTools(row.models)}
-            </GroupHeader>
+            <GroupHeaderContainer isCollapsed={isCollapsed}>
+              <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
+                <Flex align="center" gap={10} style={{ flex: 1 }}>
+                  <ChevronRight
+                    size={16}
+                    color="var(--color-text-3)"
+                    strokeWidth={1.5}
+                    style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
+                  />
+                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                  <CustomTag color="#02B96B" size={10}>
+                    {row.models.length}
+                  </CustomTag>
+                </Flex>
+                {renderGroupTools(row.models)}
+              </GroupHeader>
+            </GroupHeaderContainer>
           )
         }
 
         return (
-          <ModelListItem model={row.model} provider={provider} onAddModel={onAddModel} onRemoveModel={onRemoveModel} />
+          <ModelListItem
+            last={row.last}
+            model={row.model}
+            provider={provider}
+            onAddModel={onAddModel}
+            onRemoveModel={onRemoveModel}
+          />
         )
       }}
     </DynamicVirtualList>
@@ -174,41 +185,58 @@ interface ModelListItemProps {
   provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
+  last?: boolean
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel }) => {
+const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel, last }) => {
   const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
-
   return (
-    <FileItem
-      style={{
-        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-        border: 'none',
-        boxShadow: 'none'
-      }}
-      fileInfo={{
-        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-        name: <ModelIdWithTags model={model} />,
-        extra: model.description && <ExpandableText text={model.description} />,
-        ext: '.model',
-        actions: isAdded ? (
-          <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
-        ) : (
-          <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
-        )
-      }}
-    />
+    <ModelListItemContainer last={last}>
+      <FileItem
+        style={{
+          backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
+          border: 'none',
+          boxShadow: 'none'
+        }}
+        fileInfo={{
+          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+          name: <ModelIdWithTags model={model} />,
+          extra: model.description && <ExpandableText text={model.description} />,
+          ext: '.model',
+          actions: isAdded ? (
+            <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
+          ) : (
+            <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
+          )
+        }}
+      />
+    </ModelListItemContainer>
   )
 })
 
-const GroupHeader = styled.div`
+const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   display: flex;
+  background-color: var(--color-background-mute);
+  border-radius: ${(props) => (props.isCollapsed ? '8px' : '8px 8px 0 0')};
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
-  min-height: 50px;
+  padding: 0 13px;
+  min-height: 35px;
   color: var(--color-text);
   cursor: pointer;
+`
+
+const GroupHeaderContainer = styled.div<{ isCollapsed: boolean }>`
+  padding-bottom: ${(props) => (props.isCollapsed ? '8px' : '0')};
+`
+
+const ModelListItemContainer = styled.div<{ last?: boolean }>`
+  border: 1px solid var(--color-border);
+  padding: 4px;
+  border-top: none;
+  border-radius: ${(props) => (props.last ? '0 0 8px 8px' : '0')};
+  border-bottom: ${(props) => (props.last ? '1px solid var(--color-border)' : 'none')};
+  margin-bottom: ${(props) => (props.last ? '8px' : '0')};
 `
 
 export default memo(ManageModelsList)

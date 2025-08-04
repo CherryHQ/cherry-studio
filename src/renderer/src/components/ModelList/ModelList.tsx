@@ -89,8 +89,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ provider })
-  }, [provider])
+    ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider.id])
 
   const onAddModel = useCallback(() => {
     if (provider.id === 'new-api') {
@@ -206,14 +206,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         ) : (
           <div style={{ height: 5 }} />
         )}
-        <Flex gap={10} style={{ marginTop: 12 }}>
-          <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
-            {t('button.manage')}
-          </Button>
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-            {t('button.add')}
-          </Button>
-        </Flex>
+      </Flex>
+      <Flex gap={10} style={{ marginTop: 12 }}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+          {t('button.manage')}
+        </Button>
+        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          {t('button.add')}
+        </Button>
       </Flex>
     </>
   )

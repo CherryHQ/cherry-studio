@@ -21,6 +21,11 @@ import {
   isSupportedThinkingTokenZhipuModel,
   isVisionModel
 } from '@renderer/config/models'
+import {
+  isSupportArrayContentProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportStreamOptionsProvider
+} from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -62,7 +67,6 @@ import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatComple
 import { GenericChunk } from '../../middleware/schemas'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 
 const logger = loggerService.withContext('OpenAIApiClient')
 
@@ -276,9 +280,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return true
     }
 
-    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
-
-    return providers.includes(this.provider.id)
+    return !isSupportArrayContentProvider(this.provider)
   }
 
   /**
@@ -562,8 +564,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         // Create the appropriate parameters object based on whether streaming is enabled
         // Note: Some providers like Mistral don't support stream_options
-        const mistralProviders = ['mistral']
-        const shouldIncludeStreamOptions = streamOutput && !mistralProviders.includes(this.provider.id)
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
 
         const sdkParams: OpenAISdkParams = streamOutput
           ? {
