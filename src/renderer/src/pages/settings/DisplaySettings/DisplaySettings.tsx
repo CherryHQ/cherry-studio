@@ -1,4 +1,3 @@
-import { SyncOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
@@ -19,7 +18,7 @@ import {
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { Button, ColorPicker, Segmented, Switch } from 'antd'
-import { Minus, Plus, RotateCcw } from 'lucide-react'
+import { Minus, Monitor, Moon, Plus, RotateCcw, Sun } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -108,7 +107,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.light,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-theme-light" />
+            <Sun size={16} />
             <span>{t('settings.theme.light')}</span>
           </div>
         )
@@ -117,7 +116,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.dark,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-dark1" />
+            <Moon size={16} />
             <span>{t('settings.theme.dark')}</span>
           </div>
         )
@@ -126,7 +125,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.system,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <SyncOutlined />
+            <Monitor size={16} />
             <span>{t('settings.theme.system')}</span>
           </div>
         )
