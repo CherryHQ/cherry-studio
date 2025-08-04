@@ -876,6 +876,9 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         onChunk: () => {
           // 接收到任意chunk都直接abort
           abortCompletion(taskId)
+        },
+        onError: () => {
+          throw new Error('Check failed.')
         }
       }
 
@@ -885,12 +888,14 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
       } catch (e: any) {
         if (e.name === 'AbortError') {
           success = true
+        } else {
+          throw e
         }
       } finally {
         removeAbortController(taskId, abortFn)
       }
       if (!success) {
-        throw new Error('No response received')
+        throw new Error('Check failed.')
       }
     }
   } catch (error: any) {
