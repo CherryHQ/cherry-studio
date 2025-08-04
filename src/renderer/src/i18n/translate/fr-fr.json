@@ -384,6 +384,9 @@
       }
     },
     "mcp": {
+      "error": {
+        "parse_tool_call": "Impossible de convertir au format d'appel d'outil valide : {{toolCall}}"
+      },
       "warning": {
         "multiple_tools": "Il existe plusieurs outils MCP correspondants, {{tool}} a été sélectionné",
         "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé"

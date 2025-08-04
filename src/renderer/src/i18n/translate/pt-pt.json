@@ -384,6 +384,9 @@
       }
     },
     "mcp": {
+      "error": {
+        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
+      },
       "warning": {
         "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
         "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}"
