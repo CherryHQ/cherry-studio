@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -16,6 +17,7 @@ import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
+const logger = loggerService.withContext('MessageGroup')
 interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
@@ -183,6 +185,20 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     [editMessage, messages]
   )
 
+  const groupContextMessageId = useMemo(() => {
+    // NOTE: 旧数据可能存在一组消息有多个useful的情况，只取第一个，不再另作迁移
+    // find first useful
+    const usefulMsg = messages.find((msg) => msg.useful)
+    if (usefulMsg) {
+      return usefulMsg.id
+    } else if (messages.length > 0) {
+      return messages[0].id
+    } else {
+      logger.warn('Empty message group')
+      return ''
+    }
+  }, [messages])
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
@@ -203,7 +219,11 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
               selected: message.id === selectedMessageId
             }
           ])}>
-          <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
+          <MessageItem
+            onUpdateUseful={onUpdateUseful}
+            isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
+            {...messageProps}
+          />
         </MessageWrapper>
       )
 

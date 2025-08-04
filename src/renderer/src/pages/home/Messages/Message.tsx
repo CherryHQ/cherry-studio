@@ -36,6 +36,7 @@ interface Props {
   isStreaming?: boolean
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
   onUpdateUseful: (msgId: string) => void
+  isGroupContextMessage?: boolean
 }
 
 const logger = loggerService.withContext('MessageItem')
@@ -58,7 +59,8 @@ const MessageItem: FC<Props> = ({
   hideMenuBar = false,
   isGrouped,
   isStreaming = false,
-  onUpdateUseful
+  onUpdateUseful,
+  isGroupContextMessage
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
@@ -168,6 +170,7 @@ const MessageItem: FC<Props> = ({
           model={model}
           key={getModelUniqId(model)}
           topic={topic}
+          isGroupContextMessage={isGroupContextMessage}
         />
         {isEditing && (
           <MessageEditor

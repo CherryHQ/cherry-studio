@@ -415,7 +415,7 @@ const MessageMenubar: FC<Props> = (props) => {
       onUpdateUseful(message.id)
       // TODO: 向MessageGroup传达消息
     },
-    [message]
+    [message.id, onUpdateUseful]
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
@@ -557,7 +557,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
