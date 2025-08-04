@@ -51,13 +51,7 @@ const AgentsPage: FC = () => {
 
       Object.entries(agentGroups).forEach(([, agents]) => {
         agents.forEach((agent) => {
-          if (
-            (agent.name.toLowerCase().includes(search.toLowerCase()) ||
-              agent.description?.toLowerCase().includes(search.toLowerCase())) &&
-            !uniqueAgents.has(agent.name)
-          ) {
-            uniqueAgents.set(agent.name, agent)
-          }
+          uniqueAgents.set(agent.id, agent)
         })
       })
       agents = Array.from(uniqueAgents.values())
