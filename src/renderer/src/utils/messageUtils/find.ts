@@ -203,6 +203,7 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
 }
 
 /**
+ * @deprecated
  * 构造带工具调用结果的消息内容
  * @param blocks
  * @returns
