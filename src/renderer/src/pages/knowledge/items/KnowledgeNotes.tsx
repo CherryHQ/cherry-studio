@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -91,7 +91,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
-                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
+                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditIcon size={14} />} />
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={note.id}
@@ -100,7 +100,12 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="note"
                       />
                     </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(note)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
+                    />
                   </FlexAlignCenter>
                 )
               }}

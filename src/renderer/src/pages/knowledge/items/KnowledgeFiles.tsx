@@ -1,4 +1,3 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -11,7 +10,7 @@ import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
+import { DeleteIcon, Plus } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -210,7 +209,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          <Button
+                            type="text"
+                            danger
+                            onClick={() => removeItem(item)}
+                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                          />
                         </FlexAlignCenter>
                       )
                     }}

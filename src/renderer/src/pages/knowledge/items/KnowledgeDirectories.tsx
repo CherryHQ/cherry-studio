@@ -1,6 +1,6 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
@@ -111,7 +111,12 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                         type="directory"
                       />
                     </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(item)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
+                    />
                   </FlexAlignCenter>
                 )
               }}
