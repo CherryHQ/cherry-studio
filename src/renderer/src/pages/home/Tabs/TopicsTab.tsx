@@ -40,7 +40,7 @@ import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -53,6 +53,8 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
+
+// const logger = loggerService.withContext('TopicsTab')
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
   const { assistants } = useAssistants()
@@ -69,11 +71,41 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+  const [displayedTopics, setDisplayedTopics] = useState<Topic[]>()
 
-  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
-  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
+  const isTopicPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
+  const isTopicFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
   const dispatch = useDispatch()
 
+  const loadTopics = useCallback(async () => {
+    if (pinTopicsToTop) {
+      // Sort topics based on pinned status if pinTopicsToTop is enabled
+      setDisplayedTopics(
+        [...assistant.topics].sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1
+          if (!a.pinned && b.pinned) return 1
+          return 0
+        })
+      )
+    } else {
+      setDisplayedTopics(assistant.topics)
+    }
+  }, [assistant.topics, pinTopicsToTop])
+
+  const isLoaded = useMemo(() => displayedTopics !== undefined, [displayedTopics])
+
+  // 控制话题载入
+  useEffect(() => {
+    if (!isLoaded) {
+      startTransition(() => {
+        loadTopics()
+      })
+    } else {
+      loadTopics()
+    }
+  }, [isLoaded, loadTopics])
+
+  // 控制 topic indicator
   useEffect(() => {
     dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
   }, [activeTopic.id, dispatch, topicFulfilledQuery])
@@ -423,24 +455,12 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     onDeleteTopic
   ])
 
-  // Sort topics based on pinned status if pinTopicsToTop is enabled
-  const sortedTopics = useMemo(() => {
-    if (pinTopicsToTop) {
-      return [...assistant.topics].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
-        return 0
-      })
-    }
-    return assistant.topics
-  }, [assistant.topics, pinTopicsToTop])
-
   const singlealone = topicPosition === 'right' && position === 'right'
 
   return (
     <DraggableVirtualList
       className="topics-tab"
-      list={sortedTopics}
+      list={displayedTopics ?? []}
       onUpdate={updateTopics}
       style={{ height: '100%', padding: '13px 0 10px 10px' }}
       itemContainerStyle={{ paddingBottom: '8px' }}
@@ -469,8 +489,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
               onClick={() => onSwitchTopic(topic)}
               style={{ borderRadius }}>
-              {isPending(topic.id) && !isActive && <PendingIndicator />}
-              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+              {isTopicPending(topic.id) && !isActive && <PendingIndicator />}
+              {isTopicFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
                 <TopicName className={getTopicNameClassName()} title={topicName}>
                   {topicName}
