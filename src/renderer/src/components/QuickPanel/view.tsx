@@ -166,6 +166,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         noMatchTimeoutRef.current = null
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx对象引用不稳定，使用具体属性避免过度重渲染
   }, [ctx.isVisible, searchText, list.length, ctx.close])
 
   const clearSearchText = useCallback(
