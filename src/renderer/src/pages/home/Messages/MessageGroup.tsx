@@ -23,14 +23,24 @@ interface Props {
 }
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
+  const messageLength = messages.length
+
+  // Hooks
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
-  const messageLength = messages.length
+  const maxWidth = useChatMaxWidth()
 
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
+
+  // States
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
+  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+
+  // Refs
+  const prevMessageLengthRef = useRef(messageLength)
 
   // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
@@ -38,8 +48,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     [_multiModelMessageStyle, messageLength]
   )
 
-  const prevMessageLengthRef = useRef(messageLength)
-  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+  const isGrid = multiModelMessageStyle === 'grid'
 
   const selectedMessageId = useMemo(() => {
     if (messages.length === 1) return messages[0]?.id
@@ -66,9 +75,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [editMessage, selectedMessageId]
   )
-
-  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
-  const isGrid = multiModelMessageStyle === 'grid'
 
   useEffect(() => {
     if (messageLength > prevMessageLengthRef.current) {
@@ -219,8 +225,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
   )
-
-  const maxWidth = useChatMaxWidth()
 
   return (
     <MessageEditingProvider>
