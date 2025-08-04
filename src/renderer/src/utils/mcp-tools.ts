@@ -18,6 +18,7 @@ import {
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
+import { t } from 'i18next'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -253,20 +254,31 @@ export function openAIToolsToMcpTool(
   mcpTools: MCPTool[],
   toolCall: OpenAI.Responses.ResponseFunctionToolCall | ChatCompletionMessageToolCall
 ): MCPTool | undefined {
-  const tool = mcpTools.find((mcpTool) => {
+  const tools = mcpTools.filter((mcpTool) => {
     if ('name' in toolCall) {
       return mcpTool.id === toolCall.name || mcpTool.name === toolCall.name
     } else {
       return mcpTool.id === toolCall.function.name || mcpTool.name === toolCall.function.name
     }
   })
+  if (tools.length > 1) {
+    logger.warn('Multiple MCP Tools found for tool call:', toolCall)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
 
-  if (!tool) {
+  if (tools.length === 0) {
     logger.warn('No MCP Tool found for tool call:', toolCall)
+    let toolName = ''
+    if ('name' in toolCall) {
+      toolName = toolCall.name
+    } else {
+      toolName = toolCall.function.name
+    }
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
 
-  return tool
+  return tools[0]
 }
 
 export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
@@ -358,11 +370,17 @@ export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> 
 
 export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolUse: ToolUseBlock): MCPTool | undefined {
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolUse.name)
-  if (!tool) {
+  const tools = mcpTools.filter((tool) => tool.id === toolUse.name)
+  if (tools.length === 0) {
+    logger.warn('No MCP Tool found for tool call:', toolUse)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
     return undefined
   }
-  return tool
+  if (tools.length > 1) {
+    logger.warn('Multiple MCP Tools found for tool call:', toolUse)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
+  return tools[0]
 }
 
 /**
@@ -424,9 +442,19 @@ export function geminiFunctionCallToMcpTool(
   const toolName = toolCall.name || toolCall.id
   if (!toolName) return undefined
 
-  const tool = mcpTools.find((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+  const tools = mcpTools.filter((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+  if (tools.length > 1) {
+    logger.warn('Multiple MCP Tools found for tool call:', toolCall)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
 
-  return tool
+  if (tools.length === 0) {
+    logger.warn('No MCP Tool found for tool call:', toolCall)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
+    return undefined
+  }
+
+  return tools[0]
 }
 
 export function upsertMCPToolResponse(
