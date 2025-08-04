@@ -317,7 +317,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       {
         label: t('chat.save.label'),
         key: 'save',
-        icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Save size={14} />,
         children: [
           {
             label: t('chat.save.topic.knowledge.title'),
