@@ -16,8 +16,8 @@ import {
   Home,
   Languages,
   LayoutGrid,
-  Moon,
   Monitor,
+  Moon,
   Palette,
   Settings,
   Sparkle,
@@ -70,7 +70,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const tabs = useAppSelector((state) => state.tabs.tabs)
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
-  const { theme, settedTheme, toggleTheme } = useTheme()
+  const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
 
   const getTabId = (path: string): string => {
