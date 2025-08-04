@@ -35,7 +35,7 @@ interface Props {
   isGrouped?: boolean
   isStreaming?: boolean
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
-  onUpdateUseful: (msgId: string) => void
+  onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
 }
 

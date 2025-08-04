@@ -52,7 +52,7 @@ interface Props {
   isAssistantMessage: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
-  onUpdateUseful: (msgId: string) => void
+  onUpdateUseful?: (msgId: string) => void
 }
 
 const MessageMenubar: FC<Props> = (props) => {
@@ -412,8 +412,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      onUpdateUseful(message.id)
-      // TODO: 向MessageGroup传达消息
+      onUpdateUseful?.(message.id)
     },
     [message.id, onUpdateUseful]
   )
