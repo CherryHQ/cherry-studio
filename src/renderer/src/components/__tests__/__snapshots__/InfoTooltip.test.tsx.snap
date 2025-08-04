@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`InfoTooltip > should match snapshot 1`] = `
+<div>
+  <div
+    aria-label="Information"
+    color="#1890ff"
+    role="img"
+    size="14"
+    style="font-size: 16px;"
+  >
+    Info
+  </div>
+  <div>
+    Test tooltip
+  </div>
+</div>
+`;

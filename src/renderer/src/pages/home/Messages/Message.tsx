@@ -1,6 +1,8 @@
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -35,6 +37,18 @@ interface Props {
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
 }
 
+const logger = loggerService.withContext('MessageItem')
+
+const WrapperContainer = ({
+  isMultiSelectMode,
+  children
+}: {
+  isMultiSelectMode: boolean
+  children: React.ReactNode
+}) => {
+  return isMultiSelectMode ? <label style={{ cursor: 'pointer' }}>{children}</label> : children
+}
+
 const MessageItem: FC<Props> = ({
   message,
   topic,
@@ -46,6 +60,7 @@ const MessageItem: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
+  const { isMultiSelectMode } = useChatContext(topic)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { messageFont, fontSize, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
@@ -70,7 +85,7 @@ const MessageItem: FC<Props> = ({
         editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
-        console.error('Failed to save message blocks:', error)
+        logger.error('Failed to save message blocks:', error as Error)
       }
     },
     [message, editMessageBlocks, stopEditing, editMessage]
@@ -85,7 +100,7 @@ const MessageItem: FC<Props> = ({
         await resendUserMessageWithEdit(message, blocks, assistantWithTopicPrompt)
         stopEditing()
       } catch (error) {
-        console.error('Failed to resend message:', error)
+        logger.error('Failed to resend message:', error as Error)
       }
     },
     [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
@@ -119,7 +134,15 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage className="clear-context-divider" onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
+      <NewContextMessage
+        isMultiSelectMode={isMultiSelectMode}
+        className="clear-context-divider"
+        onClick={() => {
+          if (isMultiSelectMode) {
+            return
+          }
+          EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+        }}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}
         </Divider>
@@ -128,56 +151,64 @@ const MessageItem: FC<Props> = ({
   }
 
   return (
-    <MessageContainer
-      key={message.id}
-      className={classNames({
-        message: true,
-        'message-assistant': isAssistantMessage,
-        'message-user': !isAssistantMessage
-      })}
-      ref={messageContainerRef}>
-      <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} topic={topic} />
-      {isEditing && (
-        <MessageEditor
+    <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
+      <MessageContainer
+        key={message.id}
+        className={classNames({
+          message: true,
+          'message-assistant': isAssistantMessage,
+          'message-user': !isAssistantMessage
+        })}
+        ref={messageContainerRef}>
+        <MessageHeader
           message={message}
-          topicId={topic.id}
-          onSave={handleEditSave}
-          onResend={handleEditResend}
-          onCancel={handleEditCancel}
+          assistant={assistant}
+          model={model}
+          key={getModelUniqId(model)}
+          topic={topic}
         />
-      )}
-      {!isEditing && (
-        <>
-          <MessageContentContainer
-            className="message-content-container"
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize,
-              overflowY: 'visible'
-            }}>
-            <MessageErrorBoundary>
-              <MessageContent message={message} />
-            </MessageErrorBoundary>
-          </MessageContentContainer>
-          {showMenubar && (
-            <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
-              <MessageMenubar
-                message={message}
-                assistant={assistant}
-                model={model}
-                index={index}
-                topic={topic}
-                isLastMessage={isLastMessage}
-                isAssistantMessage={isAssistantMessage}
-                isGrouped={isGrouped}
-                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                setModel={setModel}
-              />
-            </MessageFooter>
-          )}
-        </>
-      )}
-    </MessageContainer>
+        {isEditing && (
+          <MessageEditor
+            message={message}
+            topicId={topic.id}
+            onSave={handleEditSave}
+            onResend={handleEditResend}
+            onCancel={handleEditCancel}
+          />
+        )}
+        {!isEditing && (
+          <>
+            <MessageContentContainer
+              className="message-content-container"
+              style={{
+                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+                fontSize,
+                overflowY: 'visible'
+              }}>
+              <MessageErrorBoundary>
+                <MessageContent message={message} />
+              </MessageErrorBoundary>
+            </MessageContentContainer>
+            {showMenubar && (
+              <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
+                <MessageMenubar
+                  message={message}
+                  assistant={assistant}
+                  model={model}
+                  index={index}
+                  topic={topic}
+                  isLastMessage={isLastMessage}
+                  isAssistantMessage={isAssistantMessage}
+                  isGrouped={isGrouped}
+                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                  setModel={setModel}
+                />
+              </MessageFooter>
+            )}
+          </>
+        )}
+      </MessageContainer>
+    </WrapperContainer>
   )
 }
 
@@ -229,9 +260,11 @@ const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plai
   margin-top: 8px;
 `
 
-const NewContextMessage = styled.div`
+const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`
   cursor: pointer;
   flex: 1;
+
+  ${({ isMultiSelectMode }) => isMultiSelectMode && 'cursor: default;'}
 `
 
 export default memo(MessageItem)

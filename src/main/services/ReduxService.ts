@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { EventEmitter } from 'events'
@@ -6,6 +7,8 @@ import { windowService } from './WindowService'
 
 type StoreValue = any
 type Unsubscribe = () => void
+
+const logger = loggerService.withContext('ReduxService')
 
 export class ReduxService extends EventEmitter {
   private stateCache: any = {}
@@ -65,7 +68,8 @@ export class ReduxService extends EventEmitter {
       const selectorFn = new Function('state', `return ${selector}`)
       return selectorFn(this.stateCache)
     } catch (error) {
-      console.error('Failed to select from cache:', error)
+      // change it to debug level as it not block other operations
+      logger.debug('Failed to select from cache:', error as Error)
       return undefined
     }
   }
@@ -94,7 +98,7 @@ export class ReduxService extends EventEmitter {
         })()
       `)
     } catch (error) {
-      console.error('Failed to select store value:', error)
+      logger.error('Failed to select store value:', error as Error)
       throw error
     }
   }
@@ -111,7 +115,7 @@ export class ReduxService extends EventEmitter {
         window.store.dispatch(${JSON.stringify(action)})
       `)
     } catch (error) {
-      console.error('Failed to dispatch action:', error)
+      logger.error('Failed to dispatch action:', error as Error)
       throw error
     }
   }
@@ -149,7 +153,7 @@ export class ReduxService extends EventEmitter {
         const newValue = await this.select(selector)
         callback(newValue)
       } catch (error) {
-        console.error('Error in subscription handler:', error)
+        logger.error('Error in subscription handler:', error as Error)
       }
     }
 
@@ -171,7 +175,7 @@ export class ReduxService extends EventEmitter {
         window.store.getState()
       `)
     } catch (error) {
-      console.error('Failed to get state:', error)
+      logger.error('Failed to get state:', error as Error)
       throw error
     }
   }
@@ -191,7 +195,7 @@ export const reduxService = new ReduxService()
  try {
  // 读取状态
  const settings = await reduxService.select('state.settings')
- Logger.log('settings', settings)
+ logger.log('settings', settings)
 
  // 派发 action
  await reduxService.dispatch({
@@ -201,7 +205,7 @@ export const reduxService = new ReduxService()
 
  // 订阅状态变化
  const unsubscribe = await reduxService.subscribe('state.settings.apiKey', (newValue) => {
- Logger.log('API key changed:', newValue)
+ logger.log('API key changed:', newValue)
  })
 
  // 批量执行 actions
@@ -212,16 +216,16 @@ export const reduxService = new ReduxService()
 
  // 同步方法虽然可能不是最新的数据，但响应更快
  const apiKey = reduxService.selectSync('state.settings.apiKey')
- Logger.log('apiKey', apiKey)
+ logger.log('apiKey', apiKey)
 
  // 处理保证是最新的数据
  const apiKey1 = await reduxService.select('state.settings.apiKey')
- Logger.log('apiKey1', apiKey1)
+ logger.log('apiKey1', apiKey1)
 
  // 取消订阅
  unsubscribe()
  } catch (error) {
- Logger.error('Error:', error)
+ logger.error('Error:', error)
  }
  }
  */

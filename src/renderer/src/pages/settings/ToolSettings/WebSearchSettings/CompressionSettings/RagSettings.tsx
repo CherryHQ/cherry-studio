@@ -1,6 +1,6 @@
-import AiProvider from '@renderer/aiCore'
+import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
-import Logger from '@renderer/config/logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -8,68 +8,30 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
-import { find, sortBy } from 'lodash'
-import { Info, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Slider, Tooltip } from 'antd'
+import { find } from 'lodash'
+import { Info } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const INPUT_BOX_WIDTH = '200px'
+const INPUT_BOX_WIDTH = 'min(350px, 60%)'
 
 const RagSettings = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
-  const [loadingDimensions, setLoadingDimensions] = useState(false)
 
   const embeddingModels = useMemo(() => {
-    return providers
-      .map((p) => p.models)
-      .flat()
-      .filter((model) => isEmbeddingModel(model))
+    return providers.flatMap((p) => p.models).filter((model) => isEmbeddingModel(model))
   }, [providers])
 
   const rerankModels = useMemo(() => {
-    return providers
-      .map((p) => p.models)
-      .flat()
-      .filter((model) => isRerankModel(model))
+    return providers.flatMap((p) => p.models).filter((model) => isRerankModel(model))
   }, [providers])
 
-  const embeddingSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isEmbeddingModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m),
-            providerId: p.id,
-            modelId: m.id
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
-
-  const rerankSelectOptions = useMemo(() => {
-    return providers
-      .filter((p) => p.models.length > 0)
-      .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
-      .map((p) => ({
-        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-        title: p.name,
-        options: sortBy(p.models, 'name')
-          .filter((model) => isRerankModel(model))
-          .map((m) => ({
-            label: m.name,
-            value: getModelUniqId(m)
-          }))
-      }))
-      .filter((group) => group.options.length > 0)
-  }, [providers, t])
+  const rerankProviders = useMemo(() => {
+    return providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
+  }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
@@ -89,48 +51,18 @@ const RagSettings = () => {
     updateCompressionConfig({ documentCount: value })
   }
 
-  const handleAutoGetDimensions = async () => {
-    if (!compressionConfig?.embeddingModel) {
-      Logger.log('[RagSettings] handleAutoGetDimensions: no embedding model')
-      window.message.error(t('settings.tool.websearch.compression.error.embedding_model_required'))
-      return
-    }
-
-    const provider = providers.find((p) => p.id === compressionConfig.embeddingModel?.provider)
-    if (!provider) {
-      Logger.log('[RagSettings] handleAutoGetDimensions: provider not found')
-      window.message.error(t('settings.tool.websearch.compression.error.provider_not_found'))
-      return
-    }
-
-    setLoadingDimensions(true)
-    try {
-      const aiProvider = new AiProvider(provider)
-      const dimensions = await aiProvider.getEmbeddingDimensions(compressionConfig.embeddingModel)
-
-      updateCompressionConfig({ embeddingDimensions: dimensions })
-
-      window.message.success(t('settings.tool.websearch.compression.info.dimensions_auto_success', { dimensions }))
-    } catch (error) {
-      Logger.error('[RagSettings] handleAutoGetDimensions: failed to get embedding dimensions', error)
-      window.message.error(t('settings.tool.websearch.compression.error.dimensions_auto_failed'))
-    } finally {
-      setLoadingDimensions(false)
-    }
-  }
-
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
-        <Select
+        <ModelSelector
+          providers={providers}
+          predicate={isEmbeddingModel}
           value={compressionConfig?.embeddingModel ? getModelUniqId(compressionConfig.embeddingModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
-          options={embeddingSelectOptions}
           placeholder={t('settings.models.empty')}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
-          showSearch
         />
       </SettingRow>
       <SettingDivider />
@@ -138,47 +70,37 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
-          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.tooltip')}>
+          <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: INPUT_BOX_WIDTH }}>
-          <InputNumber
-            value={compressionConfig?.embeddingDimensions}
-            style={{ flex: 1 }}
-            placeholder={t('settings.tool.websearch.compression.rag.embedding_dimensions.placeholder')}
-            min={0}
-            onChange={handleEmbeddingDimensionsChange}
-          />
-          <Tooltip title={t('settings.tool.websearch.compression.rag.embedding_dimensions.auto_get')}>
-            <Button
-              icon={<RefreshCw size={16} />}
-              loading={loadingDimensions}
-              disabled={!compressionConfig?.embeddingModel}
-              onClick={handleAutoGetDimensions}
-            />
-          </Tooltip>
-        </div>
+        <InputEmbeddingDimension
+          value={compressionConfig?.embeddingDimensions}
+          onChange={handleEmbeddingDimensionsChange}
+          model={compressionConfig?.embeddingModel}
+          disabled={!compressionConfig?.embeddingModel}
+          style={{ width: INPUT_BOX_WIDTH }}
+        />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('models.rerank_model')}</SettingRowTitle>
-        <Select
+        <ModelSelector
+          providers={rerankProviders}
+          predicate={isRerankModel}
           value={compressionConfig?.rerankModel ? getModelUniqId(compressionConfig.rerankModel) : undefined}
           style={{ width: INPUT_BOX_WIDTH }}
-          options={rerankSelectOptions}
           placeholder={t('settings.models.empty')}
           onChange={handleRerankModelChange}
           allowClear
-          showSearch
         />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>
-          {t('settings.tool.websearch.compression.rag.document_count')}
+          {t('settings.tool.websearch.compression.rag.document_count.label')}
           <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="top">
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>

@@ -1,12 +1,24 @@
+import { ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import {
+  TextBlock,
+  TextDelta,
+  Usage,
+  WebSearchResultBlock,
+  WebSearchToolResultError
+} from '@anthropic-ai/sdk/resources/messages'
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
+import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
+import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
+import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
-import { Assistant, Provider, WebSearchSource } from '@renderer/types'
+import { isVisionModel } from '@renderer/config/models'
+import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
+  Chunk,
   ChunkType,
   LLMResponseCompleteChunk,
   LLMWebSearchCompleteChunk,
@@ -14,10 +26,20 @@ import {
   TextStartChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import { GeminiSdkRawChunk } from '@renderer/types/sdk'
+import {
+  AnthropicSdkRawChunk,
+  GeminiSdkMessageParam,
+  GeminiSdkRawChunk,
+  GeminiSdkToolCall,
+  OpenAISdkRawChunk,
+  OpenAISdkRawContentSource
+} from '@renderer/types/sdk'
+import { mcpToolCallResponseToGeminiMessage } from '@renderer/utils/mcp-tools'
+import * as McpToolsModule from '@renderer/utils/mcp-tools'
 import { cloneDeep } from 'lodash'
+import OpenAI from 'openai'
+import { ChatCompletionChunk } from 'openai/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 // Mock the ApiClientFactory
 vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
   ApiClientFactory: {
@@ -41,7 +63,8 @@ vi.mock('@renderer/config/models', () => ({
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro'
     }
-  }
+  },
+  isAnthropicModel: vi.fn(() => false)
 }))
 
 // Mock uuid
@@ -149,7 +172,8 @@ vi.mock('@renderer/store/llm.ts', () => {
           {
             id: 'gemini-2.5-pro',
             name: 'Gemini 2.5 Pro',
-            provider: 'gemini'
+            provider: 'gemini',
+            supported_text_delta: true
           }
         ],
         isSystem: true,
@@ -159,17 +183,20 @@ vi.mock('@renderer/store/llm.ts', () => {
     defaultModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     topicNamingModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     translateModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     quickAssistantId: '',
     settings: {
@@ -194,6 +221,17 @@ vi.mock('@renderer/store/llm.ts', () => {
   return {
     default: mockReducer,
     initialState: mockInitialState
+  }
+})
+
+vi.mock('@renderer/store/mcp.ts', () => {
+  const mockInitialState = {
+    servers: [{ id: 'mcp-server-1', name: 'mcp-server-1', isActive: true, disabledAutoApproveTools: [] }]
+  }
+  return {
+    default: (state = mockInitialState) => {
+      return state
+    }
   }
 })
 
@@ -543,6 +581,386 @@ const geminiThinkingChunks: GeminiSdkRawChunk[] = [
   } as unknown as GeminiSdkRawChunk
 ]
 
+const geminiToolUseChunks: GeminiSdkRawChunk[] = [
+  {
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n',
+              thought: true
+            }
+          ],
+          role: 'model'
+        },
+        index: 0
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk,
+  {
+    candidates: [
+      {
+        content: {
+          parts: [{ text: '好的，我将为您打印用户的' }],
+          role: 'model'
+        },
+        index: 0
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk,
+  {
+    candidates: [
+      {
+        content: {
+          parts: [{ text: '信息。\n\u003ctool_use\u003e\n  \u003cname\u003emcp-tool-1\u003c/name\u003e\n' }],
+          role: 'model'
+        },
+        index: 0
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk,
+  {
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              text: '  \u003carguments\u003e{"name":"xxx","age":20}\u003c/arguments\u003e\n\u003c/tool_use\u003e'
+            }
+          ],
+          role: 'model'
+        },
+        index: 0
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk,
+  {
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              functionCall: {
+                name: 'mcp-tool-1',
+                args: {
+                  name: 'alice',
+                  age: 13
+                }
+              } as GeminiSdkToolCall
+            }
+          ],
+          role: 'model'
+        },
+        finishReason: FinishReason.STOP
+      }
+    ],
+    usageMetadata: {}
+  } as GeminiSdkRawChunk
+]
+
+const openaiCompletionChunks: OpenAISdkRawChunk[] = [
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: ''
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      } as ChatCompletionChunk.Choice
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: '好的，用户打招呼说“你好'
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: '”，我需要友好回应。'
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '你好！有什么问题',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '或者需要我帮忙的吗？',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: 'stop'
+      }
+    ]
+  }
+]
+
+const openaiNeedExtractContentChunks: OpenAISdkRawChunk[] = [
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: null,
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '<think>',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '\n好的，用户发来“你好”，我需要友好回应\n</',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: 'think>',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {
+          content: '你好！有什么我可以帮您的吗？',
+          role: 'assistant',
+          reasoning_content: null
+        } as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: null
+      }
+    ]
+  },
+  {
+    id: 'cmpl-123',
+    created: 1715811200,
+    model: 'gpt-4o',
+    object: 'chat.completion.chunk',
+    choices: [
+      {
+        delta: {} as ChatCompletionChunk.Choice.Delta,
+        index: 0,
+        logprobs: null,
+        finish_reason: 'stop'
+      }
+    ]
+  }
+]
+
+const anthropicTextNonStreamChunks: AnthropicSdkRawChunk[] = [
+  {
+    id: 'msg_bdrk_01HctMh5mCpuFRq49KFwTDU6',
+    type: 'message',
+    role: 'assistant',
+    content: [
+      {
+        type: 'text',
+        text: '你好！有什么我可以帮助你的吗？'
+      }
+    ],
+    model: 'claude-3-7-sonnet-20250219',
+    stop_reason: 'end_turn',
+    usage: {
+      input_tokens: 15,
+      output_tokens: 21
+    }
+  } as AnthropicSdkRawChunk
+]
+
+const anthropicTextStreamChunks: AnthropicSdkRawChunk[] = [
+  {
+    type: 'message_start',
+    message: {
+      id: 'msg_bdrk_013fneHZaGWgKFBzesGM4wu5',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-3-5-sonnet-20241022',
+      content: [],
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {
+        input_tokens: 10,
+        output_tokens: 2
+      } as Usage
+    }
+  },
+  {
+    type: 'content_block_start',
+    index: 0,
+    content_block: {
+      type: 'text',
+      text: ''
+    } as TextBlock
+  },
+  {
+    type: 'content_block_delta',
+    index: 0,
+    delta: {
+      type: 'text_delta',
+      text: '你好!很高兴见到你。有'
+    } as TextDelta
+  },
+  {
+    type: 'content_block_delta',
+    index: 0,
+    delta: {
+      type: 'text_delta',
+      text: '什么我可以帮助你的吗？'
+    } as TextDelta
+  },
+  {
+    type: 'content_block_stop',
+    index: 0
+  },
+  {
+    type: 'message_delta',
+    delta: {
+      stop_reason: 'end_turn',
+      stop_sequence: null
+    },
+    usage: {
+      output_tokens: 28
+    } as Usage
+  },
+  {
+    type: 'message_stop'
+  }
+]
+
 // 正确的 async generator 函数
 async function* geminiChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
   for (const chunk of geminiChunks) {
@@ -552,6 +970,349 @@ async function* geminiChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
 
 async function* geminiThinkingChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
   for (const chunk of geminiThinkingChunks) {
+    yield chunk
+  }
+}
+
+async function* geminiToolUseChunkGenerator(): AsyncGenerator<GeminiSdkRawChunk> {
+  for (const chunk of geminiToolUseChunks) {
+    yield chunk
+  }
+}
+
+async function* openaiThinkingChunkGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
+  for (const chunk of openaiCompletionChunks) {
+    yield chunk
+  }
+}
+
+async function* openaiNeedExtractContentChunkGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
+  for (const chunk of openaiNeedExtractContentChunks) {
+    yield chunk
+  }
+}
+
+const mockOpenaiApiClient = {
+  createCompletions: vi.fn().mockImplementation(() => openaiThinkingChunkGenerator()),
+  getResponseChunkTransformer: vi.fn().mockImplementation(() => {
+    let hasBeenCollectedWebSearch = false
+    const collectWebSearchData = (
+      chunk: OpenAISdkRawChunk,
+      contentSource: OpenAISdkRawContentSource,
+      context: ResponseChunkTransformerContext
+    ) => {
+      if (hasBeenCollectedWebSearch) {
+        return
+      }
+      // OpenAI annotations
+      // @ts-ignore - annotations may not be in standard type definitions
+      const annotations = contentSource.annotations || chunk.annotations
+      if (annotations && annotations.length > 0 && annotations[0].type === 'url_citation') {
+        hasBeenCollectedWebSearch = true
+        return {
+          results: annotations,
+          source: WebSearchSource.OPENAI
+        }
+      }
+
+      // Grok citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'grok' && chunk.citations) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.citations,
+          source: WebSearchSource.GROK
+        }
+      }
+
+      // Perplexity citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'perplexity' && chunk.search_results && chunk.search_results.length > 0) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.search_results,
+          source: WebSearchSource.PERPLEXITY
+        }
+      }
+
+      // OpenRouter citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'openrouter' && chunk.citations && chunk.citations.length > 0) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.citations,
+          source: WebSearchSource.OPENROUTER
+        }
+      }
+
+      // Zhipu web search
+      // @ts-ignore - web_search may not be in standard type definitions
+      if (context.provider?.id === 'zhipu' && chunk.web_search) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - web_search may not be in standard type definitions
+          results: chunk.web_search,
+          source: WebSearchSource.ZHIPU
+        }
+      }
+
+      // Hunyuan web search
+      // @ts-ignore - search_info may not be in standard type definitions
+      if (context.provider?.id === 'hunyuan' && chunk.search_info?.search_results) {
+        hasBeenCollectedWebSearch = true
+        return {
+          // @ts-ignore - search_info may not be in standard type definitions
+          results: chunk.search_info.search_results,
+          source: WebSearchSource.HUNYUAN
+        }
+      }
+      return null
+    }
+
+    const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
+    let isFinished = false
+    let lastUsageInfo: any = null
+
+    /**
+     * 统一的完成信号发送逻辑
+     * - 有 finish_reason 时
+     * - 无 finish_reason 但是流正常结束时
+     */
+    const emitCompletionSignals = (controller: TransformStreamDefaultController<GenericChunk>) => {
+      if (isFinished) return
+
+      if (toolCalls.length > 0) {
+        controller.enqueue({
+          type: ChunkType.MCP_TOOL_CREATED,
+          tool_calls: toolCalls
+        })
+      }
+
+      const usage = lastUsageInfo || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0
+      }
+
+      controller.enqueue({
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: { usage }
+      })
+
+      // 防止重复发送
+      isFinished = true
+    }
+
+    let isThinking = false
+    let accumulatingText = false
+    return (context: ResponseChunkTransformerContext) => ({
+      async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        // 持续更新usage信息
+        if (chunk.usage) {
+          lastUsageInfo = {
+            prompt_tokens: chunk.usage.prompt_tokens || 0,
+            completion_tokens: chunk.usage.completion_tokens || 0,
+            total_tokens: (chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0)
+          }
+        }
+
+        // 处理chunk
+        if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
+          for (const choice of chunk.choices) {
+            if (!choice) continue
+
+            // 对于流式响应，使用 delta；对于非流式响应，使用 message。
+            // 然而某些 OpenAI 兼容平台在非流式请求时会错误地返回一个空对象的 delta 字段。
+            // 如果 delta 为空对象或content为空，应当忽略它并回退到 message，避免造成内容缺失。
+            let contentSource: OpenAISdkRawContentSource | null = null
+            if (
+              'delta' in choice &&
+              choice.delta &&
+              Object.keys(choice.delta).length > 0 &&
+              (!('content' in choice.delta) ||
+                (choice.delta.tool_calls && choice.delta.tool_calls.length > 0) ||
+                (typeof choice.delta.content === 'string' && choice.delta.content !== '') ||
+                (typeof (choice.delta as any).reasoning_content === 'string' &&
+                  (choice.delta as any).reasoning_content !== '') ||
+                (typeof (choice.delta as any).reasoning === 'string' && (choice.delta as any).reasoning !== ''))
+            ) {
+              contentSource = choice.delta
+            } else if ('message' in choice) {
+              contentSource = choice.message
+            }
+
+            // 状态管理
+            if (!contentSource?.content) {
+              accumulatingText = false
+            }
+            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
+              isThinking = false
+            }
+
+            if (!contentSource) {
+              if ('finish_reason' in choice && choice.finish_reason) {
+                emitCompletionSignals(controller)
+              }
+              continue
+            }
+
+            const webSearchData = collectWebSearchData(chunk, contentSource, context)
+            if (webSearchData) {
+              controller.enqueue({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: webSearchData
+              })
+            }
+
+            // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
+            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+            if (reasoningText) {
+              if (!isThinking) {
+                controller.enqueue({
+                  type: ChunkType.THINKING_START
+                } as ThinkingStartChunk)
+                isThinking = true
+              }
+              controller.enqueue({
+                type: ChunkType.THINKING_DELTA,
+                text: reasoningText
+              })
+            } else {
+              isThinking = false
+            }
+
+            // 处理文本内容
+            if (contentSource.content) {
+              if (!accumulatingText) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_START
+                } as TextStartChunk)
+                accumulatingText = true
+              }
+              controller.enqueue({
+                type: ChunkType.TEXT_DELTA,
+                text: contentSource.content
+              })
+            } else {
+              accumulatingText = false
+            }
+
+            // 处理工具调用
+            if (contentSource.tool_calls) {
+              for (const toolCall of contentSource.tool_calls) {
+                if ('index' in toolCall) {
+                  const { id, index, function: fun } = toolCall
+                  if (fun?.name) {
+                    toolCalls[index] = {
+                      id: id || '',
+                      function: {
+                        name: fun.name,
+                        arguments: fun.arguments || ''
+                      },
+                      type: 'function'
+                    }
+                  } else if (fun?.arguments) {
+                    toolCalls[index].function.arguments += fun.arguments
+                  }
+                } else {
+                  toolCalls.push(toolCall)
+                }
+              }
+            }
+
+            // 处理finish_reason，发送流结束信号
+            if ('finish_reason' in choice && choice.finish_reason) {
+              const webSearchData = collectWebSearchData(chunk, contentSource, context)
+              if (webSearchData) {
+                controller.enqueue({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: webSearchData
+                })
+              }
+              emitCompletionSignals(controller)
+            }
+          }
+        }
+      },
+
+      // 流正常结束时，检查是否需要发送完成信号
+      flush(controller) {
+        if (isFinished) return
+        emitCompletionSignals(controller)
+      }
+    })
+  }),
+  getSdkInstance: vi.fn(),
+  getRequestTransformer: vi.fn().mockImplementation(() => ({
+    async transform(params: any) {
+      return {
+        payload: {
+          model: params.assistant?.model?.id || 'gpt-4o',
+          messages: params.messages || [],
+          tools: params.tools || []
+        },
+        metadata: {}
+      }
+    }
+  })),
+  convertMcpToolsToSdkTools: vi.fn(() => []),
+  convertSdkToolCallToMcpToolResponse: vi.fn(),
+  buildSdkMessages: vi.fn(() => []),
+  extractMessagesFromSdkPayload: vi.fn(() => []),
+  provider: {} as Provider,
+  useSystemPromptForTools: true,
+  getBaseURL: vi.fn(() => 'https://api.openai.com'),
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['OpenAIAPIClient'])
+} as unknown as OpenAIAPIClient
+
+// Mock OpenAIResponseAPIClient
+const mockOpenAIResponseAPIClient = {
+  createCompletions: vi.fn().mockImplementation(() => openaiThinkingChunkGenerator()),
+  getResponseChunkTransformer: mockOpenaiApiClient.getResponseChunkTransformer,
+  getSdkInstance: vi.fn(),
+  getRequestTransformer: vi.fn().mockImplementation(() => ({
+    async transform(params: any) {
+      return {
+        payload: {
+          model: params.assistant?.model?.id || 'gpt-4o',
+          messages: params.messages || [],
+          tools: params.tools || []
+        },
+        metadata: {}
+      }
+    }
+  })),
+  convertMcpToolsToSdkTools: vi.fn(() => []),
+  convertSdkToolCallToMcpToolResponse: vi.fn(),
+  buildSdkMessages: vi.fn(() => []),
+  extractMessagesFromSdkPayload: vi.fn(() => []),
+  provider: {} as Provider,
+  useSystemPromptForTools: true,
+  getBaseURL: vi.fn(() => 'https://api.openai.com'),
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClient: vi.fn(() => mockOpenaiApiClient), // 模拟返回内部客户端
+  getClientCompatibilityType: vi.fn(() => ['OpenAIResponseAPIClient'])
+} as unknown as OpenAIResponseAPIClient
+
+const mockOpenaiNeedExtractContentApiClient = cloneDeep(mockOpenaiApiClient)
+mockOpenaiNeedExtractContentApiClient.createCompletions = vi
+  .fn()
+  .mockImplementation(() => openaiNeedExtractContentChunkGenerator())
+
+async function* anthropicTextNonStreamChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
+  for (const chunk of anthropicTextNonStreamChunks) {
+    yield chunk
+  }
+}
+
+async function* anthropicTextStreamChunkGenerator(): AsyncGenerator<AnthropicSdkRawChunk> {
+  for (const chunk of anthropicTextStreamChunks) {
     yield chunk
   }
 }
@@ -671,11 +1432,245 @@ const mockGeminiApiClient = {
   provider: {} as Provider,
   useSystemPromptForTools: true,
   getBaseURL: vi.fn(() => 'https://api.gemini.com'),
-  getApiKey: vi.fn(() => 'mock-api-key')
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['GeminiAPIClient'])
 } as unknown as GeminiAPIClient
+
+const mockAnthropicApiClient = {
+  createCompletions: vi.fn().mockImplementation(() => anthropicTextNonStreamChunkGenerator()),
+  attachRawStreamListener: vi.fn().mockImplementation((rawOutput: any) => {
+    return rawOutput
+  }),
+  getResponseChunkTransformer: vi.fn().mockImplementation(() => {
+    return () => {
+      let accumulatedJson = ''
+      const toolCalls: Record<number, ToolUseBlock> = {}
+      return {
+        async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+          switch (rawChunk.type) {
+            case 'message': {
+              let i = 0
+              let hasTextContent = false
+              let hasThinkingContent = false
+
+              for (const content of rawChunk.content) {
+                switch (content.type) {
+                  case 'text': {
+                    if (!hasTextContent) {
+                      controller.enqueue({
+                        type: ChunkType.TEXT_START
+                      } as TextStartChunk)
+                      hasTextContent = true
+                    }
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: content.text
+                    } as TextDeltaChunk)
+                    break
+                  }
+                  case 'tool_use': {
+                    toolCalls[i] = content
+                    i++
+                    break
+                  }
+                  case 'thinking': {
+                    if (!hasThinkingContent) {
+                      controller.enqueue({
+                        type: ChunkType.THINKING_START
+                      })
+                      hasThinkingContent = true
+                    }
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: content.thinking
+                    })
+                    break
+                  }
+                  case 'web_search_tool_result': {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: content.content,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    } as LLMWebSearchCompleteChunk)
+                    break
+                  }
+                }
+              }
+              if (i > 0) {
+                controller.enqueue({
+                  type: ChunkType.MCP_TOOL_CREATED,
+                  tool_calls: Object.values(toolCalls)
+                })
+              }
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: rawChunk.usage.input_tokens || 0,
+                    completion_tokens: rawChunk.usage.output_tokens || 0,
+                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                  }
+                }
+              })
+              break
+            }
+            case 'content_block_start': {
+              const contentBlock = rawChunk.content_block
+              switch (contentBlock.type) {
+                case 'server_tool_use': {
+                  if (contentBlock.name === 'web_search') {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                    })
+                  }
+                  break
+                }
+                case 'web_search_tool_result': {
+                  if (
+                    contentBlock.content &&
+                    (contentBlock.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
+                  ) {
+                    controller.enqueue({
+                      type: ChunkType.ERROR,
+                      error: {
+                        code: (contentBlock.content as WebSearchToolResultError).error_code,
+                        message: (contentBlock.content as WebSearchToolResultError).error_code
+                      }
+                    })
+                  } else {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: contentBlock.content as Array<WebSearchResultBlock>,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    })
+                  }
+                  break
+                }
+                case 'tool_use': {
+                  toolCalls[rawChunk.index] = contentBlock
+                  break
+                }
+                case 'text': {
+                  controller.enqueue({
+                    type: ChunkType.TEXT_START
+                  } as TextStartChunk)
+                  break
+                }
+                case 'thinking':
+                case 'redacted_thinking': {
+                  controller.enqueue({
+                    type: ChunkType.THINKING_START
+                  } as ThinkingStartChunk)
+                  break
+                }
+              }
+              break
+            }
+            case 'content_block_delta': {
+              const messageDelta = rawChunk.delta
+              switch (messageDelta.type) {
+                case 'text_delta': {
+                  if (messageDelta.text) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: messageDelta.text
+                    } as TextDeltaChunk)
+                  }
+                  break
+                }
+                case 'thinking_delta': {
+                  if (messageDelta.thinking) {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: messageDelta.thinking
+                    })
+                  }
+                  break
+                }
+                case 'input_json_delta': {
+                  if (messageDelta.partial_json) {
+                    accumulatedJson += messageDelta.partial_json
+                  }
+                  break
+                }
+              }
+              break
+            }
+            case 'content_block_stop': {
+              const toolCall = toolCalls[rawChunk.index]
+              if (toolCall) {
+                try {
+                  toolCall.input = JSON.parse(accumulatedJson)
+                  controller.enqueue({
+                    type: ChunkType.MCP_TOOL_CREATED,
+                    tool_calls: [toolCall]
+                  })
+                } catch (error) {
+                  console.error(`Error parsing tool call input: ${error}`)
+                }
+              }
+              break
+            }
+            case 'message_delta': {
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: rawChunk.usage.input_tokens || 0,
+                    completion_tokens: rawChunk.usage.output_tokens || 0,
+                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                  }
+                }
+              })
+            }
+          }
+        }
+      }
+    }
+  }),
+  getRequestTransformer: vi.fn().mockImplementation(() => ({
+    async transform(params: any) {
+      return {
+        payload: {
+          model: params.assistant?.model?.id || 'claude-3-7-sonnet-20250219',
+          messages: params.messages || [],
+          tools: params.tools || []
+        },
+        metadata: {}
+      }
+    }
+  })),
+  convertMcpToolsToSdkTools: vi.fn(() => []),
+  convertSdkToolCallToMcpToolResponse: vi.fn(),
+  buildSdkMessages: vi.fn(() => []),
+  extractMessagesFromSdkPayload: vi.fn(() => []),
+  provider: {} as Provider,
+  useSystemPromptForTools: true,
+  getBaseURL: vi.fn(() => 'https://api.anthropic.com'),
+  getApiKey: vi.fn(() => 'mock-api-key'),
+  getClientCompatibilityType: vi.fn(() => ['AnthropicAPIClient'])
+} as unknown as AnthropicAPIClient
+
+const mockAnthropicApiClientStream = cloneDeep(mockAnthropicApiClient)
+mockAnthropicApiClientStream.createCompletions = vi.fn().mockImplementation(() => anthropicTextStreamChunkGenerator())
 
 const mockGeminiThinkingApiClient = cloneDeep(mockGeminiApiClient)
 mockGeminiThinkingApiClient.createCompletions = vi.fn().mockImplementation(() => geminiThinkingChunkGenerator())
+
+const mockGeminiToolUseApiClient = cloneDeep(mockGeminiApiClient)
+mockGeminiToolUseApiClient.createCompletions = vi.fn().mockImplementation(() => geminiToolUseChunkGenerator())
+mockGeminiToolUseApiClient.convertMcpToolResponseToSdkMessageParam = vi
+  .fn()
+  .mockImplementation(
+    (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model): GeminiSdkMessageParam | undefined => {
+      // mcp使用tooluse
+      return mcpToolCallResponseToGeminiMessage(mcpToolResponse, resp, isVisionModel(model))
+    }
+  )
 
 const mockProvider = {
   id: 'gemini',
@@ -696,7 +1691,7 @@ describe('ApiService', () => {
     collectedChunks.length = 0
   })
 
-  it('should return a stream of chunks with correct types and content', async () => {
+  it('should return a stream of chunks with correct types and content in gemini', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockGeminiApiClient as unknown as BaseApiClient)
     const AI = new AiProvider(mockProvider)
@@ -710,7 +1705,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -814,6 +1810,157 @@ describe('ApiService', () => {
     expect(completionChunk.response?.usage?.completion_tokens).toBe(822)
   })
 
+  it('should return a non-stream of chunks with correct types and content in anthropic', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockAnthropicApiClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+
+        type: 'anthropic',
+        model: {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      mcpTools: [],
+      maxTokens: 1000,
+      streamOutput: false
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const expectedChunks: GenericChunk[] = [
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好！有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '你好！有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 21,
+            prompt_tokens: 15,
+            total_tokens: 36
+          }
+        }
+      }
+    ]
+
+    expect(chunks).toEqual(expectedChunks)
+
+    // 验证chunk的数量和类型
+    expect(chunks.length).toBeGreaterThan(0)
+
+    // 验证第一个chunk应该是TEXT_START
+    const firstChunk = chunks[0]
+    expect(firstChunk.type).toBe(ChunkType.TEXT_START)
+  })
+
+  it('should return a stream of chunks with correct types and content in anthropic', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockAnthropicApiClientStream as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+
+        type: 'anthropic',
+        model: {
+          id: 'claude-3-7-sonnet-20250219',
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      mcpTools: [],
+      maxTokens: 1000,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const expectedChunks: GenericChunk[] = [
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好!很高兴见到你。有'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好!很高兴见到你。有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '你好!很高兴见到你。有什么我可以帮助你的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 28,
+            prompt_tokens: 0,
+            total_tokens: 28
+          }
+        }
+      }
+    ]
+
+    expect(chunks).toEqual(expectedChunks)
+  })
+
   it('should return a stream of thinking chunks with correct types and content', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockGeminiThinkingApiClient as unknown as BaseApiClient)
@@ -828,7 +1975,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -975,6 +2123,692 @@ describe('ApiService', () => {
             prompt_tokens: 6,
             completion_tokens: 1279,
             total_tokens: 1285
+          }
+        }
+      }
+    ]
+
+    expect(filteredChunks).toEqual(expectedChunks)
+  })
+
+  it('should handle openai thinking chunk correctly', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockOpenaiApiClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider as Provider)
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const filteredChunks = chunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
+        delete (chunk as any).response.usage
+        return chunk
+      }
+      return chunk
+    })
+    const expectedChunks = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '好的，用户打招呼说“你好'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '好的，用户打招呼说“你好”，我需要友好回应。'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '好的，用户打招呼说“你好”，我需要友好回应。'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好！有什么问题'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '你好！有什么问题或者需要我帮忙的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '你好！有什么问题或者需要我帮忙的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {}
+      }
+    ]
+
+    expect(filteredChunks).toEqual(expectedChunks)
+  })
+
+  it('should handle openai need extract content chunk correctly', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    // @ts-ignore mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
+    mockCreate.mockReturnValue(mockOpenaiNeedExtractContentApiClient as unknown as OpenAIAPIClient)
+    const AI = new AiProvider(mockProvider as Provider)
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const filteredChunks = chunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedChunks = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '好的，用户发来“你好”，我需要友好回应'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '好的，用户发来“你好”，我需要友好回应'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '\n你好！有什么我可以帮您的吗？'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '\n你好！有什么我可以帮您的吗？'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
+          }
+        }
+      }
+    ]
+
+    expect(filteredChunks).toEqual(expectedChunks)
+  })
+
+  it('should handle OpenAIResponseAPIClient compatibility type without circular call', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+
+    // 创建一个模拟的 OpenAIResponseAPIClient，getClient 返回自身
+    const mockSelfReturningClient = {
+      ...mockOpenAIResponseAPIClient,
+      getClient: vi.fn(() => mockSelfReturningClient), // 返回自身，模拟循环调用场景
+      getClientCompatibilityType: vi.fn((model) => {
+        // 模拟真实的逻辑：检查是否返回自身
+        const actualClient = mockSelfReturningClient.getClient()
+        if (actualClient === mockSelfReturningClient) {
+          return ['OpenAIResponseAPIClient']
+        }
+        return actualClient.getClientCompatibilityType(model)
+      })
+    }
+
+    mockCreate.mockReturnValue(mockSelfReturningClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o'
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(mockSelfReturningClient.getClientCompatibilityType).toHaveBeenCalled()
+
+    // 验证没有抛出堆栈溢出错误，表明没有无限循环
+    expect(() => mockSelfReturningClient.getClientCompatibilityType({ id: 'gpt-4o' })).not.toThrow()
+  })
+
+  it('should extract tool use responses correctly', async () => {
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    mockCreate.mockReturnValue(mockGeminiToolUseApiClient as unknown as BaseApiClient)
+    const AI = new AiProvider(mockProvider)
+
+    const mcpChunks: GenericChunk[] = []
+    const firstResponseChunks: GenericChunk[] = []
+
+    const spy = vi.spyOn(McpToolsModule, 'callMCPTool')
+    spy.mockResolvedValue({
+      content: [{ type: 'text', text: 'test' }],
+      isError: false
+    })
+
+    const onChunk = vi.fn((chunk: Chunk) => {
+      mcpChunks.push(chunk)
+    })
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro'
+        },
+        settings: {
+          toolUseMode: 'prompt'
+        }
+      } as Assistant,
+      mcpTools: [
+        {
+          id: 'mcp-tool-1',
+          name: 'mcp-tool-1',
+          serverId: 'mcp-server-1',
+          serverName: 'mcp-server-1',
+          description: 'mcp-tool-1',
+          inputSchema: {
+            type: 'object',
+            title: 'mcp-tool-1',
+            properties: {
+              name: { type: 'string' },
+              age: { type: 'number' }
+            },
+            description: 'print the name and age',
+            required: ['name', 'age']
+          }
+        }
+      ],
+      onChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    expect(result).toBeDefined()
+    expect(ApiClientFactory.create).toHaveBeenCalledWith(mockProvider)
+    expect(result.stream).toBeDefined()
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    while (true) {
+      const { done, value: chunk } = await reader.read()
+      if (done) break
+      firstResponseChunks.push(chunk)
+    }
+
+    reader.releaseLock()
+
+    const filteredFirstResponseChunks = firstResponseChunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedFirstResponseChunks: GenericChunk[] = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '**Initiating File Retrieval**\n\nI\'ve determined that the `tool_mcp-tool-1` tool is suitable for this task. It seems the user intends to read a file, and this tool aligns with that objective. Currently, I\'m focusing on the necessary parameters. The `tool_mcp-tool-1` tool requires a `name` and `age`, which the user has helpfully provided: `{"name": "xxx", "age": 20}`. I\'m verifying the input.\n\n\n'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '好的，我将为您打印用户的'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '好的，我将为您打印用户的信息。\n'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '好的，我将为您打印用户的信息。\n'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
+          }
+        }
+      }
+    ]
+
+    const expectedMcpResponseChunks: GenericChunk[] = [
+      {
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'pending'
+          }
+        ]
+      },
+      {
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            response: undefined,
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'invoking'
+          }
+        ]
+      },
+      {
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [
+          {
+            id: 'mcp-tool-1-0',
+            tool: {
+              description: 'mcp-tool-1',
+              id: 'mcp-tool-1',
+              serverId: 'mcp-server-1',
+              serverName: 'mcp-server-1',
+              name: 'mcp-tool-1',
+              inputSchema: {
+                type: 'object',
+                title: 'mcp-tool-1',
+                properties: {
+                  name: { type: 'string' },
+                  age: { type: 'number' }
+                },
+                description: 'print the name and age',
+                required: ['name', 'age']
+              }
+            },
+            response: {
+              content: [
+                {
+                  text: 'test',
+                  type: 'text'
+                }
+              ],
+              isError: false
+            },
+            toolUseId: 'mcp-tool-1',
+            arguments: {
+              name: 'xxx',
+              age: 20
+            },
+            status: 'done'
+          }
+        ]
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_CREATED
+      }
+    ]
+
+    expect(filteredFirstResponseChunks).toEqual(expectedFirstResponseChunks)
+    expect(mcpChunks).toEqual(expectedMcpResponseChunks)
+  })
+
+  it('should handle multiple reasoning blocks and text blocks', async () => {
+    const rawChunks = [
+      {
+        choices: [
+          {
+            delta: { content: '', reasoning_content: '\n', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '开始', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '再次', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: 'stop' }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      }
+    ]
+
+    async function* mockChunksGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
+      for (const chunk of rawChunks) {
+        // since no reasoning_content field
+        yield chunk as OpenAISdkRawChunk
+      }
+    }
+
+    const mockOpenaiApiClient_ = cloneDeep(mockOpenaiApiClient)
+
+    mockOpenaiApiClient_.createCompletions = vi.fn().mockImplementation(() => mockChunksGenerator())
+
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    // @ts-ignore mockOpenaiApiClient_ is a OpenAIAPIClient
+    mockCreate.mockReturnValue(mockOpenaiApiClient_ as unknown as OpenAIAPIClient)
+    const AI = new AiProvider(mockProvider as Provider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const filteredChunks = chunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedChunks = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n开始'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n开始思考'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '\n开始思考'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '再次'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '再次思考'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '再次思考'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
           }
         }
       }

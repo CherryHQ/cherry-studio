@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
@@ -7,6 +8,7 @@ import {
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
+import { getAssistantSettings } from '@renderer/services/AssistantService'
 import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,
@@ -38,13 +40,14 @@ import {
 } from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
-import { findFileBlocks, getContentWithTools, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
-import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
 import { CompletionsContext } from '../middleware/types'
 import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+
+const logger = loggerService.withContext('BaseApiClient')
 
 /**
  * Abstract base class for API clients.
@@ -60,17 +63,26 @@ export abstract class BaseApiClient<
   TSdkSpecificTool extends SdkTool = SdkTool
 > implements ApiClient<TSdkInstance, TSdkParams, TRawOutput, TRawChunk, TMessageParam, TToolCall, TSdkSpecificTool>
 {
-  private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
   public provider: Provider
   protected host: string
   protected apiKey: string
   protected sdkInstance?: TSdkInstance
-  public useSystemPromptForTools: boolean = true
 
   constructor(provider: Provider) {
     this.provider = provider
     this.host = this.getBaseURL()
     this.apiKey = this.getApiKey()
+  }
+
+  /**
+   * 获取客户端的兼容性类型
+   * 用于判断客户端是否支持特定功能，避免instanceof检查的类型收窄问题
+   * 对于装饰器模式的客户端（如AihubmixAPIClient），应该返回其内部实际使用的客户端类型
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public getClientCompatibilityType(_model?: Model): string[] {
+    // 默认返回类的名称
+    return [this.constructor.name]
   }
 
   // // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
@@ -174,11 +186,19 @@ export abstract class BaseApiClient<
   }
 
   public getTemperature(assistant: Assistant, model: Model): number | undefined {
-    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.temperature
+    if (isNotSupportTemperatureAndTopP(model)) {
+      return undefined
+    }
+    const assistantSettings = getAssistantSettings(assistant)
+    return assistantSettings?.enableTemperature ? assistantSettings?.temperature : undefined
   }
 
   public getTopP(assistant: Assistant, model: Model): number | undefined {
-    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.topP
+    if (isNotSupportTemperatureAndTopP(model)) {
+      return undefined
+    }
+    const assistantSettings = getAssistantSettings(assistant)
+    return assistantSettings?.enableTopP ? assistantSettings?.topP : undefined
   }
 
   protected getServiceTier(model: Model) {
@@ -210,7 +230,7 @@ export abstract class BaseApiClient<
   }
 
   public async getMessageContent(message: Message): Promise<string> {
-    const content = getContentWithTools(message)
+    const content = getMainTextContent(message)
 
     if (isEmpty(content)) {
       return ''
@@ -228,7 +248,7 @@ export abstract class BaseApiClient<
 
     const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences, ...memoryReferences]
 
-    Logger.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+    logger.debug(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
@@ -317,10 +337,10 @@ export abstract class BaseApiClient<
 
     if (!isEmpty(knowledgeReferences)) {
       window.keyv.remove(`knowledge-search-${message.id}`)
-      // Logger.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      logger.debug(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    // Logger.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    logger.debug(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 
@@ -402,16 +422,9 @@ export abstract class BaseApiClient<
       return { tools }
     }
 
-    // If the number of tools exceeds the threshold, use the system prompt
-    if (mcpTools.length > BaseApiClient.SYSTEM_PROMPT_THRESHOLD) {
-      this.useSystemPromptForTools = true
-      return { tools }
-    }
-
     // If the model supports function calling and tool usage is enabled
     if (isFunctionCallingModel(model) && enableToolUse) {
       tools = this.convertMcpToolsToSdkTools(mcpTools)
-      this.useSystemPromptForTools = false
     }
 
     return { tools }

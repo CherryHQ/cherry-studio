@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
-  isNotSupportTemperatureAndTopP,
   isOpenAIReasoningModel,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel
@@ -27,6 +27,8 @@ import { formatApiHost } from '@renderer/utils/api'
 import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
+
+const logger = loggerService.withContext('OpenAIBaseClient')
 
 /**
  * 抽象的OpenAI基础客户端类，包含两个OpenAI客户端之间的共享功能
@@ -125,7 +127,7 @@ export abstract class OpenAIBaseClient<
 
       return models.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing models:', error)
+      logger.error('Error listing models:', error as Error)
       return []
     }
   }
@@ -169,23 +171,17 @@ export abstract class OpenAIBaseClient<
   }
 
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.temperature
+    return super.getTemperature(assistant, model)
   }
 
   override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.topP
+    return super.getTopP(assistant, model)
   }
 
   /**

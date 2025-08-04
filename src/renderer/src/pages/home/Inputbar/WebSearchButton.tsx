@@ -31,6 +31,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const updateSelectedWebSearchProvider = useCallback(
     (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
+      // NOTE: 也许可以用startTransition优化卡顿问题
       setTimeout(() => {
         const currentWebSearchProviderId = assistant.webSearchProviderId
         const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
@@ -67,7 +68,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
     if (isWebSearchModelEnabled) {
       items.unshift({
-        label: t('chat.input.web_search.builtin'),
+        label: t('chat.input.web_search.builtin.label'),
         description: isWebSearchModelEnabled
           ? t('chat.input.web_search.builtin.enabled_content')
           : t('chat.input.web_search.builtin.disabled_content'),
@@ -99,7 +100,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     }
 
     quickPanel.open({
-      title: t('chat.input.web_search'),
+      title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: '?',
       pageSize: 9
@@ -129,7 +130,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   return (
     <Tooltip
       placement="top"
-      title={enableWebSearch ? t('common.close') : t('chat.input.web_search')}
+      title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>

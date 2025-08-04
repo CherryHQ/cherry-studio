@@ -1,5 +1,8 @@
+import { loggerService } from '@logger'
 import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
+
+const logger = loggerService.withContext('Utils:oauth')
 
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
@@ -47,9 +50,9 @@ export const oauthWithAihubmix = async (setKey) => {
           window.removeEventListener('message', messageHandler)
         }
       } catch (error) {
-        console.error('[oauthWithAihubmix] error', error)
+        logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
-        window.message.error(i18n.t('oauth.error'))
+        window.message.error(i18n.t('settings.provider.oauth.error'))
       }
     }
   }
@@ -69,11 +72,11 @@ export const oauthWithPPIO = async (setKey) => {
   )
 
   if (!setKey) {
-    console.log('[PPIO OAuth] No setKey callback provided, returning early')
+    logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
     return
   }
 
-  console.log('[PPIO OAuth] Setting up protocol listener')
+  logger.debug('[PPIO OAuth] Setting up protocol listener')
 
   return new Promise<string>((resolve, reject) => {
     const removeListener = window.api.protocol.onReceiveData(async (data) => {
@@ -110,7 +113,7 @@ export const oauthWithPPIO = async (setKey) => {
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          console.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
+          logger.error(`[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
           throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
         }
 
@@ -124,7 +127,7 @@ export const oauthWithPPIO = async (setKey) => {
           reject(new Error('No access token received'))
         }
       } catch (error) {
-        console.error('[PPIO OAuth] Error processing callback:', error)
+        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
         reject(error)
       } finally {
         removeListener()
@@ -137,7 +140,7 @@ export const oauthWithTokenFlux = async () => {
   const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
   const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
   if (!resp.ok) {
-    window.message.error(i18n.t('oauth.error'))
+    window.message.error(i18n.t('settings.provider.oauth.error'))
     return
   }
   const data = await resp.json()

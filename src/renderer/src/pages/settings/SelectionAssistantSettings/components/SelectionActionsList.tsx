@@ -1,4 +1,5 @@
 import { DragDropContext } from '@hello-pangea/dnd'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { defaultActionItems } from '@renderer/store/selectionStore'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
@@ -45,12 +46,14 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
     MAX_ENABLED_ITEMS
   } = useActionItems(actionItems, setActionItems)
 
+  const { theme } = useTheme()
+
   if (!actionItems || actionItems.length === 0) {
     setActionItems(defaultActionItems)
   }
 
   return (
-    <SettingGroup>
+    <SettingGroup theme={theme}>
       <SettingsActionsListHeader
         customItemsCount={customItemsCount}
         maxCustomItems={MAX_CUSTOM_ITEMS}

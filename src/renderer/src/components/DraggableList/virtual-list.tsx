@@ -28,12 +28,14 @@ import { type Key, memo, useCallback, useRef } from 'react'
  * @property {T[]} list 渲染的数据源
  * @property {(index: number) => Key} [itemKey] 提供给虚拟列表的行 key，若不提供默认使用 index
  * @property {number} [overscan=5] 前后额外渲染的行数，提升快速滚动时的体验
+ * @property {React.ReactNode} [header] 列表头部内容
  * @property {(item: T, index: number) => React.ReactNode} children 列表项渲染函数
  */
 interface DraggableVirtualListProps<T> {
   ref?: React.Ref<HTMLDivElement>
   className?: string
   style?: React.CSSProperties
+  scrollerStyle?: React.CSSProperties
   itemStyle?: React.CSSProperties
   itemContainerStyle?: React.CSSProperties
   droppableProps?: Partial<DroppableProps>
@@ -42,7 +44,9 @@ interface DraggableVirtualListProps<T> {
   onDragEnd?: OnDragEndResponder
   list: T[]
   itemKey?: (index: number) => Key
+  estimateSize?: (index: number) => number
   overscan?: number
+  header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
 }
 
@@ -57,6 +61,7 @@ function DraggableVirtualList<T>({
   ref,
   className,
   style,
+  scrollerStyle,
   itemStyle,
   itemContainerStyle,
   droppableProps,
@@ -65,7 +70,9 @@ function DraggableVirtualList<T>({
   onDragEnd,
   list,
   itemKey,
+  estimateSize: _estimateSize,
   overscan = 5,
+  header,
   children
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
@@ -82,16 +89,20 @@ function DraggableVirtualList<T>({
   const parentRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
-    count: list.length,
+    count: list?.length ?? 0,
     getScrollElement: useCallback(() => parentRef.current, []),
     getItemKey: itemKey,
-    estimateSize: useCallback(() => 50, []),
+    estimateSize: useCallback((index) => _estimateSize?.(index) ?? 50, [_estimateSize]),
     overscan
   })
 
   return (
-    <div ref={ref} className={`${className} draggable-virtual-list`} style={{ height: '100%', ...style }}>
+    <div
+      ref={ref}
+      className={`${className} draggable-virtual-list`}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
+        {header}
         <Droppable
           droppableId="droppable"
           mode="virtual"
@@ -124,6 +135,7 @@ function DraggableVirtualList<T>({
                 {...provided.droppableProps}
                 className="virtual-scroller"
                 style={{
+                  ...scrollerStyle,
                   height: '100%',
                   width: '100%',
                   overflowY: 'auto',

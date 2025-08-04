@@ -1,7 +1,7 @@
 name: 💡 Feature Request (English)
 description: Suggest an idea for this project
 title: '[Feature]: '
-labels: ['kind/enhancement']
+labels: ['feature']
 body:
   - type: markdown
     attributes:

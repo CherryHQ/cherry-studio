@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
@@ -48,6 +49,7 @@ export interface SettingsState {
   targetLanguage: TranslateLanguageVarious
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
+  proxyBypassRules?: string
   userName: string
   userId: string
   showPrompt: boolean
@@ -140,6 +142,8 @@ export interface SettingsState {
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionExportReasoning: boolean
+  excludeCitationsInExport: boolean
+  standardizeCitationsInExport: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -198,6 +202,12 @@ export interface SettingsState {
   localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
   s3: S3Config
+  // Developer mode
+  enableDeveloperMode: boolean
+  // UI
+  navbarPosition: 'left' | 'top'
+  // API Server
+  apiServer: ApiServerConfig
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -211,6 +221,7 @@ export const initialState: SettingsState = {
   targetLanguage: 'en-us',
   proxyMode: 'system',
   proxyUrl: undefined,
+  proxyBypassRules: undefined,
   userName: '',
   userId: uuid(),
   showPrompt: true,
@@ -289,7 +300,7 @@ export const initialState: SettingsState = {
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
   readClipboardAtStartup: true,
-  multiModelMessageStyle: 'fold',
+  multiModelMessageStyle: 'horizontal',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
@@ -300,6 +311,8 @@ export const initialState: SettingsState = {
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
+  excludeCitationsInExport: false,
+  standardizeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -364,6 +377,17 @@ export const initialState: SettingsState = {
     syncInterval: 0,
     maxBackups: 0,
     skipBackupFile: false
+  },
+  // Developer mode
+  enableDeveloperMode: false,
+  // UI
+  navbarPosition: 'top',
+  // API Server
+  apiServer: {
+    enabled: false,
+    host: 'localhost',
+    port: 23333,
+    apiKey: `cs-sk-${uuid()}`
   }
 }
 
@@ -400,6 +424,9 @@ const settingsSlice = createSlice({
     },
     setProxyUrl: (state, action: PayloadAction<string | undefined>) => {
       state.proxyUrl = action.payload
+    },
+    setProxyBypassRules: (state, action: PayloadAction<string | undefined>) => {
+      state.proxyBypassRules = action.payload
     },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
@@ -651,6 +678,12 @@ const settingsSlice = createSlice({
     setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
       state.notionExportReasoning = action.payload
     },
+    setExcludeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.excludeCitationsInExport = action.payload
+    },
+    setStandardizeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.standardizeCitationsInExport = action.payload
+    },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
     },
@@ -756,6 +789,31 @@ const settingsSlice = createSlice({
     },
     setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
       state.s3 = { ...state.s3, ...action.payload }
+    },
+    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+      state.enableDeveloperMode = action.payload
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
+    },
+    // API Server actions
+    setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        enabled: action.payload
+      }
+    },
+    setApiServerPort: (state, action: PayloadAction<number>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        port: action.payload
+      }
+    },
+    setApiServerApiKey: (state, action: PayloadAction<string>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        apiKey: action.payload
+      }
     }
   }
 })
@@ -773,6 +831,7 @@ export const {
   setTargetLanguage,
   setProxyMode,
   setProxyUrl,
+  setProxyBypassRules,
   setUserName,
   setShowPrompt,
   setShowTokens,
@@ -839,6 +898,8 @@ export const {
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionExportReasoning,
+  setExcludeCitationsInExport,
+  setStandardizeCitationsInExport,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
@@ -874,7 +935,13 @@ export const {
   setLocalBackupSkipBackupFile,
   setDefaultPaintingProvider,
   setS3,
-  setS3Partial
+  setS3Partial,
+  setEnableDeveloperMode,
+  setNavbarPosition,
+  // API Server actions
+  setApiServerEnabled,
+  setApiServerPort,
+  setApiServerApiKey
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

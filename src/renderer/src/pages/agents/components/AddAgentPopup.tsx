@@ -1,6 +1,7 @@
 import 'emoji-picker-element'
 
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -29,6 +30,8 @@ type FieldType = {
   prompt: string
   knowledge_base_ids: string[]
 }
+
+const logger = loggerService.withContext('AddAgentPopup')
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
@@ -140,7 +143,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setOriginalPrompt(content)
       setHasUnsavedChanges(true)
     } catch (error) {
-      console.error('Error fetching data:', error)
+      logger.error('Error fetching data:', error as Error)
     }
 
     setLoading(false)
@@ -152,7 +155,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   // Compute label width based on the longest label
-  const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
+  const labelWidth = [t('agents.add.name.label'), t('agents.add.prompt.label'), t('agents.add.knowledge_base.label')]
     .map((labelText) => stringWidth(labelText) * 8)
     .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
 
@@ -196,17 +199,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 }}
               />
             }
-            arrow>
+            arrow
+            trigger="click">
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
-        <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
+        <Form.Item name="name" label={t('agents.add.name.label')} rules={[{ required: true }]}>
           <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
             name="prompt"
-            label={t('agents.add.prompt')}
+            label={t('agents.add.prompt.label')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
             <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
@@ -227,7 +231,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           )}
         </div>
         {showKnowledgeIcon && (
-          <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Form.Item
+            name="knowledge_base_ids"
+            label={t('agents.add.knowledge_base.label')}
+            rules={[{ required: false }]}>
             <Select
               mode="multiple"
               allowClear

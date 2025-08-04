@@ -1,9 +1,11 @@
+import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { app } from 'electron'
-import log from 'electron-log'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+
+const logger = loggerService.withContext('AppService')
 
 export class AppService {
   private static instance: AppService
@@ -59,19 +61,19 @@ export class AppService {
 
           // Write desktop file
           await fs.promises.writeFile(desktopFile, desktopContent)
-          log.info('Created autostart desktop file for Linux')
+          logger.info('Created autostart desktop file for Linux')
         } else {
           // Remove desktop file
           try {
             await fs.promises.access(desktopFile)
             await fs.promises.unlink(desktopFile)
-            log.info('Removed autostart desktop file for Linux')
+            logger.info('Removed autostart desktop file for Linux')
           } catch {
             // File doesn't exist, no need to remove
           }
         }
       } catch (error) {
-        log.error('Failed to set launch on boot for Linux:', error)
+        logger.error('Failed to set launch on boot for Linux:', error as Error)
       }
     }
   }

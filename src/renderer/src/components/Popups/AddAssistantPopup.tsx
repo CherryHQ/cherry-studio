@@ -38,7 +38,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     const allAgents = [...userAgents, ...systemAgents] as Agent[]
     const list = [defaultAssistant, ...allAgents.filter((agent) => !assistants.map((a) => a.id).includes(agent.id))]
     const filtered = searchText
-      ? list.filter((agent) => agent.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()))
+      ? list.filter(
+          (agent) =>
+            agent.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()) ||
+            agent.description?.toLowerCase().includes(searchText.trim().toLocaleLowerCase())
+        )
       : list
 
     if (searchText.trim()) {
@@ -141,7 +145,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   useEffect(() => {
-    open && setTimeout(() => inputRef.current?.focus(), 0)
+    if (!open) return
+
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
   }, [open])
 
   return (

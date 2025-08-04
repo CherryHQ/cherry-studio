@@ -1,4 +1,4 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
 import type { LanguageCode, LegacyMessage as OldMessage, Topic } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
@@ -22,6 +22,8 @@ import {
   createToolBlock,
   createTranslationBlock
 } from '../utils/messageUtils/create'
+
+const logger = loggerService.withContext('Database:Upgrades')
 
 export async function upgradeToV5(tx: Transaction): Promise<void> {
   const topics = await tx.table('topics').toArray()
@@ -91,7 +93,7 @@ function mapOldStatusToNewMessageStatus(oldStatus: OldMessage['status']): NewMes
 
 // --- UPDATED UPGRADE FUNCTION for Version 7 ---
 export async function upgradeToV7(tx: Transaction): Promise<void> {
-  Logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
+  logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
 
   const oldTopicsTable = tx.table('topics')
   const newBlocksTable = tx.table('message_blocks')
@@ -102,7 +104,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
     const blocksToCreate: MessageBlock[] = []
 
     if (!oldTopic.messages || !Array.isArray(oldTopic.messages)) {
-      console.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
+      logger.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
       topicUpdates[oldTopic.id] = { messages: [] }
       return
     }
@@ -303,14 +305,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
   const updateOperations = Object.entries(topicUpdates).map(([id, data]) => ({ key: id, changes: data }))
   if (updateOperations.length > 0) {
     await oldTopicsTable.bulkUpdate(updateOperations)
-    Logger.log(`Updated message references for ${updateOperations.length} topics.`)
+    logger.info(`Updated message references for ${updateOperations.length} topics.`)
   }
 
-  Logger.log('DB migration to version 7 finished successfully.')
+  logger.info('DB migration to version 7 finished successfully.')
 }
 
 export async function upgradeToV8(tx: Transaction): Promise<void> {
-  Logger.log('DB migration to version 8 started')
+  logger.info('DB migration to version 8 started')
 
   const langMap: Record<string, LanguageCode> = {
     english: 'en-us',
@@ -340,7 +342,7 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value
   let newSource, newTarget, newPair
-  Logger.log('originSource: %o', originSource)
+  logger.info('originSource: %o', originSource)
   if (originSource === 'auto') {
     newSource = 'auto'
   } else {
@@ -350,20 +352,20 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
     }
   }
 
-  Logger.log('originTarget: %o', originTarget)
+  logger.info('originTarget: %o', originTarget)
   newTarget = langMap[originTarget]
   if (!newTarget) {
     newTarget = LanguagesEnum.zhCN.langCode
   }
 
-  Logger.log('originPair: %o', originPair)
+  logger.info('originPair: %o', originPair)
   if (!originPair || !originPair[0] || !originPair[1]) {
     newPair = defaultPair
   } else {
     newPair = [langMap[originPair[0]], langMap[originPair[1]]]
   }
 
-  Logger.log('DB migration to version 8: %o', { newSource, newTarget, newPair })
+  logger.info('DB migration to version 8: %o', { newSource, newTarget, newPair })
 
   await settingsTable.put({ id: 'translate:bidirectional:pair', value: newPair })
   await settingsTable.put({ id: 'translate:source:language', value: newSource })
@@ -379,8 +381,8 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
         targetLanguage: langMap[history.targetLanguage]
       })
     } catch (error) {
-      console.error('Error upgrading history:', error)
+      logger.error('Error upgrading history:', error as Error)
     }
   }
-  Logger.log('DB migration to version 8 finished.')
+  logger.info('DB migration to version 8 finished.')
 }

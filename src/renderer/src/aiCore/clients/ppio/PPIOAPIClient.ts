@@ -1,12 +1,19 @@
+import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import { Provider } from '@renderer/types'
+import { Model, Provider } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
+const logger = loggerService.withContext('PPIOAPIClient')
 export class PPIOAPIClient extends OpenAIAPIClient {
   constructor(provider: Provider) {
     super(provider)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  override getClientCompatibilityType(_model?: Model): string[] {
+    return ['OpenAIAPIClient']
   }
 
   override async listModels(): Promise<OpenAI.Models.Model[]> {
@@ -58,7 +65,7 @@ export class PPIOAPIClient extends OpenAIAPIClient {
 
       return processedModels.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing PPIO models:', error)
+      logger.error('Error listing PPIO models:', error as Error)
       return []
     }
   }

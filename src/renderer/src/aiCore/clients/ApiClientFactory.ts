@@ -1,7 +1,9 @@
+import { loggerService } from '@logger'
 import { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
+import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
@@ -9,6 +11,8 @@ import { NewAPIClient } from './NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
+
+const logger = loggerService.withContext('ApiClientFactory')
 
 /**
  * Factory for creating ApiClient instances based on provider configuration
@@ -20,7 +24,7 @@ export class ApiClientFactory {
    * 为给定的提供者创建ApiClient实例
    */
   static create(provider: Provider): BaseApiClient {
-    console.log(`[ApiClientFactory] Creating ApiClient for provider:`, {
+    logger.debug(`Creating ApiClient for provider:`, {
       id: provider.id,
       type: provider.type
     })
@@ -29,17 +33,17 @@ export class ApiClientFactory {
 
     // 首先检查特殊的provider id
     if (provider.id === 'aihubmix') {
-      console.log(`[ApiClientFactory] Creating AihubmixAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating AihubmixAPIClient for provider: ${provider.id}`)
       instance = new AihubmixAPIClient(provider) as BaseApiClient
       return instance
     }
     if (provider.id === 'new-api') {
-      console.log(`[ApiClientFactory] Creating NewAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating NewAPIClient for provider: ${provider.id}`)
       instance = new NewAPIClient(provider) as BaseApiClient
       return instance
     }
     if (provider.id === 'ppio') {
-      console.log(`[ApiClientFactory] Creating PPIOAPIClient for provider: ${provider.id}`)
+      logger.debug(`Creating PPIOAPIClient for provider: ${provider.id}`)
       instance = new PPIOAPIClient(provider) as BaseApiClient
       return instance
     }
@@ -62,8 +66,11 @@ export class ApiClientFactory {
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
         break
+      case 'aws-bedrock':
+        instance = new AwsBedrockAPIClient(provider) as BaseApiClient
+        break
       default:
-        console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)
+        logger.debug(`Using default OpenAIApiClient for provider: ${provider.id}`)
         instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
     }
@@ -72,6 +79,7 @@ export class ApiClientFactory {
   }
 }
 
-export function isOpenAIProvider(provider: Provider) {
-  return !['anthropic', 'gemini'].includes(provider.type)
-}
+// 移除这个函数，它已经移动到 utils/index.ts
+// export function isOpenAIProvider(provider: Provider) {
+//   return !['anthropic', 'gemini'].includes(provider.type)
+// }

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #root {
+        flex: 1 1 auto;
+        background: var(--trace-bg);
+      }
+      footer {
+        height: 36px;
+        text-align: center;
+        font-size: 12px;
+        color: grey;
+        background: var(--trace-header-bg);
+        flex-shrink: 0;
+        line-height: 36px;
+        position: relative;
+        z-index: 1;
+      }
+      footer p {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/trace/traceWindow.tsx"></script>
+  </body>
+</html>

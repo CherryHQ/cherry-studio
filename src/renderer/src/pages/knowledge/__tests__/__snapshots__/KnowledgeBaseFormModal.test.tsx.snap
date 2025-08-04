@@ -1,0 +1,141 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = `
+.c0 .ant-modal-title {
+  font-size: 14px;
+}
+
+.c0 .ant-modal-close {
+  top: 4px;
+  right: 4px;
+}
+
+.c1 {
+  display: flex;
+  height: 100%;
+  border-right: 0.5px solid var(--color-border);
+}
+
+.c3 {
+  flex: 1;
+  padding: 16px 16px;
+  overflow-y: scroll;
+}
+
+.c2 {
+  width: 200px;
+  padding: 5px;
+  background: transparent;
+  margin-top: 2px;
+  border-inline-end: none!important;
+}
+
+.c2 .ant-menu-item {
+  height: 36px;
+  color: var(--color-text-2);
+  display: flex;
+  align-items: center;
+  border: 0.5px solid transparent;
+  border-radius: 6px;
+  margin-bottom: 7px;
+}
+
+.c2 .ant-menu-item .ant-menu-title-content {
+  line-height: 36px;
+}
+
+.c2 .ant-menu-item-active {
+  background-color: var(--color-background-soft)!important;
+  transition: none;
+}
+
+.c2 .ant-menu-item-selected {
+  background-color: var(--color-background-soft);
+  border: 0.5px solid var(--color-border);
+}
+
+.c2 .ant-menu-item-selected .ant-menu-title-content {
+  color: var(--color-text-1);
+  font-weight: 500;
+}
+
+<div
+  class="c0"
+  data-testid="modal"
+  data-title="Knowledge Base Settings"
+  styles="[object Object]"
+  transitionname="animation-move-down"
+  width="min(800px, 70vw)"
+>
+  <div
+    data-testid="modal-header"
+  >
+    <span>
+      Knowledge Base Settings
+    </span>
+    <button
+      data-testid="modal-close"
+      type="button"
+    >
+      ×
+    </button>
+  </div>
+  <div
+    data-testid="modal-body"
+  >
+    <div
+      data-testid="hstack"
+      height="100%"
+    >
+      <div
+        class="c1"
+      >
+        <div
+          class="c2"
+          data-default-selected="general"
+          data-testid="menu"
+          mode="vertical"
+        >
+          <div
+            data-testid="menu-item-general"
+            style="cursor: pointer;"
+          >
+            General Settings
+          </div>
+          <div
+            data-testid="menu-item-advanced"
+            style="cursor: pointer;"
+          >
+            Advanced Settings
+          </div>
+        </div>
+      </div>
+      <div
+        class="c3"
+      >
+        <div
+          data-testid="general-panel"
+        >
+          General Settings Panel
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    data-testid="modal-footer"
+  >
+    <button
+      data-testid="modal-cancel"
+      type="button"
+    >
+      Cancel
+    </button>
+    <button
+      data-testid="modal-ok"
+      type="button"
+    >
+      OK
+    </button>
+  </div>
+</div>
+`;

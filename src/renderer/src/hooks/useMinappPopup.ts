@@ -9,27 +9,10 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
+import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
 
-const updateLRUCache = <T extends { id: string }>(apps: T[], app: T, limitation: number): T[] => {
-  const existingIndex = apps.findIndex((item) => item.id === app.id)
-
-  if (existingIndex !== -1) {
-    // 找到已存在的 app，将其移动到最前面
-    const updatedApps = [...apps]
-    updatedApps.splice(existingIndex, 1)
-    updatedApps.unshift(app)
-    return updatedApps
-  }
-
-  const updatedApps = [app, ...apps]
-
-  if (updatedApps.length > limitation) {
-    return updatedApps.slice(0, limitation)
-  }
-
-  return updatedApps
-}
+let minAppsCache: LRUCache<string, MinAppType>
 
 /**
  * Usage:
@@ -50,12 +33,53 @@ export const useMinappPopup = () => {
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
 
+  const createLRUCache = useCallback(() => {
+    return new LRUCache<string, MinAppType>({
+      max: maxKeepAliveMinapps,
+      disposeAfter: () => {
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+      },
+      onInsert: () => {
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+      },
+      updateAgeOnGet: true,
+      updateAgeOnHas: true
+    })
+  }, [dispatch, maxKeepAliveMinapps])
+
+  // 缓存不存在
+  if (!minAppsCache) {
+    minAppsCache = createLRUCache()
+  }
+
+  // 缓存数量大小发生了改变
+  if (minAppsCache.max !== maxKeepAliveMinapps) {
+    // 1. 当前小程序数量小于等于设置的缓存数量，直接重新建立缓存
+    if (minAppsCache.size <= maxKeepAliveMinapps) {
+      // LRU cache 机制，后 set 的会被放到前面，所以需要反转一下
+      const oldEntries = Array.from(minAppsCache.entries()).reverse()
+      minAppsCache = createLRUCache()
+      oldEntries.forEach(([key, value]) => {
+        minAppsCache.set(key, value)
+      })
+    }
+    // 2. 大于设置的缓存的话，就直到数量减少到设置的缓存数量
+  }
+
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
-        const updatedApps = updateLRUCache(openedKeepAliveMinapps, app, maxKeepAliveMinapps)
-        dispatch(setOpenedKeepAliveMinapps(updatedApps))
+        // 通过 get 和 set 去更新缓存，避免重复添加
+        const cacheApp = minAppsCache.get(app.id)
+        if (!cacheApp) minAppsCache.set(app.id, app)
+
+        // 如果小程序已经打开，只切换显示
+        if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
+          dispatch(setCurrentMinappId(app.id))
+          dispatch(setMinappShow(true))
+          return
+        }
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
@@ -68,7 +92,7 @@ export const useMinappPopup = () => {
       dispatch(setMinappShow(true))
       return
     },
-    [dispatch, maxKeepAliveMinapps, openedKeepAliveMinapps]
+    [dispatch, openedKeepAliveMinapps]
   )
 
   /** a wrapper of openMinapp(app, true) */
@@ -94,7 +118,7 @@ export const useMinappPopup = () => {
   const closeMinapp = useCallback(
     (appid: string) => {
       if (openedKeepAliveMinapps.some((item) => item.id === appid)) {
-        dispatch(setOpenedKeepAliveMinapps(openedKeepAliveMinapps.filter((item) => item.id !== appid)))
+        minAppsCache.delete(appid)
       } else if (openedOneOffMinapp?.id === appid) {
         dispatch(setOpenedOneOffMinapp(null))
       }
@@ -108,11 +132,14 @@ export const useMinappPopup = () => {
 
   /** Close all minapps (popup hides and all minapps unloaded) */
   const closeAllMinapps = useCallback(() => {
+    // minAppsCache.clear 会多次调用 dispose 方法
+    // 重新创建一个 LRU Cache 替换
+    minAppsCache = createLRUCache()
     dispatch(setOpenedKeepAliveMinapps([]))
     dispatch(setOpenedOneOffMinapp(null))
     dispatch(setCurrentMinappId(''))
     dispatch(setMinappShow(false))
-  }, [dispatch])
+  }, [dispatch, createLRUCache])
 
   /** Hide the minapp popup (only one-off minapp unloaded) */
   const hideMinappPopup = useCallback(() => {

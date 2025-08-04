@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+
+const logger = loggerService.withContext('Utils:download')
 
 export const download = (url: string, filename?: string) => {
   // 处理可直接通过 <a> 标签下载的 URL:
@@ -79,12 +82,12 @@ export const download = (url: string, filename?: string) => {
       link.remove()
     })
     .catch((error) => {
-      console.error('Download failed:', error)
+      logger.error('Download failed:', error)
       // 显示用户友好的错误提示
       if (error.message) {
         window.message?.error(`${i18n.t('message.download.failed')}：${error.message}`)
       } else {
-        window.message?.error(i18n.t('message.download.failed.network'))
+        window.message?.error(i18n.t('message.download.failed'))
       }
     })
 }

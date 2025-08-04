@@ -9,6 +9,7 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { Dropdown, Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
 import { Base64 } from 'js-base64'
@@ -20,6 +21,8 @@ import styled from 'styled-components'
 interface ImageViewerProps extends AntImageProps {
   src: string
 }
+
+const logger = loggerService.withContext('ImageViewer')
 
 const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
   const { t } = useTranslation()
@@ -59,7 +62,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      console.error('复制图片失败:', error)
+      logger.error('复制图片失败:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }

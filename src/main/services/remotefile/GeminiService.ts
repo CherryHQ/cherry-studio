@@ -1,10 +1,12 @@
 import { File, Files, FileState, GoogleGenAI } from '@google/genai'
+import { loggerService } from '@logger'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
-import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from '../CacheService'
 import { BaseFileService } from './BaseFileService'
+
+const logger = loggerService.withContext('GeminiService')
 
 export class GeminiService extends BaseFileService {
   private static readonly FILE_LIST_CACHE_KEY = 'gemini_file_list'
@@ -69,7 +71,7 @@ export class GeminiService extends BaseFileService {
 
       return response
     } catch (error) {
-      Logger.error('Error uploading file to Gemini:', error)
+      logger.error('Error uploading file to Gemini:', error as Error)
       return {
         fileId: '',
         displayName: file.origin_name,
@@ -82,7 +84,7 @@ export class GeminiService extends BaseFileService {
   async retrieveFile(fileId: string): Promise<FileUploadResponse> {
     try {
       const cachedResponse = CacheService.get<FileUploadResponse>(`${GeminiService.FILE_LIST_CACHE_KEY}_${fileId}`)
-      Logger.info('[GeminiService] cachedResponse', cachedResponse)
+      logger.debug('[GeminiService] cachedResponse', cachedResponse)
       if (cachedResponse) {
         return cachedResponse
       }
@@ -91,11 +93,11 @@ export class GeminiService extends BaseFileService {
       for await (const f of await this.fileManager.list()) {
         files.push(f)
       }
-      Logger.info('[GeminiService] files', files)
+      logger.debug('files', files)
       const file = files
         .filter((file) => file.state === FileState.ACTIVE)
         .find((file) => file.name?.substring(6) === fileId) // 去掉 files/ 前缀
-      Logger.info('[GeminiService] file', file)
+      logger.debug('file', file)
       if (file) {
         return {
           fileId: fileId,
@@ -115,7 +117,7 @@ export class GeminiService extends BaseFileService {
         originalFile: undefined
       }
     } catch (error) {
-      Logger.error('Error retrieving file from Gemini:', error)
+      logger.error('Error retrieving file from Gemini:', error as Error)
       return {
         fileId: fileId,
         displayName: '',
@@ -173,7 +175,7 @@ export class GeminiService extends BaseFileService {
       CacheService.set(GeminiService.FILE_LIST_CACHE_KEY, fileList, GeminiService.LIST_CACHE_DURATION)
       return fileList
     } catch (error) {
-      Logger.error('Error listing files from Gemini:', error)
+      logger.error('Error listing files from Gemini:', error as Error)
       return { files: [] }
     }
   }
@@ -181,9 +183,9 @@ export class GeminiService extends BaseFileService {
   async deleteFile(fileId: string): Promise<void> {
     try {
       await this.fileManager.delete({ name: fileId })
-      Logger.info(`File ${fileId} deleted from Gemini`)
+      logger.debug(`File ${fileId} deleted from Gemini`)
     } catch (error) {
-      Logger.error('Error deleting file from Gemini:', error)
+      logger.error('Error deleting file from Gemini:', error as Error)
       throw error
     }
   }

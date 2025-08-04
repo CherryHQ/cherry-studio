@@ -5,12 +5,7 @@ import db from '@renderer/databases'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import {
-  getDefaultAssistant,
-  getDefaultModel,
-  getDefaultTopic,
-  getTranslateModel
-} from '@renderer/services/AssistantService'
+import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Assistant, Language, Topic } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
@@ -83,13 +78,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     initialized.current = true
 
     // Initialize assistant
-    const currentAssistant = getDefaultAssistant()
-    const translateModel = getTranslateModel() || getDefaultModel()
-
-    currentAssistant.model = translateModel
-    currentAssistant.settings = {
-      temperature: 0.7
-    }
+    const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
 
     assistantRef.current = currentAssistant
 
@@ -127,13 +116,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       translateLang = targetLanguage
     }
 
-    // Initialize prompt content
-    const userContent = translateModelPrompt
-      .replaceAll('{{target_language}}', translateLang.value)
-      .replaceAll('{{text}}', action.selectedText)
-
-    processMessages(assistantRef.current, topicRef.current, userContent, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, translateModelPrompt, scrollToBottom])
+    assistantRef.current = getDefaultTranslateAssistant(translateLang, action.selectedText)
+    processMessages(assistantRef.current, topicRef.current, action.selectedText, setAskId, onStream, onFinish, onError)
+  }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
   useEffect(() => {
     fetchResult()

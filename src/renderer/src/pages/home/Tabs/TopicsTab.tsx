@@ -1,16 +1,5 @@
-import {
-  ClearOutlined,
-  CloseOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  FolderOutlined,
-  MenuOutlined,
-  PushpinOutlined,
-  QuestionCircleOutlined,
-  UploadOutlined
-} from '@ant-design/icons'
-import { DraggableVirtualList as DraggableList } from '@renderer/components/DraggableList'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import { DraggableVirtualList } from '@renderer/components/DraggableList'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
@@ -22,9 +11,10 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
-import { removeSpecialCharactersForFileName } from '@renderer/utils'
+import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -34,29 +24,46 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
+import {
+  BrushCleaning,
+  FolderOpen,
+  HelpCircle,
+  MenuIcon,
+  PackagePlus,
+  PinIcon,
+  PinOffIcon,
+  PlusIcon,
+  Sparkles,
+  UploadIcon,
+  XIcon
+} from 'lucide-react'
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
+
+// const logger = loggerService.withContext('TopicsTab')
 
 interface Props {
   assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  position: 'left' | 'right'
 }
 
-const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
+const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
+  const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
@@ -64,27 +71,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
-  const pendingTopics = useMemo(() => {
-    return new Set<string>()
-  }, [])
-  const isPending = useCallback(
-    (topicId: string) => {
-      const hasPending = hasTopicPendingRequests(topicId)
-      if (topicId === activeTopic.id && !hasPending) {
-        pendingTopics.delete(topicId)
-        return false
-      }
-      if (pendingTopics.has(topicId)) {
-        return true
-      }
-      if (hasPending) {
-        pendingTopics.add(topicId)
-        return true
-      }
-      return false
-    },
-    [activeTopic.id, pendingTopics]
-  )
+  const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
+  const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
+  const dispatch = useDispatch()
+
+  useEffect(() => {
+    dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
+  }, [activeTopic.id, dispatch, topicFulfilledQuery])
 
   const isRenaming = useCallback(
     (topicId: string) => {
@@ -185,7 +178,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       {
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
-        icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
+        icon: <Sparkles size={14} />,
         disabled: isRenaming(topic.id),
         async onClick() {
           const messages = await TopicManager.getTopicMessages(topic.id)
@@ -208,7 +201,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       {
         label: t('chat.topics.edit.title'),
         key: 'rename',
-        icon: <EditOutlined />,
+        icon: <EditIcon size={14} />,
         disabled: isRenaming(topic.id),
         async onClick() {
           const name = await PromptPopup.show({
@@ -223,12 +216,12 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         }
       },
       {
-        label: t('chat.topics.prompt'),
+        label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
-        icon: <i className="iconfont icon-ai-model1" style={{ fontSize: '14px' }} />,
+        icon: <PackagePlus size={14} />,
         extra: (
           <Tooltip title={t('chat.topics.prompt.tips')}>
-            <QuestionIcon />
+            <HelpCircle size={14} />
           </Tooltip>
         ),
         async onClick() {
@@ -251,9 +244,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         }
       },
       {
-        label: topic.pinned ? t('chat.topics.unpinned') : t('chat.topics.pinned'),
+        label: topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
         key: 'pin',
-        icon: <PushpinOutlined />,
+        icon: topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
         onClick() {
           onPinTopic(topic)
         }
@@ -261,7 +254,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       {
         label: t('chat.topics.clear.title'),
         key: 'clear-messages',
-        icon: <ClearOutlined />,
+        icon: <BrushCleaning size={14} />,
         async onClick() {
           window.modal.confirm({
             title: t('chat.input.clear.content'),
@@ -271,9 +264,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         }
       },
       {
-        label: t('settings.topic.position'),
+        label: t('settings.topic.position.label'),
         key: 'topic-position',
-        icon: <MenuOutlined />,
+        icon: <MenuIcon size={14} />,
         children: [
           {
             label: t('settings.topic.position.left'),
@@ -290,7 +283,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       {
         label: t('chat.topics.copy.title'),
         key: 'copy',
-        icon: <CopyIcon />,
+        icon: <CopyIcon size={14} />,
         children: [
           {
             label: t('chat.topics.copy.image'),
@@ -312,7 +305,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <UploadOutlined />,
+        icon: <UploadIcon size={14} />,
         children: [
           exportMenuOptions.image && {
             label: t('chat.topics.export.image'),
@@ -320,7 +313,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             onClick: () => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)
           },
           exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md'),
+            label: t('chat.topics.export.md.label'),
             key: 'markdown',
             onClick: () => exportTopicAsMarkdown(topic)
           },
@@ -383,7 +376,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       menus.push({
         label: t('chat.topics.move_to'),
         key: 'move',
-        icon: <FolderOutlined />,
+        icon: <FolderOpen size={14} />,
         children: assistants
           .filter((a) => a.id !== assistant.id)
           .map((a) => ({
@@ -400,7 +393,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         label: t('common.delete'),
         danger: true,
         key: 'delete',
-        icon: <DeleteOutlined />,
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
         onClick: () => onDeleteTopic(topic)
       })
     }
@@ -443,13 +436,21 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     return assistant.topics
   }, [assistant.topics, pinTopicsToTop])
 
+  const singlealone = topicPosition === 'right' && position === 'right'
+
   return (
-    <DraggableList
+    <DraggableVirtualList
       className="topics-tab"
       list={sortedTopics}
       onUpdate={updateTopics}
-      style={{ padding: '13px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}>
+      style={{ height: '100%', padding: '13px 0 10px 10px' }}
+      itemContainerStyle={{ paddingBottom: '8px' }}
+      header={
+        <AddTopicButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+          <PlusIcon size={16} />
+          {t('chat.add.topic.title')}
+        </AddTopicButton>
+      }>
       {(topic) => {
         const isActive = topic.id === activeTopic?.id
         const topicName = topic.name.replace('`', '')
@@ -466,10 +467,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
-              className={isActive ? 'active' : ''}
+              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
               onClick={() => onSwitchTopic(topic)}
               style={{ borderRadius }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
+              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
                 <TopicName className={getTopicNameClassName()} title={topicName}>
                   {topicName}
@@ -497,16 +499,16 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                         }
                       }}>
                       {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                        <DeleteIcon size={14} color="var(--color-error)" />
                       ) : (
-                        <CloseOutlined />
+                        <XIcon size={14} color="var(--color-text-3)" />
                       )}
                     </MenuButton>
                   </Tooltip>
                 )}
                 {topic.pinned && (
                   <MenuButton className="pin">
-                    <PushpinOutlined />
+                    <PinIcon size={14} color="var(--color-text-3)" />
                   </MenuButton>
                 )}
               </TopicNameContainer>
@@ -520,7 +522,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           </Dropdown>
         )
       }}
-    </DraggableList>
+    </DraggableVirtualList>
   )
 }
 
@@ -548,11 +550,22 @@ const TopicListItem = styled.div`
   }
   &.active {
     background-color: var(--color-list-item);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     .menu {
       opacity: 1;
       &:hover {
         color: var(--color-text-2);
       }
+    }
+  }
+  &.singlealone {
+    border-radius: 0 !important;
+    &:hover {
+      background-color: var(--color-background-soft);
+    }
+    &.active {
+      border-left: 2px solid var(--color-primary);
+      box-shadow: none;
     }
   }
 `
@@ -623,7 +636,45 @@ const PendingIndicator = styled.div.attrs({
   left: 3px;
   top: 15px;
   border-radius: 50%;
-  background-color: var(--color-primary);
+  background-color: var(--color-status-warning);
+`
+
+const FulfilledIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-status-success);
+`
+
+const AddTopicButton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 10px);
+  padding: 7px 12px;
+  margin-bottom: 8px;
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 13px;
+  border-radius: var(--list-item-border-radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: -5px;
+
+  &:hover {
+    background-color: var(--color-list-item-hover);
+    color: var(--color-text-1);
+  }
+
+  .anticon {
+    font-size: 12px;
+  }
 `
 
 const TopicPromptText = styled.div`
@@ -653,11 +704,6 @@ const MenuButton = styled.div`
   .anticon {
     font-size: 12px;
   }
-`
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `
 
 export default Topics

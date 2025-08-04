@@ -1,15 +1,20 @@
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
+import InfoTooltip from '@renderer/components/InfoTooltip'
+import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
-import { getErrorMessage } from '@renderer/utils/error'
-import { Form, InputNumber, Modal, Select, Switch } from 'antd'
+import { Model } from '@renderer/types'
+import { Flex, Form, Modal } from 'antd'
 import { t } from 'i18next'
-import { sortBy } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+
+const logger = loggerService.withContext('MemoriesSettingsModal')
 
 interface MemoriesSettingsModalProps {
   visible: boolean
@@ -22,33 +27,31 @@ type formValue = {
   llmModel: string
   embedderModel: string
   embedderDimensions: number
-  autoDims: boolean
 }
 
 const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubmit, onCancel, form }) => {
   const { providers } = useProviders()
   const dispatch = useDispatch()
   const memoryConfig = useSelector(selectMemoryConfig)
-  const [autoDims, setAutoDims] = useState(true)
   const [loading, setLoading] = useState(false)
 
   // Get all models for lookup
-  const allModels = providers.flatMap((p) => p.models)
+  const allModels = useMemo(() => providers.flatMap((p) => p.models), [providers])
   const llmModel = useModel(memoryConfig.llmApiClient?.model, memoryConfig.llmApiClient?.provider)
   const embedderModel = useModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider)
+
+  const findModelById = useCallback(
+    (id: string | undefined) => (id ? allModels.find((m) => getModelUniqId(m) === id) : undefined),
+    [allModels]
+  )
 
   // Initialize form with current memory config when modal opens
   useEffect(() => {
     if (visible && memoryConfig) {
-      // Use isAutoDimensions to determine autoDims state, defaulting to true if not set
-      const isAutoDims = memoryConfig.isAutoDimensions !== false
-      setAutoDims(isAutoDims)
-
       form.setFieldsValue({
         llmModel: getModelUniqId(llmModel),
         embedderModel: getModelUniqId(embedderModel),
-        embedderDimensions: memoryConfig.embedderDimensions,
-        autoDims: isAutoDims
+        embedderDimensions: memoryConfig.embedderDimensions
         // customFactExtractionPrompt: memoryConfig.customFactExtractionPrompt,
         // customUpdateMemoryPrompt: memoryConfig.customUpdateMemoryPrompt
       })
@@ -58,12 +61,10 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
   const handleFormSubmit = async (values: formValue) => {
     try {
       // Convert model IDs back to Model objects
-      const llmModel = values.llmModel ? allModels.find((m) => getModelUniqId(m) === values.llmModel) : undefined
+      const llmModel = findModelById(values.llmModel)
       const llmProvider = providers.find((p) => p.id === llmModel?.provider)
       const aiLlmProvider = new AiProvider(llmProvider!)
-      const embedderModel = values.embedderModel
-        ? allModels.find((m) => getModelUniqId(m) === values.embedderModel)
-        : undefined
+      const embedderModel = findModelById(values.embedderModel)
       const embedderProvider = providers.find((p) => p.id === embedderModel?.provider)
       const aiEmbedderProvider = new AiProvider(embedderProvider!)
       if (embedderModel) {
@@ -74,25 +75,10 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           return
         }
 
-        let finalDimensions: number | undefined
-
-        // Auto-detect dimensions if autoDims is enabled or dimensions not provided
-        if (values.autoDims || values.embedderDimensions === undefined) {
-          try {
-            const aiProvider = new AiProvider(provider)
-            finalDimensions = await aiProvider.getEmbeddingDimensions(embedderModel)
-          } catch (error) {
-            console.error('Error getting embedding dimensions:', error)
-            window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
-            setLoading(false)
-            return
-          }
-        } else {
-          finalDimensions =
-            typeof values.embedderDimensions === 'string'
-              ? parseInt(values.embedderDimensions)
-              : values.embedderDimensions
-        }
+        const finalDimensions =
+          typeof values.embedderDimensions === 'string'
+            ? parseInt(values.embedderDimensions)
+            : values.embedderDimensions
 
         const updatedConfig = {
           ...memoryConfig,
@@ -110,8 +96,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
             baseURL: aiEmbedderProvider.getBaseURL(),
             apiVersion: embedderProvider?.apiVersion
           },
-          embedderDimensions: finalDimensions,
-          isAutoDimensions: values.autoDims
+          embedderDimensions: finalDimensions
           // customFactExtractionPrompt: values.customFactExtractionPrompt,
           // customUpdateMemoryPrompt: values.customUpdateMemoryPrompt
         }
@@ -121,38 +106,14 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         setLoading(false)
       }
     } catch (error) {
-      console.error('Error submitting form:', error)
+      logger.error('Error submitting form:', error as Error)
       setLoading(false)
     }
   }
 
-  const llmSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const llmPredicate = useCallback((m: Model) => !isEmbeddingModel(m) && !isRerankModel(m), [])
 
-  const embeddingSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const embeddingPredicate = useCallback((m: Model) => isEmbeddingModel(m) && !isRerankModel(m), [])
 
   return (
     <Modal
@@ -180,48 +141,52 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           label={t('memory.llm_model')}
           name="llmModel"
           rules={[{ required: true, message: t('memory.please_select_llm_model') }]}>
-          <Select placeholder={t('memory.select_llm_model_placeholder')} options={llmSelectOptions} showSearch />
+          <ModelSelector
+            providers={providers}
+            predicate={llmPredicate}
+            placeholder={t('memory.select_llm_model_placeholder')}
+          />
         </Form.Item>
         <Form.Item
           label={t('memory.embedding_model')}
           name="embedderModel"
           rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}>
-          <Select placeholder={t('memory.select_embedding_model_placeholder')} options={embeddingSelectOptions} />
-        </Form.Item>
-        <Form.Item
-          label={t('knowledge.dimensions_auto_set')}
-          name="autoDims"
-          tooltip={{ title: t('knowledge.dimensions_default') }}
-          valuePropName="checked">
-          <Switch
-            checked={autoDims}
-            onChange={(checked) => {
-              setAutoDims(checked)
-              form.setFieldValue('autoDims', checked)
-              if (checked) {
-                form.setFieldValue('embedderDimensions', undefined)
-              }
-            }}
+          <ModelSelector
+            providers={providers}
+            predicate={embeddingPredicate}
+            placeholder={t('memory.select_embedding_model_placeholder')}
           />
         </Form.Item>
-
-        {!autoDims && (
-          <Form.Item
-            label={t('memory.embedding_dimensions')}
-            name="embedderDimensions"
-            rules={[
-              {
-                validator(_, value) {
-                  if (form.getFieldValue('autoDims') || value > 0) {
-                    return Promise.resolve()
-                  }
-                  return Promise.reject(new Error(t('knowledge.dimensions_error_invalid')))
+        <Form.Item
+          noStyle
+          shouldUpdate={(prevValues, currentValues) => prevValues.embedderModel !== currentValues.embedderModel}>
+          {({ getFieldValue }) => {
+            const embedderModelId = getFieldValue('embedderModel')
+            const embedderModel = findModelById(embedderModelId)
+            return (
+              <Form.Item
+                label={
+                  <Flex align="center" gap={4}>
+                    {t('memory.embedding_dimensions')}
+                    <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
+                  </Flex>
                 }
-              }
-            ]}>
-            <InputNumber style={{ width: '100%' }} min={1} placeholder={t('knowledge.dimensions_size_placeholder')} />
-          </Form.Item>
-        )}
+                name="embedderDimensions"
+                rules={[
+                  {
+                    validator(_, value) {
+                      if (value === undefined || value === null || value > 0) {
+                        return Promise.resolve()
+                      }
+                      return Promise.reject(new Error(t('knowledge.dimensions_error_invalid')))
+                    }
+                  }
+                ]}>
+                <InputEmbeddingDimension model={embedderModel} disabled={!embedderModel} />
+              </Form.Item>
+            )
+          }}
+        </Form.Item>
         {/* <Form.Item label="Custom Fact Extraction Prompt" name="customFactExtractionPrompt">
           <Input.TextArea placeholder="Optional custom prompt for fact extraction..." rows={3} />
         </Form.Item>
