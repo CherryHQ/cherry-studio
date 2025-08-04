@@ -1,4 +1,4 @@
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { MessageBlockStatus, MessageBlockType, type PlaceholderMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 import styled from 'styled-components'
@@ -10,7 +10,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ block }) => {
   if (block.status === MessageBlockStatus.PROCESSING && block.type === MessageBlockType.UNKNOWN) {
     return (
       <MessageContentLoading>
-        <SvgSpinners180Ring />
+        <LoadingIcon />
       </MessageContentLoading>
     )
   }

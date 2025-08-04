@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
 import { TopView } from '@renderer/components/TopView'
@@ -331,7 +331,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       </SearchContainer>
       <Spin
         spinning={isLoading}
-        indicator={<SvgSpinners180Ring color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}>
+        indicator={<LoadingIcon color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}>
         <ListContainer>
           {loadingModels || isEmpty(list) ? (
             <Empty

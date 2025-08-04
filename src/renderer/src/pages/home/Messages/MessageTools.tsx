@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -25,7 +25,6 @@ import {
   ChevronRight,
   CirclePlay,
   CircleX,
-  Copy,
   Maximize,
   PauseCircle,
   ShieldCheck,
@@ -203,11 +202,11 @@ const MessageTools: FC<Props> = ({ block }) => {
     switch (status) {
       case 'pending':
         label = t('message.tools.pending', 'Awaiting Approval')
-        icon = <SvgSpinners180Ring style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
+        icon = <LoadingIcon style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
         break
       case 'invoking':
         label = t('message.tools.invoking')
-        icon = <SvgSpinners180Ring style={{ marginLeft: 6 }} />
+        icon = <LoadingIcon style={{ marginLeft: 6 }} />
         break
       case 'cancelled':
         label = t('message.tools.cancelled')
@@ -286,7 +285,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                     copyContent(JSON.stringify(result, null, 2), id)
                   }}
                   aria-label={t('common.copy')}>
-                  {!copiedMap[id] && <Copy size={14} />}
+                  {!copiedMap[id] && <CopyIcon size={14} />}
                   {copiedMap[id] && <Check size={14} color="var(--status-color-success)" />}
                 </ActionButton>
               </Tooltip>

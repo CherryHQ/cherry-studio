@@ -1,6 +1,6 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { Flex, Spin } from 'antd'
 import { debounce } from 'lodash'
@@ -139,7 +139,7 @@ const MermaidPreview: React.FC<BasicPreviewProps> = ({ children, setTools }) => 
   const isLoading = isLoadingMermaid || isRendering
 
   return (
-    <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+    <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
       <Flex vertical style={{ minHeight: isLoading ? '2rem' : 'auto' }}>
         {(mermaidError || error) && <PreviewError>{mermaidError || error}</PreviewError>}
         <StyledMermaid ref={mermaidRef} className="mermaid  special-preview" />

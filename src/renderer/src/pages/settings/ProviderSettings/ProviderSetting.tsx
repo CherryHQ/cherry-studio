@@ -1,5 +1,5 @@
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ModelList } from '@renderer/components/ModelList'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -285,7 +285,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               onClick={onCheckApi}
               disabled={!apiHost || apiKeyConnectivity.checking}>
               {apiKeyConnectivity.checking ? (
-                <SvgSpinners180Ring />
+                <LoadingIcon />
               ) : apiKeyConnectivity.status === 'success' ? (
                 <Check size={16} className="lucide-custom" />
               ) : (
