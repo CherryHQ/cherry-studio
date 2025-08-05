@@ -145,7 +145,7 @@ import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Model } from '@renderer/types'
+import { Model, ReasoningEffortConfig, ThinkingModelType, ThinkingOptionConfig } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import OpenAI from 'openai'
 
@@ -270,6 +270,56 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
+
+// 模型类型到支持的reasoning_effort的映射表
+export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
+  default: ['low', 'medium', 'high'] as const,
+  grok: ['low', 'high'] as const,
+  gemini: ['low', 'medium', 'high', 'auto'] as const,
+  gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
+  qwen: ['low', 'medium', 'high'] as const,
+  qwen_3235ba22b_thinking: ['low', 'medium', 'high'] as const,
+  doubao: ['auto', 'high'] as const,
+  hunyuan: ['auto'] as const,
+  zhipu: ['auto'] as const,
+  perplexity: ['low', 'medium', 'high'] as const
+} as const
+
+// 模型类型到支持选项的映射表
+export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
+  default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
+  grok: [...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
+  gemini_pro: [...MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro] as const,
+  qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
+  qwen_3235ba22b_thinking: [...MODEL_SUPPORTED_REASONING_EFFORT.qwen_3235ba22b_thinking] as const,
+  doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
+  zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
+  perplexity: [...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const
+} as const
+
+export const getThinkModelType = (model: Model): ThinkingModelType => {
+  if (isSupportedReasoningEffortGrokModel(model)) {
+    if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+      return 'gemini'
+    } else {
+      return 'gemini_pro'
+    }
+  }
+  if (isSupportedReasoningEffortGrokModel(model)) return 'grok'
+  if (isSupportedThinkingTokenQwenModel(model)) {
+    if (isQwen3235BA22BThinkingModel(model)) {
+      return 'qwen_3235ba22b_thinking'
+    }
+    return 'qwen'
+  }
+  if (isSupportedThinkingTokenDoubaoModel(model)) return 'doubao'
+  if (isSupportedThinkingTokenHunyuanModel(model)) return 'hunyuan'
+  if (isSupportedReasoningEffortPerplexityModel(model)) return 'perplexity'
+  if (isSupportedThinkingTokenZhipuModel(model)) return 'zhipu'
+  return 'default'
+}
 
 export function isFunctionCallingModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
