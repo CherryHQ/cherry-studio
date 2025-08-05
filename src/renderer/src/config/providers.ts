@@ -738,6 +738,12 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
 }
 
+const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope']
+
+export const isSupportQwen3EnableThinkingProvider = (provider: Provider) => {
+  return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.includes(provider.id)
+}
+
 /**
  * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
  * @param provider - Provider对象，包含提供商的信息
