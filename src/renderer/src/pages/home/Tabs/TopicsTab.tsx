@@ -2,7 +2,7 @@ import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import SaveTopicToKnowledgePopup from '@renderer/components/Popups/SaveTopicToKnowledgePopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -324,7 +324,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             key: 'knowledge',
             onClick: async () => {
               try {
-                const result = await SaveTopicToKnowledgePopup.show({ topic })
+                const result = await SaveToKnowledgePopup.showForTopic(topic)
                 if (result?.success) {
                   window.message.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
                 }
