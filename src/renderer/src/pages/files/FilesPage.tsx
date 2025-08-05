@@ -63,6 +63,7 @@ const FilesPage: FC = () => {
             okText={t('common.confirm')}
             cancelText={t('common.cancel')}
             onConfirm={() => handleDelete(file.id, t)}
+            placement="left"
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
             <Button type="text" danger icon={<DeleteIcon size={14} className="lucide-custom" />} />
           </Popconfirm>

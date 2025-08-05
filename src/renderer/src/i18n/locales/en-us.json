@@ -1463,7 +1463,7 @@
       "function_calling": "Tool",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
-      "select": "Select Model Types",
+      "select": "Model Types",
       "text": "Text",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -2716,6 +2716,8 @@
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
       "logoUrl": "Logo URL",
+      "longRunning": "Long Running Mode",
+      "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "missingDependencies": "is Missing, please install it to continue.",
       "more": {
         "awesome": "Curated MCP Server List",
@@ -2962,8 +2964,8 @@
           "tooltip": "Optional e.g. GPT-4"
         },
         "supported_text_delta": {
-          "label": "Incremental text output",
-          "tooltip": "When the model is not supported, close the button"
+          "label": "Support incremental text output",
+          "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
         }
       },
       "api_key": "API Key",
@@ -3019,7 +3021,6 @@
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",
-      "quick_assistant_model_description": "Default model used by Quick Assistant",
       "quick_assistant_selection": "Select Assistant",
       "topic_naming_model": "Topic Naming Model",
       "topic_naming_model_description": "Model used when automatically naming a new topic",
@@ -3337,7 +3338,7 @@
         "title": "Pre Process",
         "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
-      "title": "Tools Settings",
+      "title": "Other Settings",
       "websearch": {
         "apikey": "API key",
         "blacklist": "Blacklist",

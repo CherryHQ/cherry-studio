@@ -633,8 +633,13 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
-          <Form.Item name="longRunning" label={t('settings.mcp.longRunning', 'Long Running')} valuePropName="checked">
-            <Switch />
+          <Form.Item
+            name="longRunning"
+            label={t('settings.mcp.longRunning', 'Long Running')}
+            tooltip={t('settings.mcp.longRunningTooltip')}
+            layout="horizontal"
+            valuePropName="checked">
+            <Switch size="small" style={{ marginLeft: 10 }} />
           </Form.Item>
           <Form.Item
             name="timeout"

@@ -289,9 +289,12 @@ export const ItemHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   position: absolute;
-  top: calc(var(--navbar-height) + 14px);
   right: 16px;
   z-index: 1000;
+  top: calc(var(--navbar-height) + 12px);
+  [navbar-position='top'] & {
+    top: calc(var(--navbar-height) + 10px);
+  }
 `
 
 export const StatusIconWrapper = styled.div`

@@ -91,7 +91,7 @@ const SelectionAssistantSettings: FC = () => {
 
   return (
     <SettingContainer theme={theme}>
-      <SettingGroup>
+      <SettingGroup theme={theme}>
         <Row align="middle">
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
@@ -124,11 +124,9 @@ const SelectionAssistantSettings: FC = () => {
       </SettingGroup>
       {selectionEnabled && (
         <>
-          <SettingGroup>
+          <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.toolbar.title')}</SettingTitle>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>
@@ -167,9 +165,7 @@ const SelectionAssistantSettings: FC = () => {
                 </Tooltip>
               </Radio.Group>
             </SettingRow>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
@@ -179,11 +175,9 @@ const SelectionAssistantSettings: FC = () => {
             </SettingRow>
           </SettingGroup>
 
-          <SettingGroup>
+          <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.window.title')}</SettingTitle>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
@@ -191,9 +185,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Switch checked={isFollowToolbar} onChange={(checked) => setIsFollowToolbar(checked)} />
             </SettingRow>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
@@ -201,9 +193,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Switch checked={isRemeberWinSize} onChange={(checked) => setIsRemeberWinSize(checked)} />
             </SettingRow>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
@@ -211,9 +201,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Switch checked={isAutoClose} onChange={(checked) => setIsAutoClose(checked)} />
             </SettingRow>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
@@ -221,9 +209,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Switch checked={isAutoPin} onChange={(checked) => setIsAutoPin(checked)} />
             </SettingRow>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
@@ -245,11 +231,9 @@ const SelectionAssistantSettings: FC = () => {
 
           <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
 
-          <SettingGroup>
+          <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
-
             <SettingDivider />
-
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
@@ -277,7 +261,6 @@ const SelectionAssistantSettings: FC = () => {
                     {t('common.edit')}
                   </Button>
                 </SettingRow>
-
                 <SelectionFilterListModal
                   open={isFilterListModalOpen}
                   onClose={() => setIsFilterListModalOpen(false)}

@@ -1463,7 +1463,7 @@
       "function_calling": "Llamada a función",
       "reasoning": "Razonamiento",
       "rerank": "Reclasificar",
-      "select": "Seleccionar tipo de modelo",
+      "select": "Tipos de modelo",
       "text": "Texto",
       "vision": "Imagen",
       "websearch": "Búsqueda en línea"
@@ -3018,7 +3018,6 @@
       "provider_name": "Nombre del proveedor",
       "quick_assistant_default_tag": "Predeterminado",
       "quick_assistant_model": "Modelo del asistente rápido",
-      "quick_assistant_model_description": "Modelo predeterminado utilizado por el asistente rápido",
       "quick_assistant_selection": "Seleccionar asistente",
       "topic_naming_model": "Modelo de nombramiento de temas",
       "topic_naming_model_description": "Modelo utilizado para nombrar temas automáticamente",

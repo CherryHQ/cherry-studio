@@ -1,7 +1,5 @@
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
-import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
-import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -15,6 +13,8 @@ import {
   SYSTEM_MODELS
 } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
+import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName, isFreeModel } from '@renderer/utils'
@@ -27,7 +27,7 @@ import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTr
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { HStack } from '../Layout'
+import { HStack } from '../../../../components/Layout'
 import ManageModelsList from './ManageModelsList'
 import { isModelInProvider, isValidNewApiModel } from './utils'
 

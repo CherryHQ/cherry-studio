@@ -1463,7 +1463,7 @@
       "function_calling": "κλήση συνάρτησης",
       "reasoning": "λογική",
       "rerank": "Τακτοποιώ",
-      "select": "Επιλέξτε τύπο μοντέλου",
+      "select": "Τύποι μοντέλου",
       "text": "κείμενο",
       "vision": "εικόνα",
       "websearch": "δικτύωση"
@@ -3018,7 +3018,6 @@
       "provider_name": "Όνομα Παρόχου",
       "quick_assistant_default_tag": "Προεπιλογή",
       "quick_assistant_model": "Μοντέλο Γρήγορου Βοηθού",
-      "quick_assistant_model_description": "Προεπιλεγμένο μοντέλο που χρησιμοποιείται από το Γρήγορο Βοηθό",
       "quick_assistant_selection": "Επιλογή Βοηθού",
       "topic_naming_model": "Μοντέλο αναδόμησης θεμάτων",
       "topic_naming_model_description": "Το μοντέλο που χρησιμοποιείται όταν αυτόματα ονομάζεται ένα νέο θέμα",

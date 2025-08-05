@@ -1463,7 +1463,7 @@
       "function_calling": "工具",
       "reasoning": "推理",
       "rerank": "重排",
-      "select": "选择模型类型",
+      "select": "模型类型",
       "text": "文本",
       "vision": "视觉",
       "websearch": "联网"
@@ -2716,6 +2716,8 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "longRunning": "长时间运行模式",
+      "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "missingDependencies": "缺失，请安装它以继续",
       "more": {
         "awesome": "精选的 MCP 服务器列表",
@@ -2962,8 +2964,8 @@
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
-          "label": "增量文本输出",
-          "tooltip": "当模型不支持的时候，将该按钮关闭"
+          "label": "支持增量文本输出",
+          "tooltip": "模型每次返回文本增量，而不是一次性返回所有文本，默认开启，如果模型不支持，请关闭"
         }
       },
       "api_key": "API 密钥",
@@ -3019,7 +3021,6 @@
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
-      "quick_assistant_model_description": "快捷助手使用的默认模型",
       "quick_assistant_selection": "选择助手",
       "topic_naming_model": "话题命名模型",
       "topic_naming_model_description": "自动命名新话题时使用的模型",
@@ -3337,7 +3338,7 @@
         "title": "文档预处理",
         "tooltip": "在设置 -> 工具中设置文档预处理服务商，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果"
       },
-      "title": "工具设置",
+      "title": "其他设置",
       "websearch": {
         "apikey": "API 密钥",
         "blacklist": "黑名单",

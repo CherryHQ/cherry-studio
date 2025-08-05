@@ -36,7 +36,7 @@ import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
 
-const HomeWindow: FC = () => {
+const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -487,7 +487,7 @@ const HomeWindow: FC = () => {
     case 'summary':
     case 'explanation':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           {route === 'chat' && (
             <>
               <InputBar
@@ -523,7 +523,7 @@ const HomeWindow: FC = () => {
 
     case 'translate':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <TranslateWindow text={referenceText} />
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} />
@@ -533,7 +533,7 @@ const HomeWindow: FC = () => {
     // Home
     default:
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <InputBar
             text={userInputText}
             assistant={currentAssistant}
@@ -566,13 +566,13 @@ const HomeWindow: FC = () => {
   }
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $draggable: boolean }>`
   display: flex;
   flex: 1;
   height: 100%;
   width: 100%;
   flex-direction: column;
-  -webkit-app-region: drag;
+  -webkit-app-region: ${({ $draggable }) => ($draggable ? 'drag' : 'no-drag')};
   padding: 8px 10px;
 `
 

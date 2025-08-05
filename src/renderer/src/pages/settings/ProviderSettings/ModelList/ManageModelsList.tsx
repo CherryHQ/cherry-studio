@@ -1,10 +1,10 @@
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
+import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { Model, Provider } from '@renderer/types'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
@@ -221,7 +221,7 @@ const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   align-items: center;
   justify-content: space-between;
   padding: 0 13px;
-  min-height: 35px;
+  min-height: 38px;
   color: var(--color-text);
   cursor: pointer;
 `

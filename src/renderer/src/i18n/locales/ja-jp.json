@@ -1463,7 +1463,7 @@
       "function_calling": "ツール",
       "reasoning": "推論",
       "rerank": "再順序付け",
-      "select": "モデルタイプを選択",
+      "select": "モデルタイプ",
       "text": "テキスト",
       "vision": "画像",
       "websearch": "ウェブ検索"
@@ -2716,6 +2716,8 @@
       "jsonSaveError": "JSON設定の保存に失敗しました",
       "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
+      "longRunning": "長時間運行モード",
+      "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "missingDependencies": "が不足しています。続行するにはインストールしてください。",
       "more": {
         "awesome": "厳選された MCP サーバーリスト",
@@ -2962,8 +2964,8 @@
           "tooltip": "例：GPT-4"
         },
         "supported_text_delta": {
-          "label": "インクリメンタルテキスト出力",
-          "tooltip": "モデルがサポートされていない場合は、ボタンを閉じます"
+          "label": "インクリメンタルテキスト出力のサポート",
+          "tooltip": "モデルがテキストをチャンクで返す場合、デフォルトで有効になっています。モデルがサポートしていない場合は、このオプションを無効にしてください"
         }
       },
       "api_key": "API キー",
@@ -3019,7 +3021,6 @@
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
-      "quick_assistant_model_description": "クイックアシスタントで使用されるデフォルトモデル",
       "quick_assistant_selection": "アシスタントを選択します",
       "topic_naming_model": "トピック命名モデル",
       "topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
@@ -3337,7 +3338,7 @@
         "title": "前処理",
         "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
       },
-      "title": "ツール設定",
+      "title": "その他の設定",
       "websearch": {
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",

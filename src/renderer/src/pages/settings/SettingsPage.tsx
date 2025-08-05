@@ -4,16 +4,15 @@ import {
   Brain,
   Cloud,
   Command,
+  FolderCog,
   HardDrive,
   Info,
   MonitorCog,
   Package,
-  PencilRuler,
-  Rocket,
+  PictureInPicture2,
   Settings2,
   SquareTerminal,
-  TextCursorInput,
-  Zap
+  TextCursorInput
 } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +27,6 @@ import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
-import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
 import ToolSettings from './ToolSettings'
@@ -70,6 +68,12 @@ const SettingsPage: FC = () => {
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/data">
+            <MenuItem className={isRoute('/settings/data')}>
+              <HardDrive size={18} />
+              {t('settings.data.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
               <SquareTerminal size={18} />
@@ -82,21 +86,21 @@ const SettingsPage: FC = () => {
               {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <PencilRuler size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
             <MenuItem className={isRoute('/settings/shortcut')}>
               <Command size={18} />
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/tool">
+            <MenuItem className={isRoute('/settings/tool')}>
+              <FolderCog size={18} />
+              {t('settings.tool.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/quickAssistant">
             <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <Rocket size={18} />
+              <PictureInPicture2 size={18} />
               {t('settings.quickAssistant.title')}
             </MenuItem>
           </MenuItemLink>
@@ -104,18 +108,6 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/selectionAssistant')}>
               <TextCursorInput size={18} />
               {t('selection.name')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickPhrase">
-            <MenuItem className={isRoute('/settings/quickPhrase')}>
-              <Zap size={18} />
-              {t('settings.quickPhrase.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
-              <HardDrive size={18} />
-              {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/about">
@@ -139,7 +131,6 @@ const SettingsPage: FC = () => {
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
-            <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>
         </SettingContent>
       </ContentContainer>

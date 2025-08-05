@@ -2,17 +2,14 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import CustomTag from '@renderer/components/CustomTag'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import AddModelPopup from '@renderer/components/ModelList/AddModelPopup'
-import EditModelPopup from '@renderer/components/ModelList/EditModelPopup'
-import ManageModelsPopup from '@renderer/components/ModelList/ManageModelsPopup'
-import NewApiAddModelPopup from '@renderer/components/ModelList/NewApiAddModelPopup'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
-import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
-import { setModel } from '@renderer/store/assistants'
+import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
+import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/AddModelPopup'
+import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
+import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Empty, Flex, Spin, Tooltip } from 'antd'
@@ -47,11 +44,8 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  * 模型列表组件，用于 CRUD 操作和健康检查
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
-  const dispatch = useAppDispatch()
   const { t } = useTranslation()
-  const { provider, updateProvider, models, removeModel } = useProvider(providerId)
-  const { assistants } = useAssistants()
-  const { defaultModel, setDefaultModel } = useDefaultModel()
+  const { provider, models, removeModel } = useProvider(providerId)
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
@@ -99,40 +93,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [provider, t])
 
-  const onUpdateModel = useCallback(
-    (updatedModel: Model) => {
-      const updatedModels = models.map((m) => (m.id === updatedModel.id ? updatedModel : m))
-
-      updateProvider({ models: updatedModels })
-
-      assistants.forEach((assistant) => {
-        if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-          dispatch(
-            setModel({
-              assistantId: assistant.id,
-              model: updatedModel
-            })
-          )
-        }
-      })
-
-      if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-        setDefaultModel(updatedModel)
-      }
-    },
-    [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
-  )
-
-  const onEditModel = useCallback(
-    async (model: Model) => {
-      const updatedModel = await EditModelPopup.show({ provider, model })
-      if (updatedModel) {
-        onUpdateModel(updatedModel)
-      }
-    },
-    [provider, onUpdateModel]
-  )
-
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
 
   return (
@@ -170,7 +130,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 modelStatuses={modelStatuses}
                 defaultOpen={i <= 5}
                 disabled={isHealthChecking}
-                onEditModel={onEditModel}
+                onEditModel={(model) => EditModelPopup.show({ provider, model })}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
