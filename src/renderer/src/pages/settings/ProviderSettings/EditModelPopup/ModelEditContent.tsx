@@ -201,7 +201,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             </Tooltip>
           )}
         </TypeTitle>
-        <Flex justify="flex-start" align="center" gap={4} style={{ marginBottom: 8 }}>
+        <Flex justify="flex-start" align="center" gap={4} wrap={'wrap'} style={{ marginBottom: 8 }}>
           <VisionTag
             showLabel
             inactive={isOtherDisabled || !selectedTypes.includes('vision')}
