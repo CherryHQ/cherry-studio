@@ -197,7 +197,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 
           {hasUserModified && (
             <Tooltip title={t('common.reset')}>
-              <Button size="small" icon={<RotateCcw size={14} />} onClick={handleResetTypes} />
+              <Button size="small" icon={<RotateCcw size={14} />} onClick={handleResetTypes} type="text" />
             </Tooltip>
           )}
         </TypeTitle>
