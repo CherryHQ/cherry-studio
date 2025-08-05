@@ -1,6 +1,6 @@
-import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { Provider } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 
 export function getProviderName(id: string) {
   const provider = store.getState().llm.providers.find((p) => p.id === id)
@@ -8,11 +8,7 @@ export function getProviderName(id: string) {
     return ''
   }
 
-  if (provider.isSystem) {
-    return i18n.t(`provider.${provider.id}`, { defaultValue: provider.name })
-  }
-
-  return provider?.name
+  return getFancyProviderName(provider)
 }
 
 export function isProviderSupportAuth(provider: Provider) {

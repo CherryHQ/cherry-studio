@@ -1,8 +1,7 @@
 import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
-import { WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
+import { Citation, WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import type OpenAI from 'openai'
@@ -21,7 +20,7 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
-const messageBlocksSlice = createSlice({
+export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,
   reducers: {
@@ -160,9 +159,19 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
+      case WebSearchSource.PERPLEXITY: {
+        formattedCitations =
+          (block.response.results as any[])?.map((result, index) => ({
+            number: index + 1,
+            url: result.url || result, // 兼容旧数据
+            title: result.title || new URL(result).hostname, // 兼容旧数据
+            showFavicon: true,
+            type: 'websearch'
+          })) || []
+        break
+      }
       case WebSearchSource.GROK:
       case WebSearchSource.OPENROUTER:
-      case WebSearchSource.PERPLEXITY:
         formattedCitations =
           (block.response.results as any[])?.map((url, index) => {
             try {
@@ -237,11 +246,26 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
       })
     )
   }
+
+  if (block.memories && block.memories.length > 0) {
+    // 5. Handle Memory References
+    formattedCitations.push(
+      ...block.memories.map((memory, index) => ({
+        number: index + 1,
+        url: '',
+        title: `Memory ${memory.hash?.slice(0, 8)}`,
+        content: memory.memory,
+        showFavicon: false,
+        type: 'memory'
+      }))
+    )
+  }
+
   // 4. Deduplicate non-knowledge citations by URL and Renumber Sequentially
   const urlSet = new Set<string>()
   return formattedCitations
     .filter((citation) => {
-      if (citation.type === 'knowledge') return true
+      if (citation.type === 'knowledge' || citation.type === 'memory') return true
       if (!citation.url || urlSet.has(citation.url)) return false
       urlSet.add(citation.url)
       return true

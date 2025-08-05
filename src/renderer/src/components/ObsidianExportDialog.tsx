@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import type { Topic } from '@renderer/types'
@@ -11,6 +12,8 @@ import {
 } from '@renderer/utils/export'
 import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
+
+const logger = loggerService.withContext('ObsidianExportDialog')
 
 const { Option } = Select
 
@@ -178,7 +181,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.obsidian.getVaults()
+        const vaultsData = await window.api.obsidian.getVaults()
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
@@ -188,11 +191,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.obsidian.getFiles(vaultToUse)
+          const filesData = await window.api.obsidian.getFiles(vaultToUse)
           setFiles(filesData)
         }
       } catch (error) {
-        console.error('获取Obsidian Vault失败:', error)
+        logger.error('获取Obsidian Vault失败:', error as Error)
         setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
       } finally {
         setLoading(false)
@@ -207,10 +210,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         try {
           setLoading(true)
           setError(null)
-          const filesData = await window.obsidian.getFiles(selectedVault)
+          const filesData = await window.api.obsidian.getFiles(selectedVault)
           setFiles(filesData)
         } catch (error) {
-          console.error('获取Obsidian文件失败:', error)
+          logger.error('获取Obsidian文件失败:', error as Error)
           setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
         } finally {
           setLoading(false)

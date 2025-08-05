@@ -45,7 +45,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
       const assistantPrompts = assistant.regularPhrases || []
       setQuickPhrasesList([...assistantPrompts, ...phrases])
     },
-    [assistant]
+    [assistant.regularPhrases]
   )
 
   useEffect(() => {
@@ -148,7 +148,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
 
   return (
     <>
-      <Tooltip placement="top" title={t('settings.quickPhrase.title')} arrow>
+      <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
         <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
           <Zap size={18} />
         </ToolbarButton>
@@ -158,6 +158,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
         title={t('settings.quickPhrase.add')}
         open={isModalOpen}
         onOk={handleModalOk}
+        maskClosable={false}
         onCancel={() => {
           setIsModalOpen(false)
           setFormData({ title: '', content: '', location: 'global' })

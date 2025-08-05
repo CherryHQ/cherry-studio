@@ -1,0 +1,13 @@
+diff --git a/FileStreamRotator.js b/FileStreamRotator.js
+index 639bb9c8f972ba672bd27d9f8b1739d1030cb44b..a12a6d93b61fe782e981027248fa10876151f65f 100644
+--- a/FileStreamRotator.js
++++ b/FileStreamRotator.js
+@@ -12,7 +12,7 @@
+  */
+ var fs = require('fs');
+ var path = require('path');
+-var moment = require('moment');
++var moment = require('moment').default || require('moment');
+ var crypto = require('crypto');
+ 
+ var EventEmitter = require('events');

@@ -1,8 +1,11 @@
+import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
 import { flushLinkConverterBuffer, smartLinkConverter } from '@renderer/utils/linkConverter'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
+
+const logger = loggerService.withContext('WebSearchMiddleware')
 
 export const MIDDLEWARE_NAME = 'WebSearchMiddleware'
 
@@ -42,7 +45,12 @@ export const WebSearchMiddleware: CompletionsMiddleware =
                 const providerType = model.provider || 'openai'
                 // 使用当前可用的Web搜索结果进行链接转换
                 const text = chunk.text
-                const result = smartLinkConverter(text, providerType, isFirstChunk)
+                const result = smartLinkConverter(
+                  text,
+                  providerType,
+                  isFirstChunk,
+                  ctx._internal.webSearchState!.results
+                )
                 if (isFirstChunk) {
                   isFirstChunk = false
                 }
@@ -94,7 +102,7 @@ export const WebSearchMiddleware: CompletionsMiddleware =
           stream: enhancedStream
         }
       } else {
-        console.log(`[${MIDDLEWARE_NAME}] No stream to process or not a ReadableStream.`)
+        logger.debug(`No stream to process or not a ReadableStream.`)
       }
     }
 

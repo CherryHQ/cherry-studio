@@ -1,15 +1,15 @@
-import { DeleteOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
-import Scrollbar from '@renderer/components/Scrollbar'
-import Logger from '@renderer/config/logger'
+import { DeleteIcon } from '@renderer/components/Icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
-import { FC } from 'react'
+import { PlusIcon } from 'lucide-react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,6 +23,8 @@ import {
   RefreshIcon,
   StatusIconWrapper
 } from '../KnowledgeContent'
+
+const logger = loggerService.withContext('KnowledgeDirectories')
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -44,6 +46,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
 
+  const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
+  const estimateSize = useCallback(() => 75, [])
+
   if (!base) {
     return null
   }
@@ -54,7 +59,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     }
 
     const path = await window.api.file.selectFolder()
-    Logger.log('[KnowledgeContent] Selected directory:', path)
+    logger.info('Selected directory:', path)
     path && addDirectory(path)
   }
 
@@ -63,7 +68,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddDirectory()
@@ -74,46 +79,56 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
       </ItemHeader>
       <ItemFlexColumn>
         {directoryItems.length === 0 && <KnowledgeEmptyView />}
-        {directoryItems.reverse().map((item) => (
-          <FileItem
-            key={item.id}
-            fileInfo={{
-              name: (
-                <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                  <Ellipsis>
-                    <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
-                  </Ellipsis>
-                </ClickableSpan>
-              ),
-              ext: '.folder',
-              extra: getDisplayTime(item),
-              actions: (
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon
-                      sourceId={item.id}
-                      base={base}
-                      getProcessingStatus={getProcessingStatus}
-                      progress={progressMap.get(item.id)}
-                      type="directory"
+        <DynamicVirtualList
+          list={reversedItems}
+          estimateSize={estimateSize}
+          overscan={2}
+          scrollerStyle={{ paddingRight: 2 }}
+          itemContainerStyle={{ paddingBottom: 10 }}
+          autoHideScrollbar>
+          {(item) => (
+            <FileItem
+              key={item.id}
+              fileInfo={{
+                name: (
+                  <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
+                    <Ellipsis>
+                      <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
+                    </Ellipsis>
+                  </ClickableSpan>
+                ),
+                ext: '.folder',
+                extra: getDisplayTime(item),
+                actions: (
+                  <FlexAlignCenter>
+                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={item.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        progress={progressMap.get(item.id)}
+                        type="directory"
+                      />
+                    </StatusIconWrapper>
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(item)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
                     />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              )
-            }}
-          />
-        ))}
+                  </FlexAlignCenter>
+                )
+              }}
+            />
+          )}
+        </DynamicVirtualList>
       </ItemFlexColumn>
     </ItemContainer>
   )
 }
 
-const ItemFlexColumn = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+const ItemFlexColumn = styled.div`
   padding: 20px 16px;
   height: calc(100vh - 135px);
 `

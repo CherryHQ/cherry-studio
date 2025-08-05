@@ -1,5 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -19,6 +19,8 @@ interface DataType {
   url: string
   name: string
 }
+
+const logger = loggerService.withContext('BlacklistSettings')
 
 const columns: TableProps<DataType>['columns'] = [
   { title: t('common.name'), dataIndex: 'name', key: 'name' },
@@ -56,7 +58,7 @@ const BlacklistSettings: FC = () => {
         name: source.name
       }))
     )
-    Logger.log('subscribeSources', websearch.subscribeSources)
+    logger.info('subscribeSources', websearch.subscribeSources)
   }, [websearch.subscribeSources])
 
   useEffect(() => {
@@ -90,7 +92,7 @@ const BlacklistSettings: FC = () => {
     })
   }
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    Logger.log('selectedRowKeys changed: ', newSelectedRowKeys)
+    logger.info('selectedRowKeys changed: ', newSelectedRowKeys)
     setSelectedRowKeys(newSelectedRowKeys)
   }
 
@@ -128,10 +130,10 @@ const BlacklistSettings: FC = () => {
             })
           }
         } catch (error) {
-          console.error(`Error updating subscribe source ${source.url}:`, error)
+          logger.error(`Error updating subscribe source ${source.url}:`, error as Error)
           // 显示具体源更新失败的消息
           window.message.warning({
-            content: t('settings.tool.websearch.subscribe_source_update_failed', { url: source.url }),
+            content: t('settings.tool.websearch.subscribe_update_failed', { url: source.url }),
             duration: 3
           })
         }
@@ -152,7 +154,7 @@ const BlacklistSettings: FC = () => {
         throw new Error('No valid sources updated')
       }
     } catch (error) {
-      console.error('Error updating subscribes:', error)
+      logger.error('Error updating subscribes:', error as Error)
       window.message.error({
         content: t('settings.tool.websearch.subscribe_update_failed'),
         duration: 2
@@ -211,7 +213,7 @@ const BlacklistSettings: FC = () => {
       // 清空选中状态
       setSelectedRowKeys([])
     } catch (error) {
-      console.error('Error deleting subscribes:', error)
+      logger.error('Error deleting subscribes:', error as Error)
     }
   }
 
@@ -253,6 +255,7 @@ const BlacklistSettings: FC = () => {
             columns={columns}
             dataSource={dataSource}
             pagination={{ position: ['none'] }}
+            tableLayout="fixed"
           />
           <SettingRow style={{ height: 50 }}>
             <Button

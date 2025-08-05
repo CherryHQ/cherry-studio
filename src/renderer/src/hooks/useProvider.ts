@@ -1,4 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
+import { isSystemProvider } from '@renderer/config/providers'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -26,17 +27,17 @@ export function useProviders() {
     providers: providers || {},
     addProvider: (provider: Provider) => dispatch(addProvider(provider)),
     removeProvider: (provider: Provider) => dispatch(removeProvider(provider)),
-    updateProvider: (provider: Provider) => dispatch(updateProvider(provider)),
+    updateProvider: (updates: Partial<Provider> & { id: string }) => dispatch(updateProvider(updates)),
     updateProviders: (providers: Provider[]) => dispatch(updateProviders(providers))
   }
 }
 
 export function useSystemProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => isSystemProvider(p)))
 }
 
 export function useUserProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => !p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => !isSystemProvider(p)))
 }
 
 export function useAllProviders() {
@@ -50,7 +51,7 @@ export function useProvider(id: string) {
   return {
     provider,
     models: provider?.models || [],
-    updateProvider: (provider: Provider) => dispatch(updateProvider(provider)),
+    updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
     addModel: (model: Model) => dispatch(addModel({ providerId: id, model })),
     removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
     updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))

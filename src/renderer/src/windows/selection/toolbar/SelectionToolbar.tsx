@@ -1,5 +1,6 @@
 import '@renderer/assets/styles/selection-toolbar.scss'
 
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -15,11 +16,13 @@ import { useTranslation } from 'react-i18next'
 import { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('SelectionToolbar')
+
 //tell main the actual size of the content
 const updateWindowSize = () => {
   const rootElement = document.getElementById('root')
   if (!rootElement) {
-    console.error('SelectionToolbar: Root element not found')
+    logger.error('Root element not found')
     return
   }
   window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
@@ -107,6 +110,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
 
   // listen to selectionService events
   useEffect(() => {
@@ -115,6 +120,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
+        isFullScreen.current = selectionData.isFullscreen ?? false
         setTimeout(() => {
           //make sure the animation is active
           setAnimateKey((prev) => prev + 1)
@@ -132,8 +138,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         }
       }
     )
-
-    if (!demo) updateWindowSize()
 
     return () => {
       textSelectionListenRemover()
@@ -234,7 +238,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }
 
   const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()
   }
 

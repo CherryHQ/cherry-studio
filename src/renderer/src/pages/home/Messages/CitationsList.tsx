@@ -1,5 +1,7 @@
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -8,17 +10,6 @@ import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-export interface Citation {
-  number: number
-  url: string
-  title?: string
-  hostname?: string
-  content?: string
-  showFavicon?: boolean
-  type?: string
-  metadata?: Record<string, any>
-}
 
 interface CitationsListProps {
   citations: Citation[]
@@ -53,21 +44,27 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   if (!count) return null
 
   const popoverContent = (
-    <div>
+    <PopoverContentContainer>
       {citations.map((citation) => (
-        <PopoverContentItem key={citation.url || citation.number}>
-          {citation.type === 'websearch' ? (
+        <PopoverContentItem key={citation.url || citation.number || citation.title}>
+          {citation.type === 'websearch' && (
             <PopoverContent>
               <WebSearchCitation citation={citation} />
             </PopoverContent>
-          ) : (
+          )}
+          {citation.type === 'memory' && (
             <KnowledgePopoverContent>
-              <KnowledgeCitation citation={citation} />
+              <KnowledgeCitation citation={{ ...citation }} />
+            </KnowledgePopoverContent>
+          )}
+          {citation.type === 'knowledge' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={{ ...citation }} />
             </KnowledgePopoverContent>
           )}
         </PopoverContentItem>
       ))}
-    </div>
+    </PopoverContentContainer>
   )
 
   return (
@@ -128,7 +125,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        message.success(t('common.copied'))
+        window.message.success(t('common.copied'))
         setTimeout(() => setCopied(false), 2000)
       })
       .catch(() => {
@@ -198,7 +195,7 @@ const OpenButton = styled(Button)`
   display: flex;
   align-items: center;
   padding: 3px 8px;
-  margin: 8px 0;
+  margin-bottom: 8px;
   align-self: flex-start;
   font-size: 12px;
   background-color: var(--color-background-soft);
@@ -319,9 +316,12 @@ const WebSearchCardContent = styled.div`
   }
 `
 
+const PopoverContentContainer = styled(Scrollbar)`
+  max-height: 70vh;
+`
+
 const PopoverContent = styled.div`
   max-width: min(400px, 60vw);
-  max-height: 60vh;
   padding: 0 12px;
 `
 

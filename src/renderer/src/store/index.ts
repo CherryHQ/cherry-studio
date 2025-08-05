@@ -1,4 +1,5 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { loggerService } from '@renderer/services/LoggerService'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -12,19 +13,23 @@ import inputToolsReducer from './inputTools'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
+import memory from './memory'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
 import nutstore from './nutstore'
-import ocr from './ocr'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
 import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
+import tabs from './tabs'
+import translate from './translate'
 import websearch from './websearch'
+
+const logger = loggerService.withContext('Store')
 
 const rootReducer = combineReducers({
   assistants,
@@ -35,27 +40,28 @@ const rootReducer = combineReducers({
   llm,
   settings,
   runtime,
-  ocr,
   shortcuts,
   knowledge,
   minapps,
   websearch,
   mcp,
+  memory,
   copilot,
   selectionStore,
-  // messages: messagesReducer,
+  tabs,
   preprocess,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
-  inputTools: inputToolsReducer
+  inputTools: inputToolsReducer,
+  translate
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 119,
-    blacklist: ['runtime', 'messages', 'messageBlocks'],
+    version: 127,
+    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
   rootReducer
@@ -97,5 +103,11 @@ export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
 window.store = store
+
+export async function handleSaveData() {
+  logger.info('Flushing redux persistor data')
+  await persistor.flush()
+  logger.info('Flushed redux persistor data')
+}
 
 export default store

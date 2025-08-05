@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
+
+const logger = loggerService.withContext('Utils:image')
 
 /**
  * 将文件转换为 Base64 编码的字符串或 ArrayBuffer。
@@ -41,7 +44,7 @@ export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
-      console.error('Error capturing div:', error)
+      logger.error('Error capturing div:', error as Error)
       return Promise.reject()
     }
   }
@@ -67,6 +70,9 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
       }
 
       const originalScrollTop = div.scrollTop
+
+      // Hide scrollbars during capture
+      div.classList.add('hide-scrollbar')
 
       // Modify styles to show full content
       div.style.height = 'auto'
@@ -132,8 +138,11 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       return imageData
     } catch (error) {
-      console.error('Error capturing scrollable div:', error)
+      logger.error('Error capturing scrollable div:', error as Error)
       throw error
+    } finally {
+      // Remove scrollbar hiding class
+      divRef.current?.classList.remove('hide-scrollbar')
     }
   }
 

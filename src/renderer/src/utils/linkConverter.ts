@@ -1,3 +1,5 @@
+import { WebSearchResponse, WebSearchSource } from '@renderer/types'
+
 // Counter for numbering links
 let linkCounter = 1
 // Buffer to hold incomplete link fragments across chunks
@@ -236,11 +238,13 @@ export function convertLinks(
         }
 
         // Rule 3: If the link text is not a URL/host, keep the text and add the numbered link
-        if (!isHost(linkText)) {
-          result += `${linkText} [<sup>${counter}</sup>](${url})`
-        } else {
-          // Rule 2: If the link text is a URL/host, replace with numbered link
+        // 增加一个条件：如果 linkText 是纯数字，也直接替换
+        if (isHost(linkText) || /^\d+$/.test(linkText)) {
+          // Rule 2: If the link text is a URL/host or purely digits, replace with numbered link
           result += `[<sup>${counter}</sup>](${url})`
+        } else {
+          // If the link text is neither a URL/host nor purely digits, keep the text and add the numbered link
+          result += `${linkText} [<sup>${counter}</sup>](${url})`
         }
 
         position += match[0].length
@@ -331,6 +335,25 @@ export function completeLinks(text: string, webSearch: any[]): string {
     // 检查 webSearch 数组中是否存在对应的 URL
     if (index >= 0 && index < webSearch.length && webSearch[index]?.link) {
       return `[<sup>${num}</sup>](${webSearch[index].link})`
+    }
+    // 如果没有找到对应的 URL，保持原样
+    return match
+  })
+}
+
+/**
+ * 根据webSearch结果补全链接，将[num]转换为[num](webSearch[num-1].url)
+ * @param {string} text 原始文本
+ * @param {any[]} webSearch webSearch结果
+ * @returns {string} 补全后的文本
+ */
+export function completionPerplexityLinks(text: string, webSearch: any[]): string {
+  return text.replace(/\[(\d+)\]/g, (match, numStr) => {
+    const num = parseInt(numStr)
+    const index = num - 1
+    // 检查 webSearch 数组中是否存在对应的 URL
+    if (index >= 0 && index < webSearch.length && webSearch[index].url) {
+      return `[${num}](${webSearch[index].url})`
     }
     // 如果没有找到对应的 URL，保持原样
     return match
@@ -463,8 +486,18 @@ export function extractWebSearchReferences(text: string): Array<{
 export function smartLinkConverter(
   text: string,
   providerType: string = 'openai',
-  resetCounter: boolean = false
+  resetCounter: boolean = false,
+  webSearchResults?: WebSearchResponse
 ): { text: string; hasBufferedContent: boolean } {
+  if (webSearchResults) {
+    const webSearch = webSearchResults.results
+    switch (webSearchResults.source) {
+      case WebSearchSource.PERPLEXITY: {
+        text = completionPerplexityLinks(text, webSearch as any[])
+        break
+      }
+    }
+  }
   // 检测文本中的引用模式
   const references = extractWebSearchReferences(text)
 

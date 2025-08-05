@@ -1,8 +1,9 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -14,10 +15,10 @@ import {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { SdkMessageParam } from '@renderer/types/sdk'
-import { isArray, isObject, pull, transform } from 'lodash'
+import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
+import { t } from 'i18next'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
 import {
@@ -27,247 +28,106 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
-import { CompletionsParams } from '../aiCore/middleware/schemas'
+import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
+import { filterProperties, processSchemaForO3 } from './mcp-schema'
+
+const logger = loggerService.withContext('Utils:MCPTools')
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
-const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
-
-// const ensureValidSchema = (obj: Record<string, any>) => {
-//   // Filter out unsupported keys for Gemini
-//   const filteredObj = filterUnsupportedKeys(obj)
-
-//   // Handle base schema properties
-//   const baseSchema = {
-//     description: filteredObj.description,
-//     nullable: filteredObj.nullable
-//   } as BaseSchema
-
-//   // Handle string type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
-//     if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
-//       return {
-//         ...baseSchema,
-//         type: SchemaType.STRING,
-//         format: 'enum',
-//         enum: filteredObj.enum as string[]
-//       } as EnumStringSchema
-//     }
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.STRING,
-//       format: filteredObj.format === 'date-time' ? 'date-time' : undefined
-//     } as SimpleStringSchema
-//   }
-
-//   // Handle number type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.NUMBER,
-//       format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
-//     } as NumberSchema
-//   }
-
-//   // Handle integer type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.INTEGER,
-//       format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
-//     } as IntegerSchema
-//   }
-
-//   // Handle boolean type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.BOOLEAN
-//     } as BooleanSchema
-//   }
-
-//   // Handle array type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.ARRAY,
-//       items: filteredObj.items
-//         ? ensureValidSchema(filteredObj.items as Record<string, any>)
-//         : ({ type: SchemaType.STRING } as SimpleStringSchema),
-//       minItems: filteredObj.minItems,
-//       maxItems: filteredObj.maxItems
-//     } as ArraySchema
-//   }
-
-//   // Handle object type (default)
-//   const properties = filteredObj.properties
-//     ? Object.fromEntries(
-//         Object.entries(filteredObj.properties).map(([key, value]) => [
-//           key,
-//           ensureValidSchema(value as Record<string, any>)
-//         ])
-//       )
-//     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
-
-//   return {
-//     ...baseSchema,
-//     type: SchemaType.OBJECT,
-//     properties,
-//     required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
-//   } as ObjectSchema
-// }
-
-// function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
-//   const supportedBaseKeys = ['description', 'nullable']
-//   const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
-//   const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
-//   const supportedBooleanKeys = [...supportedBaseKeys, 'type']
-//   const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
-//   const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
-
-//   const filtered: Record<string, any> = {}
-
-//   let keysToKeep: string[]
-
-//   if (obj.type?.toLowerCase() === SchemaType.STRING) {
-//     keysToKeep = supportedStringKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     keysToKeep = supportedBooleanKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     keysToKeep = supportedArrayKeys
-//   } else {
-//     // Default to object type
-//     keysToKeep = supportedObjectKeys
-//   }
-
-//   // copy supported keys
-//   for (const key of keysToKeep) {
-//     if (obj[key] !== undefined) {
-//       filtered[key] = obj[key]
-//     }
-//   }
-
-//   return filtered
-// }
-
-// function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
-//   const properties = tool.inputSchema.properties
-//   if (!properties) {
-//     return {}
-//   }
-
-//   // For OpenAI, we don't need to validate as strictly
-//   if (!filterNestedObj) {
-//     return properties
-//   }
-
-//   const processedProperties = Object.fromEntries(
-//     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-//   )
-
-//   return processedProperties
-// }
-
-export function filterProperties(
-  properties: Record<string, any> | string | number | boolean | Array<Record<string, any> | string | number | boolean>,
-  supportedKeys: string[]
-) {
-  // If it is an array, recursively process each element
-  if (isArray(properties)) {
-    return properties.map((item) => filterProperties(item, supportedKeys))
-  }
-
-  // If it is an object, recursively process each property
-  if (isObject(properties)) {
-    return transform(
-      properties,
-      (result, value, key) => {
-        if (key === 'properties') {
-          result[key] = transform(value, (acc, v, k) => {
-            acc[k] = filterProperties(v, supportedKeys)
-          })
-
-          result['additionalProperties'] = false
-          result['required'] = pull(Object.keys(value), ...EXTRA_SCHEMA_KEYS)
-        } else if (key === 'oneOf') {
-          // openai only supports anyOf
-          result['anyOf'] = filterProperties(value, supportedKeys)
-        } else if (supportedKeys.includes(key)) {
-          result[key] = filterProperties(value, supportedKeys)
-          if (key === 'type' && value === 'object') {
-            result['additionalProperties'] = false
-          }
-        }
-      },
-      {}
-    )
-  }
-
-  // Return other types directly (e.g., string, number, etc.)
-  return properties
-}
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
-  const schemaKeys = ['type', 'description', 'items', 'enum', 'additionalProperties', 'anyof']
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        name: tool.id,
-        parameters: {
-          type: 'object',
-          properties: filterProperties(tool.inputSchema, schemaKeys).properties,
-          required: pull(Object.keys(tool.inputSchema.properties), ...EXTRA_SCHEMA_KEYS),
-          additionalProperties: false
-        },
-        strict: true
-      }) satisfies OpenAI.Responses.Tool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      name: tool.id,
+      parameters: {
+        type: 'object' as const,
+        ...parameters
+      },
+      strict: true
+    } satisfies OpenAI.Responses.Tool
+  })
 }
 
 export function mcpToolsToOpenAIChatTools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: {
-            type: 'object',
-            properties: tool.inputSchema.properties,
-            required: tool.inputSchema.required
-          }
-        }
-      }) as ChatCompletionTool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      function: {
+        name: tool.id,
+        description: tool.description,
+        parameters: {
+          type: 'object' as const,
+          ...parameters
+        },
+        strict: true
+      }
+    } as ChatCompletionTool
+  })
 }
 
 export function openAIToolsToMcpTool(
   mcpTools: MCPTool[],
   toolCall: OpenAI.Responses.ResponseFunctionToolCall | ChatCompletionMessageToolCall
 ): MCPTool | undefined {
-  const tool = mcpTools.find((mcpTool) => {
+  let toolName = ''
+  try {
     if ('name' in toolCall) {
-      return mcpTool.id === toolCall.name || mcpTool.name === toolCall.name
+      toolName = toolCall.name
     } else {
-      return mcpTool.id === toolCall.function.name || mcpTool.name === toolCall.function.name
+      toolName = toolCall.function.name
     }
+  } catch (error) {
+    logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
+    window.message.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
+    return undefined
+  }
+  const tools = mcpTools.filter((mcpTool) => {
+    return mcpTool.id === toolName || mcpTool.name === toolName
   })
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
 
-  if (!tool) {
-    console.warn('No MCP Tool found for tool call:', toolCall)
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
 
-  return tool
+  return tools[0]
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
-  Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
+  logger.info(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
+
+  if (toolResponse.tool.name === 'think') {
+    const thought = toolResponse.arguments?.thought
+    return {
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: (thought as string) || ''
+        }
+      ]
+    }
+  }
+
+  return undefined
+}
+
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  topicId?: string,
+  modelName?: string
+): Promise<MCPCallToolResponse> {
+  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -275,11 +135,15 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments
-    })
+    const resp = await window.api.mcp.callTool(
+      {
+        server,
+        name: toolResponse.tool.name,
+        args: toolResponse.arguments,
+        callId: toolResponse.id
+      },
+      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+    )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
         const mcpServer: MCPServer = {
@@ -298,10 +162,10 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       }
     }
 
-    Logger.log(`[MCP] Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
+    logger.info(`Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
     return resp
   } catch (e) {
-    console.error(`[MCP] Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
+    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e as Error)
     return Promise.resolve({
       isError: true,
       content: [
@@ -328,11 +192,17 @@ export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> 
 
 export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolUse: ToolUseBlock): MCPTool | undefined {
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolUse.name)
-  if (!tool) {
+  const tools = mcpTools.filter((tool) => tool.id === toolUse.name)
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolUse.name}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
     return undefined
   }
-  return tool
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolUse.name}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
+  return tools[0]
 }
 
 /**
@@ -340,42 +210,16 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
  * @returns
  */
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[]): Tool[] {
-  /**
-   * @typedef {import('@google/genai').Schema} Schema
-   */
-  const schemaKeys = [
-    'example',
-    'pattern',
-    'default',
-    'maxLength',
-    'minLength',
-    'minProperties',
-    'maxProperties',
-    'anyOf',
-    'description',
-    'enum',
-    'format',
-    'items',
-    'maxItems',
-    'maximum',
-    'minItems',
-    'minimum',
-    'nullable',
-    'properties',
-    'propertyOrdering',
-    'required',
-    'title',
-    'type'
-  ]
   return [
     {
       functionDeclarations: mcpTools?.map((tool) => {
+        const filteredSchema = filterProperties(tool.inputSchema)
         return {
           name: tool.id,
           description: tool.description,
           parameters: {
             type: GeminiSchemaType.OBJECT,
-            properties: filterProperties(tool.inputSchema, schemaKeys).properties,
+            properties: filteredSchema.properties,
             required: tool.inputSchema.required
           }
         }
@@ -390,17 +234,29 @@ export function geminiFunctionCallToMcpTool(
 ): MCPTool | undefined {
   if (!toolCall) return undefined
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolCall.name)
-  if (!tool) {
+
+  const toolName = toolCall.name || toolCall.id
+  if (!toolName) return undefined
+
+  const tools = mcpTools.filter((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
+
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
-  return tool
+
+  return tools[0]
 }
 
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
+  onChunk: (chunk: MCPToolPendingChunk | MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
   let result = resp
@@ -416,10 +272,29 @@ export function upsertMCPToolResponse(
   } else {
     results.push(resp)
   }
-  onChunk({
-    type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
-    responses: [result]
-  })
+  switch (resp.status) {
+    case 'pending':
+      onChunk({
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [result]
+      })
+      break
+    case 'invoking':
+      onChunk({
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [result]
+      })
+      break
+    case 'cancelled':
+    case 'done':
+      onChunk({
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [result]
+      })
+      break
+    default:
+      break
+  }
 }
 
 export function filterMCPTools(
@@ -441,7 +316,15 @@ export function getMcpServerByTool(tool: MCPTool) {
   return servers.find((s) => s.id === tool.serverId)
 }
 
-export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseResponse[] {
+export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
+  if (tool.isBuiltIn) {
+    return true
+  }
+  const effectiveServer = server ?? getMcpServerByTool(tool)
+  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+}
+
+export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
@@ -461,7 +344,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
   const tools: ToolUseResponse[] = []
   let match
-  let idx = 0
+  let idx = startIdx
   // Find all tool use blocks
   while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     // const fullMatch = match[0]
@@ -477,9 +360,9 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
       parsedArgs = toolArgs
     }
     // Logger.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
-    const mcpTool = mcpTools.find((tool) => tool.id === toolName)
+    const mcpTool = mcpTools.find((tool) => tool.id === toolName || tool.name === toolName)
     if (!mcpTool) {
-      Logger.error(`Tool "${toolName}" not found in MCP tools`)
+      logger.error(`Tool "${toolName}" not found in MCP tools`)
       window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
       continue
     }
@@ -499,105 +382,45 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
   return tools
 }
 
-export async function parseAndCallTools<R>(
-  tools: MCPToolResponse[],
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
-  content: string,
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
-  content: string | MCPToolResponse[],
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<R[]> {
-  const toolResults: R[] = []
-  let curToolResponses: MCPToolResponse[] = []
-  if (Array.isArray(content)) {
-    curToolResponses = content
-  } else {
-    // process tool use
-    curToolResponses = parseToolUse(content, mcpTools || [])
-  }
-  if (!curToolResponses || curToolResponses.length === 0) {
-    return toolResults
-  }
-  for (let i = 0; i < curToolResponses.length; i++) {
-    const toolResponse = curToolResponses[i]
-    upsertMCPToolResponse(
-      allToolResponses,
-      {
-        ...toolResponse,
-        status: 'invoking'
-      },
-      onChunk!
-    )
-  }
-
-  const toolPromises = curToolResponses.map(async (toolResponse) => {
-    const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
-    upsertMCPToolResponse(
-      allToolResponses,
-      {
-        ...toolResponse,
-        status: 'done',
-        response: toolCallResponse
-      },
-      onChunk!
-    )
-
-    for (const content of toolCallResponse.content) {
-      if (content.type === 'image' && content.data) {
-        images.push(`data:${content.mimeType};base64,${content.data}`)
-      }
-    }
-
-    if (images.length) {
-      onChunk?.({
-        type: ChunkType.IMAGE_CREATED
-      })
-      onChunk?.({
-        type: ChunkType.IMAGE_COMPLETE,
-        image: {
-          type: 'base64',
-          images: images
-        }
-      })
-    }
-
-    return convertToMessage(toolResponse, toolCallResponse, model)
-  })
-
-  toolResults.push(...(await Promise.all(toolPromises)).filter((t) => typeof t !== 'undefined'))
-  return toolResults
-}
-
 export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
-  isVisionModel: boolean = false
+  isVisionModel: boolean = false,
+  isCompatibleMode: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
-
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
+  } else if (isCompatibleMode) {
+    let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content += (item.text || 'no content') + '\n'
+            break
+          case 'image':
+            // NOTE: 假设兼容模式下支持解析base64图片，虽然我觉得应该不支持
+            content += `Here is a image result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          case 'audio':
+            // NOTE: 假设兼容模式下支持解析base64音频，虽然我觉得应该不支持
+            content += `Here is a audio result: data:${item.mimeType};base64,${item.data}\n`
+            break
+          default:
+            content += `Here is a unsupported result type: ${item.type}\n`
+            break
+        }
+      }
+    } else {
+      content += JSON.stringify(resp.content)
+      content += '\n'
+    }
+
+    message.content = content
   } else {
     const content: ChatCompletionContentPart[] = [
       {
@@ -834,6 +657,163 @@ export function mcpToolCallResponseToGeminiMessage(
       })
     }
     message.parts = parts
+  }
+
+  return message
+}
+
+export function mcpToolsToAwsBedrockTools(mcpTools: MCPTool[]): Array<AwsBedrockSdkTool> {
+  return mcpTools.map((tool) => ({
+    toolSpec: {
+      name: tool.id,
+      description: tool.description,
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: tool.inputSchema?.properties
+            ? Object.fromEntries(
+                Object.entries(tool.inputSchema.properties).map(([key, value]) => [
+                  key,
+                  {
+                    type:
+                      typeof value === 'object' && value !== null && 'type' in value ? (value as any).type : 'string',
+                    description:
+                      typeof value === 'object' && value !== null && 'description' in value
+                        ? (value as any).description
+                        : undefined
+                  }
+                ])
+              )
+            : {},
+          required: tool.inputSchema?.required || []
+        }
+      }
+    }
+  }))
+}
+
+export function awsBedrockToolUseToMcpTool(
+  mcpTools: MCPTool[] | undefined,
+  toolCall: AwsBedrockSdkToolCall
+): MCPTool | undefined {
+  if (!toolCall) return undefined
+  if (!mcpTools) return undefined
+  const tool = mcpTools.find((tool) => tool.id === toolCall.name || tool.name === toolCall.name)
+  if (!tool) {
+    return undefined
+  }
+  return tool
+}
+
+export function mcpToolCallResponseToAwsBedrockMessage(
+  mcpToolResponse: MCPToolResponse,
+  resp: MCPCallToolResponse,
+  model: Model
+): AwsBedrockSdkMessageParam {
+  const message: AwsBedrockSdkMessageParam = {
+    role: 'user',
+    content: []
+  }
+
+  const toolUseId =
+    'toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId
+      ? mcpToolResponse.toolUseId
+      : 'toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId
+        ? mcpToolResponse.toolCallId
+        : 'unknown-tool-id'
+
+  if (resp.isError) {
+    message.content = [
+      {
+        toolResult: {
+          toolUseId: toolUseId,
+          content: [
+            {
+              text: `Error: ${JSON.stringify(resp.content)}`
+            }
+          ],
+          status: 'error'
+        }
+      }
+    ]
+  } else {
+    const toolResultContent: Array<{
+      json?: any
+      text?: string
+      image?: {
+        format: 'png' | 'jpeg' | 'gif' | 'webp'
+        source: {
+          bytes?: Uint8Array
+          s3Location?: {
+            uri: string
+            bucketOwner?: string
+          }
+        }
+      }
+    }> = []
+
+    if (isVisionModel(model)) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            toolResultContent.push({
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            if (item.data && item.mimeType) {
+              const awsImage = convertBase64ImageToAwsBedrockFormat(item.data, item.mimeType)
+              if (awsImage) {
+                toolResultContent.push({ image: awsImage })
+              } else {
+                toolResultContent.push({
+                  text: `[Image received: ${item.mimeType}, size: ${item.data?.length || 0} bytes]`
+                })
+              }
+            } else {
+              toolResultContent.push({
+                text: '[Image received but no data available]'
+              })
+            }
+            break
+          default:
+            toolResultContent.push({
+              text: `Unsupported content type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      // 对于非视觉模型，将所有内容合并为文本
+      const textContent = resp.content
+        .map((item) => {
+          if (item.type === 'text') {
+            return item.text
+          } else {
+            // 对于非文本内容，尝试转换为JSON格式
+            try {
+              return JSON.stringify(item)
+            } catch {
+              return `[${item.type} content]`
+            }
+          }
+        })
+        .join('\n')
+
+      toolResultContent.push({
+        text: textContent || 'Tool execution completed with no output'
+      })
+    }
+
+    message.content = [
+      {
+        toolResult: {
+          toolUseId: toolUseId,
+          content: toolResultContent,
+          status: 'success'
+        }
+      }
+    ]
   }
 
   return message

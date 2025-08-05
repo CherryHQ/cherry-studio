@@ -1,7 +1,7 @@
-import Logger from '@renderer/config/logger'
-import type { LegacyMessage as OldMessage, Topic } from '@renderer/types'
-import { FileTypes } from '@renderer/types' // Import FileTypes enum
-import { WebSearchSource } from '@renderer/types'
+import { loggerService } from '@logger'
+import { LanguagesEnum } from '@renderer/config/translate'
+import type { LanguageCode, LegacyMessage as OldMessage, Topic } from '@renderer/types'
+import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -22,6 +22,8 @@ import {
   createToolBlock,
   createTranslationBlock
 } from '../utils/messageUtils/create'
+
+const logger = loggerService.withContext('Database:Upgrades')
 
 export async function upgradeToV5(tx: Transaction): Promise<void> {
   const topics = await tx.table('topics').toArray()
@@ -91,7 +93,7 @@ function mapOldStatusToNewMessageStatus(oldStatus: OldMessage['status']): NewMes
 
 // --- UPDATED UPGRADE FUNCTION for Version 7 ---
 export async function upgradeToV7(tx: Transaction): Promise<void> {
-  Logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
+  logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
 
   const oldTopicsTable = tx.table('topics')
   const newBlocksTable = tx.table('message_blocks')
@@ -102,7 +104,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
     const blocksToCreate: MessageBlock[] = []
 
     if (!oldTopic.messages || !Array.isArray(oldTopic.messages)) {
-      console.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
+      logger.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
       topicUpdates[oldTopic.id] = { messages: [] }
       return
     }
@@ -303,8 +305,84 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
   const updateOperations = Object.entries(topicUpdates).map(([id, data]) => ({ key: id, changes: data }))
   if (updateOperations.length > 0) {
     await oldTopicsTable.bulkUpdate(updateOperations)
-    Logger.log(`Updated message references for ${updateOperations.length} topics.`)
+    logger.info(`Updated message references for ${updateOperations.length} topics.`)
   }
 
-  Logger.log('DB migration to version 7 finished successfully.')
+  logger.info('DB migration to version 7 finished successfully.')
+}
+
+export async function upgradeToV8(tx: Transaction): Promise<void> {
+  logger.info('DB migration to version 8 started')
+
+  const langMap: Record<string, LanguageCode> = {
+    english: 'en-us',
+    chinese: 'zh-cn',
+    'chinese-traditional': 'zh-tw',
+    japanese: 'ja-jp',
+    korean: 'ko-kr',
+    french: 'fr-fr',
+    german: 'de-de',
+    italian: 'it-it',
+    spanish: 'es-es',
+    portuguese: 'pt-pt',
+    russian: 'ru-ru',
+    polish: 'pl-pl',
+    arabic: 'ar-ar',
+    turkish: 'tr-tr',
+    thai: 'th-th',
+    vietnamese: 'vi-vn',
+    indonesian: 'id-id',
+    urdu: 'ur-pk',
+    malay: 'ms-my'
+  }
+
+  const settingsTable = tx.table('settings')
+  const defaultPair: [LanguageCode, LanguageCode] = [LanguagesEnum.enUS.langCode, LanguagesEnum.zhCN.langCode]
+  const originSource = (await settingsTable.get('translate:source:language'))?.value
+  const originTarget = (await settingsTable.get('translate:target:language'))?.value
+  const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value
+  let newSource, newTarget, newPair
+  logger.info('originSource: %o', originSource)
+  if (originSource === 'auto') {
+    newSource = 'auto'
+  } else {
+    newSource = langMap[originSource]
+    if (!newSource) {
+      newSource = LanguagesEnum.enUS.langCode
+    }
+  }
+
+  logger.info('originTarget: %o', originTarget)
+  newTarget = langMap[originTarget]
+  if (!newTarget) {
+    newTarget = LanguagesEnum.zhCN.langCode
+  }
+
+  logger.info('originPair: %o', originPair)
+  if (!originPair || !originPair[0] || !originPair[1]) {
+    newPair = defaultPair
+  } else {
+    newPair = [langMap[originPair[0]], langMap[originPair[1]]]
+  }
+
+  logger.info('DB migration to version 8: %o', { newSource, newTarget, newPair })
+
+  await settingsTable.put({ id: 'translate:bidirectional:pair', value: newPair })
+  await settingsTable.put({ id: 'translate:source:language', value: newSource })
+  await settingsTable.put({ id: 'translate:target:language', value: newTarget })
+
+  const histories = tx.table('translate_history')
+
+  for (const history of await histories.toArray()) {
+    try {
+      await tx.table('translate_history').put({
+        ...history,
+        sourceLanguage: langMap[history.sourceLanguage],
+        targetLanguage: langMap[history.targetLanguage]
+      })
+    } catch (error) {
+      logger.error('Error upgrading history:', error as Error)
+    }
+  }
+  logger.info('DB migration to version 8 finished.')
 }

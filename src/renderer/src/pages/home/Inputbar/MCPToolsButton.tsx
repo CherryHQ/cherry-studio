@@ -174,7 +174,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     }))
 
     newList.push({
-      label: t('settings.mcp.addServer') + '...',
+      label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
       action: () => navigate('/settings/mcp')
     })
@@ -183,12 +183,15 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       label: t('common.close'),
       description: t('settings.mcp.disable.description'),
       icon: <CircleX />,
-      isSelected: !(assistant.mcpServers && assistant.mcpServers.length > 0),
-      action: () => updateMcpEnabled(false)
+      isSelected: false,
+      action: () => {
+        updateMcpEnabled(false)
+        quickPanel.close()
+      }
     })
 
     return newList
-  }, [activedMcpServers, t, assistant.mcpServers, assistantMcpServers, navigate, updateMcpEnabled])
+  }, [activedMcpServers, t, assistantMcpServers, navigate, updateMcpEnabled, quickPanel])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
@@ -304,7 +307,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
         } catch (error: Error | any) {
           window.modal.error({
             title: t('common.error'),
-            content: error.message || t('settings.mcp.prompt.genericError')
+            content: error.message || t('settings.mcp.prompts.genericError')
           })
         }
       }
@@ -451,7 +454,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }))
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
+    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <SquareTerminal
           size={18}

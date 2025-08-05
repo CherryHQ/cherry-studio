@@ -1,13 +1,14 @@
-import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Divider, Tooltip } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { Tooltip, Typography } from 'antd'
+import { Plus } from 'lucide-react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,7 +26,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
-  const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
+  const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
@@ -69,6 +70,19 @@ const Assistants: FC<AssistantsTabProps> = ({
     [assistants, t, updateAssistants]
   )
 
+  const renderAddAssistantButton = useMemo(() => {
+    return (
+      <AssistantAddItem onClick={onCreateAssistant}>
+        <AddItemWrapper>
+          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.assistant.title') }}>
+            {t('chat.add.assistant.title')}
+          </Typography.Text>
+        </AddItemWrapper>
+      </AssistantAddItem>
+    )
+  }, [onCreateAssistant, t])
+
   if (assistantsTabSortType === 'tags') {
     return (
       <Container className="assistants-tab" ref={containerRef}>
@@ -87,12 +101,12 @@ const Assistants: FC<AssistantsTabProps> = ({
                       {group.tag}
                     </GroupTitleName>
                   </Tooltip>
-                  <Divider style={{ margin: '12px 0' }}></Divider>
+                  <GroupTitleDivider />
                 </GroupTitle>
               )}
               {!collapsedTags[group.tag] && (
                 <div>
-                  <DragableList
+                  <DraggableList
                     list={group.assistants}
                     onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
                     onDragStart={() => setDragging(true)}
@@ -106,30 +120,25 @@ const Assistants: FC<AssistantsTabProps> = ({
                         onSwitch={setActiveAssistant}
                         onDelete={onDelete}
                         addAgent={addAgent}
-                        addAssistant={addAssistant}
+                        copyAssistant={copyAssistant}
                         onCreateDefaultAssistant={onCreateDefaultAssistant}
                         handleSortByChange={handleSortByChange}
                       />
                     )}
-                  </DragableList>
+                  </DraggableList>
                 </div>
               )}
             </TagsContainer>
           ))}
         </div>
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
+        {renderAddAssistantButton}
       </Container>
     )
   }
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
+      <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
         onDragStart={() => setDragging(true)}
@@ -143,20 +152,13 @@ const Assistants: FC<AssistantsTabProps> = ({
             onSwitch={setActiveAssistant}
             onDelete={onDelete}
             addAgent={addAgent}
-            addAssistant={addAssistant}
+            copyAssistant={copyAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
             handleSortByChange={handleSortByChange}
           />
         )}
-      </DragableList>
-      {!dragging && (
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
-      )}
+      </DraggableList>
+      {!dragging && renderAddAssistantButton}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )
@@ -167,6 +169,7 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
+  margin-top: 3px;
 `
 
 const TagsContainer = styled.div`
@@ -187,23 +190,21 @@ const AssistantAddItem = styled.div`
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-background-soft);
-  }
-
-  &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item-hover);
   }
 `
 
 const GroupTitle = styled.div`
-  padding: 8px 0;
-  position: relative;
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: -8px;
   cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: 24px;
+  margin: 5px 0;
 `
 
 const GroupTitleName = styled.div`
@@ -211,22 +212,27 @@ const GroupTitleName = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  background-color: var(--color-background);
   box-sizing: border-box;
   padding: 0 4px;
   color: var(--color-text);
-  position: absolute;
-  transform: translateY(2px);
   font-size: 13px;
+  line-height: 24px;
+  margin-right: 5px;
+  display: flex;
 `
 
-const AssistantName = styled.div`
-  color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+const GroupTitleDivider = styled.div`
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+`
+
+const AddItemWrapper = styled.div`
+  color: var(--color-text-2);
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
 `
 
 export default Assistants

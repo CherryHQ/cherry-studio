@@ -24,7 +24,10 @@ export enum ConfigKeys {
   SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
   SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
-  SelectionAssistantFilterList = 'selectionAssistantFilterList'
+  SelectionAssistantFilterList = 'selectionAssistantFilterList',
+  DisableHardwareAcceleration = 'disableHardwareAcceleration',
+  Proxy = 'proxy',
+  EnableDeveloperMode = 'enableDeveloperMode'
 }
 
 export class ConfigManager {
@@ -218,8 +221,24 @@ export class ConfigManager {
     this.setAndNotify(ConfigKeys.SelectionAssistantFilterList, value)
   }
 
+  getDisableHardwareAcceleration(): boolean {
+    return this.get<boolean>(ConfigKeys.DisableHardwareAcceleration, false)
+  }
+
+  setDisableHardwareAcceleration(value: boolean) {
+    this.set(ConfigKeys.DisableHardwareAcceleration, value)
+  }
+
   setAndNotify(key: string, value: unknown) {
     this.set(key, value, true)
+  }
+
+  getEnableDeveloperMode(): boolean {
+    return this.get<boolean>(ConfigKeys.EnableDeveloperMode, false)
+  }
+
+  setEnableDeveloperMode(value: boolean) {
+    this.set(ConfigKeys.EnableDeveloperMode, value)
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

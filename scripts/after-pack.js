@@ -53,7 +53,7 @@ exports.default = async function (context) {
  * @param {string} nodeModulesPath
  */
 function removeMacOnlyPackages(nodeModulesPath) {
-  const macOnlyPackages = ['@cherrystudio/mac-system-ocr']
+  const macOnlyPackages = []
 
   macOnlyPackages.forEach((packageName) => {
     const packagePath = path.join(nodeModulesPath, packageName)

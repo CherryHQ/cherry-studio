@@ -1,8 +1,11 @@
 {
-  "singleQuote": true,
-  "semi": false,
-  "printWidth": 120,
-  "trailingComma": "none",
+  "bracketSameLine": true,
   "endOfLine": "lf",
-  "bracketSameLine": true
+  "jsonRecursiveSort": true,
+  "jsonSortOrder": "{\"*\": \"lexical\"}",
+  "plugins": ["prettier-plugin-sort-json"],
+  "printWidth": 120,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "none"
 }

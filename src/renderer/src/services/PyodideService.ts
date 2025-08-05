@@ -1,10 +1,29 @@
+import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils'
+
+const logger = loggerService.withContext('PyodideService')
+
+const SERVICE_CONFIG = {
+  WORKER: {
+    MAX_INIT_RETRY: 5, // 最大初始化重试次数
+    REQUEST_TIMEOUT: {
+      INIT: 30000, // 30 秒初始化超时
+      RUN: 60000 // 60 秒默认运行超时
+    }
+  }
+}
 
 // 定义结果类型接口
 export interface PyodideOutput {
   result: any
   text: string | null
   error: string | null
+  image?: string
+}
+
+export interface PyodideExecutionResult {
+  text: string
+  image?: string
 }
 
 /**
@@ -16,7 +35,6 @@ class PyodideService {
   private worker: Worker | null = null
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
-  private static readonly MAX_INIT_RETRY = 2
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
 
   private constructor() {
@@ -43,7 +61,7 @@ class PyodideService {
     if (this.worker) {
       return Promise.resolve()
     }
-    if (this.initRetryCount >= PyodideService.MAX_INIT_RETRY) {
+    if (this.initRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
       return Promise.reject(new Error('Pyodide worker initialization failed too many times'))
     }
 
@@ -62,7 +80,7 @@ class PyodideService {
             this.initPromise = null
             this.initRetryCount++
             reject(new Error('Pyodide initialization timeout'))
-          }, 10000) // 10秒初始化超时
+          }, SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT)
 
           // 设置初始化处理器
           const initHandler = (event: MessageEvent) => {
@@ -72,7 +90,7 @@ class PyodideService {
               this.initRetryCount = 0
               this.initPromise = null
               resolve()
-            } else if (event.data?.type === 'error') {
+            } else if (event.data?.type === 'init-error') {
               clearTimeout(timeout)
               this.worker?.removeEventListener('message', initHandler)
               this.worker?.terminate()
@@ -100,8 +118,16 @@ class PyodideService {
    * 处理来自 Worker 的消息
    */
   private handleMessage(event: MessageEvent): void {
+    const { type, error } = event.data
+
+    // 记录 Worker 错误消息
+    if (type === 'system-error') {
+      logger.error(error)
+      return
+    }
+
     // 忽略初始化消息，已由专门的处理器处理
-    if (event.data?.type === 'initialized' || event.data?.type === 'error') {
+    if (type === 'initialized' || type === 'init-error') {
       return
     }
 
@@ -122,17 +148,23 @@ class PyodideService {
    * @param timeout 超时时间（毫秒）
    * @returns 格式化后的执行结果
    */
-  public async runScript(script: string, context: Record<string, any> = {}, timeout: number = 60000): Promise<string> {
+  public async runScript(
+    script: string,
+    context: Record<string, any> = {},
+    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
+  ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
     try {
       await this.initialize()
     } catch (error: unknown) {
-      console.error('Pyodide initialization failed, cannot execute Python code', error)
-      return `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      logger.error('Pyodide initialization failed, cannot execute Python code', error as Error)
+      const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      return { text }
     }
 
     if (!this.worker) {
-      return 'Internal error: Pyodide worker is not initialized'
+      const text = 'Internal error: Pyodide worker is not initialized'
+      return { text }
     }
 
     try {
@@ -163,9 +195,10 @@ class PyodideService {
         })
       })
 
-      return this.formatOutput(output)
+      return { text: this.formatOutput(output), image: output.image }
     } catch (error: unknown) {
-      return `Internal error: ${error instanceof Error ? error.message : String(error)}`
+      const text = `Internal error: ${error instanceof Error ? error.message : String(error)}`
+      return { text }
     }
   }
 
@@ -197,7 +230,7 @@ class PyodideService {
     // 如果有错误信息，附加显示
     if (output.error) {
       if (displayText) displayText += '\n\n'
-      displayText += `Error: ${output.error.trim()}`
+      displayText += output.error.trim()
     }
 
     // 如果没有任何输出，提供清晰提示
@@ -206,6 +239,23 @@ class PyodideService {
     }
 
     return displayText
+  }
+
+  /**
+   * 重置 Pyodide Worker
+   * 该方法会销毁当前的 Worker 并重新创建一个新的实例，
+   * 用于处理模块缓存或文件系统状态污染等罕见问题。
+   */
+  public async resetWorker(): Promise<void> {
+    logger.verbose('Resetting Pyodide worker...')
+    this.terminate()
+    try {
+      await this.initialize()
+      logger.verbose('Pyodide worker has been reset successfully.')
+    } catch (error) {
+      logger.error('Failed to re-initialize Pyodide worker after reset.', error as Error)
+      throw error
+    }
   }
 
   /**
@@ -247,13 +297,13 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
 
   window.electron.ipcRenderer.on('python-execution-request', async (_, request: PythonExecutionRequest) => {
     try {
-      const result = await pyodideService.runScript(request.script, request.context, request.timeout)
+      const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
       const response: PythonExecutionResponse = {
         id: request.id,
-        result
+        result: text
       }
       window.electron.ipcRenderer.send('python-execution-response', response)
-    } catch (error) {
+    } catch (error: unknown) {
       const response: PythonExecutionResponse = {
         id: request.id,
         error: error instanceof Error ? error.message : String(error)

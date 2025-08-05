@@ -5,7 +5,8 @@ import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.p
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
-import { Provider } from '@renderer/types'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
@@ -15,8 +16,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  provider: Provider
-  setApiKey: (apiKey: string) => void
+  providerId: string
 }
 
 const PROVIDER_LOGO_MAP = {
@@ -26,13 +26,18 @@ const PROVIDER_LOGO_MAP = {
   tokenflux: TokenFluxProviderLogo
 }
 
-const ProviderOAuth: FC<Props> = ({ provider, setApiKey }) => {
+const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
+  const { provider, updateProvider } = useProvider(providerId)
+
+  const setApiKey = (newKey: string) => {
+    updateProvider({ apiKey: newKey })
+  }
 
   let providerWebsite =
     PROVIDER_CONFIG[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
   if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.cn'
+    providerWebsite = 'ppio.com'
   }
 
   return (
@@ -40,7 +45,7 @@ const ProviderOAuth: FC<Props> = ({ provider, setApiKey }) => {
       <ProviderLogo src={PROVIDER_LOGO_MAP[provider.id]} />
       {isEmpty(provider.apiKey) ? (
         <OAuthButton provider={provider} onSuccess={setApiKey}>
-          {t('settings.provider.oauth.button', { provider: t(`provider.${provider.id}`) })}
+          {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
         <HStack gap={10}>

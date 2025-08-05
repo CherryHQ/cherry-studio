@@ -98,6 +98,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       title={t('agents.import.title')}
       open={open}
       onCancel={onCancel}
+      maskClosable={false}
       footer={
         <Flex justify="end" gap={8}>
           <Button onClick={onCancel}>{t('common.cancel')}</Button>

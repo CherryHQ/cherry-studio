@@ -1,14 +1,14 @@
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
-import { FC } from 'react'
+import { PlusIcon } from 'lucide-react'
+import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,6 +33,9 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+
+  const reversedItems = useMemo(() => [...noteItems].reverse(), [noteItems])
+  const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
     return null
@@ -61,7 +64,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddNote()
@@ -72,34 +75,49 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       </ItemHeader>
       <ItemFlexColumn>
         {noteItems.length === 0 && <KnowledgeEmptyView />}
-        {noteItems.reverse().map((note) => (
-          <FileItem
-            key={note.id}
-            fileInfo={{
-              name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
-              ext: '.txt',
-              extra: getDisplayTime(note),
-              actions: (
-                <FlexAlignCenter>
-                  <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
-                  <StatusIconWrapper>
-                    <StatusIcon sourceId={note.id} base={base} getProcessingStatus={getProcessingStatus} type="note" />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              )
-            }}
-          />
-        ))}
+        <DynamicVirtualList
+          list={reversedItems}
+          estimateSize={estimateSize}
+          overscan={2}
+          scrollerStyle={{ paddingRight: 2 }}
+          itemContainerStyle={{ paddingBottom: 10 }}
+          autoHideScrollbar>
+          {(note) => (
+            <FileItem
+              key={note.id}
+              fileInfo={{
+                name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
+                ext: '.txt',
+                extra: getDisplayTime(note),
+                actions: (
+                  <FlexAlignCenter>
+                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditIcon size={14} />} />
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={note.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        type="note"
+                      />
+                    </StatusIconWrapper>
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(note)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
+                    />
+                  </FlexAlignCenter>
+                )
+              }}
+            />
+          )}
+        </DynamicVirtualList>
       </ItemFlexColumn>
     </ItemContainer>
   )
 }
 
-const ItemFlexColumn = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+const ItemFlexColumn = styled.div`
   padding: 20px 16px;
   height: calc(100vh - 135px);
 `

@@ -32,7 +32,7 @@ const MCPSettings: FC = () => {
       <MainContainer>
         <Routes>
           <Route path="/" element={<McpServersList />} />
-          <Route path="settings" element={<McpSettings />} />
+          <Route path="settings/:serverId" element={<McpSettings />} />
           <Route
             path="npx-search"
             element={

@@ -1,4 +1,4 @@
-[中文](./docs/CONTRIBUTING.zh.md) | [English](./CONTRIBUTING.md)
+[中文](docs/CONTRIBUTING.zh.md) | [English](CONTRIBUTING.md)
 
 # Cherry Studio Contributor Guide
 
@@ -57,6 +57,10 @@ git commit --signoff -m "Your commit message"
 ### Getting Code Reviewed/Merged
 
 Maintainers are here to help you implement your use case within a reasonable timeframe. They will do their best to review your code and provide constructive feedback promptly. However, if you get stuck during the review process or feel your Pull Request is not receiving the attention it deserves, please contact us via comments in the Issue or through the [Community](README.md#-community).
+
+### Participating in the Test Plan
+
+The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/testplan-en.md).
 
 ### Other Suggestions
 

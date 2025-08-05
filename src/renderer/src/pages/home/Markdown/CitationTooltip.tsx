@@ -32,7 +32,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   // 自定义悬浮卡片内容
   const tooltipContent = useMemo(
     () => (
-      <div>
+      <div style={{ userSelect: 'text' }}>
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
