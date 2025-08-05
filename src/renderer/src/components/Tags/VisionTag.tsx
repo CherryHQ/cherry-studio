@@ -6,10 +6,10 @@ import CustomTag, { CustomTagProps } from './CustomTag'
 type Props = {
   size?: number
   showTooltip?: boolean
-  shouldShowLabel?: boolean
+  showLabel?: boolean
 } & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const VisionTag = ({ size, showTooltip, shouldShowLabel, ...restProps }: Props) => {
+export const VisionTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
 
   return (
@@ -19,7 +19,7 @@ export const VisionTag = ({ size, showTooltip, shouldShowLabel, ...restProps }: 
       icon={<EyeOutlined style={{ fontSize: size }} />}
       tooltip={showTooltip ? t('models.type.vision') : undefined}
       {...restProps}>
-      {shouldShowLabel ? t('models.type.vision') : ''}
+      {showLabel ? t('models.type.vision') : ''}
     </CustomTag>
   )
 }

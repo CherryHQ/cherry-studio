@@ -6,10 +6,10 @@ import CustomTag, { CustomTagProps } from './CustomTag'
 type Props = {
   size?: number
   showTooltip?: boolean
-  shouldShowLabel?: boolean
+  showLabel?: boolean
 } & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const ToolsCallingTag = ({ size, showTooltip, shouldShowLabel, ...restProps }: Props) => {
+export const ToolsCallingTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
   return (
     <CustomTag
@@ -18,7 +18,7 @@ export const ToolsCallingTag = ({ size, showTooltip, shouldShowLabel, ...restPro
       icon={<ToolOutlined style={{ fontSize: size }} />}
       tooltip={showTooltip ? t('models.type.function_calling') : undefined}
       {...restProps}>
-      {shouldShowLabel ? t('models.type.function_calling') : ''}
+      {showLabel ? t('models.type.function_calling') : ''}
     </CustomTag>
   )
 }

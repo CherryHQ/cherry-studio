@@ -6,10 +6,10 @@ import CustomTag, { CustomTagProps } from './CustomTag'
 type Props = {
   size?: number
   showTooltip?: boolean
-  shouldShowLabel?: boolean
+  showLabel?: boolean
 } & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const WebSearchTag = ({ size, showTooltip, shouldShowLabel, ...restProps }: Props) => {
+export const WebSearchTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
 
   return (
@@ -19,7 +19,7 @@ export const WebSearchTag = ({ size, showTooltip, shouldShowLabel, ...restProps 
       icon={<GlobalOutlined style={{ fontSize: size }} />}
       tooltip={showTooltip ? t('models.type.websearch') : undefined}
       {...restProps}>
-      {shouldShowLabel ? t('models.type.websearch') : ''}
+      {showLabel ? t('models.type.websearch') : ''}
     </CustomTag>
   )
 }
