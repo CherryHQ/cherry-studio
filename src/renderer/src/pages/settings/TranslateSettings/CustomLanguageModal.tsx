@@ -50,7 +50,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
   )
 
   const formItemLayout = {
-    labelCol: { span: 6 },
+    labelCol: { span: 8 },
     wrapperCol: { span: 16 }
   }
 
