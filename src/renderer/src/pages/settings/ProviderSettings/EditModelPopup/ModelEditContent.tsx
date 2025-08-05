@@ -4,6 +4,7 @@ import { ReasoningTag } from '@renderer/components/Tags/ReasoningTag'
 import { RerankerTag } from '@renderer/components/Tags/RerankerTag'
 import { ToolsCallingTag } from '@renderer/components/Tags/ToolsCallingTag'
 import { VisionTag } from '@renderer/components/Tags/VisionTag'
+import WarnTooltip from '@renderer/components/Tags/WarnTooltip'
 import { WebSearchTag } from '@renderer/components/Tags/WebSearchTag'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {
@@ -17,20 +18,7 @@ import {
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
-import {
-  Button,
-  Divider,
-  Flex,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Modal,
-  ModalProps,
-  Select,
-  Space,
-  Switch
-} from 'antd'
+import { Button, Divider, Flex, Form, Input, InputNumber, message, Modal, ModalProps, Select, Switch } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -262,10 +250,21 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
       setHasUserModified(false) // 重置后清除修改标志
     }
 
+    const handleUpdateType = (type: ModelType) => {
+      if (modelCapabilities.map((t) => t.type).includes(type)) {
+        setModelCapabilities((prev) => prev.filter((t) => t.type !== type))
+      } else {
+        setModelCapabilities((prev) => [...prev, { type, isUserSelected: true }])
+      }
+    }
+
     return (
       <>
         <TypeTitle>
-          {t('models.type.select')}
+          <Flex align="center" gap={4}>
+            {t('models.type.select')}
+            <WarnTooltip title={t('settings.moresetting.check.warn')} />
+          </Flex>
 
           {!hasUserModified && (
             <Button size="small" onClick={handleResetTypes}>
@@ -273,21 +272,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             </Button>
           )}
         </TypeTitle>
-        <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-          <Space>
-            <VisionTag
-              showLabel
-              disabled
-              onClick={() => {
-                console.log('test')
-              }}
-            />
-            <WebSearchTag showLabel disabled />
-            <RerankerTag disabled />
-            <EmbeddingTag disabled />
-            <ReasoningTag showLabel disabled />
-            <ToolsCallingTag showLabel disabled />
-          </Space>
+        <Flex justify="flex-start" align="center" gap={4} style={{ marginBottom: 8 }}>
+          <VisionTag showLabel disabled={selectedTypes.includes('vision')} onClick={() => handleUpdateType('vision')} />
+          <WebSearchTag showLabel disabled />
+          <RerankerTag disabled />
+          <EmbeddingTag disabled />
+          <ReasoningTag showLabel disabled />
+          <ToolsCallingTag showLabel disabled />
         </Flex>
       </>
     )
