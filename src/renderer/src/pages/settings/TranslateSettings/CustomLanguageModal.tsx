@@ -97,6 +97,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       title={title}
       footer={footer}
       onCancel={onCancel}
+      maskClosable={false}
       forceRender
       styles={{
         body: {
