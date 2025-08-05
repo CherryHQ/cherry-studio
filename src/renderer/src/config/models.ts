@@ -191,7 +191,9 @@ const visionAllowedModels = [
   `gemma3(?:-[\\w-]+)`,
   'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
   'llama-guard-4(?:-[\\w-]+)?',
-  'llama-4(?:-[\\w-]+)?'
+  'llama-4(?:-[\\w-]+)?',
+  'step-1o(?:.*vision)?',
+  'step-1v(?:-[\\w-]+)?'
 ]
 
 const visionExcludedModels = [
@@ -2589,6 +2591,7 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
   )
 }
 
+/** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
 export function isSupportedThinkingTokenModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2801,6 +2804,14 @@ export const isZhipuReasoningModel = (model?: Model): boolean => {
   return isSupportedThinkingTokenZhipuModel(model) || model.id.toLowerCase().includes('glm-z1')
 }
 
+export const isStepReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const baseName = getLowerBaseModelName(model.id)
+  return baseName.includes('step-3') || baseName.includes('step-r1-v-mini')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -2828,6 +2839,7 @@ export function isReasoningModel(model?: Model): boolean {
     isHunyuanReasoningModel(model) ||
     isPerplexityReasoningModel(model) ||
     isZhipuReasoningModel(model) ||
+    isStepReasoningModel(model) ||
     model.id.toLowerCase().includes('magistral') ||
     model.id.toLowerCase().includes('minimax-m1') ||
     model.id.toLowerCase().includes('pangu-pro-moe')
