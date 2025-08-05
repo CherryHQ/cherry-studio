@@ -3442,7 +3442,7 @@
         },
         "langCode": {
           "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
-          "label": "language code",
+          "label": "Language code",
           "placeholder": "en-us"
         },
         "success": {
