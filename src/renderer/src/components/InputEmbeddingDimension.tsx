@@ -77,10 +77,9 @@ const InputEmbeddingDimension = ({
         <Button
           role="button"
           aria-label="Get embedding dimension"
-          icon={<RefreshIcon size={16} />}
-          loading={loading}
-          disabled={disabled}
+          disabled={disabled || loading}
           onClick={handleFetchDimension}
+          icon={<RefreshIcon size={16} className={loading ? 'animation-rotate' : ''} />}
         />
       </Tooltip>
     </Space.Compact>

@@ -30,8 +30,8 @@ export const abortCompletion = (id: string) => {
   }
 }
 
-export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<string>) {
-  return new Promise<string>((_resolve, reject) => {
+export function createAbortPromise<T>(signal: AbortSignal, finallyPromise: Promise<T>) {
+  return new Promise<T>((_resolve, reject) => {
     if (signal.aborted) {
       reject(new DOMException('Operation aborted', 'AbortError'))
       return

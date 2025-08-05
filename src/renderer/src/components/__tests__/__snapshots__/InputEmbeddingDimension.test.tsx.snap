@@ -23,6 +23,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
     >
       <svg
         aria-label="refresh"
+        class=""
         data-testid="refresh-icon"
         role="img"
         size="16"
@@ -56,7 +57,15 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
       role="button"
       type="button"
     >
-      Loading...
+      <svg
+        aria-label="refresh"
+        class="animation-rotate"
+        data-testid="refresh-icon"
+        role="img"
+        size="16"
+      >
+        RefreshIcon
+      </svg>
     </button>
   </div>
 </div>
