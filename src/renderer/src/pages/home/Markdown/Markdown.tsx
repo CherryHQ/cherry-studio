@@ -1,6 +1,7 @@
 import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
+import 'remark-github-blockquote-alert/alert.css'
 
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
@@ -22,6 +23,7 @@ import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
+import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
 import { Pluggable } from 'unified'
 
@@ -90,6 +92,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const remarkPlugins = useMemo(() => {
     const plugins = [
       [remarkGfm, { singleTilde: false }] as Pluggable,
+      [remarkAlert] as Pluggable,
       remarkCjkFriendly,
       remarkDisableConstructs(['codeIndented'])
     ]

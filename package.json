@@ -243,6 +243,7 @@
     "rehype-raw": "^7.0.0",
     "remark-cjk-friendly": "^1.2.0",
     "remark-gfm": "^4.0.1",
+    "remark-github-blockquote-alert": "^2.0.0",
     "remark-math": "^6.0.0",
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",

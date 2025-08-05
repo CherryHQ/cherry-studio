@@ -7814,6 +7814,7 @@ __metadata:
     rehype-raw: "npm:^7.0.0"
     remark-cjk-friendly: "npm:^1.2.0"
     remark-gfm: "npm:^4.0.1"
+    remark-github-blockquote-alert: "npm:^2.0.0"
     remark-math: "npm:^6.0.0"
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
@@ -18699,6 +18700,15 @@ __metadata:
     remark-stringify: "npm:^11.0.0"
     unified: "npm:^11.0.0"
   checksum: 10c0/427ecc6af3e76222662061a5f670a3e4e33ec5fffe2cabf04034da6a3f9a1bda1fc023e838a636385ba314e66e2bebbf017ca61ebea357eb0f5200fe0625a4b7
+  languageName: node
+  linkType: hard
+
+"remark-github-blockquote-alert@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "remark-github-blockquote-alert@npm:2.0.0"
+  dependencies:
+    unist-util-visit: "npm:^5.0.0"
+  checksum: 10c0/7a84d5889b94ee2b7feba6b6d41d4b08025b38d752cfb8de2cd216ed61b768db7f706ef9d76eb484ce98b72b01a3005c0b2e08231d07d7cffe4538f91ca25dde
   languageName: node
   linkType: hard
 
