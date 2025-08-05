@@ -242,7 +242,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
   }
 
   return (
-    <Modal title={t('models.edit')} footer={null} transitionName="animation-move-down" width={600} centered {...props}>
+    <Modal title={t('models.edit')} footer={null} transitionName="animation-move-down" centered {...props}>
       <Form
         form={form}
         labelCol={{ flex: provider.id === 'new-api' ? labelWidth : '110px' }}
