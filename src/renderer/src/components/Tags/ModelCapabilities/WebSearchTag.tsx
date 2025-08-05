@@ -1,7 +1,7 @@
 import { GlobalOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 
-import CustomTag, { CustomTagProps } from './CustomTag'
+import CustomTag, { CustomTagProps } from '../CustomTag'
 
 type Props = {
   size?: number

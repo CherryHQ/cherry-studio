@@ -15,11 +15,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CustomTag from './Tags/CustomTag'
-import { EmbeddingTag } from './Tags/EmbeddingTag'
-import { ReasoningTag } from './Tags/ReasoningTag'
-import { RerankerTag } from './Tags/RerankerTag'
-import { ToolsCallingTag } from './Tags/ToolsCallingTag'
-import { VisionTag } from './Tags/VisionTag'
+import { EmbeddingTag, ReasoningTag, RerankerTag, ToolsCallingTag, VisionTag } from './Tags/ModelCapabilities'
 
 interface ModelTagsProps {
   model: Model
