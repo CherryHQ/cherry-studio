@@ -2705,11 +2705,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   if (baseName.startsWith('qwen3')) {
-    if (baseName.includes('instruct')) {
+    // NOTE: thinking系列不支持控制思考
+    if (baseName.includes('instruct') || baseName.includes('thinking')) {
       return false
-    }
-    if (baseName.includes('thinking')) {
-      return true
     }
     return true
   }
