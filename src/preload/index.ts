@@ -40,6 +40,7 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
+  getDiskInfo: () => ipcRenderer.invoke(IpcChannel.App_GetDiskInfo),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
   setProxy: (proxy: string | undefined, bypassRules?: string) =>
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),

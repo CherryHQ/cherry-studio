@@ -12,7 +12,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
-
+import checkDiskSpace from 'check-disk-space'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -699,4 +699,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
+    try {
+      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
+      const { free, size } = diskSpace
+      return {
+        free,
+        size
+      }
+    } catch (error) {
+      logger.error('check disk space error', error as Error)
+      return null
+    }
+  })
 }
