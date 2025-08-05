@@ -443,6 +443,10 @@ export class WindowService {
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      return this.miniWindow
+    }
+
     const miniWindowState = windowStateKeeper({
       defaultWidth: DEFAULT_MINIWINDOW_WIDTH,
       defaultHeight: DEFAULT_MINIWINDOW_HEIGHT,
@@ -479,6 +483,8 @@ export class WindowService {
         webviewTag: true
       }
     })
+
+    miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
     this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -579,7 +585,11 @@ export class WindowService {
       return
     }
 
-    this.miniWindow = this.createMiniWindow()
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      this.miniWindow = this.createMiniWindow()
+    }
+
+    this.miniWindow.show()
   }
 
   public hideMiniWindow() {
