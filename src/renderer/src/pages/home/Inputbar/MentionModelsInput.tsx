@@ -1,4 +1,4 @@
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'

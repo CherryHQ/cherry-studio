@@ -1,7 +1,7 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import CustomTag from '@renderer/components/CustomTag'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
