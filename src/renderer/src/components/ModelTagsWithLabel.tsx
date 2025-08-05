@@ -1,4 +1,3 @@
-import { GlobalOutlined } from '@ant-design/icons'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -15,7 +14,14 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CustomTag from './Tags/CustomTag'
-import { EmbeddingTag, ReasoningTag, RerankerTag, ToolsCallingTag, VisionTag } from './Tags/ModelCapabilities'
+import {
+  EmbeddingTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from './Tags/ModelCapabilities'
 
 interface ModelTagsProps {
   model: Model
@@ -72,15 +78,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   return (
     <Container ref={containerRef} style={style}>
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
-      {isWebSearchModel(model) && (
-        <CustomTag
-          size={size}
-          color="#1677ff"
-          icon={<GlobalOutlined style={{ fontSize: size }} />}
-          tooltip={showTooltip ? t('models.type.websearch') : undefined}>
-          {shouldShowLabel ? t('models.type.websearch') : ''}
-        </CustomTag>
-      )}
+      {isWebSearchModel(model) && <WebSearchTag showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
         <ReasoningTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
