@@ -4,6 +4,7 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
@@ -71,8 +72,21 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
-  const [editingTopicName, setEditingTopicName] = useState('')
-  const editInputRef = useRef<HTMLInputElement>(null)
+
+  const topicEdit = useInPlaceEdit({
+    onSave: (name: string) => {
+      const topic = assistant.topics.find((t) => t.id === editingTopicId)
+      if (topic && name !== topic.name) {
+        const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+        updateTopic(updatedTopic)
+        window.message.success(t('common.saved'))
+      }
+      setEditingTopicId(null)
+    },
+    onCancel: () => {
+      setEditingTopicId(null)
+    }
+  })
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
   const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
@@ -129,53 +143,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       setDeletingTopicId(null)
     },
     [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
-  )
-
-  const handleSaveEdit = useCallback(
-    (topicId: string) => {
-      const topic = assistant.topics.find((t) => t.id === topicId)
-      if (topic && editingTopicName.trim() && editingTopicName !== topic.name) {
-        const updatedTopic = { ...topic, name: editingTopicName.trim(), isNameManuallyEdited: true }
-        updateTopic(updatedTopic)
-      }
-      setEditingTopicId(null)
-      setEditingTopicName('')
-    },
-    [assistant.topics, editingTopicName, updateTopic]
-  )
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (editingTopicId && editInputRef.current && !editInputRef.current.contains(event.target as Node)) {
-        handleSaveEdit(editingTopicId)
-      }
-    }
-
-    if (editingTopicId) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-    return
-  }, [editingTopicId, handleSaveEdit])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingTopicId(null)
-    setEditingTopicName('')
-  }, [])
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent, topicId: string) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        handleSaveEdit(topicId)
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
-        handleCancelEdit()
-      }
-    },
-    [handleSaveEdit, handleCancelEdit]
   )
 
   const onPinTopic = useCallback(
@@ -255,11 +222,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         disabled: isRenaming(topic.id),
         onClick() {
           setEditingTopicId(topic.id)
-          setEditingTopicName(topic.name)
-          setTimeout(() => {
-            editInputRef.current?.focus()
-            editInputRef.current?.select()
-          }, 0)
+          topicEdit.startEdit(topic.name)
         }
       },
       {
@@ -462,6 +425,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     assistants,
     assistant,
     updateTopic,
+    topicEdit,
     activeTopic.id,
     setActiveTopic,
     onPinTopic,
@@ -515,17 +479,20 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id ? undefined : () => onSwitchTopic(topic)}
-              style={{ borderRadius, cursor: editingTopicId === topic.id ? 'default' : 'pointer' }}>
+              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
+              style={{
+                borderRadius,
+                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
+              }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
-                {editingTopicId === topic.id ? (
+                {editingTopicId === topic.id && topicEdit.isEditing ? (
                   <TopicEditInput
-                    ref={editInputRef}
-                    value={editingTopicName}
-                    onChange={(e) => setEditingTopicName(e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, topic.id)}
+                    ref={topicEdit.inputRef}
+                    value={topicEdit.editValue}
+                    onChange={topicEdit.handleInputChange}
+                    onKeyDown={topicEdit.handleKeyDown}
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
