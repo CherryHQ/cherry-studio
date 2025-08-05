@@ -1,3 +1,5 @@
+import { TopicManager } from '@renderer/hooks/useTopic'
+import i18n from '@renderer/i18n'
 import type { FileType, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import type {
@@ -293,7 +295,6 @@ function processFileBlocks(block: MessageBlock): FileType | null {
  */
 export async function analyzeTopicContent(topic: Topic): Promise<TopicContentStats> {
   // 获取话题的所有消息
-  const { TopicManager } = await import('@renderer/hooks/useTopic')
   const messages = await TopicManager.getTopicMessages(topic.id)
 
   const stats: TopicContentStats = {
@@ -337,7 +338,6 @@ export async function analyzeTopicContent(topic: Topic): Promise<TopicContentSta
  */
 export async function processTopicContent(topic: Topic, selectedTypes: ContentType[]): Promise<TopicPreprocessResult> {
   // 获取话题的所有消息
-  const { TopicManager } = await import('@renderer/hooks/useTopic')
   const messages = await TopicManager.getTopicMessages(topic.id)
 
   const textParts: string[] = []
@@ -348,8 +348,6 @@ export async function processTopicContent(topic: Topic, selectedTypes: ContentTy
   if (selectedTypeSet.has(CONTENT_TYPES.TEXT)) {
     textParts.push(`# ${topic.name}`)
   }
-
-  const { default: i18n } = await import('@renderer/i18n')
 
   // 处理每个消息
   for (const message of messages) {
