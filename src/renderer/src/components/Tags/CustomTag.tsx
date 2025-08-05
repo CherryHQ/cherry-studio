@@ -29,7 +29,7 @@ const CustomTag: FC<CustomTagProps> = ({
   const actualColor = disabled ? '#aaaaaa' : color
   const tagContent = useMemo(
     () => (
-      <Tag $color={actualColor} $size={size} $closable={closable} onClick={onClick}>
+      <Tag $color={actualColor} $size={size} $closable={closable} $clickable={onClick !== undefined} onClick={onClick}>
         {icon && icon} {children}
         {closable && (
           <CloseIcon
@@ -43,7 +43,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </Tag>
     ),
-    [actualColor, children, closable, icon, onClose, size]
+    [actualColor, children, closable, icon, onClick, onClose, size]
   )
 
   return tooltip ? (
@@ -57,7 +57,8 @@ const CustomTag: FC<CustomTagProps> = ({
 
 export default memo(CustomTag)
 
-const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
+const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $clickable }>`
+  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
   display: inline-flex;
   align-items: center;
   gap: 4px;
