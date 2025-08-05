@@ -1,0 +1,36 @@
+id: openai/codex-mini
+canonical_slug: openai/codex-mini
+hugging_face_id: ''
+name: 'OpenAI: Codex Mini'
+type: chat
+created: 1747409761
+description: codex-mini-latest is a fine-tuned version of o4-mini specifically for use in Codex CLI. For direct use in the API, we recommend starting with gpt-4.1.
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - image
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.0000015'
+  completion: '0.000006'
+  input_cache_read: '0.000000375'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - seed
+  - max_tokens
+  - response_format
+  - structured_outputs
+model_provider: openai

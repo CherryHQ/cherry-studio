@@ -1,0 +1,39 @@
+id: amazon/nova-lite-v1
+canonical_slug: amazon/nova-lite-v1
+hugging_face_id: ''
+name: 'Amazon: Nova Lite 1.0'
+type: chat
+created: 1733437363
+description: |-
+  Amazon Nova Lite 1.0 is a very low-cost multimodal model from Amazon that focused on fast processing of image, video, and text inputs to generate text output. Amazon Nova Lite can handle real-time customer interactions, document analysis, and visual question-answering tasks with high accuracy.
+
+  With an input context of 300K tokens, it can analyze multiple images or up to 30 minutes of video in a single input.
+context_length: 300000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Nova
+  instruct_type: null
+pricing:
+  prompt: '0.00000006'
+  completion: '0.00000024'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0.00009'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: amazon

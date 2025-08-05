@@ -1,0 +1,44 @@
+id: anthracite-org/magnum-v4-72b
+canonical_slug: anthracite-org/magnum-v4-72b
+hugging_face_id: anthracite-org/magnum-v4-72b
+name: Magnum v4 72B
+type: chat
+created: 1729555200
+description: |-
+  This is a series of models designed to replicate the prose quality of the Claude 3 models, specifically Sonnet(https://openrouter.ai/anthropic/claude-3.5-sonnet) and Opus(https://openrouter.ai/anthropic/claude-3-opus).
+
+  The model is fine-tuned on top of [Qwen2.5 72B](https://openrouter.ai/qwen/qwen-2.5-72b-instruct).
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: chatml
+pricing:
+  prompt: '0.0000025'
+  completion: '0.000003'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+  - logit_bias
+  - top_a
+model_provider: anthracite-org

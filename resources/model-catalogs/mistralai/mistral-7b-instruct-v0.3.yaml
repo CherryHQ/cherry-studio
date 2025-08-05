@@ -1,0 +1,53 @@
+id: mistralai/mistral-7b-instruct-v0.3
+canonical_slug: mistralai/mistral-7b-instruct-v0.3
+hugging_face_id: mistralai/Mistral-7B-Instruct-v0.3
+name: 'Mistral: Mistral 7B Instruct v0.3'
+type: chat
+created: 1716768000
+description: |-
+  A high-performing, industry-standard 7.3B parameter model, with optimizations for speed and context length.
+
+  An improved version of [Mistral 7B Instruct v0.2](/models/mistralai/mistral-7b-instruct-v0.2), with the following changes:
+
+  - Extended vocabulary to 32768
+  - Supports v3 Tokenizer
+  - Supports function calling
+
+  NOTE: Support for function calling depends on the provider.
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.000000028'
+  completion: '0.000000054'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+  - seed
+  - tools
+  - tool_choice
+  - logprobs
+model_provider: mistralai

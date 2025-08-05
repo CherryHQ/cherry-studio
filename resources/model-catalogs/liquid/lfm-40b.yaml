@@ -1,0 +1,48 @@
+id: liquid/lfm-40b
+canonical_slug: liquid/lfm-40b
+hugging_face_id: ''
+name: 'Liquid: LFM 40B MoE'
+type: chat
+created: 1727654400
+description: |-
+  Liquid's 40.3B Mixture of Experts (MoE) model. Liquid Foundation Models (LFMs) are large neural networks built with computational units rooted in dynamic systems.
+
+  LFMs are general-purpose AI models that can be used to model any kind of sequential data, including video, audio, text, time series, and signals.
+
+  See the [launch announcement](https://www.liquid.ai/liquid-foundation-models) for benchmarks and more info.
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: chatml
+pricing:
+  prompt: '0.00000015'
+  completion: '0.00000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: liquid

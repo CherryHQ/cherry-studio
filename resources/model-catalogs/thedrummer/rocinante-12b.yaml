@@ -1,0 +1,46 @@
+id: thedrummer/rocinante-12b
+canonical_slug: thedrummer/rocinante-12b
+hugging_face_id: TheDrummer/Rocinante-12B-v1.1
+name: 'TheDrummer: Rocinante 12B'
+type: chat
+created: 1727654400
+description: |-
+  Rocinante 12B is designed for engaging storytelling and rich prose.
+
+  Early testers have reported:
+  - Expanded vocabulary with unique and expressive word choices
+  - Enhanced creativity for vivid narratives
+  - Adventure-filled and captivating stories
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: chatml
+pricing:
+  prompt: '0.00000025'
+  completion: '0.0000005'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+  - logit_bias
+model_provider: thedrummer

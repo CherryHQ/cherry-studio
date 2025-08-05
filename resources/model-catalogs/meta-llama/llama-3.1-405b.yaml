@@ -1,0 +1,47 @@
+id: meta-llama/llama-3.1-405b
+canonical_slug: meta-llama/llama-3.1-405b
+hugging_face_id: meta-llama/llama-3.1-405B
+name: 'Meta: Llama 3.1 405B (base)'
+type: chat
+created: 1722556800
+description: |-
+  Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This is the base 405B pre-trained version.
+
+  It has demonstrated strong performance compared to leading closed-source models in human evaluations.
+
+  To read more about the model release, [click here](https://ai.meta.com/blog/meta-llama-3/). Usage of this model is subject to [Meta's Acceptable Use Policy](https://llama.meta.com/llama3/use-policy/).
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: none
+pricing:
+  prompt: '0.000002'
+  completion: '0.000002'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - logprobs
+  - top_logprobs
+  - seed
+  - logit_bias
+  - top_k
+  - min_p
+  - repetition_penalty
+model_provider: meta-llama
