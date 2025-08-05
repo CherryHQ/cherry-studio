@@ -105,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
   const { t } = useTranslation()
 
-  const isTopicMode = source.type === 'topic'
+  const isTopicMode = source?.type === 'topic'
 
   // 异步分析内容统计
   useEffect(() => {
@@ -114,8 +114,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       setContentStats(null)
       try {
         const stats = isTopicMode
-          ? await analyzeTopicContent(source.data as Topic)
-          : analyzeMessageContent(source.data as Message)
+          ? await analyzeTopicContent(source?.data as Topic)
+          : analyzeMessageContent(source?.data as Message)
         setContentStats(stats)
       } catch (error) {
         logger.error('analyze content failed:', error as Error)
@@ -236,8 +236,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
     try {
       const result = isTopicMode
-        ? await processTopicContent(source.data as Topic, selectedTypes)
-        : processMessageContent(source.data as Message, selectedTypes)
+        ? await processTopicContent(source?.data as Topic, selectedTypes)
+        : processMessageContent(source?.data as Message, selectedTypes)
 
       if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
         await addNote(result.text)
