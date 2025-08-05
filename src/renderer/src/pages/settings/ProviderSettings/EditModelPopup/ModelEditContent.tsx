@@ -1,4 +1,10 @@
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import { EmbeddingTag } from '@renderer/components/Tags/EmbeddingTag'
+import { ReasoningTag } from '@renderer/components/Tags/ReasoningTag'
+import { RerankerTag } from '@renderer/components/Tags/RerankerTag'
+import { ToolsCallingTag } from '@renderer/components/Tags/ToolsCallingTag'
+import { VisionTag } from '@renderer/components/Tags/VisionTag'
+import { WebSearchTag } from '@renderer/components/Tags/WebSearchTag'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {
   isEmbeddingModel,
@@ -10,10 +16,9 @@ import {
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
-import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
+import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
 import {
   Button,
-  Checkbox,
   Divider,
   Flex,
   Form,
@@ -23,11 +28,12 @@ import {
   Modal,
   ModalProps,
   Select,
+  Space,
   Switch
 } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -122,7 +128,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
   )
 
   // 被rerank/embedding改变的类型
-  const changedTypesRef = useRef<string[]>([])
+  // const changedTypesRef = useRef<string[]>([])
 
   useEffect(() => {
     if (showMoreSettings) {
@@ -151,105 +157,105 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
   }, [modelCapabilities])
 
   const ModelCapability = () => {
-    const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
+    // const isDisabled = selectedTypes.includes('rerank') || selectedTypes.includes('embedding')
 
-    const isRerankDisabled = selectedTypes.includes('embedding')
-    const isEmbeddingDisabled = selectedTypes.includes('rerank')
-    const showTypeConfirmModal = (newCapability: ModelCapability) => {
-      const onUpdateType = selectedTypes?.find((t) => t === newCapability.type)
-      window.modal.confirm({
-        title: t('settings.moresetting.warn'),
-        content: t('settings.moresetting.check.warn'),
-        okText: t('settings.moresetting.check.confirm'),
-        cancelText: t('common.cancel'),
-        okButtonProps: { danger: true },
-        cancelButtonProps: { type: 'primary' },
-        onOk: () => {
-          if (onUpdateType) {
-            const updatedModelCapabilities = modelCapabilities?.map((t) => {
-              if (t.type === newCapability.type) {
-                return { ...t, isUserSelected: true }
-              }
-              if (
-                ((onUpdateType !== t.type && onUpdateType === 'rerank') ||
-                  (onUpdateType === 'embedding' && onUpdateType !== t.type)) &&
-                t.isUserSelected !== false
-              ) {
-                changedTypesRef.current.push(t.type)
-                return { ...t, isUserSelected: false }
-              }
-              return t
-            })
-            setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
-          } else {
-            const updatedModelCapabilities = modelCapabilities?.map((t) => {
-              if (
-                ((newCapability.type !== t.type && newCapability.type === 'rerank') ||
-                  (newCapability.type === 'embedding' && newCapability.type !== t.type)) &&
-                t.isUserSelected !== false
-              ) {
-                changedTypesRef.current.push(t.type)
-                return { ...t, isUserSelected: false }
-              }
-              if (newCapability.type === t.type) {
-                return { ...t, isUserSelected: true }
-              }
-              return t
-            })
-            updatedModelCapabilities.push(newCapability as any)
-            setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
-          }
-        },
-        onCancel: () => {},
-        centered: true
-      })
-    }
+    // const isRerankDisabled = selectedTypes.includes('embedding')
+    // const isEmbeddingDisabled = selectedTypes.includes('rerank')
+    // const showTypeConfirmModal = (newCapability: ModelCapability) => {
+    //   const onUpdateType = selectedTypes?.find((t) => t === newCapability.type)
+    //   window.modal.confirm({
+    //     title: t('settings.moresetting.warn'),
+    //     content: t('settings.moresetting.check.warn'),
+    //     okText: t('settings.moresetting.check.confirm'),
+    //     cancelText: t('common.cancel'),
+    //     okButtonProps: { danger: true },
+    //     cancelButtonProps: { type: 'primary' },
+    //     onOk: () => {
+    //       if (onUpdateType) {
+    //         const updatedModelCapabilities = modelCapabilities?.map((t) => {
+    //           if (t.type === newCapability.type) {
+    //             return { ...t, isUserSelected: true }
+    //           }
+    //           if (
+    //             ((onUpdateType !== t.type && onUpdateType === 'rerank') ||
+    //               (onUpdateType === 'embedding' && onUpdateType !== t.type)) &&
+    //             t.isUserSelected !== false
+    //           ) {
+    //             changedTypesRef.current.push(t.type)
+    //             return { ...t, isUserSelected: false }
+    //           }
+    //           return t
+    //         })
+    //         setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+    //       } else {
+    //         const updatedModelCapabilities = modelCapabilities?.map((t) => {
+    //           if (
+    //             ((newCapability.type !== t.type && newCapability.type === 'rerank') ||
+    //               (newCapability.type === 'embedding' && newCapability.type !== t.type)) &&
+    //             t.isUserSelected !== false
+    //           ) {
+    //             changedTypesRef.current.push(t.type)
+    //             return { ...t, isUserSelected: false }
+    //           }
+    //           if (newCapability.type === t.type) {
+    //             return { ...t, isUserSelected: true }
+    //           }
+    //           return t
+    //         })
+    //         updatedModelCapabilities.push(newCapability as any)
+    //         setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+    //       }
+    //     },
+    //     onCancel: () => {},
+    //     centered: true
+    //   })
+    // }
 
-    const handleTypeChange = (types: string[]) => {
-      setHasUserModified(true) // 标记用户已进行修改
-      const diff = types.length > selectedTypes.length
-      if (diff) {
-        const newCapability = getDifference(types, selectedTypes) // checkbox的特性，确保了newCapability只有一个元素
-        showTypeConfirmModal({
-          type: newCapability[0] as ModelType,
-          isUserSelected: true
-        })
-      } else {
-        const disabledTypes = getDifference(selectedTypes, types)
-        const onUpdateType = modelCapabilities?.find((t) => t.type === disabledTypes[0])
-        if (onUpdateType) {
-          const updatedTypes = modelCapabilities?.map((t) => {
-            if (t.type === disabledTypes[0]) {
-              return { ...t, isUserSelected: false }
-            }
-            if (
-              ((onUpdateType !== t && onUpdateType.type === 'rerank') ||
-                (onUpdateType.type === 'embedding' && onUpdateType !== t)) &&
-              t.isUserSelected === false
-            ) {
-              if (changedTypesRef.current.includes(t.type)) {
-                return { ...t, isUserSelected: true }
-              }
-            }
-            return t
-          })
-          setModelCapabilities(uniqueObjectArray(updatedTypes as ModelCapability[]))
-        } else {
-          const updatedModelCapabilities = modelCapabilities?.map((t) => {
-            if (
-              (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
-              (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
-            ) {
-              return { ...t, isUserSelected: true }
-            }
-            return t
-          })
-          updatedModelCapabilities.push({ type: disabledTypes[0] as ModelType, isUserSelected: false })
-          setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
-        }
-        changedTypesRef.current.length = 0
-      }
-    }
+    // const handleTypeChange = (types: string[]) => {
+    //   setHasUserModified(true) // 标记用户已进行修改
+    //   const diff = types.length > selectedTypes.length
+    //   if (diff) {
+    //     const newCapability = getDifference(types, selectedTypes) // checkbox的特性，确保了newCapability只有一个元素
+    //     showTypeConfirmModal({
+    //       type: newCapability[0] as ModelType,
+    //       isUserSelected: true
+    //     })
+    //   } else {
+    //     const disabledTypes = getDifference(selectedTypes, types)
+    //     const onUpdateType = modelCapabilities?.find((t) => t.type === disabledTypes[0])
+    //     if (onUpdateType) {
+    //       const updatedTypes = modelCapabilities?.map((t) => {
+    //         if (t.type === disabledTypes[0]) {
+    //           return { ...t, isUserSelected: false }
+    //         }
+    //         if (
+    //           ((onUpdateType !== t && onUpdateType.type === 'rerank') ||
+    //             (onUpdateType.type === 'embedding' && onUpdateType !== t)) &&
+    //           t.isUserSelected === false
+    //         ) {
+    //           if (changedTypesRef.current.includes(t.type)) {
+    //             return { ...t, isUserSelected: true }
+    //           }
+    //         }
+    //         return t
+    //       })
+    //       setModelCapabilities(uniqueObjectArray(updatedTypes as ModelCapability[]))
+    //     } else {
+    //       const updatedModelCapabilities = modelCapabilities?.map((t) => {
+    //         if (
+    //           (disabledTypes[0] === 'rerank' && t.type !== 'rerank') ||
+    //           (disabledTypes[0] === 'embedding' && t.type !== 'embedding' && t.isUserSelected === false)
+    //         ) {
+    //           return { ...t, isUserSelected: true }
+    //         }
+    //         return t
+    //       })
+    //       updatedModelCapabilities.push({ type: disabledTypes[0] as ModelType, isUserSelected: false })
+    //       setModelCapabilities(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+    //     }
+    //     changedTypesRef.current.length = 0
+    //   }
+    // }
 
     const handleResetTypes = () => {
       setModelCapabilities(originalModelCapabilities)
@@ -257,56 +263,38 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     }
 
     return (
-      <div>
-        <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-          <Checkbox.Group
-            value={selectedTypes}
-            onChange={handleTypeChange}
-            options={[
-              {
-                label: t('models.type.vision'),
-                value: 'vision',
-                disabled: isDisabled
-              },
-              {
-                label: t('models.type.websearch'),
-                value: 'web_search',
-                disabled: isDisabled
-              },
-              {
-                label: t('models.type.rerank'),
-                value: 'rerank',
-                disabled: isRerankDisabled
-              },
-              {
-                label: t('models.type.embedding'),
-                value: 'embedding',
-                disabled: isEmbeddingDisabled
-              },
-              {
-                label: t('models.type.reasoning'),
-                value: 'reasoning',
-                disabled: isDisabled
-              },
-              {
-                label: t('models.type.function_calling'),
-                value: 'function_calling',
-                disabled: isDisabled
-              }
-            ]}
+      <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+        <Space.Compact>
+          <VisionTag
+            showLabel
+            disabled
+            onClick={() => {
+              console.log('test')
+            }}
           />
-          {hasUserModified && (
-            <Button size="small" onClick={handleResetTypes}>
-              {t('common.reset')}
-            </Button>
-          )}
-        </Flex>
-      </div>
+          <WebSearchTag showLabel disabled />
+          <RerankerTag disabled />
+          <EmbeddingTag disabled />
+          <ReasoningTag showLabel disabled />
+          <ToolsCallingTag showLabel disabled />
+        </Space.Compact>
+        {hasUserModified && (
+          <Button size="small" onClick={handleResetTypes}>
+            {t('common.reset')}
+          </Button>
+        )}
+      </Flex>
     )
   }
 
   return (
-    <Modal title={t('models.edit')} footer={null} transitionName="animation-move-down" centered {...props}>
+    <Modal
+      title={t('models.edit')}
+      footer={null}
+      transitionName="animation-move-down"
+      width={'fit-content'}
+      centered
+      {...props}>
       <Form
         form={form}
         labelCol={{ flex: provider.id === 'new-api' ? labelWidth : '110px' }}
