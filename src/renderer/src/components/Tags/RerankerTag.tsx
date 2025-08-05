@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next'
 
-import CustomTag from './CustomTag'
+import CustomTag, { CustomTagProps } from './CustomTag'
 
 type Props = {
   size?: number
-}
+} & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const RerankerTag = ({ size }: Props) => {
+export const RerankerTag = ({ size, ...restProps }: Props) => {
   const { t } = useTranslation()
-  return <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} />
+  return <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} {...restProps} />
 }

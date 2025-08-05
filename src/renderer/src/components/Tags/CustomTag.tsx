@@ -3,7 +3,7 @@ import { Tooltip } from 'antd'
 import { FC, memo, useMemo } from 'react'
 import styled from 'styled-components'
 
-interface CustomTagProps {
+export interface CustomTagProps {
   icon?: React.ReactNode
   children?: React.ReactNode | string
   color: string
