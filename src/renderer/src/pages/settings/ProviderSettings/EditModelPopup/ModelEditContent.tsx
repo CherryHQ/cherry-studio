@@ -1,11 +1,13 @@
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { EmbeddingTag } from '@renderer/components/Tags/EmbeddingTag'
-import { ReasoningTag } from '@renderer/components/Tags/ReasoningTag'
-import { RerankerTag } from '@renderer/components/Tags/RerankerTag'
-import { ToolsCallingTag } from '@renderer/components/Tags/ToolsCallingTag'
-import { VisionTag } from '@renderer/components/Tags/VisionTag'
-import WarnTooltip from '@renderer/components/Tags/WarnTooltip'
-import { WebSearchTag } from '@renderer/components/Tags/WebSearchTag'
+import {
+  EmbeddingTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from '@renderer/components/Tags/ModelCapabilities'
+import WarnTooltip from '@renderer/components/WarnTooltip'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {
   isEmbeddingModel,
@@ -21,7 +23,7 @@ import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
 import { Button, Divider, Flex, Form, Input, InputNumber, message, Modal, ModalProps, Select, Switch } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -101,18 +103,28 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     { label: t('models.price.custom'), value: 'custom' }
   ]
 
-  const defaultTypes = [
-    ...(isVisionModel(model) ? ['vision'] : []),
-    ...(isReasoningModel(model) ? ['reasoning'] : []),
-    ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
-    ...(isWebSearchModel(model) ? ['web_search'] : []),
-    ...(isEmbeddingModel(model) ? ['embedding'] : []),
-    ...(isRerankModel(model) ? ['rerank'] : [])
-  ]
+  const defaultTypes: ModelType[] = useMemo(
+    () => [
+      ...(isVisionModel(model) ? (['vision'] as const) : []),
+      ...(isReasoningModel(model) ? (['reasoning'] as const) : []),
+      ...(isFunctionCallingModel(model) ? (['function_calling'] as const) : []),
+      ...(isWebSearchModel(model) ? (['web_search'] as const) : []),
+      ...(isEmbeddingModel(model) ? (['embedding'] as const) : []),
+      ...(isRerankModel(model) ? (['rerank'] as const) : [])
+    ],
+    [model]
+  )
 
-  const selectedTypes: string[] = getUnion(
-    modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
-    getDifference(defaultTypes, modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || [])
+  const selectedTypes: ModelType[] = useMemo(
+    () =>
+      getUnion(
+        modelCapabilities?.filter((t) => t.isUserSelected).map((t) => t.type) || [],
+        getDifference(
+          defaultTypes,
+          modelCapabilities?.filter((t) => t.isUserSelected === false).map((t) => t.type) || []
+        )
+      ),
+    [defaultTypes, modelCapabilities]
   )
 
   // 被rerank/embedding改变的类型
@@ -250,13 +262,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
       setHasUserModified(false) // 重置后清除修改标志
     }
 
-    const handleUpdateType = (type: ModelType) => {
-      if (modelCapabilities.map((t) => t.type).includes(type)) {
-        setModelCapabilities((prev) => prev.filter((t) => t.type !== type))
-      } else {
-        setModelCapabilities((prev) => [...prev, { type, isUserSelected: true }])
-      }
-    }
+    const updateType = useCallback((type: ModelType) => {
+      setHasUserModified(true)
+      setModelCapabilities((prev) => [
+        ...prev.filter((t) => t.type !== type),
+        { type, isUserSelected: !selectedTypes.includes(type) }
+      ])
+    }, [])
 
     return (
       <>
@@ -266,19 +278,31 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             <WarnTooltip title={t('settings.moresetting.check.warn')} />
           </Flex>
 
-          {!hasUserModified && (
+          {hasUserModified && (
             <Button size="small" onClick={handleResetTypes}>
               {t('common.reset')}
             </Button>
           )}
         </TypeTitle>
         <Flex justify="flex-start" align="center" gap={4} style={{ marginBottom: 8 }}>
-          <VisionTag showLabel disabled={selectedTypes.includes('vision')} onClick={() => handleUpdateType('vision')} />
-          <WebSearchTag showLabel disabled />
-          <RerankerTag disabled />
-          <EmbeddingTag disabled />
-          <ReasoningTag showLabel disabled />
-          <ToolsCallingTag showLabel disabled />
+          <VisionTag showLabel disabled={!selectedTypes.includes('vision')} onClick={() => updateType('vision')} />
+          <WebSearchTag
+            showLabel
+            disabled={!selectedTypes.includes('web_search')}
+            onClick={() => updateType('web_search')}
+          />
+          <ReasoningTag
+            showLabel
+            disabled={!selectedTypes.includes('reasoning')}
+            onClick={() => updateType('reasoning')}
+          />
+          <ToolsCallingTag
+            showLabel
+            disabled={!selectedTypes.includes('function_calling')}
+            onClick={() => updateType('function_calling')}
+          />
+          <RerankerTag disabled={!selectedTypes.includes('rerank')} onClick={() => updateType('rerank')} />
+          <EmbeddingTag disabled={!selectedTypes.includes('embedding')} onClick={() => updateType('embedding')} />
         </Flex>
       </>
     )
