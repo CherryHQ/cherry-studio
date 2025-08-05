@@ -129,7 +129,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 models={displayedModelGroups[group]}
                 modelStatuses={modelStatuses}
                 defaultOpen={i <= 5}
-                disabled={isHealthChecking}
                 onEditModel={(model) => EditModelPopup.show({ provider, model })}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
