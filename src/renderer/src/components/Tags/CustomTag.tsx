@@ -11,17 +11,28 @@ export interface CustomTagProps {
   tooltip?: string
   closable?: boolean
   onClose?: () => void
+  disabled?: boolean
 }
 
-const CustomTag: FC<CustomTagProps> = ({ children, icon, color, size = 12, tooltip, closable = false, onClose }) => {
+const CustomTag: FC<CustomTagProps> = ({
+  children,
+  icon,
+  color,
+  size = 12,
+  tooltip,
+  closable = false,
+  onClose,
+  disabled
+}) => {
+  const actualColor = disabled ? '#aaaaaa' : color
   const tagContent = useMemo(
     () => (
-      <Tag $color={color} $size={size} $closable={closable}>
+      <Tag $color={actualColor} $size={size} $closable={closable}>
         {icon && icon} {children}
-        {closable && <CloseIcon $size={size} $color={color} onClick={onClose} />}
+        {closable && <CloseIcon $size={size} $color={actualColor} onClick={onClose} />}
       </Tag>
     ),
-    [children, closable, color, icon, onClose, size]
+    [actualColor, children, closable, icon, onClose, size]
   )
 
   return tooltip ? (
