@@ -741,7 +741,7 @@ export const isSupportDeveloperRoleProvider = (provider: Provider) => {
 const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
 
 /**
- * 判断提供商是否支持流式选项。Only for OpenAI API.
+ * 判断提供商是否支持 stream_options 参数。Only for OpenAI API.
  */
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
