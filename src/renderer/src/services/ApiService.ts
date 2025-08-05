@@ -849,10 +849,9 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<void> {
+export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const timeout = 15000
   const controller = new AbortController()
   const abortFn = () => controller.abort()
   const taskId = uuid()
@@ -929,4 +928,10 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   } finally {
     removeAbortController(taskId, abortFn)
   }
+}
+
+export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkApi(provider, model, timeout)
+  return { latency: performance.now() - startTime }
 }

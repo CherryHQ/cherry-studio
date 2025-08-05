@@ -2990,6 +2990,7 @@
         "select_api_key": "選擇要使用的 API 密鑰：",
         "single": "單個",
         "start": "開始",
+        "timeout": "超時",
         "title": "模型健康檢查",
         "use_all_keys": "使用密鑰"
       },

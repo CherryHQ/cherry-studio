@@ -2990,6 +2990,7 @@
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
         "start": "開始",
+        "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },

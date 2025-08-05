@@ -2990,6 +2990,7 @@
         "select_api_key": "Select the API key to use:",
         "single": "Single",
         "start": "Start",
+        "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
