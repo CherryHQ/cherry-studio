@@ -14,6 +14,7 @@ export interface CustomTagProps {
   onClose?: () => void
   onClick?: () => void
   disabled?: boolean
+  inactive?: boolean
 }
 
 const CustomTag: FC<CustomTagProps> = ({
@@ -26,18 +27,18 @@ const CustomTag: FC<CustomTagProps> = ({
   closable = false,
   onClose,
   onClick,
-  disabled
+  disabled,
+  inactive
 }) => {
-  const actualColor = disabled ? '#aaaaaa' : color
+  const actualColor = inactive ? '#aaaaaa' : color
   const tagContent = useMemo(
     () => (
       <Tag
         $color={actualColor}
         $size={size}
         $closable={closable}
-        $clickable={onClick !== undefined}
-        onClick={onClick}
-        style={style}>
+        onClick={disabled ? undefined : onClick}
+        style={{ cursor: disabled ? 'not-allowed' : onClick ? 'pointer' : 'auto', ...style }}>
         {icon && icon} {children}
         {closable && (
           <CloseIcon
@@ -51,7 +52,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </Tag>
     ),
-    [actualColor, children, closable, icon, onClick, onClose, size, style]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style]
   )
 
   return tooltip ? (
@@ -65,8 +66,7 @@ const CustomTag: FC<CustomTagProps> = ({
 
 export default memo(CustomTag)
 
-const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $clickable }>`
-  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
+const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;

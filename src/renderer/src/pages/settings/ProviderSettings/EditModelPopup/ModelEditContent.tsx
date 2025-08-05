@@ -204,37 +204,37 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <Flex justify="flex-start" align="center" gap={4} style={{ marginBottom: 8 }}>
           <VisionTag
             showLabel
-            disabled={isOtherDisabled || !selectedTypes.includes('vision')}
-            onClick={isOtherDisabled ? undefined : () => updateType('vision')}
-            style={isOtherDisabled ? { cursor: 'not-allowed' } : undefined}
+            inactive={isOtherDisabled || !selectedTypes.includes('vision')}
+            disabled={isOtherDisabled}
+            onClick={() => updateType('vision')}
           />
           <WebSearchTag
             showLabel
-            disabled={isOtherDisabled || !selectedTypes.includes('web_search')}
-            onClick={isOtherDisabled ? undefined : () => updateType('web_search')}
-            style={isOtherDisabled ? { cursor: 'not-allowed' } : undefined}
+            inactive={isOtherDisabled || !selectedTypes.includes('web_search')}
+            disabled={isOtherDisabled}
+            onClick={() => updateType('web_search')}
           />
           <ReasoningTag
             showLabel
-            disabled={isOtherDisabled || !selectedTypes.includes('reasoning')}
-            onClick={isOtherDisabled ? undefined : () => updateType('reasoning')}
-            style={isOtherDisabled ? { cursor: 'not-allowed' } : undefined}
+            inactive={isOtherDisabled || !selectedTypes.includes('reasoning')}
+            disabled={isOtherDisabled}
+            onClick={() => updateType('reasoning')}
           />
           <ToolsCallingTag
             showLabel
-            disabled={isOtherDisabled || !selectedTypes.includes('function_calling')}
-            onClick={isOtherDisabled ? undefined : () => updateType('function_calling')}
-            style={isOtherDisabled ? { cursor: 'not-allowed' } : undefined}
+            inactive={isOtherDisabled || !selectedTypes.includes('function_calling')}
+            disabled={isOtherDisabled}
+            onClick={() => updateType('function_calling')}
           />
           <RerankerTag
-            disabled={isRerankDisabled || !selectedTypes.includes('rerank')}
-            onClick={isRerankDisabled ? undefined : () => updateType('rerank')}
-            style={isRerankDisabled ? { cursor: 'not-allowed' } : undefined}
+            disabled={isRerankDisabled}
+            inactive={isRerankDisabled || !selectedTypes.includes('rerank')}
+            onClick={() => updateType('rerank')}
           />
           <EmbeddingTag
-            disabled={isEmbeddingDisabled || !selectedTypes.includes('embedding')}
-            onClick={isEmbeddingDisabled ? undefined : () => updateType('embedding')}
-            style={isEmbeddingDisabled ? { cursor: 'not-allowed' } : undefined}
+            inactive={isEmbeddingDisabled || !selectedTypes.includes('embedding')}
+            disabled={isEmbeddingDisabled}
+            onClick={() => updateType('embedding')}
           />
         </Flex>
       </>
