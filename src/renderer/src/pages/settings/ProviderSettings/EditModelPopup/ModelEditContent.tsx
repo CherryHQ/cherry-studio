@@ -263,38 +263,38 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     }
 
     return (
-      <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-        <Space.Compact>
-          <VisionTag
-            showLabel
-            disabled
-            onClick={() => {
-              console.log('test')
-            }}
-          />
-          <WebSearchTag showLabel disabled />
-          <RerankerTag disabled />
-          <EmbeddingTag disabled />
-          <ReasoningTag showLabel disabled />
-          <ToolsCallingTag showLabel disabled />
-        </Space.Compact>
-        {hasUserModified && (
-          <Button size="small" onClick={handleResetTypes}>
-            {t('common.reset')}
-          </Button>
-        )}
-      </Flex>
+      <>
+        <TypeTitle>
+          {t('models.type.select')}
+
+          {!hasUserModified && (
+            <Button size="small" onClick={handleResetTypes}>
+              {t('common.reset')}
+            </Button>
+          )}
+        </TypeTitle>
+        <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+          <Space.Compact>
+            <VisionTag
+              showLabel
+              disabled
+              onClick={() => {
+                console.log('test')
+              }}
+            />
+            <WebSearchTag showLabel disabled />
+            <RerankerTag disabled />
+            <EmbeddingTag disabled />
+            <ReasoningTag showLabel disabled />
+            <ToolsCallingTag showLabel disabled />
+          </Space.Compact>
+        </Flex>
+      </>
     )
   }
 
   return (
-    <Modal
-      title={t('models.edit')}
-      footer={null}
-      transitionName="animation-move-down"
-      width={'fit-content'}
-      centered
-      {...props}>
+    <Modal title={t('models.edit')} footer={null} transitionName="animation-move-down" width={600} centered {...props}>
       <Form
         form={form}
         labelCol={{ flex: provider.id === 'new-api' ? labelWidth : '110px' }}
@@ -393,7 +393,6 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         {showMoreSettings && (
           <div style={{ marginBottom: 8 }}>
             <Divider style={{ margin: '16px 0 16px 0' }} />
-            <TypeTitle>{t('models.type.select')}</TypeTitle>
             <ModelCapability />
             <Divider style={{ margin: '16px 0 12px 0' }} />
             <Form.Item
@@ -504,6 +503,9 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 }
 
 const TypeTitle = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin: 12px 0;
   font-size: 14px;
   font-weight: 600;
