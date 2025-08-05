@@ -15,7 +15,7 @@ export async function checkModelWithMultipleKeys(
   provider: Provider,
   model: Model,
   apiKeys: string[],
-  timeout
+  timeout?: number
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
