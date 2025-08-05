@@ -274,7 +274,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           )}
         </TypeTitle>
         <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-          <Space.Compact>
+          <Space>
             <VisionTag
               showLabel
               disabled
@@ -287,7 +287,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             <EmbeddingTag disabled />
             <ReasoningTag showLabel disabled />
             <ToolsCallingTag showLabel disabled />
-          </Space.Compact>
+          </Space>
         </Flex>
       </>
     )
