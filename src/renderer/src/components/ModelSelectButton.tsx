@@ -22,7 +22,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
   }, [model, modelFilter, onSelectModel])
 
   const button = useMemo(() => {
-    return <Button icon={<ModelAvatar model={model} size={18} />} type="text" shape="circle" onClick={onClick} />
+    return <Button icon={<ModelAvatar model={model} size={22} />} type="text" shape="circle" onClick={onClick} />
   }, [model, onClick])
 
   if (noTooltip) {

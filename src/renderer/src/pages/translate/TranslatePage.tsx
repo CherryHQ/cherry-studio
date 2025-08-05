@@ -514,8 +514,9 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   width: 100%;
   display: flex;
   flex-direction: column;
+  gap: 4px;
   flex: 1;
-  padding: 20px 15px;
+  padding: 15px;
   position: relative;
 `
 
