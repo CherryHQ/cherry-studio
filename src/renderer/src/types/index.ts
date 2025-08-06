@@ -653,13 +653,13 @@ export interface MCPServer {
   name: string
   type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
   description?: string
+  descriptionI18nKey?: string
   baseUrl?: string
   command?: string
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
   shouldConfig?: boolean
-  getBuiltinDescription?: () => string
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
   disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server

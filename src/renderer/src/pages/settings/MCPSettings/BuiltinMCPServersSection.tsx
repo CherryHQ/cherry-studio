@@ -46,10 +46,9 @@ const BuiltinMCPServersSection: FC = () => {
               <Popover
                 content={
                   <PopoverContent>
-                    {server.getBuiltinDescription
-                      ? server.getBuiltinDescription()
+                    {server.descriptionI18nKey
+                      ? t(server.descriptionI18nKey)
                       : t('settings.mcp.builtinServersDescriptions.no')}
-
                     {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
                   </PopoverContent>
                 }
@@ -58,8 +57,8 @@ const BuiltinMCPServersSection: FC = () => {
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
                 <ServerDescription>
-                  {server.getBuiltinDescription
-                    ? server.getBuiltinDescription()
+                  {server.descriptionI18nKey
+                    ? t(server.descriptionI18nKey)
                     : t('settings.mcp.builtinServersDescriptions.no')}
                 </ServerDescription>
               </Popover>
