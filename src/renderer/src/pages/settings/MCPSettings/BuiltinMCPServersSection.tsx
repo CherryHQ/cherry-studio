@@ -1,6 +1,6 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { getMcpTypeLabel } from '@renderer/i18n/label'
+import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { Button, Popover, Tag } from 'antd'
 import { FC } from 'react'
@@ -46,9 +46,7 @@ const BuiltinMCPServersSection: FC = () => {
               <Popover
                 content={
                   <PopoverContent>
-                    {server.descriptionI18nKey
-                      ? t(server.descriptionI18nKey)
-                      : t('settings.mcp.builtinServersDescriptions.no')}
+                    {getBuiltInMcpServerDescriptionLabel(server.name)}
                     {server.reference && <ReferenceLink href={server.reference}>{server.reference}</ReferenceLink>}
                   </PopoverContent>
                 }
@@ -56,11 +54,7 @@ const BuiltinMCPServersSection: FC = () => {
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <ServerDescription>
-                  {server.descriptionI18nKey
-                    ? t(server.descriptionI18nKey)
-                    : t('settings.mcp.builtinServersDescriptions.no')}
-                </ServerDescription>
+                <ServerDescription>{getBuiltInMcpServerDescriptionLabel(server.name)}</ServerDescription>
               </Popover>
               <ServerFooter>
                 <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>

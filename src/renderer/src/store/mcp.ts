@@ -75,7 +75,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
     type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -86,7 +85,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/memory',
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
     type: 'inMemory',
     isActive: true,
     env: {
@@ -98,7 +96,6 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/sequentialthinking',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI'
@@ -107,7 +104,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/brave-search',
     type: 'inMemory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.brave_search',
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
@@ -119,7 +115,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/fetch',
     type: 'inMemory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.fetch',
     isActive: true,
     provider: 'CherryAI'
   },
@@ -127,7 +122,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.filesystem',
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
@@ -137,7 +131,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/dify-knowledge',
     type: 'inMemory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
@@ -149,7 +142,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/python',
     type: 'inMemory',
-    descriptionI18nKey: 'settings.mcp.builtinServersDescriptions.python',
     isActive: false,
     provider: 'CherryAI'
   }

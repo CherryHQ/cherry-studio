@@ -4,9 +4,23 @@
  * 2. 通过函数翻译文本
  */
 
+import { loggerService } from '@logger'
+
 import i18n from './index'
 
 const t = i18n.t
+
+const logger = loggerService.withContext('i18n:label')
+
+const getLabel = (key: string, keyMap: Record<string, string>, fallback?: string) => {
+  const result = keyMap[key]
+  if (result) {
+    return t(keyMap[key])
+  } else {
+    logger.error(`Missing key ${key}`)
+    return fallback ?? key
+  }
+}
 
 const providerKeyMap = {
   '302ai': 'provider.302ai',
@@ -272,4 +286,19 @@ const fileFieldKeyMap = {
 
 export const getFileFieldLabel = (key: string): string => {
   return fileFieldKeyMap[key] ? t(fileFieldKeyMap[key]) : key
+}
+
+const builtInMcpDescriptionKeyMap = {
+  '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
+  '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
+  '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
+  '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+} as const
+
+export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
+  return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
 }
