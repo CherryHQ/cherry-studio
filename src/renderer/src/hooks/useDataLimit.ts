@@ -62,23 +62,29 @@ async function checkAppStorageQuota() {
 }
 
 async function checkAppDataDiskQuota(appDataPath: string) {
-  const { free, size } = await window.api.getDiskInfo(appDataPath)
-  logger.info(
-    `App data disk quota: free: ${(free / 1024 / 1024 / 1024).toFixed(2)}GB  total: ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`
-  )
-  if (shouldShowDiskWarning(free, size)) {
-    window.message.warning(t('data.limit.appDataDiskQuota'))
+  try {
+    const { free, size } = await window.api.getDiskInfo(appDataPath)
+    logger.info(
+      `App data disk quota: free: ${(free / 1024 / 1024 / 1024).toFixed(2)}GB  total: ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`
+    )
+    if (shouldShowDiskWarning(free, size)) {
+      window.message.warning(t('data.limit.appDataDiskQuota'))
+    }
+  } catch (error) {
+    logger.error('Failed to get app data disk quota:', error as Error)
   }
 }
 
 export async function checkDataLimit() {
   const check = async () => {
-    logger.info('check data limit')
+    // check app storage quota
+    await checkAppStorageQuota()
+
+    // check app data disk quota
     const appInfo: AppInfo = await window.api.getAppInfo()
     if (appInfo?.appDataPath) {
-      checkAppDataDiskQuota(appInfo.appDataPath)
+      await checkAppDataDiskQuota(appInfo.appDataPath)
     }
-    checkAppStorageQuota()
   }
 
   const interval = setInterval(check, CHECK_INTERVAL)
