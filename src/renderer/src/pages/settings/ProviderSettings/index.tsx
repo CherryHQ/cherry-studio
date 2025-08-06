@@ -526,7 +526,6 @@ const ProviderListItem = styled.div`
   align-items: center;
   padding: 5px 10px;
   width: 100%;
-  cursor: grab;
   border-radius: var(--list-item-border-radius);
   font-size: 14px;
   transition: all 0.2s ease-in-out;
