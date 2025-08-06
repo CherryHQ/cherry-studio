@@ -246,7 +246,7 @@ export const SystemProviderIds = {
   poe: 'poe'
 } as const
 
-export type SystemProviderId = (typeof SystemProviderIds)[keyof typeof SystemProviderIds]
+export type SystemProviderId = keyof typeof SystemProviderIds
 
 export const isSystemProviderId = (id: string): id is SystemProviderId => {
   return Object.hasOwn(SystemProviderIds, id)
@@ -909,7 +909,7 @@ export const OpenAIServiceTiers = {
   priority: 'priority'
 } as const
 
-export type OpenAIServiceTier = (typeof OpenAIServiceTiers)[keyof typeof OpenAIServiceTiers]
+export type OpenAIServiceTier = keyof typeof OpenAIServiceTiers
 
 export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
   return Object.hasOwn(OpenAIServiceTiers, tier)
@@ -923,7 +923,7 @@ export const GroqServiceTiers = {
 } as const
 
 // 从 GroqServiceTiers 对象中提取类型
-export type GroqServiceTier = (typeof GroqServiceTiers)[keyof typeof GroqServiceTiers]
+export type GroqServiceTier = keyof typeof GroqServiceTiers
 
 export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
   return Object.hasOwn(GroqServiceTiers, tier)
