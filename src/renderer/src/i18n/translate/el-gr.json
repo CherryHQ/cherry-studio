@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Αντίγραφο ασφαλείας στο Jotunn Cloud"
+          "button": "Αντίγραφο ασφαλείας στο Jotunn Cloud",
+          "modal": {
+            "filename": {
+              "placeholder": "Παρακαλώ εισαγάγετε το όνομα του αρχείου δημιουργίας αντιγράφου ασφαλείας"
+            },
+            "title": "Δημιουργία αντιγράφων ασφαλείας στο Jianshu Cloud"
+          }
         },
         "checkConnection": {
           "fail": "Αποτυχία σύνδεσης στο Jotunn Cloud",
@@ -2260,7 +2266,11 @@
           "title": "Διαδρομή αποθήκευσης Jotunn Cloud"
         },
         "restore": {
-          "button": "Επαναφορά από το Jotunn Cloud"
+          "button": "Επαναφορά από το Jotunn Cloud",
+          "confirm": {
+            "content": "Η επαναφορά από το Nutstore θα αντικαταστήσει τα τρέχοντα δεδομένα. Θέλετε να συνεχίσετε;",
+            "title": "Επαναφορά από το Nutstore"
+          }
         },
         "title": "Ρυθμίσεις Jotunn Cloud",
         "username": "Όνομα χρήστη Jotunn Cloud"

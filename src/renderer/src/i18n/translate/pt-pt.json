@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Fazer backup para o Nutstore"
+          "button": "Fazer backup para o Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Por favor, introduza o nome do ficheiro de cópia de segurança"
+            },
+            "title": "Fazer backup para o Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Falha na conexão com o Nutstore",
@@ -2260,7 +2266,11 @@
           "title": "Caminho de armazenamento do Nutstore"
         },
         "restore": {
-          "button": "Restaurar do Nutstore"
+          "button": "Restaurar do Nutstore",
+          "confirm": {
+            "content": "Restaurar a partir da Nutstore irá substituir os dados atuais. Deseja continuar?",
+            "title": "Restaurar a partir do Nutstore"
+          }
         },
         "title": "Configuração do Nutstore",
         "username": "Nome de usuário do Nutstore"

@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Резервное копирование в坚果云"
+          "button": "Резервное копирование в坚果云",
+          "modal": {
+            "filename": {
+              "placeholder": "Veuillez saisir le nom du fichier de sauvegarde"
+            },
+            "title": "Sauvegarder sur Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Не удалось подключиться к坚果云",
@@ -2260,7 +2266,11 @@
           "title": "Путь хранения данных坚果云"
         },
         "restore": {
-          "button": "Восстановление из坚果云"
+          "button": "Восстановление из坚果云",
+          "confirm": {
+            "content": "La restauration depuis Nutstore écrasera les données actuelles. Continuer ?",
+            "title": "Récupérer depuis Nutstore"
+          }
         },
         "title": "Настройка坚果云",
         "username": "Имя пользователя坚果云"

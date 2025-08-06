@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Резервное копирование в Nutstore"
+          "button": "Резервное копирование в Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Пожалуйста, введите имя файла резервной копии"
+            },
+            "title": "Резервное копирование в Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Ошибка подключения к Nutstore",
@@ -2260,7 +2266,11 @@
           "title": "Путь хранения Nutstore"
         },
         "restore": {
-          "button": "Восстановление из Nutstore"
+          "button": "Восстановление из Nutstore",
+          "confirm": {
+            "content": "Восстановление из Nutstore перезапишет текущие данные. Продолжить?",
+            "title": "Восстановить из Nutstore"
+          }
         },
         "title": "Настройки Nutstore",
         "username": "Имя пользователя Nutstore"
