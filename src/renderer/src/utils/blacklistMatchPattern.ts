@@ -198,7 +198,7 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
       .map((line) => line.trim())
       .filter((pattern) => parseMatchPattern(pattern) !== null)
   } catch (error) {
-    logger.error('Error parsing subscribe content:', error)
+    logger.error('Error parsing subscribe content:', error as Error)
     throw error
   }
 }
@@ -240,14 +240,14 @@ export async function filterResultWithBlacklist(
         const regexPattern = pattern.slice(1, -1)
         regexPatterns.push(new RegExp(regexPattern, 'i'))
       } catch (error) {
-        logger.error('Invalid regex pattern:', pattern, error)
+        logger.error(`Invalid regex pattern: ${pattern}`, error as Error)
       }
     } else {
       // 处理匹配模式格式
       try {
         patternMap.set(pattern, pattern)
       } catch (error) {
-        logger.error('Invalid match pattern:', pattern, error)
+        logger.error(`Invalid match pattern: ${pattern}`, error as Error)
       }
     }
   })
@@ -267,7 +267,7 @@ export async function filterResultWithBlacklist(
       const matchesPattern = patternMap.get(result.url).length > 0
       return !matchesPattern
     } catch (error) {
-      logger.error('Error processing URL: ' + result.url, error)
+      logger.error(`Error processing URL: ${result.url}`, error as Error)
       return true // 如果URL解析失败，保留该结果
     }
   })

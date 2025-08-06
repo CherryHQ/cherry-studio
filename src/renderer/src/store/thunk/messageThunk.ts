@@ -4,6 +4,7 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
@@ -28,9 +29,10 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
 const logger = loggerService.withContext('MessageThunk')
 
-const handleChangeLoadingOfTopic = async (topicId: string) => {
+const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+  store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
@@ -58,7 +60,7 @@ export const saveMessageAndBlocksToDB = async (message: Message, blocks: Message
       logger.error(`[saveMessageAndBlocksToDB] Topic ${message.topicId} not found.`)
     }
   } catch (error) {
-    logger.error(`[saveMessageAndBlocksToDB] Failed to save message ${message.id}:`, error)
+    logger.error(`[saveMessageAndBlocksToDB] Failed to save message ${message.id}:`, error as Error)
   }
 }
 
@@ -98,7 +100,7 @@ const updateExistingMessageAndBlocksInDB = async (
       }
     })
   } catch (error) {
-    logger.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error)
+    logger.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error as Error)
   }
 }
 
@@ -216,7 +218,7 @@ const saveUpdatesToDB = async (
     }
     await updateExistingMessageAndBlocksInDB(messageDataToSave, blocksToUpdate)
   } catch (error) {
-    logger.error(`[DB Save Updates] Failed for message ${messageId}:`, error)
+    logger.error(`[DB Save Updates] Failed for message ${messageId}:`, error as Error)
   }
 }
 
@@ -258,7 +260,8 @@ const dispatchMultiModelResponses = async (
     const assistantMessage = createAssistantMessage(assistant.id, topicId, {
       askId: triggeringMessage.id,
       model: mentionedModel,
-      modelId: mentionedModel.id
+      modelId: mentionedModel.id,
+      traceId: triggeringMessage.traceId
     })
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
@@ -886,13 +889,24 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     // const startTime = Date.now()
-    await fetchChatCompletion({
+    const result = await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
       onChunkReceived: streamProcessorCallbacks
     })
+    endSpan({
+      topicId,
+      outputs: result ? result.getText() : '',
+      modelName: assistant.model?.name,
+      modelEnded: true
+    })
   } catch (error: any) {
     logger.error('Error fetching chat completion:', error)
+    endSpan({
+      topicId,
+      error: error,
+      modelName: assistant.model?.name
+    })
     if (assistantMessage) {
       callbacks.onError?.(error)
       throw error
@@ -930,7 +944,8 @@ export const sendMessage =
       } else {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
-          model: assistant.model
+          model: assistant.model,
+          traceId: userMessage.traceId
         })
         await saveMessageAndBlocksToDB(assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
@@ -940,9 +955,9 @@ export const sendMessage =
         })
       }
     } catch (error) {
-      logger.error('Error in sendMessage thunk:', error)
+      logger.error('Error in sendMessage thunk:', error as Error)
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1015,7 +1030,7 @@ export const deleteSingleMessageThunk =
         dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
-      logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error)
+      logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error as Error)
     }
   }
 
@@ -1059,7 +1074,7 @@ export const deleteMessageGroupThunk =
         dispatch(updateTopicUpdatedAt({ topicId }))
       }
     } catch (error) {
-      logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error)
+      logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error as Error)
     }
   }
 
@@ -1089,7 +1104,7 @@ export const clearTopicMessagesThunk =
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       }
     } catch (error) {
-      logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error)
+      logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error as Error)
     }
   }
 
@@ -1117,7 +1132,7 @@ export const resendMessageThunk =
         window.keyv.remove(`web-search-${userMessageToResend.id}`)
         window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
-        logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error)
+        logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }
 
       const resetDataList: Message[] = []
@@ -1129,6 +1144,7 @@ export const resendMessageThunk =
           askId: userMessageToResend.id,
           model: assistant.model
         })
+        assistantMessage.traceId = userMessageToResend.traceId
         resetDataList.push(assistantMessage)
 
         resetDataList.forEach((message) => {
@@ -1182,7 +1198,7 @@ export const resendMessageThunk =
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
         await db.topics.update(topicId, { messages: finalMessagesToSave })
       } catch (dbError) {
-        logger.error('[resendMessageThunk] Error updating database:', dbError)
+        logger.error('[resendMessageThunk] Error updating database:', dbError as Error)
       }
 
       const queue = getTopicQueue(topicId)
@@ -1196,9 +1212,9 @@ export const resendMessageThunk =
         })
       }
     } catch (error) {
-      logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
+      logger.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error as Error)
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1328,11 +1344,11 @@ export const regenerateAssistantResponseThunk =
     } catch (error) {
       logger.error(
         `[regenerateAssistantResponseThunk] Error regenerating response for assistant message ${assistantMessageToRegenerate.id}:`,
-        error
+        error as Error
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1389,7 +1405,7 @@ export const initiateTranslationThunk =
       })
       return newBlock.id // Return the ID
     } catch (error) {
-      logger.error(`[initiateTranslationThunk] Failed for message ${messageId}:`, error)
+      logger.error(`[initiateTranslationThunk] Failed for message ${messageId}:`, error as Error)
       return undefined
       // Optional: Dispatch an error action or show notification
     }
@@ -1414,7 +1430,7 @@ export const updateTranslationBlockThunk =
       await db.message_blocks.update(blockId, changes)
       // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
     } catch (error) {
-      logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
+      logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error as Error)
     }
   }
 
@@ -1427,7 +1443,8 @@ export const appendAssistantResponseThunk =
     topicId: Topic['id'],
     existingAssistantMessageId: string, // ID of the assistant message the user interacted with
     newModel: Model, // The new model selected by the user
-    assistant: Assistant // Base assistant configuration
+    assistant: Assistant, // Base assistant configuration
+    traceId?: string
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
@@ -1474,7 +1491,8 @@ export const appendAssistantResponseThunk =
       const newAssistantStub = createAssistantMessage(assistant.id, topicId, {
         askId: askId, // Crucial: Use the original askId
         model: newModel,
-        modelId: newModel.id
+        modelId: newModel.id,
+        traceId: traceId
       })
 
       // 3. Update Redux Store
@@ -1503,11 +1521,11 @@ export const appendAssistantResponseThunk =
         )
       })
     } catch (error) {
-      logger.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error)
+      logger.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error as Error)
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
     } finally {
-      handleChangeLoadingOfTopic(topicId)
+      finishTopicLoading(topicId)
     }
   }
 
@@ -1650,7 +1668,7 @@ export const cloneMessagesToNewTopicThunk =
 
       return true // Indicate success
     } catch (error) {
-      logger.error(`[cloneMessagesToNewTopicThunk] Failed to clone messages:`, error)
+      logger.error(`[cloneMessagesToNewTopicThunk] Failed to clone messages:`, error as Error)
       return false // Indicate failure
     }
   }
@@ -1722,7 +1740,7 @@ export const updateMessageAndBlocksThunk =
 
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
-      logger.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+      logger.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error as Error)
     }
   }
 
@@ -1767,7 +1785,7 @@ export const removeBlocksThunk =
 
       return
     } catch (error) {
-      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error)
+      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }

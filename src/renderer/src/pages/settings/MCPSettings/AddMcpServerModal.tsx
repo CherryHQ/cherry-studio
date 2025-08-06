@@ -175,7 +175,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               })
           }, 1000) // Delay to ensure server is properly added to store
         } catch (error) {
-          logger.error('DXT processing error:', error)
+          logger.error('DXT processing error:', error as Error)
           window.message.error({
             content: t('settings.mcp.addServer.importFrom.dxtProcessFailed'),
             key: 'mcp-dxt-error'
@@ -216,19 +216,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
         const newServer: MCPServer = {
           id: nanoid(),
-          name: serverToAdd!.name!,
-          description: serverToAdd!.description ?? '',
+          ...serverToAdd!,
+          name: serverToAdd!.name || t('settings.mcp.newServer'),
           baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
-          command: serverToAdd!.command ?? '',
-          args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
-          env: serverToAdd!.env || {},
-          isActive: false,
-          type: serverToAdd!.type,
-          logoUrl: serverToAdd!.logoUrl,
-          provider: serverToAdd!.provider,
-          providerUrl: serverToAdd!.providerUrl,
-          tags: serverToAdd!.tags,
-          configSample: serverToAdd!.configSample
+          isActive: false // 初始狀態為非啟用
         }
 
         onSuccess(newServer)
@@ -245,7 +236,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
             window.message.error({
-              content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
+              content: newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'),
               key: 'mcp-quick-add-failed'
             })
           })
@@ -270,7 +261,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   return (
     <Modal
       title={
-        importMethod === 'dxt' ? t('settings.mcp.addServer.importFrom.dxt') : t('settings.mcp.addServer.importFrom')
+        importMethod === 'dxt'
+          ? t('settings.mcp.addServer.importFrom.dxt')
+          : t('settings.mcp.addServer.importFrom.json')
       }
       open={visible}
       onOk={handleOk}
@@ -354,9 +347,9 @@ const parseAndExtractServer = (
     typeof parsedJson.mcpServers === 'object' &&
     Object.keys(parsedJson.mcpServers).length > 1
   ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   }
 
   if (
@@ -405,6 +398,15 @@ const parseAndExtractServer = (
   // 確保 serverToAdd 存在且 name 存在
   if (!serverToAdd || !serverToAdd.name) {
     logger.error('Invalid JSON structure for server config or missing name:', parsedJson)
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+  }
+
+  // Ensure tags is string[]
+  if (
+    serverToAdd.tags &&
+    (!Array.isArray(serverToAdd.tags) || !serverToAdd.tags.every((tag) => typeof tag === 'string'))
+  ) {
+    logger.error('Tags must be an array of strings:', serverToAdd.tags)
     return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
   }
 

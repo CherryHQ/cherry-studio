@@ -3,9 +3,10 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@main/constant'
+import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
+import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
@@ -24,6 +25,7 @@ import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
+import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -33,6 +35,19 @@ import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import {
+  addEndMessage,
+  addStreamMessage,
+  bindTopic,
+  cleanHistoryTrace,
+  cleanLocalData,
+  cleanTopic,
+  getEntity,
+  getSpans,
+  saveEntity,
+  saveSpans,
+  tokenUsage
+} from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
@@ -40,7 +55,8 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, isPathInside, untildify } from './utils/file'
+import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -74,7 +90,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     installPath: path.dirname(app.getPath('exe'))
   }))
 
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
+  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
     let proxyConfig: ProxyConfig
 
     if (proxy === 'system') {
@@ -83,6 +99,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
     } else {
       proxyConfig = { mode: 'direct' }
+    }
+
+    if (bypassRules) {
+      proxyConfig.proxyBypassRules = bypassRules
     }
 
     await proxyManager.configureProxy(proxyConfig)
@@ -147,7 +167,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
-    logger.info('set test plan', isActive)
+    logger.info(`set test plan: ${isActive}`)
     if (isActive !== configManager.getTestPlan()) {
       appUpdater.cancelDownload()
       configManager.setTestPlan(isActive)
@@ -155,7 +175,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
-    logger.info('set test channel', channel)
+    logger.info(`set test channel: ${channel}`)
     if (channel !== configManager.getTestChannel()) {
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
@@ -270,7 +290,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
-    return hasWritePermission(filePath)
+    const hasPermission = await hasWritePermission(filePath)
+    return hasPermission
+  })
+
+  ipcMain.handle(IpcChannel.App_ResolvePath, async (_, filePath: string) => {
+    return path.resolve(untildify(filePath))
+  })
+
+  // Check if a path is inside another path (proper parent-child relationship)
+  ipcMain.handle(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
+    return isPathInside(childPath, parentPath)
   })
 
   // Set app data path
@@ -326,13 +356,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
     // Fix for .AppImage
     if (isLinux && process.env.APPIMAGE) {
-      logger.info('Relaunching app with options:', process.env.APPIMAGE, options)
+      logger.info(`Relaunching app with options: ${process.env.APPIMAGE}`, options)
       // On Linux, we need to use the APPIMAGE environment variable to relaunch
       // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
       options = options || {}
       options.execPath = process.env.APPIMAGE
       options.args = options.args || []
       options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
     }
 
     app.relaunch(options)
@@ -365,49 +401,48 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // backup
-  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
-  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore)
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav)
-  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav)
-  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
-  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
-  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
-  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir)
-  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup)
-  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles)
-  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile)
-  ipcMain.handle(IpcChannel.Backup_SetLocalBackupDir, backupManager.setLocalBackupDir)
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3)
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3)
-  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files)
-  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File)
-  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection)
+  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection.bind(backupManager))
 
   // file
-  ipcMain.handle(IpcChannel.File_Open, fileManager.open)
-  ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath)
-  ipcMain.handle(IpcChannel.File_Save, fileManager.save)
-  ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile)
-  ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile)
-  ipcMain.handle(IpcChannel.File_Clear, fileManager.clear)
-  ipcMain.handle(IpcChannel.File_Read, fileManager.readFile)
-  ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile)
-  ipcMain.handle('file:deleteDir', fileManager.deleteDir)
-  ipcMain.handle(IpcChannel.File_Get, fileManager.getFile)
-  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
-  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile)
-  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
-  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
-  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
-  ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
-  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image)
-  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
-  ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount)
-  ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
-  ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
-  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
-  ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath)
+  ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Clear, fileManager.clear.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Read, fileManager.readFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile.bind(fileManager))
+  ipcMain.handle('file:deleteDir', fileManager.deleteDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
@@ -431,10 +466,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // fs
-  ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
+  ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
 
   // export
-  ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord)
+  ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
 
   // open path
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
@@ -452,14 +487,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // knowledge base
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank)
-  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
 
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, async (_, messages, config) => {
@@ -511,6 +546,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return vertexAIService.getAuthHeaders(params)
   })
 
+  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
+    return vertexAIService.getAccessToken(params)
+  })
+
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
@@ -544,9 +583,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
-  ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
-    mainWindow.webContents.send('mcp-progress', progress)
-  })
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -558,7 +594,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       // Process DXT file using the temporary path
       return await dxtService.uploadDxt(event, tempPath)
     } catch (error) {
-      logger.error('DXT upload error:', error)
+      logger.error('DXT upload error:', error as Error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to upload DXT file'
@@ -580,12 +616,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
 
   //copilot
-  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage)
-  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, CopilotService.getCopilotToken)
-  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, CopilotService.saveCopilotToken)
-  ipcMain.handle(IpcChannel.Copilot_GetToken, CopilotService.getToken)
-  ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout)
-  ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser)
+  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, CopilotService.getCopilotToken.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, CopilotService.saveCopilotToken.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetToken, CopilotService.getToken.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout.bind(CopilotService))
+  ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser.bind(CopilotService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
@@ -597,7 +633,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // nutstore
-  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl)
+  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
   ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
   ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
@@ -636,4 +672,31 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
+  ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
+  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+    getSpans(topicId, traceId, modelName)
+  )
+  ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
+  ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
+  ipcMain.handle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) => bindTopic(traceId, topicId))
+  ipcMain.handle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) => cleanTopic(topicId, traceId))
+  ipcMain.handle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) => tokenUsage(spanId, usage))
+  ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
+    cleanHistoryTrace(topicId, traceId, modelName)
+  )
+  ipcMain.handle(
+    IpcChannel.TRACE_OPEN_WINDOW,
+    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
+      openTraceWindow(topicId, traceId, autoOpen, modelName)
+  )
+  ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
+  ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
+    addEndMessage(spanId, modelName, message)
+  )
+  ipcMain.handle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => cleanLocalData())
+  ipcMain.handle(
+    IpcChannel.TRACE_ADD_STREAM_MESSAGE,
+    (_, spanId: string, modelName: string, context: string, msg: any) =>
+      addStreamMessage(spanId, modelName, context, msg)
+  )
 }

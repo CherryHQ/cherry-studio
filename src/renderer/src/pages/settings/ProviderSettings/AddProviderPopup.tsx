@@ -33,7 +33,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             setLogo(logoData)
           }
         } catch (error) {
-          logger.error('Failed to load logo', error)
+          logger.error('Failed to load logo', error as Error)
         }
       }
       loadLogo()
@@ -49,7 +49,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       type,
       logo: logo || undefined
     }
-
     resolve(result)
   }
 
@@ -178,7 +177,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>
-        <Form.Item label={t('settings.provider.add.name')} style={{ marginBottom: 8 }}>
+        <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value.trim())}
@@ -248,7 +247,12 @@ export default class AddProviderPopup {
     TopView.hide('AddProviderPopup')
   }
   static show(provider?: Provider) {
-    return new Promise<{ name: string; type: ProviderType; logo?: string; logoFile?: File }>((resolve) => {
+    return new Promise<{
+      name: string
+      type: ProviderType
+      logo?: string
+      logoFile?: File
+    }>((resolve) => {
       TopView.show(
         <PopupContainer
           provider={provider}

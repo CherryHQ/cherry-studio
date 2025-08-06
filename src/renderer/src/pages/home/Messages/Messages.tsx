@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
+import { LoadingIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -90,13 +90,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({
-            top: scrollContainerRef.current.scrollHeight
-          })
+          scrollContainerRef.current.scrollTo({ top: 0 })
         }
       })
     }
@@ -225,14 +224,17 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
               window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
             } catch (error) {
-              logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error)
-              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+              logger.error(
+                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
+                error as Error
+              )
+              window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
             }
           } else {
             logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
             )
-            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
           }
         }
       )
@@ -307,7 +309,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
               ))}
               {isLoadingMore && (
                 <LoaderContainer>
-                  <SvgSpinners180Ring color="var(--color-text-2)" />
+                  <LoadingIcon color="var(--color-text-2)" />
                 </LoaderContainer>
               )}
             </ScrollContainer>
@@ -376,7 +378,7 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 16px 20px;
+  padding: 10px 10px 20px;
   .multi-select-mode & {
     padding-bottom: 60px;
   }

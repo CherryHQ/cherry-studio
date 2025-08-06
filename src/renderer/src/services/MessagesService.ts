@@ -235,7 +235,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       }
     } catch (e) {
       window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
-      logger.error('Failed to generate title using topic naming, downgraded to default logic', e)
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
     }
   }
 

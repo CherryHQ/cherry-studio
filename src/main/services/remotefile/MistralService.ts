@@ -40,7 +40,7 @@ export class MistralService extends BaseFileService {
         }
       }
     } catch (error) {
-      logger.error('Error uploading file:', error)
+      logger.error('Error uploading file:', error as Error)
       return {
         fileId: '',
         displayName: file.origin_name,
@@ -65,7 +65,7 @@ export class MistralService extends BaseFileService {
         }))
       }
     } catch (error) {
-      logger.error('Error listing files:', error)
+      logger.error('Error listing files:', error as Error)
       return { files: [] }
     }
   }
@@ -77,7 +77,7 @@ export class MistralService extends BaseFileService {
       })
       logger.debug(`File ${fileId} deleted`)
     } catch (error) {
-      logger.error('Error deleting file:', error)
+      logger.error('Error deleting file:', error as Error)
       throw error
     }
   }
@@ -94,7 +94,7 @@ export class MistralService extends BaseFileService {
         status: 'success' // Retrieved files are always processed
       }
     } catch (error) {
-      logger.error('Error retrieving file:', error)
+      logger.error('Error retrieving file:', error as Error)
       return {
         fileId: fileId,
         displayName: '',

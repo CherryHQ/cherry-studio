@@ -2,7 +2,7 @@
 
 This is a developer document on how to use the logger.
 
-CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**
+CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**.
 
 The following are detailed instructions.
 
@@ -38,18 +38,32 @@ const logger = loggerService.withContext('moduleName', CONTEXT)
 
 ### Logging
 
-In your code, you can call `logger` at any time to record logs. The supported methods are: `error`, `warn`, `info`, `verbose`, `debug`, `silly`.
-For the meaning of each level, please refer to the section below.
+In your code, you can call `logger` at any time to record logs. The supported levels are: `error`, `warn`, `info`, `verbose`, `debug`, and `silly`.
+For the meaning of each level, please refer to the subsequent sections.
 
-The following examples show how to use `logger.info` and `logger.error`. Other levels are used in the same way:
+The following are the supported parameters for logging (using `logger.LEVEL` as an example, where `LEVEL` represents one of the levels mentioned above):
+
 ```typescript
-logger.info('message', CONTEXT)
-logger.info('message %s %d', 'hello', 123, CONTEXT)
-logger.error('message', new Error('error message'), CONTEXT)
+logger.LEVEL(message)
+logger.LEVEL(message, CONTEXT)
+logger.LEVEL(message, error)
+logger.LEVEL(message, error, CONTEXT)
 ```
-- `message` is a required string. All other options are optional.
-- `CONTEXT` as `{ key: value, ... }` is optional and will be recorded in the log file.
-- If an `Error` type is passed, the error stack will be automatically recorded.
+
+**Only the four calling methods above are supported**.
+
+| Parameter | Type     | Description                                                                                                                                                                                                                                                                                                                   |
+| --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message` | `string` | Required. This is the core field of the log, containing the main content to be recorded.                                                                                                                                                                                                                                      |
+| `CONTEXT` | `object` | Optional. Additional information to be recorded in the log file. It is recommended to use the `{ key: value, ...}` format.                                                                                                                                                                                                    |
+| `error`   | `Error`  | Optional. The error stack trace will also be printed.<br />Note that the `error` caught by `catch(error)` is of the `unknown` type. According to TypeScript best practices, you should first use `instanceof` for type checking. If you are certain it is an `Error` type, you can also use a type assertion like `as Error`. |
+
+#### Recording non-`object` type context information
+
+```typescript
+const foo = getFoo()
+logger.debug(`foo ${foo}`)
+```
 
 ### Log Levels
 
@@ -57,6 +71,7 @@ logger.error('message', new Error('error message'), CONTEXT)
 - In the production environment, the default log level is `info`. Logs are only recorded to the file and are not printed to the terminal.
 
 Changing the log level:
+
 - You can change the log level with `logger.setLevel('newLevel')`.
 - `logger.resetLevel()` resets it to the default level.
 - `logger.getLevel()` gets the current log level.
@@ -65,7 +80,7 @@ Changing the log level:
 
 ## Usage in the `renderer` process
 
-Usage in the `renderer` process for *importing*, *setting module information*, and *setting context information* is **exactly the same** as in the `main` process.
+Usage in the `renderer` process for _importing_, _setting module information_, and _setting context information_ is **exactly the same** as in the `main` process.
 The following section focuses on the differences.
 
 ### `initWindowSource`
@@ -77,9 +92,11 @@ loggerService.initWindowSource('windowName')
 ```
 
 As a rule, we will set this in the `window`'s `entryPoint.tsx`. This ensures that `windowName` is set before it's used.
+
 - An error will be thrown if `windowName` is not set, and the `logger` will not work.
 - `windowName` can only be set once; subsequent attempts to set it will have no effect.
 - `windowName` will not be printed in the `devTool`'s `console`, but it will be recorded in the `main` process terminal and the file log.
+- `initWindowSource` returns the LoggerService instance, allowing for method chaining.
 
 ### Log Levels
 
@@ -108,8 +125,8 @@ logger.setLogToMainLevel('newLevel')
 logger.resetLogToMainLevel()
 logger.getLogToMainLevel()
 ```
-**Note:** This method has a global effect. Please do not change it arbitrarily in your code unless you are very clear about what you are doing.
 
+**Note:** This method has a global effect. Please do not change it arbitrarily in your code unless you are very clear about what you are doing.
 
 ##### Per-log Change
 
@@ -119,12 +136,52 @@ By adding `{ logToMain: true }` at the end of the log call, you can force a sing
 logger.info('message', { logToMain: true })
 ```
 
+## About `worker` Threads
+
+- Currently, logging is not supported for workers in the `main` process.
+- Logging is supported for workers started in the `renderer` process, but currently these logs are not sent to `main` for recording.
+
+### How to Use Logging in `renderer` Workers
+
+Since worker threads are independent, using LoggerService in them is equivalent to using it in a new `renderer` window. Therefore, you must first call `initWindowSource`.
+
+If the worker is relatively simple (just one file), you can also use method chaining directly:
+
+```typescript
+const logger = loggerService.initWindowSource('Worker').withContext('LetsWork')
+```
+
+## Filtering Logs with Environment Variables
+
+In a development environment, you can define environment variables to filter displayed logs by level and module. This helps developers focus on their specific logs and improves development efficiency.
+
+Environment variables can be set in the terminal or defined in the `.env` file in the project's root directory. The available variables are as follows:
+
+| Variable Name                    | Description                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CSLOGGER_MAIN_LEVEL`            | Log level for the `main` process. Logs below this level will not be displayed.                                                                                              |
+| `CSLOGGER_MAIN_SHOW_MODULES`     | Filters log modules for the `main` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed.     |
+| `CSLOGGER_RENDERER_LEVEL`        | Log level for the `renderer` process. Logs below this level will not be displayed.                                                                                          |
+| `CSLOGGER_RENDERER_SHOW_MODULES` | Filters log modules for the `renderer` process. Use a comma (`,`) to separate modules. The filter is case-sensitive. Only logs from modules in this list will be displayed. |
+
+Example:
+
+```bash
+CSLOGGER_MAIN_LEVEL=verbose
+CSLOGGER_MAIN_SHOW_MODULES=MCPService,SelectionService
+```
+
+Note:
+
+- Environment variables are only effective in the development environment.
+- These variables only affect the logs displayed in the terminal or DevTools. They do not affect file logging or the `logToMain` recording logic.
+
 ## Log Level Usage Guidelines
 
 There are many log levels. The following are the guidelines that should be followed in CherryStudio for when to use each level:
 (Arranged from highest to lowest log level)
 
-| Log Level     | Core Definition & Use Case                                                                                                                                                                          | Example                                                                                                                                                                                                            |
+| Log Level     | Core Definition & Use case                                                                                                                                                                          | Example                                                                                                                                                                                                            |
 | :------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`error`**   | **Critical error causing the program to crash or core functionality to become unusable.** <br> This is the highest-priority log, usually requiring immediate reporting or user notification.        | - Main or renderer process crash. <br> - Failure to read/write critical user data files (e.g., database, configuration files), preventing the application from running. <br> - All unhandled exceptions.           |
 | **`warn`**    | **Potential issue or unexpected situation that does not affect the program's core functionality.** <br> The program can recover or use a fallback.                                                  | - Configuration file `settings.json` is missing; started with default settings. <br> - Auto-update check failed, but does not affect the use of the current version. <br> - A non-essential plugin failed to load. |

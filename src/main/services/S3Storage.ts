@@ -26,7 +26,7 @@ function streamToBuffer(stream: Readable): Promise<Buffer> {
 }
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
-const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com']
+const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
 /**
  * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
@@ -52,7 +52,7 @@ export default class S3Storage {
         const isInWhiteList = VIRTUAL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
         return !isInWhiteList
       } catch (e) {
-        logger.warn('[S3Storage] Failed to parse endpoint, fallback to Path-Style:', endpoint, e)
+        logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e as Error)
         return true
       }
     })()
@@ -98,7 +98,7 @@ export default class S3Storage {
         })
       )
     } catch (error) {
-      logger.error('[S3Storage] Error putting object:', error)
+      logger.error('[S3Storage] Error putting object:', error as Error)
       throw error
     }
   }
@@ -111,7 +111,7 @@ export default class S3Storage {
       }
       return await streamToBuffer(res.Body as Readable)
     } catch (error) {
-      logger.error('[S3Storage] Error getting object:', error)
+      logger.error('[S3Storage] Error getting object:', error as Error)
       throw error
     }
   }
@@ -128,7 +128,7 @@ export default class S3Storage {
         }
       }
     } catch (error) {
-      logger.error('[S3Storage] Error deleting object:', error)
+      logger.error('[S3Storage] Error deleting object:', error as Error)
       throw error
     }
   }
@@ -165,7 +165,7 @@ export default class S3Storage {
 
       return files
     } catch (error) {
-      logger.error('[S3Storage] Error listing objects:', error)
+      logger.error('[S3Storage] Error listing objects:', error as Error)
       throw error
     }
   }
@@ -178,7 +178,7 @@ export default class S3Storage {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }))
       return true
     } catch (error) {
-      logger.error('[S3Storage] Error checking connection:', error)
+      logger.error('[S3Storage] Error checking connection:', error as Error)
       throw error
     }
   }

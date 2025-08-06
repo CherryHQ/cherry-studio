@@ -1,11 +1,34 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QuickPanelListItem, QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
+
+// Mock the DynamicVirtualList component
+vi.mock('@renderer/components/VirtualList', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@renderer/components/VirtualList')>()
+  return {
+    ...mod,
+    DynamicVirtualList: ({ ref, list, children, scrollerStyle }: any & { ref?: React.RefObject<any | null> }) => {
+      // Expose a mock function for scrollToIndex
+      React.useImperativeHandle(ref, () => ({
+        scrollToIndex: vi.fn()
+      }))
+
+      // Render all items, not virtualized
+      return (
+        <div style={scrollerStyle}>
+          {list.map((item: any, index: number) => (
+            <div key={item.id || index}>{children(item, index)}</div>
+          ))}
+        </div>
+      )
+    }
+  }
+})
 
 // Mock Redux store
 const mockStore = configureStore({
@@ -16,6 +39,7 @@ const mockStore = configureStore({
 
 function createList(length: number, prefix = 'Item', extra: Partial<QuickPanelListItem> = {}) {
   return Array.from({ length }, (_, i) => ({
+    id: `${prefix}-${i + 1}`,
     label: `${prefix} ${i + 1}`,
     description: `${prefix} Description ${i + 1}`,
     icon: `${prefix} Icon ${i + 1}`,

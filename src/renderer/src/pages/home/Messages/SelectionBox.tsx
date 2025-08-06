@@ -17,8 +17,13 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragCurrent, setDragCurrent] = useState({ x: 0, y: 0 })
+  const [isMouseDown, setIsMouseDown] = useState(false)
 
   const dragSelectedIds = useRef<Set<string>>(new Set())
+
+  // 拖拽阈值，只有移动距离超过这个值才开始框选
+  // 避免触控板点击触发拖拽
+  const DRAG_THRESHOLD = 5
 
   useEffect(() => {
     if (!isMultiSelectMode) return
@@ -39,20 +44,30 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
       e.preventDefault()
 
-      setIsDragging(true)
+      setIsMouseDown(true)
       const pos = updateDragPos(e)
       setDragStart(pos)
       setDragCurrent(pos)
       dragSelectedIds.current.clear()
-      document.body.classList.add('no-select')
     }
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDown) return
+
+      const pos = updateDragPos(e)
+
+      const deltaX = Math.abs(pos.x - dragStart.x)
+      const deltaY = Math.abs(pos.y - dragStart.y)
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+
+      if (!isDragging && distance > DRAG_THRESHOLD) {
+        setIsDragging(true)
+        document.body.classList.add('no-select')
+      }
+
       if (!isDragging) return
 
       e.preventDefault()
-
-      const pos = updateDragPos(e)
       setDragCurrent(pos)
 
       // 计算当前框选矩形
@@ -68,6 +83,9 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
         // 检查消息是否已被选中（不管是拖动选中还是手动选中）
         const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null
         const isAlreadySelected = checkbox?.checked || false
+
+        // 清除上下文这类消息也会被选中，所以需要跳过
+        if (!checkbox) return
 
         // 如果已经被记录为拖动选中，跳过
         if (dragSelectedIds.current.has(id)) return
@@ -94,9 +112,11 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     }
 
     const handleMouseUp = () => {
-      if (!isDragging) return
-      setIsDragging(false)
-      document.body.classList.remove('no-select')
+      setIsMouseDown(false)
+      if (isDragging) {
+        setIsDragging(false)
+        document.body.classList.remove('no-select')
+      }
     }
 
     const container = scrollContainerRef.current!
@@ -110,7 +130,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
       window.removeEventListener('mouseup', handleMouseUp)
       document.body.classList.remove('no-select')
     }
-  }, [isMultiSelectMode, isDragging, dragStart, scrollContainerRef, messageElements, handleSelectMessage])
+  }, [isMultiSelectMode, isDragging, isMouseDown, dragStart, scrollContainerRef, messageElements, handleSelectMessage])
 
   if (!isDragging || !isMultiSelectMode) return null
 

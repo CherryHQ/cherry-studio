@@ -6,9 +6,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
+import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './providers/modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
 // Provider configuration interface
@@ -30,8 +30,8 @@ const providers: ProviderConfig[] = [
     key: 'modelscope',
     name: 'ModelScope',
     description: 'ModelScope 平台 MCP 服务',
-    discoverUrl: 'https://www.modelscope.cn/mcp?hosted=1&page=1',
-    apiKeyUrl: 'https://www.modelscope.cn/my/myaccesstoken',
+    discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
+    apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',
     getToken: getModelScopeToken,
     saveToken: saveModelScopeToken,
@@ -78,7 +78,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
-  const { addMCPServer } = useMCPServers()
+  const { addMCPServer, updateMCPServer } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
@@ -128,10 +128,17 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       // Sync servers
       const result = await selectedProvider.syncServers(token, existingServers)
 
-      if (result.success && result.addedServers?.length > 0) {
-        // Add the new servers to the store
+      if (result.success && (result.addedServers?.length > 0 || (result as any).updatedServers?.length > 0)) {
+        // Add new servers to the store
         for (const server of result.addedServers) {
           addMCPServer(server)
+        }
+        // Update existing servers with latest info
+        const updatedServers = (result as any).updatedServers
+        if (updatedServers?.length > 0) {
+          for (const server of updatedServers) {
+            updateMCPServer(server)
+          }
         }
         window.message.success(result.message)
         setOpen(false)
@@ -148,7 +155,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     } finally {
       setIsSyncing(false)
     }
-  }, [addMCPServer, existingServers, form, selectedProvider, t])
+  }, [addMCPServer, updateMCPServer, existingServers, form, selectedProvider, t])
 
   const onCancel = () => {
     setOpen(false)

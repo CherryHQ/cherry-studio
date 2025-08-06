@@ -5,6 +5,7 @@ import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
+import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
@@ -37,6 +38,7 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import Ph8ProviderLogo from '@renderer/assets/images/providers/ph8.png'
+import PoeProviderLogo from '@renderer/assets/images/providers/poe.svg'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import QiniuProviderLogo from '@renderer/assets/images/providers/qiniu.webp'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
@@ -50,6 +52,8 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
+import { Provider, SystemProvider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -106,7 +110,9 @@ const PROVIDER_LOGO_MAP = {
   cephalon: CephalonProviderLogo,
   lanyun: LanyunProviderLogo,
   vertexai: VertexAIProviderLogo,
-  'new-api': NewAPIProviderLogo
+  'new-api': NewAPIProviderLogo,
+  'aws-bedrock': AwsProviderLogo,
+  poe: PoeProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -318,7 +324,7 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://open.bigmodel.cn/',
       apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
-      docs: 'https://open.bigmodel.cn/dev/howuse/introduction',
+      docs: 'https://docs.bigmodel.cn/',
       models: 'https://open.bigmodel.cn/modelcenter/square'
     }
   },
@@ -327,7 +333,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.moonshot.cn'
     },
     websites: {
-      official: 'https://moonshot.ai/',
+      official: 'https://www.moonshot.cn/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',
       models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
@@ -664,10 +670,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://maas-api.lanyun.net'
     },
     websites: {
-      official: 'https://lanyun.net',
-      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
-      docs: 'https://archive.lanyun.net/maas/doc/',
-      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
+      official: 'https://maas.lanyun.net',
+      apiKey: 'https://maas.lanyun.net/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/#/maas/',
+      models: 'https://maas.lanyun.net/#/model/modelSquare'
     }
   },
   vertexai: {
@@ -689,5 +695,72 @@ export const PROVIDER_CONFIG = {
       official: 'https://docs.newapi.pro/',
       docs: 'https://docs.newapi.pro'
     }
+  },
+  'aws-bedrock': {
+    api: {
+      url: ''
+    },
+    websites: {
+      official: 'https://aws.amazon.com/bedrock/',
+      apiKey: 'https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html',
+      docs: 'https://docs.aws.amazon.com/bedrock/',
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html'
+    }
+  },
+  poe: {
+    api: {
+      url: 'https://api.poe.com/v1'
+    },
+    websites: {
+      official: 'https://poe.com/',
+      apiKey: 'https://poe.com/api_key',
+      docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
+      models: 'https://poe.com/'
+    }
   }
+}
+
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
+/**
+ * 判断提供商是否支持 message 的 content 为数组类型。 Only for OpenAI Chat Completions API.
+ */
+export const isSupportArrayContentProvider = (provider: Provider) => {
+  return provider.isNotSupportArrayContent !== true || !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
+}
+
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
+
+/**
+ * 判断提供商是否支持 developer 作为 message role。 Only for OpenAI API.
+ */
+export const isSupportDeveloperRoleProvider = (provider: Provider) => {
+  return provider.isNotSupportDeveloperRole !== true || !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
+}
+
+const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
+
+/**
+ * 判断提供商是否支持 stream_options 参数。Only for OpenAI API.
+ */
+export const isSupportStreamOptionsProvider = (provider: Provider) => {
+  return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+}
+
+const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope']
+
+/**
+ * 判断提供商是否支持使用enable_thinking参数来控制Qwen3系列模型的思考。 Only for OpenAI Chat Completions API.
+ */
+export const isSupportQwen3EnableThinkingProvider = (provider: Provider) => {
+  return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.includes(provider.id)
+}
+
+/**
+ * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
+ * @param provider - Provider对象，包含提供商的信息
+ * @returns 是否为系统内置提供商
+ */
+export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
+  return SYSTEM_PROVIDERS.some((p) => p.id === provider.id)
 }

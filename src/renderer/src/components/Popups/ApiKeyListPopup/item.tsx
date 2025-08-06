@@ -1,13 +1,15 @@
-import { CheckCircleFilled, CloseCircleFilled, MinusOutlined } from '@ant-design/icons'
+import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
+import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
+import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
-import { Check, PenLine, X } from 'lucide-react'
+import { Check, Minus, X } from 'lucide-react'
 import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ApiKeyValidity, ApiKeyWithStatus } from './types'
+import { ApiKeyValidity } from './types'
 
 export interface ApiKeyItemProps {
   keyStatus: ApiKeyWithStatus
@@ -39,9 +41,6 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const inputRef = useRef<InputRef>(null)
 
   const disabled = keyStatus.checking || _disabled
-  const isNotChecked = keyStatus.status === 'not_checked'
-  const isSuccess = keyStatus.status === 'success'
-  const statusColor = isSuccess ? 'var(--color-status-success)' : 'var(--color-status-error)'
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -83,41 +82,14 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
     }
   }
 
-  const renderStatusIcon = () => {
-    if (keyStatus.checking || isNotChecked) return null
-
-    const StatusIcon = isSuccess ? CheckCircleFilled : CloseCircleFilled
-    return <StatusIcon style={{ color: statusColor }} />
-  }
-
-  const renderKeyCheckResultTooltip = () => {
-    if (keyStatus.checking) {
-      return t('settings.models.check.checking')
+  const healthResults: HealthResult[] = [
+    {
+      status: keyStatus.status,
+      latency: keyStatus.latency,
+      error: keyStatus.error,
+      label: keyStatus.model?.name
     }
-
-    if (isNotChecked) {
-      return ''
-    }
-
-    const statusTitle = isSuccess ? t('settings.models.check.passed') : t('settings.models.check.failed')
-
-    return (
-      <div style={{ maxHeight: '200px', overflowY: 'auto', maxWidth: '300px', wordWrap: 'break-word' }}>
-        <strong style={{ color: statusColor }}>{statusTitle}</strong>
-        {keyStatus.model && (
-          <div style={{ marginTop: 5 }}>
-            {t('common.model')}: {keyStatus.model.name}
-          </div>
-        )}
-        {keyStatus.latency && isSuccess && (
-          <div style={{ marginTop: 5 }}>
-            {t('settings.provider.api.key.check.latency')}: {(keyStatus.latency / 1000).toFixed(2)}s
-          </div>
-        )}
-        {keyStatus.error && <div style={{ marginTop: 5 }}>{keyStatus.error}</div>}
-      </div>
-    )
-  }
+  ]
 
   return (
     <List.Item>
@@ -163,23 +135,21 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
           </Tooltip>
 
           <Flex gap={10} align="center">
-            <Tooltip title={renderKeyCheckResultTooltip()} styles={{ body: { userSelect: 'text' } }}>
-              {renderStatusIcon()}
-            </Tooltip>
+            <HealthStatusIndicator results={healthResults} loading={false} />
 
             <Flex gap={0} align="center">
               {showHealthCheck && (
                 <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
                   <Button
                     type="text"
-                    icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} isActive={keyStatus.checking} />}
+                    icon={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
                     onClick={onCheck}
                     disabled={disabled}
                   />
                 </Tooltip>
               )}
               <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
-                <Button type="text" icon={<PenLine size={16} />} onClick={handleEdit} disabled={disabled} />
+                <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>
               <Popconfirm
                 title={t('common.delete_confirm')}
@@ -189,7 +159,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
                 <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
-                  <Button type="text" icon={<MinusOutlined />} disabled={disabled} />
+                  <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
                 </Tooltip>
               </Popconfirm>
             </Flex>
@@ -200,14 +170,10 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   )
 }
 
-const ItemInnerContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
+const ItemInnerContainer = styled(Flex)`
+  flex: 1;
   justify-content: space-between;
-  width: 100%;
-  padding: 0;
-  margin: 0;
+  align-items: center;
 `
 
 export default memo(ApiKeyItem)

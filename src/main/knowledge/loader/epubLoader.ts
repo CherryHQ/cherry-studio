@@ -185,7 +185,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
             writeStream.write(text + '\n\n')
           }
         } catch (error) {
-          logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error)
+          logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error as Error)
         }
       }
 
@@ -207,7 +207,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       // 只添加一条完成日志
       logger.info(`[EpubLoader] 电子书 ${this.metadata?.title || path.basename(this.filePath)} 处理完成`)
     } catch (error) {
-      logger.error('[EpubLoader] Error in extractTextFromEpub:', error)
+      logger.error('[EpubLoader] Error in extractTextFromEpub:', error as Error)
       throw error
     }
   }
@@ -223,7 +223,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       await this.extractTextFromEpub()
     }
 
-    logger.info('[EpubLoader] 书名：', this.metadata?.title || '未知书名', ' 文本大小：', this.extractedText.length)
+    logger.info(`[EpubLoader] 书名：${this.metadata?.title || '未知书名'} 文本大小：${this.extractedText.length}`)
 
     // 创建文本分块器
     const chunker = new RecursiveCharacterTextSplitter({

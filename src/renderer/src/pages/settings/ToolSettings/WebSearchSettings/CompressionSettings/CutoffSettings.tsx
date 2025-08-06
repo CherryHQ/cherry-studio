@@ -26,7 +26,7 @@ const CutoffSettings = () => {
   return (
     <SettingRow>
       <SettingRowTitle>
-        {t('settings.tool.websearch.compression.cutoff.limit')}
+        {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <Tooltip title={t('settings.tool.websearch.compression.cutoff.limit.tooltip')} placement="right">
           <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
         </Tooltip>

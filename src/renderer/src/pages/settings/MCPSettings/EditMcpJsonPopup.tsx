@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setJsonConfig(formattedJson)
       setJsonError('')
     } catch (error) {
-      logger.error('Failed to format JSON:', error)
+      logger.error('Failed to format JSON:', error as Error)
       setJsonError(t('settings.mcp.jsonFormatError'))
     } finally {
       setIsLoading(false)
@@ -65,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const parsedConfig = JSON.parse(jsonConfig)
 
       if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
-        throw new Error(t('settings.mcp.invalidMcpFormat'))
+        throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
       }
 
       const serversArray: MCPServer[] = []
@@ -115,6 +115,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      maskClosable={false}
       width={800}
       height="80vh"
       loading={jsonSaving}

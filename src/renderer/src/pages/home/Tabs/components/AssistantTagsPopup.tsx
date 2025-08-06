@@ -1,11 +1,11 @@
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useTags } from '@renderer/hooks/useTags'
 import { Button, Empty, Modal } from 'antd'
 import { isEmpty } from 'lodash'
-import { Trash } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -94,7 +94,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                           <Box mr={8}>{tag}</Box>
                           <Button
                             type="text"
-                            icon={<Trash size={16} />}
+                            icon={<DeleteIcon size={16} className="lucide-custom" />}
                             danger
                             onClick={(e) => {
                               e.stopPropagation()

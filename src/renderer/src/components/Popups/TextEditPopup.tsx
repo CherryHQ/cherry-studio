@@ -76,7 +76,8 @@ const PopupContainer: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    setTimeout(resizeTextArea, 0)
+    const timer = setTimeout(resizeTextArea, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   const handleAfterOpenChange = (visible: boolean) => {
@@ -121,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({
         setTextValue(translatedText)
       }
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

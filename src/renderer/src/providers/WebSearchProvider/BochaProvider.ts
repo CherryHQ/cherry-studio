@@ -65,7 +65,7 @@ export default class BochaProvider extends BaseWebSearchProvider {
         }))
       }
     } catch (error) {
-      logger.error('Bocha search failed:', error)
+      logger.error('Bocha search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

@@ -89,7 +89,7 @@ const MessageContentContainer = styled.div`
   flex: 1;
   flex-direction: column;
   justify-content: space-between;
-  margin-top: 5px;
+  margin-top: 20px;
 `
 
 export default memo(MessageItem)

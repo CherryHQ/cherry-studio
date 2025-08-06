@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { Provider } from '@renderer/types'
 
 /**
@@ -82,7 +82,8 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
-  return provider.isSystem ? i18n.t(`provider.${provider.id}`) : provider.name
+  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
+  return provider.isSystem ? getProviderLabel(provider.id) : provider.name
 }
 
 /**

@@ -51,9 +51,9 @@ export function handleMcpProtocolUrl(url: URL) {
 
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
-        logger.debug('install MCP servers from urlschema: ', stringify)
+        logger.debug(`install MCP servers from urlschema: ${stringify}`)
         const jsonConfig = JSON.parse(stringify)
-        logger.debug('install MCP servers from urlschema: ', jsonConfig)
+        logger.debug(`install MCP servers from urlschema: ${JSON.stringify(jsonConfig)}`)
 
         // support both {mcpServers: [servers]}, [servers] and {server}
         if (jsonConfig.mcpServers) {

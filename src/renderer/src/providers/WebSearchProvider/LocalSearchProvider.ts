@@ -72,7 +72,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       if (isAbortError(error)) {
         throw error
       }
-      logger.error('Local search failed:', error)
+      logger.error('Local search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       await window.api.searchService.closeSearchWindow(uid)

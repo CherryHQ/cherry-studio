@@ -15,6 +15,7 @@ import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
+import { nodeTraceService } from './services/NodeTraceService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -25,6 +26,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import process from 'node:process'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -54,8 +56,14 @@ if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
 }
 
-// Enable features for unresponsive renderer js call stacks
-app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
+// DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
+// EarlyEstablishGpuChannel,EstablishGpuChannelAsync: Enable features for early establish gpu channel
+// speed up the startup time
+// https://github.com/microsoft/vscode/pull/241640/files
+app.commandLine.appendSwitch(
+  'enable-features',
+  'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+)
 app.on('web-contents-created', (_, webContents) => {
   webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -70,7 +78,7 @@ app.on('web-contents-created', (_, webContents) => {
     // Interrupt execution and collect call stack from unresponsive renderer
     logger.error('Renderer unresponsive start')
     const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    logger.error('Renderer unresponsive js call stack\n', callStack)
+    logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
   })
 })
 
@@ -83,7 +91,7 @@ if (!isDev) {
 
   // handle unhandled rejection
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
   })
 }
 
@@ -109,6 +117,8 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
     new TrayService()
 
+    nodeTraceService.init()
+
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
@@ -129,8 +139,8 @@ if (!app.requestSingleInstanceLock()) {
 
     if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
-        .then((name) => console.log(`Added Extension:  ${name}`))
-        .catch((err) => console.log('An error occurred: ', err))
+        .then((name) => logger.info(`Added Extension:  ${name}`))
+        .catch((err) => logger.error('An error occurred: ', err))
     }
 
     //start selection assistant service
@@ -177,13 +187,12 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('will-quit', async () => {
-    // event.preventDefault()
+    // 简单的资源清理，不阻塞退出流程
     try {
       await mcpService.cleanup()
     } catch (error) {
-      logger.error('Error cleaning up MCP service:', error)
+      logger.warn('Error cleaning up MCP service:', error as Error)
     }
-
     // finish the logger
     logger.finish()
   })

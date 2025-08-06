@@ -48,7 +48,7 @@ export async function decryptToken(token: string) {
     })
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
-    logger.error('Failed to decrypt token:', error)
+    logger.error('Failed to decrypt token:', error as Error)
     return null
   }
 }

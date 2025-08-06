@@ -69,6 +69,7 @@ function createToolUseExtractionTransform(
     async transform(chunk: GenericChunk, controller) {
       try {
         // 处理文本内容，检测工具使用标签
+        logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.TEXT_DELTA) {
           const textChunk = chunk as TextDeltaChunk
 
@@ -109,7 +110,7 @@ function createToolUseExtractionTransform(
         // 转发其他所有chunk
         controller.enqueue(chunk)
       } catch (error) {
-        logger.error(`Error processing chunk:`, error)
+        logger.error('Error processing chunk:', error as Error)
         controller.error(error)
       }
     },

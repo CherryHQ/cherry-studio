@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -21,6 +22,7 @@ import { isFocused, isOnHomePage } from '@renderer/utils/window'
 
 import { BlockManager } from '../BlockManager'
 
+const logger = loggerService.withContext('BaseCallbacks')
 interface BaseCallbacksDependencies {
   blockManager: BlockManager
   dispatch: any
@@ -68,7 +70,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
     },
 
     onError: async (error: any) => {
-      console.dir(error, { depth: null })
+      logger.debug('onError', error)
       const isErrorTypeAbort = isAbortError(error)
       let pauseErrorLanguagePlaceholder = ''
       if (isErrorTypeAbort) {
@@ -175,7 +177,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         autoRenameTopic(assistant, topicId)
 
         // 处理usage估算
+        // For OpenRouter, always use the accurate usage data from API, don't estimate
+        const isOpenRouter = assistant.model?.provider === 'openrouter'
         if (
+          !isOpenRouter &&
           response &&
           (response.usage?.total_tokens === 0 ||
             response?.usage?.prompt_tokens === 0 ||
@@ -207,8 +212,8 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         })
       )
       await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
-
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      logger.debug('onComplete finished')
     }
   }
 }

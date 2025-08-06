@@ -381,7 +381,7 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
         targetLanguage: langMap[history.targetLanguage]
       })
     } catch (error) {
-      logger.error('Error upgrading history:', error)
+      logger.error('Error upgrading history:', error as Error)
     }
   }
   logger.info('DB migration to version 8 finished.')
