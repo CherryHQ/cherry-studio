@@ -530,6 +530,7 @@ const ProviderListItem = styled.div`
   font-size: 14px;
   transition: all 0.2s ease-in-out;
   border: 0.5px solid transparent;
+  user-select: none;
   &:hover {
     background: var(--color-background-soft);
   }
