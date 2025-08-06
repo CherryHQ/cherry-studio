@@ -20,7 +20,8 @@ interface Props {
 const FALL_BACK_SERVICE_TIER: Record<OpenAIServiceTier, OpenAIServiceTier> = {
   auto: 'auto',
   default: 'default',
-  flex: 'default'
+  flex: 'default',
+  priority: 'priority'
 }
 
 const OpenAISettingsGroup: FC<Props> = ({
