@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { GB, MB } from '@shared/config/constant'
 import { AppInfo } from '@renderer/types'
+import { GB, MB } from '@shared/config/constant'
 import { t } from 'i18next'
 
 const logger = loggerService.withContext('useDataLimit')
