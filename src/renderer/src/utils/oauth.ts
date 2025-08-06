@@ -152,7 +152,7 @@ export const oauthWithTokenFlux = async () => {
   )
 }
 export const oauthWith302AI = async (setKey) => {
-  const authUrl = 'https://dash-api.302.ai/sso/login?app=cherry_studio&name=Cherry%20Studio'
+  const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
 
   const popup = window.open(
     authUrl,
