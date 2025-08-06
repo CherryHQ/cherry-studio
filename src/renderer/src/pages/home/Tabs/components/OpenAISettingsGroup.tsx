@@ -64,7 +64,7 @@ const OpenAISettingsGroup: FC<Props> = ({
   ]
 
   const serviceTierOptions = useMemo(() => {
-    const baseOptions = [
+    const baseOptions: { value: OpenAIServiceTier; label: string }[] = [
       {
         value: 'auto',
         label: t('settings.openai.service_tier.auto')
@@ -76,6 +76,10 @@ const OpenAISettingsGroup: FC<Props> = ({
       {
         value: 'flex',
         label: t('settings.openai.service_tier.flex')
+      },
+      {
+        value: 'priority',
+        label: t('settings.openai.service_tier.priority')
       }
     ]
     return baseOptions.filter((option) => {

@@ -907,7 +907,8 @@ export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export const OpenAIServiceTiers = {
   AUTO: 'auto',
   DEFAULT: 'default',
-  FLEX: 'flex'
+  FLEX: 'flex',
+  PRIORITY: 'priority'
 } as const
 
 export type OpenAIServiceTier = (typeof OpenAIServiceTiers)[keyof typeof OpenAIServiceTiers]
