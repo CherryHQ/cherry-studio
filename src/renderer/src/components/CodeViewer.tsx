@@ -234,7 +234,7 @@ const ScrollContainer = styled.div<{
     align-items: flex-start;
     width: 100%;
     line-height: ${(props) => props.$lineHeight}px;
-    contain: content;
+    contain: ${(props) => (props.$wrap ? 'content' : 'none')};
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
