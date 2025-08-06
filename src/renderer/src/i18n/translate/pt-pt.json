@@ -505,6 +505,7 @@
         "tip": "A barra de ferramentas de blocos de código executáveis exibirá um botão de execução; atenção para não executar códigos perigosos!",
         "title": "Execução de Código"
       },
+      "code_image_tools": "Ativar ferramenta de pré-visualização",
       "code_wrappable": "Bloco de código com quebra de linha",
       "context_count": {
         "label": "Número de contexto",
@@ -648,15 +649,6 @@
     },
     "expand": "Expandir",
     "more": "Mais",
-    "preview": {
-      "copy": {
-        "image": "Copiar como imagem"
-      },
-      "label": "Pré-visualizar",
-      "source": "Ver código-fonte",
-      "zoom_in": "Ampliar",
-      "zoom_out": "Reduzir"
-    },
     "run": "Executar código",
     "split": {
       "label": "Dividir visualização",
@@ -756,6 +748,9 @@
       "file_format": "Formato do arquivo de backup está incorreto"
     },
     "chat": {
+      "chunk": {
+        "non_json": "Devolveu um formato de dados inválido"
+      },
       "response": "Ocorreu um erro, se a chave da API não foi configurada, por favor vá para Configurações > Provedores de Modelo para configurar a chave"
     },
     "http": {
@@ -1159,6 +1154,9 @@
       "failed": "Falha ao excluir",
       "success": "Excluído com sucesso"
     },
+    "dialog": {
+      "failed": "A pré-visualização falhou"
+    },
     "download": {
       "failed": "Falha no download",
       "success": "Download bem-sucedido"
@@ -1561,6 +1559,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Gerar imagem",
+      "merge": "fundir",
       "remix": "Misturar",
       "upscale": "Aumentar"
     },
@@ -1652,6 +1651,22 @@
       "resemblance_tip": "Controla o nível de semelhança entre o resultado ampliado e a imagem original",
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
     }
+  },
+  "preview": {
+    "copy": {
+      "image": "Copiar como imagem"
+    },
+    "dialog": "Abrir janela de pré-visualização",
+    "label": "Pré-visualização",
+    "pan": "mover",
+    "pan_down": "mover para baixo",
+    "pan_left": "Deslocar para a esquerda",
+    "pan_right": "Deslocar para a direita",
+    "pan_up": "Mover para cima",
+    "reset": "repor",
+    "source": "Ver código-fonte",
+    "zoom_in": "ampliar",
+    "zoom_out": "reduzir"
   },
   "prompts": {
     "explanation": "Ajude-me a explicar este conceito",
@@ -2715,6 +2730,8 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "longRunning": "Modo de execução prolongada",
+      "longRunningTooltip": "Ativado, o servidor suporta tarefas de longa duração, reiniciando o temporizador de tempo limite ao receber notificações de progresso e prolongando o tempo máximo de tempo limite para 10 minutos.",
       "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",
@@ -2987,6 +3004,7 @@
         "select_api_key": "Selecione a chave API a ser usada:",
         "single": "Individual",
         "start": "Começar",
+        "timeout": "tempo expirado",
         "title": "Verificação de saúde do modelo",
         "use_all_keys": "Use chaves"
       },

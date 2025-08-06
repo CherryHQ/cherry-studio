@@ -748,6 +748,9 @@
       "file_format": "Backup file format error"
     },
     "chat": {
+      "chunk": {
+        "non_json": "Returned an invalid data format"
+      },
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
     "http": {

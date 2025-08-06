@@ -505,6 +505,7 @@
         "tip": "Une bouton d'exécution s'affichera dans la barre d'outils des blocs de code exécutables. Attention à ne pas exécuter de code dangereux !",
         "title": "Exécution de code"
       },
+      "code_image_tools": "Activer l'outil d'aperçu",
       "code_wrappable": "Blocs de code avec retours à la ligne",
       "context_count": {
         "label": "Nombre de contextes",
@@ -648,15 +649,6 @@
     },
     "expand": "Développer",
     "more": "Plus",
-    "preview": {
-      "copy": {
-        "image": "Copier comme image"
-      },
-      "label": "Aperçu",
-      "source": "Voir le code source",
-      "zoom_in": "Agrandir",
-      "zoom_out": "Réduire"
-    },
     "run": "Exécuter le code",
     "split": {
       "label": "Fractionner la vue",
@@ -756,6 +748,9 @@
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
     "chat": {
+      "chunk": {
+        "non_json": "a renvoyé un format de données invalide"
+      },
       "response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé"
     },
     "http": {
@@ -1159,6 +1154,9 @@
       "failed": "Échec de la suppression",
       "success": "Suppression réussie"
     },
+    "dialog": {
+      "failed": "Échec de l'aperçu"
+    },
     "download": {
       "failed": "Échec du téléchargement",
       "success": "Téléchargement réussi"
@@ -1561,6 +1559,7 @@
     "mode": {
       "edit": "Редактировать",
       "generate": "Создать изображение",
+      "merge": "fusionner",
       "remix": "Смешать",
       "upscale": "Увеличить"
     },
@@ -1652,6 +1651,22 @@
       "resemblance_tip": "Contrôle le niveau de similarité entre le résultat agrandi et l'image originale",
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     }
+  },
+  "preview": {
+    "copy": {
+      "image": "Copier en tant qu'image"
+    },
+    "dialog": "Ouvrir la fenêtre d'aperçu",
+    "label": "Aperçu",
+    "pan": "déplacer",
+    "pan_down": "Déplacer vers le bas",
+    "pan_left": "Déplacement vers la gauche",
+    "pan_right": "Décalage vers la droite",
+    "pan_up": "Déplacer vers le haut",
+    "reset": "Réinitialiser",
+    "source": "Voir le code source",
+    "zoom_in": "agrandir",
+    "zoom_out": "réduire"
   },
   "prompts": {
     "explanation": "Aidez-moi à expliquer ce concept",
@@ -2715,6 +2730,8 @@
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
+      "longRunning": "Mode d'exécution prolongée",
+      "longRunningTooltip": "Activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de délai d'attente lorsqu'il reçoit une notification de progression et prolonge le délai d'expiration maximal à 10 minutes.",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
@@ -2987,6 +3004,7 @@
         "select_api_key": "Sélectionner la clé API à utiliser :",
         "single": "Unique",
         "start": "Commencer",
+        "timeout": "Délai dépassé",
         "title": "Test de santé des modèles",
         "use_all_keys": "Utiliser toutes les clés"
       },
