@@ -18,6 +18,7 @@ function shouldShowDiskWarning(freeBytes: number, totalBytes: number) {
   if (freeBytes < 5 * GIGABYTE) {
     return true
   }
+
   const freePercentage = (freeBytes / totalBytes) * 100
   if (totalBytes > 1024 * GIGABYTE) {
     if (freeBytes < 50 * GIGABYTE) {
@@ -25,12 +26,14 @@ function shouldShowDiskWarning(freeBytes: number, totalBytes: number) {
     }
   }
 
+  // if total bytes is greater than 128GB, and free percentage is less than 5%, warn user
   if (totalBytes > 128 * GIGABYTE) {
     if (freePercentage < 5) {
       return true
     }
   }
 
+  // if total bytes is less than 128GB, and free percentage is less than 10%, warn user
   if (freePercentage < 10) {
     return true
   }
@@ -60,17 +63,18 @@ async function checkAppStorageQuota() {
 
 async function checkAppDataDiskQuota(appDataPath: string) {
   const { free, size } = await window.api.getDiskInfo(appDataPath)
-  logger.info(`App data disk quota: ${free / 1024 / 1024 / 1024} / ${size / 1024 / 1024 / 1024}`)
+  logger.info(
+    `App data disk quota: ${(free / 1024 / 1024 / 1024).toFixed(2)}GB / ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`
+  )
   if (shouldShowDiskWarning(free, size)) {
-    logger.warn(`App data disk quota is low: ${free} / ${size}`)
     window.message.warning(t('data.limit.appDataDiskQuota'))
   }
 }
 
 export async function checkDataLimit() {
-  const appInfo: AppInfo = await window.api.getAppInfo()
-
-  const check = () => {
+  const check = async () => {
+    logger.info('check data limit')
+    const appInfo: AppInfo = await window.api.getAppInfo()
     if (appInfo?.appDataPath) {
       checkAppDataDiskQuota(appInfo.appDataPath)
     }
