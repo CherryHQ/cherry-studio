@@ -7,7 +7,8 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider
+  isSupportStreamOptionsProvider,
+  SYSTEM_PROVIDERS
 } from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -28,7 +29,7 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
-import { initialState as llmInitialState, moveProvider, SYSTEM_PROVIDERS } from './llm'
+import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
