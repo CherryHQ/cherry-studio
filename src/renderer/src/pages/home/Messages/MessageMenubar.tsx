@@ -52,11 +52,22 @@ interface Props {
   isAssistantMessage: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
+  onUpdateUseful?: (msgId: string) => void
 }
 
 const MessageMenubar: FC<Props> = (props) => {
-  const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
-    props
+  const {
+    message,
+    index,
+    isGrouped,
+    isLastMessage,
+    isAssistantMessage,
+    assistant,
+    topic,
+    model,
+    messageContainerRef,
+    onUpdateUseful
+  } = props
   const { t } = useTranslation()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
@@ -65,7 +76,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   // const assistantModel = assistant?.model
   const {
-    editMessage,
     deleteMessage,
     resendMessage,
     regenerateAssistantMessage,
@@ -402,9 +412,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      editMessage(message.id, { useful: !message.useful })
+      onUpdateUseful?.(message.id)
     },
-    [message, editMessage]
+    [message.id, onUpdateUseful]
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
@@ -546,7 +556,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />

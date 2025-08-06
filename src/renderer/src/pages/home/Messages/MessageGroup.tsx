@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -16,6 +17,7 @@ import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
+const logger = loggerService.withContext('MessageGroup')
 interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
@@ -23,14 +25,24 @@ interface Props {
 }
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
+  const messageLength = messages.length
+
+  // Hooks
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
-  const messageLength = messages.length
+  const maxWidth = useChatMaxWidth()
 
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
+
+  // States
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
+  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+
+  // Refs
+  const prevMessageLengthRef = useRef(messageLength)
 
   // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
@@ -38,8 +50,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     [_multiModelMessageStyle, messageLength]
   )
 
-  const prevMessageLengthRef = useRef(messageLength)
-  const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+  const isGrid = multiModelMessageStyle === 'grid'
 
   const selectedMessageId = useMemo(() => {
     if (messages.length === 1) return messages[0]?.id
@@ -66,9 +77,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [editMessage, selectedMessageId]
   )
-
-  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
-  const isGrid = multiModelMessageStyle === 'grid'
 
   useEffect(() => {
     if (messageLength > prevMessageLengthRef.current) {
@@ -164,6 +172,43 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
   }, [messages, registerMessageElement])
 
+  const onUpdateUseful = useCallback(
+    (msgId: string) => {
+      const message = messages.find((msg) => msg.id === msgId)
+      if (!message) {
+        logger.error("the message to update doesn't exist in this group")
+        return
+      }
+      if (message.useful) {
+        editMessage(msgId, { useful: undefined })
+        return
+      } else {
+        const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
+        toResetUsefulMsgs.forEach(async (msg) => {
+          editMessage(msg.id, {
+            useful: undefined
+          })
+        })
+        editMessage(msgId, { useful: true })
+      }
+    },
+    [editMessage, messages]
+  )
+
+  const groupContextMessageId = useMemo(() => {
+    // NOTE: 旧数据可能存在一组消息有多个useful的情况，只取第一个，不再另作迁移
+    // find first useful
+    const usefulMsg = messages.find((msg) => msg.useful)
+    if (usefulMsg) {
+      return usefulMsg.id
+    } else if (messages.length > 0) {
+      return messages[0].id
+    } else {
+      logger.warn('Empty message group')
+      return ''
+    }
+  }, [messages])
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
@@ -184,7 +229,11 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
               selected: message.id === selectedMessageId
             }
           ])}>
-          <MessageItem {...messageProps} />
+          <MessageItem
+            onUpdateUseful={onUpdateUseful}
+            isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
+            {...messageProps}
+          />
         </MessageWrapper>
       )
 
@@ -202,7 +251,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                     selected: message.id === selectedMessageId
                   }
                 ])}>
-                <MessageItem {...messageProps} />
+                <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
@@ -217,10 +266,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
+    [
+      isGrid,
+      isGrouped,
+      topic,
+      multiModelMessageStyle,
+      messages.length,
+      selectedMessageId,
+      onUpdateUseful,
+      groupContextMessageId,
+      gridPopoverTrigger
+    ]
   )
-
-  const maxWidth = useChatMaxWidth()
 
   return (
     <MessageEditingProvider>

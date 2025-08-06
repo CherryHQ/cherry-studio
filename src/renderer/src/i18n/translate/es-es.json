@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "Cambiar modelo"
       },
-      "useful": "Útil"
+      "useful": {
+        "label": "establecer como contexto",
+        "tip": "En este grupo de mensajes, este mensaje se seleccionará para unirse al contexto"
+      }
     },
     "multiple": {
       "select": {
@@ -1561,6 +1564,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Generar imagen",
+      "merge": "combinar",
       "remix": "Mezclar",
       "upscale": "Ampliar"
     },
@@ -2715,6 +2719,8 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
+      "longRunning": "Modo de ejecución prolongada",
+      "longRunningTooltip": "Habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de espera al recibir notificaciones de progreso y extiende el tiempo máximo de espera hasta 10 minutos",
       "missingDependencies": "Faltan, instalelas para continuar",
       "more": {
         "awesome": "Lista seleccionada de servidores MCP",

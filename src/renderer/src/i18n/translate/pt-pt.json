@@ -404,7 +404,10 @@
       "regenerate": {
         "model": "Trocar modelo"
       },
-      "useful": "Útil"
+      "useful": {
+        "label": "Definido como contexto",
+        "tip": "Neste conjunto de mensagens, esta mensagem será selecionada para ingressar no contexto"
+      }
     },
     "multiple": {
       "select": {
@@ -1561,6 +1564,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Gerar imagem",
+      "merge": "fusão",
       "remix": "Misturar",
       "upscale": "Aumentar"
     },
@@ -2715,6 +2719,8 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "longRunning": "Modo de execução prolongada",
+      "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",

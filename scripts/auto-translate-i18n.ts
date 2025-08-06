@@ -24,6 +24,17 @@ const openai = new OpenAI({
   baseURL: BASE_URL
 })
 
+const languageMap = {
+  'en-us': 'English',
+  'ja-jp': 'Japanese',
+  'ru-ru': 'Russian',
+  'zh-tw': 'Traditional Chinese',
+  'el-gr': 'Greek',
+  'es-es': 'Spanish',
+  'fr-fr': 'French',
+  'pt-pt': 'Portuguese'
+}
+
 const PROMPT = `
 You are a translation expert. Your sole responsibility is to translate the text enclosed within <translate_input> from the source language into {{target_language}}.
 Output only the translated text, preserving the original format, and without including any explanations, headers such as "TRANSLATE", or the <translate_input> tags.
@@ -117,7 +128,7 @@ const main = async () => {
       console.error(`解析 ${filename} 出错，跳过此文件。`, error)
       continue
     }
-    const systemPrompt = PROMPT.replace('{{target_language}}', filename)
+    const systemPrompt = PROMPT.replace('{{target_language}}', languageMap[filename])
 
     const result = await translateRecursively(targetJson, systemPrompt)
     count += 1

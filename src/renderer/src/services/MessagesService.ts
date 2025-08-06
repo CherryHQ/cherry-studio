@@ -21,10 +21,10 @@ import {
   createMessage,
   resetMessage
 } from '@renderer/utils/messageUtils/create'
+import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import { takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
@@ -34,7 +34,7 @@ import FileManager from './FileManager'
 const logger = loggerService.withContext('MessagesService')
 
 export {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterMessages,
   filterUsefulMessages,
@@ -43,23 +43,14 @@ export {
 } from '@renderer/utils/messageUtils/filters'
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : rawContextCount
+  const settingContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const actualContextCount = settingContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : settingContextCount
 
-  const _messages = takeRight(messages, maxContextCount)
-
-  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
-
-  let currentContextCount = 0
-  if (clearIndex === -1) {
-    currentContextCount = _messages.length
-  } else {
-    currentContextCount = _messages.length - (clearIndex + 1)
-  }
+  const contextMsgs = filterContextMessages(messages, actualContextCount)
 
   return {
-    current: currentContextCount,
-    max: rawContextCount
+    current: contextMsgs.length,
+    max: settingContextCount
   }
 }
 

@@ -1,4 +1,5 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { HStack } from '@renderer/components/Layout'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -12,8 +13,9 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox } from 'antd'
+import { Avatar, Checkbox, Tooltip } from 'antd'
 import dayjs from 'dayjs'
+import { Sparkle } from 'lucide-react'
 import { FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -23,6 +25,7 @@ interface Props {
   assistant: Assistant
   model?: Model
   topic: Topic
+  isGroupContextMessage?: boolean
 }
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
@@ -30,7 +33,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   return modelId ? getModelLogo(modelId) : undefined
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
@@ -107,9 +110,16 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic }) => 
         </>
       )}
       <UserWrap>
-        <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
-          {username}
-        </UserName>
+        <HStack alignItems="center">
+          <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
+            {username}
+          </UserName>
+          {isGroupContextMessage && (
+            <Tooltip title={t('chat.message.useful.tip')}>
+              <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
+            </Tooltip>
+          )}
+        </HStack>
         <InfoWrap className="message-header-info-wrap">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
         </InfoWrap>
@@ -150,7 +160,7 @@ const InfoWrap = styled.div`
   gap: 4px;
 `
 
-const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
+const UserName = styled.span<{ isBubbleStyle?: boolean; theme?: string }>`
   font-size: 14px;
   font-weight: 600;
   color: ${(props) => (props.isBubbleStyle && props.theme === 'dark' ? 'white' : 'var(--color-text)')};
