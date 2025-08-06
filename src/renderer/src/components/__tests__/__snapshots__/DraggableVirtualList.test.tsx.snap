@@ -38,7 +38,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               >
                 <div
                   class="draggable-content"
-                  style="background: blue;"
+                  style="background: blue; cursor: grab;"
                 >
                   <div>
                     Item A
@@ -56,7 +56,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               >
                 <div
                   class="draggable-content"
-                  style="background: blue;"
+                  style="background: blue; cursor: grab;"
                 >
                   <div>
                     Item B
@@ -74,7 +74,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
               >
                 <div
                   class="draggable-content"
-                  style="background: blue;"
+                  style="background: blue; cursor: grab;"
                 >
                   <div>
                     Item C
