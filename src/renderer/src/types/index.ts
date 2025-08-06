@@ -184,7 +184,7 @@ export type Provider = {
   isNotSupportDeveloperRole?: boolean
   /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
-  serviceTier?: OpenAIServiceTier
+  serviceTier?: ServiceTier
 
   isVertex?: boolean
   notes?: string
@@ -905,10 +905,10 @@ export interface StoreSyncAction {
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 
 export const OpenAIServiceTiers = {
-  AUTO: 'auto',
-  DEFAULT: 'default',
-  FLEX: 'flex',
-  PRIORITY: 'priority'
+  auto: 'auto',
+  default: 'default',
+  flex: 'flex',
+  priority: 'priority'
 } as const
 
 export type OpenAIServiceTier = (typeof OpenAIServiceTiers)[keyof typeof OpenAIServiceTiers]
@@ -917,6 +917,30 @@ const openAIServiceTiersValues = Object.values(OpenAIServiceTiers) // for type g
 
 export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
   return openAIServiceTiersValues.some((value) => value === tier)
+}
+
+export const GroqServiceTiers = {
+  auto: 'auto',
+  on_demand: 'on_demand',
+  flex: 'flex',
+  performance: 'performance'
+} as const
+
+// 从 GroqServiceTiers 对象中提取类型
+export type GroqServiceTier = (typeof GroqServiceTiers)[keyof typeof GroqServiceTiers]
+
+// 缓存 Groq 服务等级值数组以提升类型守卫性能
+const groqServiceTiersValues = Object.values(GroqServiceTiers)
+
+// Groq 服务等级类型守卫
+export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
+  return groqServiceTiersValues.some((value) => value === tier)
+}
+
+export type ServiceTier = OpenAIServiceTier | GroqServiceTier
+
+export function isServiceTier(tier: string): tier is ServiceTier {
+  return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
 }
 
 export type S3Config = {

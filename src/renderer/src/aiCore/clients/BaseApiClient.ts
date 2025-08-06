@@ -13,15 +13,18 @@ import {
   Assistant,
   FileTypes,
   GenerateImageParams,
+  GroqServiceTiers,
+  isGroqServiceTier,
+  isOpenAIServiceTier,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIServiceTier,
   OpenAIServiceTiers,
   Provider,
+  SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
@@ -203,31 +206,31 @@ export abstract class BaseApiClient<
 
   // NOTE: 这个也许可以迁移到OpenAIBaseClient
   protected getServiceTier(model: Model) {
-    if (
-      !isSupportServiceTierProviders(this.provider) ||
-      !isOpenAIModel(model) ||
-      model.provider === 'github' ||
-      model.provider === 'copilot'
-    ) {
+    const serviceTierSetting = this.provider.serviceTier
+
+    if (!isSupportServiceTierProviders(this.provider) || !isOpenAIModel(model) || !serviceTierSetting) {
       return undefined
     }
 
-    let serviceTier: OpenAIServiceTier = OpenAIServiceTiers.AUTO
-    const serviceTierSetting = this.provider.serviceTier
-
-    if (serviceTierSetting === OpenAIServiceTiers.FLEX) {
-      if (isSupportFlexServiceTierModel(model)) {
-        serviceTier = OpenAIServiceTiers.FLEX
-      } else {
-        serviceTier = OpenAIServiceTiers.AUTO
+    // 处理不同供应商需要 fallback 到默认值的情况
+    if (this.provider.id === SystemProviderIds.groq) {
+      if (
+        !isGroqServiceTier(serviceTierSetting) ||
+        (serviceTierSetting === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
+      ) {
+        return GroqServiceTiers.on_demand
       }
-    } else if (serviceTierSetting) {
-      serviceTier = serviceTierSetting
     } else {
-      // undefined 时使用默认值 auto
+      // 其他 OpenAI 供应商，假设他们的服务层级设置和 OpenAI 完全相同
+      if (
+        !isOpenAIServiceTier(serviceTierSetting) ||
+        (serviceTierSetting === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
+      ) {
+        return OpenAIServiceTiers.auto
+      }
     }
 
-    return serviceTier
+    return serviceTierSetting
   }
 
   protected getTimeout(model: Model) {

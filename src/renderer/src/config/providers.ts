@@ -258,7 +258,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.openai,
     isSystem: true,
     enabled: false,
-    serviceTier: OpenAIServiceTiers.AUTO
+    serviceTier: OpenAIServiceTiers.auto
   },
   'azure-openai': {
     id: 'azure-openai',
