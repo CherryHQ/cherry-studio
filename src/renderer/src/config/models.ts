@@ -145,7 +145,7 @@ import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Model } from '@renderer/types'
+import { Model, SystemProviderId } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import OpenAI from 'openai'
 
@@ -431,7 +431,7 @@ export function getModelLogo(modelId: string) {
   return undefined
 }
 
-export const SYSTEM_MODELS: Record<string, Model[]> = {
+export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     {
       // 默认助手模型
@@ -462,6 +462,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'deepseek-ai'
     }
   ],
+  vertexai: [],
   '302ai': [
     {
       id: 'deepseek-chat',
@@ -640,129 +641,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
 
     { id: 'deepseek-r1', name: 'DeepSeek-R1', provider: 'burncloud', group: 'deepseek-ai' },
     { id: 'deepseek-v3', name: 'DeepSeek-V3', provider: 'burncloud', group: 'deepseek-ai' }
-  ],
-
-  o3: [
-    {
-      id: 'gpt-4o',
-      provider: 'o3',
-      name: 'GPT-4o',
-      group: 'OpenAI'
-    },
-    {
-      id: 'o1-mini',
-      provider: 'o3',
-      name: 'o1-mini',
-      group: 'OpenAI'
-    },
-    {
-      id: 'o1-preview',
-      provider: 'o3',
-      name: 'o1-preview',
-      group: 'OpenAI'
-    },
-    {
-      id: 'o3-mini',
-      provider: 'o3',
-      name: 'o3-mini',
-      group: 'OpenAI'
-    },
-    {
-      id: 'o3-mini-high',
-      provider: 'o3',
-      name: 'o3-mini-high',
-      group: 'OpenAI'
-    },
-    {
-      id: 'claude-3-7-sonnet-20250219',
-      provider: 'o3',
-      name: 'claude-3-7-sonnet-20250219',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-5-sonnet-20241022',
-      provider: 'o3',
-      name: 'claude-3-5-sonnet-20241022',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-5-haiku-20241022',
-      provider: 'o3',
-      name: 'claude-3-5-haiku-20241022',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-opus-20240229',
-      provider: 'o3',
-      name: 'claude-3-opus-20240229',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-haiku-20240307',
-      provider: 'o3',
-      name: 'claude-3-haiku-20240307',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-5-sonnet-20240620',
-      provider: 'o3',
-      name: 'claude-3-5-sonnet-20240620',
-      group: 'Anthropic'
-    },
-    {
-      id: 'deepseek-ai/Deepseek-R1',
-      provider: 'o3',
-      name: 'DeepSeek R1',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-reasoner',
-      provider: 'o3',
-      name: 'deepseek-reasoner',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-chat',
-      provider: 'o3',
-      name: 'deepseek-chat',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-ai/DeepSeek-V3',
-      provider: 'o3',
-      name: 'DeepSeek V3',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'text-embedding-3-small',
-      provider: 'o3',
-      name: 'text-embedding-3-small',
-      group: '嵌入模型'
-    },
-    {
-      id: 'text-embedding-ada-002',
-      provider: 'o3',
-      name: 'text-embedding-ada-002',
-      group: '嵌入模型'
-    },
-    {
-      id: 'text-embedding-v2',
-      provider: 'o3',
-      name: 'text-embedding-v2',
-      group: '嵌入模型'
-    },
-    {
-      id: 'Doubao-embedding',
-      provider: 'o3',
-      name: 'Doubao-embedding',
-      group: '嵌入模型'
-    },
-    {
-      id: 'Doubao-embedding-large',
-      provider: 'o3',
-      name: 'Doubao-embedding-large',
-      group: '嵌入模型'
-    }
   ],
   ollama: [],
   lmstudio: [],
@@ -976,7 +854,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Claude 3'
     }
   ],
-  'gitee-ai': [],
   deepseek: [
     {
       id: 'deepseek-chat',
@@ -1380,7 +1257,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'deepseek-ai'
     }
   ],
-  bailian: [
+  dashscope: [
     { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
     { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
     { id: 'qwen-turbo', name: 'qwen-turbo', provider: 'dashscope', group: 'qwen-turbo', owned_by: 'system' },
@@ -1749,20 +1626,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'fireworks',
       name: 'Llama-3-70B-Instruct',
       group: 'Llama3'
-    }
-  ],
-  zhinao: [
-    {
-      id: '360gpt-pro',
-      provider: 'zhinao',
-      name: '360gpt-pro',
-      group: '360Gpt'
-    },
-    {
-      id: '360gpt-turbo',
-      provider: 'zhinao',
-      name: '360gpt-turbo',
-      group: '360Gpt'
     }
   ],
   hunyuan: [

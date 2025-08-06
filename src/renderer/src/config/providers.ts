@@ -288,7 +288,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'vertexai',
     apiKey: '',
     apiHost: 'https://aiplatform.googleapis.com',
-    models: [],
+    models: SYSTEM_MODELS.vertexai,
     isSystem: true,
     enabled: false,
     isVertex: true
@@ -361,7 +361,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-    models: SYSTEM_MODELS.bailian,
+    models: SYSTEM_MODELS.dashscope,
     isSystem: true,
     enabled: false
   },
