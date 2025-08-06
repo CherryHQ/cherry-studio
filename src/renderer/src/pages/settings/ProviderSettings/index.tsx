@@ -413,12 +413,12 @@ const ProvidersList: FC = () => {
   const getProviderAvatar = (provider: Provider) => {
     const logoSrc = getProviderLogo(provider.id)
     if (logoSrc) {
-      return <ProviderLogo shape="circle" src={logoSrc} size={25} />
+      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]
     if (customLogo) {
-      return <ProviderLogo shape="square" src={customLogo} size={25} />
+      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={25} />
     }
 
     return (
