@@ -65,7 +65,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         label: t('settings.provider.api.options.service_tier.label'),
         tip: t('settings.provider.api.options.service_tier.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({ ...provider, isNotSupportArrayContent: !checked })
+          updateProviderTransition({ ...provider, isNotSupportServiceTier: !checked })
         },
         checked: !provider.isNotSupportServiceTier
       }
