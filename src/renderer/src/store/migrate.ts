@@ -12,7 +12,15 @@ import {
 } from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, isSystemProvider, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
+import {
+  Assistant,
+  isSystemProvider,
+  LanguageCode,
+  Model,
+  Provider,
+  SystemProviderIds,
+  WebSearchProvider
+} from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -2006,8 +2014,24 @@ const migrateConfig = {
       logger.error('migrate 127 error', error as Error)
       return state
     }
+  },
+  '128': (state: RootState) => {
+    try {
+      // 迁移 service tier 设置
+      const openai = state.llm.providers.find((provider) => provider.id === SystemProviderIds.openai)
+      const serviceTier = state.settings.openAI.serviceTier
+      if (openai) {
+        openai.serviceTier = serviceTier
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 128 error', error as Error)
+      return state
+    }
   }
 }
+
+// 注意：添加新迁移时，记得同时更新 persistReducer
 
 const migrate = createMigrate(migrateConfig as any)
 
