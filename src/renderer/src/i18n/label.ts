@@ -15,7 +15,7 @@ const logger = loggerService.withContext('i18n:label')
 const getLabel = (key: string, keyMap: Record<string, string>, fallback?: string) => {
   const result = keyMap[key]
   if (result) {
-    return t(keyMap[key])
+    return t(result)
   } else {
     logger.error(`Missing key ${key}`)
     return fallback ?? key
