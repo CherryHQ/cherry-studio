@@ -75,9 +75,10 @@ describe('match', () => {
       expect(matchKeywordsInProvider('foo', provider)).toBe(false)
     })
 
-    it('should match provider for system provider', () => {
+    it('should match i18n name for system provider', () => {
       // system provider 测 id，non-system provider 测 name
       expect(matchKeywordsInProvider('dashscope', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('doesnt matter', sysProvider)).toBe(false)
     })
   })
 
