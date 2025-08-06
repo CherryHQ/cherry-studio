@@ -64,7 +64,7 @@ async function checkAppStorageQuota() {
 async function checkAppDataDiskQuota(appDataPath: string) {
   const { free, size } = await window.api.getDiskInfo(appDataPath)
   logger.info(
-    `App data disk quota: ${(free / 1024 / 1024 / 1024).toFixed(2)}GB / ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`
+    `App data disk quota: free: ${(free / 1024 / 1024 / 1024).toFixed(2)}GB  total: ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`
   )
   if (shouldShowDiskWarning(free, size)) {
     window.message.warning(t('data.limit.appDataDiskQuota'))
