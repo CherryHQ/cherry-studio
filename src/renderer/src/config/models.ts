@@ -2524,7 +2524,8 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
-  return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('o1') || baseName.includes('o3') || baseName.includes('o4') || baseName.includes('gpt-oss')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
