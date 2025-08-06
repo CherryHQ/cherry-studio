@@ -7,7 +7,7 @@ import {
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
+import { isSupportDeveloperRoleProvider, isSupportStreamOptionsProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -440,6 +440,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
+
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
+
         const commonParams = {
           model: model.id,
           input:
@@ -450,6 +453,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_output_tokens: maxTokens,
           stream: streamOutput,
+          ...(streamOutput && shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           tools: !isEmpty(tools) ? tools : undefined,
           service_tier: this.getServiceTier(model),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
