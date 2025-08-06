@@ -208,3 +208,5 @@ export const defaultTimeout = 10 * 1000 * 60
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
+
+export const GIGABYTE = 1024 * 1024 * 1024

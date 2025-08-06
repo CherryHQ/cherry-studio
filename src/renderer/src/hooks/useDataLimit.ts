@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { GIGABYTE } from '@shared/config/constant'
 import { AppInfo } from '@renderer/types'
 import { t } from 'i18next'
 
@@ -14,7 +15,6 @@ const CHECK_INTERVAL = 1000 * 60 * 30
  * @returns true表示需要警告，false则不需要
  */
 function shouldShowDiskWarning(freeBytes: number, totalBytes: number) {
-  const GIGABYTE = 1024 * 1024 * 1024
   if (freeBytes < 5 * GIGABYTE) {
     return true
   }
@@ -54,11 +54,13 @@ async function checkAppStorageQuota() {
       // warn user to clean up app internal data
       if (usagePercentage > 95) {
         window.message.warning(t('data.limit.appStorageQuota'))
+        return true
       }
     }
   } catch (error) {
     logger.error('Failed to get storage quota:', error as Error)
   }
+  return false
 }
 
 async function checkAppDataDiskQuota(appDataPath: string) {
@@ -78,7 +80,10 @@ async function checkAppDataDiskQuota(appDataPath: string) {
 export async function checkDataLimit() {
   const check = async () => {
     // check app storage quota
-    await checkAppStorageQuota()
+    const isStorageQuotaLow = await checkAppStorageQuota()
+    if (isStorageQuotaLow) {
+      return
+    }
 
     // check app data disk quota
     const appInfo: AppInfo = await window.api.getAppInfo()
