@@ -2074,8 +2074,7 @@
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "内部存储空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间",
-        "appStorageQuota": "数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
+        "appDataDiskQuota": "数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
       },
       "local": {
         "autoSync": {
