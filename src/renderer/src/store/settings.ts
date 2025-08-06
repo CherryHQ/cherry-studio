@@ -90,13 +90,19 @@ export interface SettingsState {
     autocompletion: boolean
     keymap: boolean
   }
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
+  codeViewer: {
     themeLight: CodeStyleVarious
     themeDark: CodeStyleVarious
   }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  codeImageTools: boolean
   mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
   foldDisplayMode: 'expanded' | 'compact'
@@ -264,13 +270,19 @@ export const initialState: SettingsState = {
     autocompletion: true,
     keymap: false
   },
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
+  codeViewer: {
     themeLight: 'auto',
     themeDark: 'auto'
   },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeImageTools: false,
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   foldDisplayMode: 'expanded',
@@ -576,12 +588,12 @@ const settingsSlice = createSlice({
         state.codeEditor.keymap = action.payload.keymap
       }
     },
-    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+    setCodeViewer: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
       if (action.payload.themeLight !== undefined) {
-        state.codePreview.themeLight = action.payload.themeLight
+        state.codeViewer.themeLight = action.payload.themeLight
       }
       if (action.payload.themeDark !== undefined) {
-        state.codePreview.themeDark = action.payload.themeDark
+        state.codeViewer.themeDark = action.payload.themeDark
       }
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
@@ -592,6 +604,9 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
+    },
+    setCodeImageTools: (state, action: PayloadAction<boolean>) => {
+      state.codeImageTools = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -866,10 +881,11 @@ export const {
   setWebdavDisableStream,
   setCodeExecution,
   setCodeEditor,
-  setCodePreview,
+  setCodeViewer,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeImageTools,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,

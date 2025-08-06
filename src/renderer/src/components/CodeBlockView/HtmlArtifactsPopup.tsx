@@ -147,9 +147,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               editable={true}
               onSave={setCurrentHtml}
               style={{ height: '100%' }}
+              expanded
+              unwrapped={false}
               options={{
-                stream: false,
-                collapsible: false
+                stream: false
               }}
             />
           </CodeSection>

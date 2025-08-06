@@ -1,4 +1,4 @@
-import { TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -6,19 +6,18 @@ import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'lodash'
-import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
-import { BasicPreviewProps } from './types'
-
-interface CodePreviewProps extends BasicPreviewProps {
+interface CodeViewerProps {
   language: string
+  children: string
+  expanded?: boolean
+  unwrapped?: boolean
+  onHeightChange?: (scrollHeight: number) => void
+  className?: string
 }
-
-const MAX_COLLAPSE_HEIGHT = 350
 
 /**
  * Shiki 流式代码高亮组件
@@ -26,61 +25,14 @@ const MAX_COLLAPSE_HEIGHT = 350
  * - 使用虚拟滚动和按需高亮，改善页面内有大量长代码块时的响应
  * - 并发安全
  */
-const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
-  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
+const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, className }: CodeViewerProps) => {
+  const { codeShowLineNumbers, fontSize } = useSettings()
   const { getShikiPreProperties, isShikiThemeDark } = useCodeStyle()
-  const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
-  const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
 
   const rawLines = useMemo(() => (typeof children === 'string' ? children.trimEnd().split('\n') : []), [children])
-
-  const { t } = useTranslation()
-  const { registerTool, removeTool } = useCodeTool(setTools)
-
-  // 展开/折叠工具
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.expand,
-      icon: expandOverride ? <ChevronsDownUp className="icon" /> : <ChevronsUpDown className="icon" />,
-      tooltip: expandOverride ? t('code_block.collapse') : t('code_block.expand'),
-      visible: () => {
-        const scrollHeight = scrollerRef.current?.scrollHeight
-        return codeCollapsible && (scrollHeight ?? 0) > MAX_COLLAPSE_HEIGHT
-      },
-      onClick: () => setExpandOverride((prev) => !prev)
-    })
-
-    return () => removeTool(TOOL_SPECS.expand.id)
-  }, [codeCollapsible, expandOverride, registerTool, removeTool, t])
-
-  // 自动换行工具
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.wrap,
-      icon: unwrapOverride ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
-      tooltip: unwrapOverride ? t('code_block.wrap.on') : t('code_block.wrap.off'),
-      visible: () => codeWrappable,
-      onClick: () => setUnwrapOverride((prev) => !prev)
-    })
-
-    return () => removeTool(TOOL_SPECS.wrap.id)
-  }, [codeWrappable, unwrapOverride, registerTool, removeTool, t])
-
-  // 重置用户操作（可以考虑移除，保持用户操作结果）
-  useEffect(() => {
-    setExpandOverride(!codeCollapsible)
-  }, [codeCollapsible])
-
-  // 重置用户操作（可以考虑移除，保持用户操作结果）
-  useEffect(() => {
-    setUnwrapOverride(!codeWrappable)
-  }, [codeWrappable])
-
-  const shouldCollapse = useMemo(() => codeCollapsible && !expandOverride, [codeCollapsible, expandOverride])
-  const shouldWrap = useMemo(() => codeWrappable && !unwrapOverride, [codeWrappable, unwrapOverride])
 
   // 计算行号数字位数
   const gutterDigits = useMemo(
@@ -90,10 +42,12 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
   // 设置 pre 标签属性
   useLayoutEffect(() => {
+    let mounted = true
     getShikiPreProperties(language).then((properties) => {
+      if (!mounted) return
       const shikiTheme = shikiThemeRef.current
       if (shikiTheme) {
-        shikiTheme.className = `${properties.class || 'shiki'}`
+        shikiTheme.className = `${properties.class || 'shiki'} code-viewer ${className ?? ''}`
         // 滚动条适应 shiki 主题变化而非应用主题
         shikiTheme.classList.add(isShikiThemeDark ? 'shiki-dark' : 'shiki-light')
 
@@ -103,7 +57,10 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
         shikiTheme.tabIndex = properties.tabindex
       }
     })
-  }, [language, getShikiPreProperties, isShikiThemeDark])
+    return () => {
+      mounted = false
+    }
+  }, [language, getShikiPreProperties, isShikiThemeDark, className])
 
   // Virtualizer 配置
   const getScrollElement = useCallback(() => scrollerRef.current, [])
@@ -140,19 +97,24 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     }
   }, [virtualItems, debouncedHighlightLines])
 
+  // Report scrollHeight when it might change
+  useLayoutEffect(() => {
+    onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
+  }, [rawLines.length, onHeightChange])
+
   return (
     <div ref={shikiThemeRef}>
       <ScrollContainer
         ref={scrollerRef}
         className="shiki-scroller"
-        $wrap={shouldWrap}
+        $wrap={!unwrapped}
         $lineHeight={estimateSize()}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
             fontSize: `${fontSize - 1}px`,
-            maxHeight: shouldCollapse ? MAX_COLLAPSE_HEIGHT : undefined,
-            overflowY: shouldCollapse ? 'auto' : 'hidden'
+            maxHeight: expanded ? undefined : MAX_COLLAPSED_CODE_HEIGHT,
+            overflowY: expanded ? 'hidden' : 'auto'
           } as React.CSSProperties
         }>
         <div
@@ -187,7 +149,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   )
 }
 
-CodePreview.displayName = 'CodePreview'
+CodeViewer.displayName = 'CodeViewer'
 
 const plainTokenStyle = {
   color: 'inherit',
@@ -296,4 +258,4 @@ const ScrollContainer = styled.div<{
   }
 `
 
-export default memo(CodePreview)
+export default memo(CodeViewer)

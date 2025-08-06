@@ -505,6 +505,7 @@
         "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
         "title": "コード実行"
       },
+      "code_image_tools": "プレビューツールを有効にする",
       "code_wrappable": "コードブロック折り返し",
       "context_count": {
         "label": "コンテキスト",
@@ -648,15 +649,6 @@
     },
     "expand": "展開する",
     "more": "もっと",
-    "preview": {
-      "copy": {
-        "image": "画像としてコピー"
-      },
-      "label": "プレビュー",
-      "source": "ソースコードを表示",
-      "zoom_in": "拡大",
-      "zoom_out": "縮小"
-    },
     "run": "コードを実行",
     "split": {
       "label": "分割視圖",
@@ -1159,6 +1151,9 @@
       "failed": "削除に失敗しました",
       "success": "削除が成功しました"
     },
+    "dialog": {
+      "failed": "プレビューに失敗しました"
+    },
     "download": {
       "failed": "ダウンロードに失敗しました",
       "success": "ダウンロードに成功しました"
@@ -1653,6 +1648,22 @@
       "resemblance_tip": "拡大結果と原画像の類似度を制御します",
       "seed_tip": "拡大結果のランダム性を制御します"
     }
+  },
+  "preview": {
+    "copy": {
+      "image": "画像としてコピー"
+    },
+    "dialog": "ダイアログを開く",
+    "label": "プレビュー",
+    "pan": "パン",
+    "pan_down": "下にパン",
+    "pan_left": "左にパン",
+    "pan_right": "右にパン",
+    "pan_up": "上にパン",
+    "reset": "リセット",
+    "source": "ソースコードを表示",
+    "zoom_in": "拡大",
+    "zoom_out": "縮小"
   },
   "prompts": {
     "explanation": "この概念を説明してください",

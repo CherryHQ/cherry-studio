@@ -505,6 +505,7 @@
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
         "title": "代码执行"
       },
+      "code_image_tools": "启用预览工具",
       "code_wrappable": "代码块可换行",
       "context_count": {
         "label": "上下文数",
@@ -648,15 +649,6 @@
     },
     "expand": "展开",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "复制为图片"
-      },
-      "label": "预览",
-      "source": "查看源代码",
-      "zoom_in": "放大",
-      "zoom_out": "缩小"
-    },
     "run": "运行代码",
     "split": {
       "label": "分割视图",
@@ -1159,6 +1151,9 @@
       "failed": "删除失败",
       "success": "删除成功"
     },
+    "dialog": {
+      "failed": "预览失败"
+    },
     "download": {
       "failed": "下载失败",
       "success": "下载成功"
@@ -1653,6 +1648,22 @@
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
     }
+  },
+  "preview": {
+    "copy": {
+      "image": "复制为图片"
+    },
+    "dialog": "打开预览窗口",
+    "label": "预览",
+    "pan": "移动",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源代码",
+    "zoom_in": "放大",
+    "zoom_out": "缩小"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",

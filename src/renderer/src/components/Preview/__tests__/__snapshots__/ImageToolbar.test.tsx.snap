@@ -1,0 +1,141 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ImageToolbar > should match snapshot 1`] = `
+<DocumentFragment>
+  .c0 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  gap: 4px;
+  right: 1em;
+  bottom: 1em;
+  z-index: 5;
+}
+
+.c0 .ant-btn {
+  line-height: 0;
+}
+
+.c1 {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.c2 {
+  flex: 1;
+}
+
+<div
+    aria-label="preview.label"
+    class="c0 preview-toolbar"
+    role="toolbar"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      />
+      <button
+        aria-label="preview.pan_up"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="chevron-up"
+        >
+          ↑
+        </span>
+      </button>
+      <button
+        aria-label="preview.dialog"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="scan"
+        >
+          ⊞
+        </span>
+      </button>
+    </div>
+    <div
+      class="c1"
+    >
+      <button
+        aria-label="preview.pan_left"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="chevron-left"
+        >
+          ←
+        </span>
+      </button>
+      <button
+        aria-label="preview.reset"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="reset"
+        >
+          ↻
+        </span>
+      </button>
+      <button
+        aria-label="preview.pan_right"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="chevron-right"
+        >
+          →
+        </span>
+      </button>
+    </div>
+    <div
+      class="c1"
+    >
+      <button
+        aria-label="preview.zoom_out"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="zoom-out"
+        >
+          -
+        </span>
+      </button>
+      <button
+        aria-label="preview.pan_down"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="chevron-down"
+        >
+          ↓
+        </span>
+      </button>
+      <button
+        aria-label="preview.zoom_in"
+        role="button"
+        type="button"
+      >
+        <span
+          data-testid="zoom-in"
+        >
+          +
+        </span>
+      </button>
+    </div>
+  </div>
+</DocumentFragment>
+`;

@@ -505,6 +505,7 @@
         "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
         "title": "Code Execution"
       },
+      "code_image_tools": "Enable preview tools",
       "code_wrappable": "Code block wrappable",
       "context_count": {
         "label": "Context",
@@ -648,15 +649,6 @@
     },
     "expand": "Expand",
     "more": "More",
-    "preview": {
-      "copy": {
-        "image": "Copy as image"
-      },
-      "label": "Preview",
-      "source": "View Source Code",
-      "zoom_in": "Zoom In",
-      "zoom_out": "Zoom Out"
-    },
     "run": "Run",
     "split": {
       "label": "Split View",
@@ -1159,6 +1151,9 @@
       "failed": "Delete Failed",
       "success": "Delete Successful"
     },
+    "dialog": {
+      "failed": "Preview failed"
+    },
     "download": {
       "failed": "Download failed",
       "success": "Download successfully"
@@ -1653,6 +1648,22 @@
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
     }
+  },
+  "preview": {
+    "copy": {
+      "image": "Copy as image"
+    },
+    "dialog": "Open Dialog",
+    "label": "Preview",
+    "pan": "Pan",
+    "pan_down": "Pan Down",
+    "pan_left": "Pan Left",
+    "pan_right": "Pan Right",
+    "pan_up": "Pan Up",
+    "reset": "Reset",
+    "source": "View Source Code",
+    "zoom_in": "Zoom In",
+    "zoom_out": "Zoom Out"
   },
   "prompts": {
     "explanation": "Explain this concept to me",
