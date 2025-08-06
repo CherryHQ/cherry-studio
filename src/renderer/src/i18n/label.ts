@@ -83,15 +83,15 @@ const providerKeyMap = {
 
 /**
  * 获取内置供应商的本地化标签
- * @param key - 供应商的key
+ * @param id - 供应商的id
  * @returns 本地化后的供应商名称
  * @remarks
  * 该函数仅用于获取内置供应商的 i18n label
  *
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
-export const getProviderLabel = (key: string): string => {
-  return getLabel(key, providerKeyMap)
+export const getProviderLabel = (id: string): string => {
+  return getLabel(id, providerKeyMap)
 }
 
 const progressKeyMap = {
