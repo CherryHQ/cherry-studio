@@ -1406,7 +1406,8 @@
       "esc": "Appuyez sur ESC {{action}}",
       "esc_back": "Revenir en arrière",
       "esc_close": "Fermer la fenêtre",
-      "esc_pause": "Pause"
+      "esc_pause": "Pause",
+      "center": "Centrer la fenêtre"
     },
     "input": {
       "placeholder": {

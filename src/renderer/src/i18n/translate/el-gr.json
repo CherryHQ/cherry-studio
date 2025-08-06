@@ -1406,7 +1406,8 @@
       "esc": "πατήστε ESC για {{action}}",
       "esc_back": "Επιστροφή",
       "esc_close": "Κλείσιμο παραθύρου",
-      "esc_pause": "Παύση"
+      "esc_pause": "Παύση",
+      "center": "Κέντρο παραθύρου"
     },
     "input": {
       "placeholder": {

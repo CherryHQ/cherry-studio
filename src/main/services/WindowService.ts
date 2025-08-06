@@ -632,6 +632,12 @@ export class WindowService {
     this.isPinnedMiniWindow = isPinned
   }
 
+  public centerMiniWindow() {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      this.miniWindow.center()
+    }
+  }
+
   /**
    * 引用文本到主窗口
    * @param text 原始文本（未格式化）

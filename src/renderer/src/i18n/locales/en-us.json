@@ -1406,7 +1406,8 @@
       "esc": "ESC to {{action}}",
       "esc_back": "return",
       "esc_close": "close",
-      "esc_pause": "pause"
+      "esc_pause": "pause",
+      "center": "Center Window"
     },
     "input": {
       "placeholder": {

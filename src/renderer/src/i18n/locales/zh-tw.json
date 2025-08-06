@@ -1406,7 +1406,8 @@
       "esc": "按 ESC {{action}}",
       "esc_back": "返回",
       "esc_close": "關閉視窗",
-      "esc_pause": "暫停"
+      "esc_pause": "暫停",
+      "center": "視窗置中"
     },
     "input": {
       "placeholder": {

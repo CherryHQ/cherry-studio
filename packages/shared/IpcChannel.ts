@@ -62,6 +62,7 @@ export enum IpcChannel {
   MiniWindow_Close = 'miniwindow:close',
   MiniWindow_Toggle = 'miniwindow:toggle',
   MiniWindow_SetPin = 'miniwindow:set-pin',
+  MiniWindow_Center = 'miniwindow:center',
 
   // Mcp
   Mcp_AddServer = 'mcp:add-server',

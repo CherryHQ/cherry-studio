@@ -1406,7 +1406,8 @@
       "esc": "Pressione ESC {{action}}",
       "esc_back": "Voltar",
       "esc_close": "Fechar janela",
-      "esc_pause": "Pausar"
+      "esc_pause": "Pausar",
+      "center": "Centralizar janela"
     },
     "input": {
       "placeholder": {
