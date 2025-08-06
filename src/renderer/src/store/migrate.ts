@@ -12,16 +12,7 @@ import {
 } from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import {
-  Assistant,
-  isSystemProvider,
-  LanguageCode,
-  Model,
-  OpenAIServiceTiers,
-  Provider,
-  SystemProviderIds,
-  WebSearchProvider
-} from '@renderer/types'
+import { Assistant, isSystemProvider, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
