@@ -188,6 +188,12 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     }))
   }, [createThinkingIcon, currentReasoningEffort, supportedOptions, onThinkingChange])
 
+  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'off'
+
+  const disableThinking = useCallback(() => {
+    onThinkingChange('off')
+  }, [onThinkingChange])
+
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
       title: t('assistants.settings.reasoning_effort.label'),
@@ -199,10 +205,15 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === 'thinking') {
       quickPanel.close()
-    } else {
-      openQuickPanel()
+      return
     }
-  }, [openQuickPanel, quickPanel])
+
+    if (isThinkingEnabled && supportedOptions.includes('off')) {
+      disableThinking()
+      return
+    }
+    openQuickPanel()
+  }, [openQuickPanel, quickPanel, isThinkingEnabled, supportedOptions, disableThinking])
 
   // 获取当前应显示的图标
   const getThinkingIcon = useCallback(() => {
@@ -219,7 +230,15 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   }))
 
   return (
-    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort.label')} mouseLeaveDelay={0} arrow>
+    <Tooltip
+      placement="top"
+      title={
+        isThinkingEnabled && supportedOptions.includes('off')
+          ? t('common.close')
+          : t('assistants.settings.reasoning_effort.label')
+      }
+      mouseLeaveDelay={0}
+      arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>
