@@ -258,7 +258,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.openai,
     isSystem: true,
     enabled: false,
-    isSupportServiceTier: true,
     serviceTier: OpenAIServiceTiers.AUTO
   },
   'azure-openai': {
@@ -415,9 +414,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.groq.com/openai',
     models: SYSTEM_MODELS.groq,
     isSystem: true,
-    enabled: false,
-    isSupportServiceTier: true,
-    serviceTier: OpenAIServiceTiers.DEFAULT
+    enabled: false
   },
   together: {
     id: 'together',
@@ -1259,38 +1256,63 @@ export const PROVIDER_CONFIG = {
   }
 }
 
-const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
+  'deepseek',
+  'baichuan',
+  'minimax',
+  'xirang'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 message 的 content 为数组类型。 Only for OpenAI Chat Completions API.
  */
 export const isSupportArrayContentProvider = (provider: Provider) => {
-  return provider.isNotSupportArrayContent !== true || !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
+  return (
+    provider.isNotSupportArrayContent !== true ||
+    !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.some((pid) => pid === provider.id)
+  )
 }
 
-const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 developer 作为 message role。 Only for OpenAI API.
  */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
-  return provider.isNotSupportDeveloperRole !== true || !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
+  return (
+    provider.isNotSupportDeveloperRole !== true ||
+    !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id)
+  )
 }
 
-const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
+const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 stream_options 参数。Only for OpenAI API.
  */
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
-  return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+  return (
+    provider.isNotSupportStreamOptions !== true ||
+    !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
+  )
 }
 
-const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope']
+const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用enable_thinking参数来控制Qwen3系列模型的思考。 Only for OpenAI Chat Completions API.
  */
 export const isSupportQwen3EnableThinkingProvider = (provider: Provider) => {
-  return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.includes(provider.id)
+  return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.some((pid) => pid === provider.id)
+}
+
+const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+
+/**
+ * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.
+ */
+export const isSupportServiceTierProviders = (provider: Provider) => {
+  return (
+    provider.isNotSupportServiceTier !== true || !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
+  )
 }

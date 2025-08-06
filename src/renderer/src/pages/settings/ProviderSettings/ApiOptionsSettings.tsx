@@ -59,6 +59,15 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           updateProviderTransition({ ...provider, isNotSupportArrayContent: !checked })
         },
         checked: !provider.isNotSupportArrayContent
+      },
+      {
+        key: 'openai_service_tier',
+        label: t('settings.provider.api.options.service_tier.label'),
+        tip: t('settings.provider.api.options.service_tier.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({ ...provider, isNotSupportArrayContent: !checked })
+        },
+        checked: !provider.isNotSupportServiceTier
       }
     ],
     [t, provider, updateProviderTransition]

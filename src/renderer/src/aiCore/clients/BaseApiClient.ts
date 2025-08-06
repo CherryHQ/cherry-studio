@@ -6,10 +6,9 @@ import {
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { isSupportServiceTierProviders } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,
   FileTypes,
@@ -21,6 +20,7 @@ import {
   MemoryItem,
   Model,
   OpenAIServiceTier,
+  OpenAIServiceTiers,
   Provider,
   ToolCallResponse,
   WebSearchProviderResponse,
@@ -201,22 +201,30 @@ export abstract class BaseApiClient<
     return assistantSettings?.enableTopP ? assistantSettings?.topP : undefined
   }
 
+  // NOTE: 这个也许可以迁移到OpenAIBaseClient
   protected getServiceTier(model: Model) {
-    if (!isOpenAIModel(model) || model.provider === 'github' || model.provider === 'copilot') {
+    if (
+      !isSupportServiceTierProviders(this.provider) ||
+      !isOpenAIModel(model) ||
+      model.provider === 'github' ||
+      model.provider === 'copilot'
+    ) {
       return undefined
     }
 
-    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
-    let serviceTier = 'auto' as OpenAIServiceTier
+    let serviceTier: OpenAIServiceTier = OpenAIServiceTiers.AUTO
+    const serviceTierSetting = this.provider.serviceTier
 
-    if (openAI && openAI?.serviceTier === 'flex') {
+    if (serviceTierSetting === OpenAIServiceTiers.FLEX) {
       if (isSupportFlexServiceTierModel(model)) {
-        serviceTier = 'flex'
+        serviceTier = OpenAIServiceTiers.FLEX
       } else {
-        serviceTier = 'auto'
+        serviceTier = OpenAIServiceTiers.AUTO
       }
+    } else if (serviceTierSetting) {
+      serviceTier = serviceTierSetting
     } else {
-      serviceTier = openAI.serviceTier
+      // undefined 时使用默认值 auto
     }
 
     return serviceTier

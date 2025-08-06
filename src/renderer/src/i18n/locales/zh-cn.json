@@ -3054,6 +3054,7 @@
         "auto": "自动",
         "default": "默认",
         "flex": "灵活",
+        "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
       },
@@ -3107,6 +3108,10 @@
             "label": "支持 Developer Message"
           },
           "label": "API 设置",
+          "service_tier": {
+            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
+            "label": "支持 service_tier"
+          },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
