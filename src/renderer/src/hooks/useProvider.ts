@@ -45,12 +45,12 @@ export function useAllProviders() {
 }
 
 export function useProvider(id: string) {
-  const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === id) as Provider)
+  const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === id))
   const dispatch = useAppDispatch()
 
   return {
     provider,
-    models: provider?.models || [],
+    models: provider?.models ?? [],
     updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
     addModel: (model: Model) => dispatch(addModel({ providerId: id, model })),
     removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),

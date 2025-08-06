@@ -173,6 +173,7 @@ const SettingsTab: FC<Props> = (props) => {
   const isOpenAIReasoning =
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
+    !!provider &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
   const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
 
