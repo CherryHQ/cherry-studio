@@ -15,7 +15,7 @@ import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
-import { isVisionModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { isVisionModel } from '@renderer/config/models'
 import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
   Chunk,
@@ -48,25 +48,29 @@ vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
 }))
 
 // Mock the models config
-vi.mock('@renderer/config/models', () => ({
-  isDedicatedImageGenerationModel: vi.fn(() => false),
-  isTextToImageModel: vi.fn(() => false),
-  isEmbeddingModel: vi.fn(() => false),
-  isRerankModel: vi.fn(() => false),
-  isVisionModel: vi.fn(() => false),
-  isReasoningModel: vi.fn(() => false),
-  isWebSearchModel: vi.fn(() => false),
-  isOpenAIModel: vi.fn(() => false),
-  isFunctionCallingModel: vi.fn(() => true),
-  models: {
-    gemini: {
-      id: 'gemini-2.5-pro',
-      name: 'Gemini 2.5 Pro'
-    }
-  },
-  isAnthropicModel: vi.fn(() => false),
-  SYSTEM_MODELS
-}))
+vi.mock('@renderer/config/models', async () => {
+  const origin = await vi.importActual('@renderer/config/models')
+
+  return {
+    ...origin,
+    isDedicatedImageGenerationModel: vi.fn(() => false),
+    isTextToImageModel: vi.fn(() => false),
+    isEmbeddingModel: vi.fn(() => false),
+    isRerankModel: vi.fn(() => false),
+    isVisionModel: vi.fn(() => false),
+    isReasoningModel: vi.fn(() => false),
+    isWebSearchModel: vi.fn(() => false),
+    isOpenAIModel: vi.fn(() => false),
+    isFunctionCallingModel: vi.fn(() => true),
+    models: {
+      gemini: {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro'
+      }
+    },
+    isAnthropicModel: vi.fn(() => false)
+  }
+})
 
 // Mock uuid
 vi.mock('uuid', () => ({
