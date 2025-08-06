@@ -87,10 +87,11 @@ export class ProxyManager {
     // Set new interval
     this.systemProxyInterval = setInterval(async () => {
       const currentProxy = await getSystemProxy()
-      if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+      if (currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules) {
         return
       }
 
+      logger.info(`system proxy changed: ${currentProxy?.proxyUrl}, this.config.proxyRules: ${this.config.proxyRules}`)
       await this.configureProxy({
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase(),
