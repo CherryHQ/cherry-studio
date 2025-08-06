@@ -216,7 +216,10 @@ const VirtualRow = memo(
                 width: '100%',
                 transform: combinedTransform
               }}>
-              <div {...provided.dragHandleProps} className="draggable-content" style={{ ...itemStyle }}>
+              <div
+                {...provided.dragHandleProps}
+                className="draggable-content"
+                style={{ ...itemStyle, cursor: disabled ? 'pointer' : 'grab' }}>
                 {item && children(item, virtualItem.index)}
               </div>
             </div>
