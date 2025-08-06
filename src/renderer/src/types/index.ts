@@ -248,10 +248,8 @@ export const SystemProviderIds = {
 
 export type SystemProviderId = (typeof SystemProviderIds)[keyof typeof SystemProviderIds]
 
-const systemProviderIdValues = Object.values(SystemProviderIds)
-
 export const isSystemProviderId = (id: string): id is SystemProviderId => {
-  return systemProviderIdValues.some((sid) => sid === id)
+  return Object.hasOwn(SystemProviderIds, id)
 }
 
 export type SystemProvider = Provider & {
@@ -913,10 +911,8 @@ export const OpenAIServiceTiers = {
 
 export type OpenAIServiceTier = (typeof OpenAIServiceTiers)[keyof typeof OpenAIServiceTiers]
 
-const openAIServiceTiersValues = Object.values(OpenAIServiceTiers) // for type guard perf
-
 export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
-  return openAIServiceTiersValues.some((value) => value === tier)
+  return Object.hasOwn(OpenAIServiceTiers, tier)
 }
 
 export const GroqServiceTiers = {
@@ -929,12 +925,8 @@ export const GroqServiceTiers = {
 // 从 GroqServiceTiers 对象中提取类型
 export type GroqServiceTier = (typeof GroqServiceTiers)[keyof typeof GroqServiceTiers]
 
-// 缓存 Groq 服务等级值数组以提升类型守卫性能
-const groqServiceTiersValues = Object.values(GroqServiceTiers)
-
-// Groq 服务等级类型守卫
 export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
-  return groqServiceTiersValues.some((value) => value === tier)
+  return Object.hasOwn(GroqServiceTiers, tier)
 }
 
 export type ServiceTier = OpenAIServiceTier | GroqServiceTier
