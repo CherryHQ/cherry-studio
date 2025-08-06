@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
-import { Model, Provider, SystemProvider } from '@renderer/types'
+import { Model, OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -38,8 +38,8 @@ export interface LlmState {
   settings: LlmSettings
 }
 
-export const SYSTEM_PROVIDERS: SystemProvider[] = [
-  {
+const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
+  silicon: {
     id: 'silicon',
     name: 'Silicon',
     type: 'openai',
@@ -49,7 +49,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: true
   },
-  {
+  aihubmix: {
     id: 'aihubmix',
     name: 'AiHubMix',
     type: 'openai',
@@ -59,7 +59,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  ocoolai: {
     id: 'ocoolai',
     name: 'ocoolAI',
     type: 'openai',
@@ -69,7 +69,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  deepseek: {
     id: 'deepseek',
     name: 'deepseek',
     type: 'openai',
@@ -77,9 +77,10 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.deepseek.com',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportArrayContent: true
   },
-  {
+  ppio: {
     id: 'ppio',
     name: 'PPIO',
     type: 'openai',
@@ -89,7 +90,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  alayanew: {
     id: 'alayanew',
     name: 'AlayaNew',
     type: 'openai',
@@ -99,7 +100,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  qiniu: {
     id: 'qiniu',
     name: 'Qiniu',
     type: 'openai',
@@ -109,7 +110,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  dmxapi: {
     id: 'dmxapi',
     name: 'DMXAPI',
     type: 'openai',
@@ -119,7 +120,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  burncloud: {
     id: 'burncloud',
     name: 'BurnCloud',
     type: 'openai',
@@ -129,7 +130,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  tokenflux: {
     id: 'tokenflux',
     name: 'TokenFlux',
     type: 'openai',
@@ -139,7 +140,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  '302ai': {
     id: '302ai',
     name: '302.AI',
     type: 'openai',
@@ -149,7 +150,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  cephalon: {
     id: 'cephalon',
     name: 'Cephalon',
     type: 'openai',
@@ -159,7 +160,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  lanyun: {
     id: 'lanyun',
     name: 'LANYUN',
     type: 'openai',
@@ -169,7 +170,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  ph8: {
     id: 'ph8',
     name: 'PH8',
     type: 'openai',
@@ -179,7 +180,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  openrouter: {
     id: 'openrouter',
     name: 'OpenRouter',
     type: 'openai',
@@ -189,7 +190,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  ollama: {
     id: 'ollama',
     name: 'Ollama',
     type: 'openai',
@@ -199,7 +200,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  'new-api': {
     id: 'new-api',
     name: 'New API',
     type: 'openai',
@@ -209,7 +210,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  lmstudio: {
     id: 'lmstudio',
     name: 'LM Studio',
     type: 'openai',
@@ -219,7 +220,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  anthropic: {
     id: 'anthropic',
     name: 'Anthropic',
     type: 'anthropic',
@@ -229,7 +230,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  openai: {
     id: 'openai',
     name: 'OpenAI',
     type: 'openai-response',
@@ -237,9 +238,11 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.openai.com',
     models: SYSTEM_MODELS.openai,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isSupportServiceTier: true,
+    serviceTier: OpenAIServiceTiers.AUTO
   },
-  {
+  'azure-openai': {
     id: 'azure-openai',
     name: 'Azure OpenAI',
     type: 'azure-openai',
@@ -250,7 +253,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  gemini: {
     id: 'gemini',
     name: 'Gemini',
     type: 'gemini',
@@ -261,7 +264,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     enabled: false,
     isVertex: false
   },
-  {
+  vertexai: {
     id: 'vertexai',
     name: 'VertexAI',
     type: 'vertexai',
@@ -272,7 +275,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     enabled: false,
     isVertex: true
   },
-  {
+  github: {
     id: 'github',
     name: 'Github Models',
     type: 'openai',
@@ -282,7 +285,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  copilot: {
     id: 'copilot',
     name: 'Github Copilot',
     type: 'openai',
@@ -293,7 +296,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     enabled: false,
     isAuthed: false
   },
-  {
+  zhipu: {
     id: 'zhipu',
     name: 'ZhiPu',
     type: 'openai',
@@ -303,7 +306,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  yi: {
     id: 'yi',
     name: 'Yi',
     type: 'openai',
@@ -313,7 +316,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  moonshot: {
     id: 'moonshot',
     name: 'Moonshot AI',
     type: 'openai',
@@ -323,7 +326,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  baichuan: {
     id: 'baichuan',
     name: 'BAICHUAN AI',
     type: 'openai',
@@ -331,9 +334,10 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.baichuan-ai.com',
     models: SYSTEM_MODELS.baichuan,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportArrayContent: true
   },
-  {
+  dashscope: {
     id: 'dashscope',
     name: 'Bailian',
     type: 'openai',
@@ -343,7 +347,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  stepfun: {
     id: 'stepfun',
     name: 'StepFun',
     type: 'openai',
@@ -353,7 +357,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  doubao: {
     id: 'doubao',
     name: 'doubao',
     type: 'openai',
@@ -363,7 +367,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  infini: {
     id: 'infini',
     name: 'Infini',
     type: 'openai',
@@ -373,7 +377,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  minimax: {
     id: 'minimax',
     name: 'MiniMax',
     type: 'openai',
@@ -381,9 +385,10 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.minimax.chat/v1/',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportArrayContent: true
   },
-  {
+  groq: {
     id: 'groq',
     name: 'Groq',
     type: 'openai',
@@ -391,9 +396,11 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.groq.com/openai',
     models: SYSTEM_MODELS.groq,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isSupportServiceTier: true,
+    serviceTier: OpenAIServiceTiers.DEFAULT
   },
-  {
+  together: {
     id: 'together',
     name: 'Together',
     type: 'openai',
@@ -403,7 +410,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  fireworks: {
     id: 'fireworks',
     name: 'Fireworks',
     type: 'openai',
@@ -413,7 +420,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  nvidia: {
     id: 'nvidia',
     name: 'nvidia',
     type: 'openai',
@@ -423,7 +430,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  grok: {
     id: 'grok',
     name: 'Grok',
     type: 'openai',
@@ -433,7 +440,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  hyperbolic: {
     id: 'hyperbolic',
     name: 'Hyperbolic',
     type: 'openai',
@@ -443,7 +450,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  mistral: {
     id: 'mistral',
     name: 'Mistral',
     type: 'openai',
@@ -451,9 +458,10 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.mistral.ai',
     models: SYSTEM_MODELS.mistral,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportStreamOptions: true
   },
-  {
+  jina: {
     id: 'jina',
     name: 'Jina',
     type: 'openai',
@@ -463,7 +471,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  perplexity: {
     id: 'perplexity',
     name: 'Perplexity',
     type: 'openai',
@@ -473,7 +481,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  modelscope: {
     id: 'modelscope',
     name: 'ModelScope',
     type: 'openai',
@@ -483,7 +491,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  xirang: {
     id: 'xirang',
     name: 'Xirang',
     type: 'openai',
@@ -491,9 +499,10 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://wishub-x1.ctyun.cn',
     models: SYSTEM_MODELS.xirang,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportArrayContent: true
   },
-  {
+  hunyuan: {
     id: 'hunyuan',
     name: 'hunyuan',
     type: 'openai',
@@ -503,7 +512,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  'tencent-cloud-ti': {
     id: 'tencent-cloud-ti',
     name: 'Tencent Cloud TI',
     type: 'openai',
@@ -513,7 +522,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  'baidu-cloud': {
     id: 'baidu-cloud',
     name: 'Baidu Cloud',
     type: 'openai',
@@ -523,7 +532,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  gpustack: {
     id: 'gpustack',
     name: 'GPUStack',
     type: 'openai',
@@ -533,7 +542,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  voyageai: {
     id: 'voyageai',
     name: 'VoyageAI',
     type: 'openai',
@@ -543,7 +552,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  'aws-bedrock': {
     id: 'aws-bedrock',
     name: 'AWS Bedrock',
     type: 'aws-bedrock',
@@ -553,7 +562,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     isSystem: true,
     enabled: false
   },
-  {
+  poe: {
     id: 'poe',
     name: 'Poe',
     type: 'openai',
@@ -561,9 +570,12 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = [
     apiHost: 'https://api.poe.com/v1/',
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isNotSupportDeveloperRole: true
   }
-]
+} satisfies Record<SystemProviderId, SystemProvider>
+
+export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
 export const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
