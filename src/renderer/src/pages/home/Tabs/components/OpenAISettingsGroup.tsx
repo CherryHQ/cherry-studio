@@ -5,7 +5,7 @@ import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText } from '@renderer/store/settings'
-import { Model, OpenAIServiceTier, OpenAISummaryText } from '@renderer/types'
+import { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier, SystemProviderIds } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'
@@ -70,31 +70,54 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   ]
 
   const serviceTierOptions = useMemo(() => {
-    const baseOptions: { value: OpenAIServiceTier; label: string }[] = [
-      {
-        value: 'auto',
-        label: t('settings.openai.service_tier.auto')
-      },
-      {
-        value: 'default',
-        label: t('settings.openai.service_tier.default')
-      },
-      {
-        value: 'flex',
-        label: t('settings.openai.service_tier.flex')
-      },
-      {
-        value: 'priority',
-        label: t('settings.openai.service_tier.priority')
-      }
-    ]
+    let baseOptions: { value: ServiceTier; label: string }[]
+    if (provider.id === SystemProviderIds.groq) {
+      baseOptions = [
+        {
+          value: 'auto',
+          label: t('settings.openai.service_tier.auto')
+        },
+        {
+          value: 'on_demand',
+          label: t('settings.openai.service_tier.on_demand')
+        },
+        {
+          value: 'flex',
+          label: t('settings.openai.service_tier.flex')
+        },
+        {
+          value: 'performance',
+          label: t('settings.openai.service_tier.performance')
+        }
+      ]
+    } else {
+      // 其他情况默认是和 OpenAI 相同
+      baseOptions = [
+        {
+          value: 'auto',
+          label: t('settings.openai.service_tier.auto')
+        },
+        {
+          value: 'default',
+          label: t('settings.openai.service_tier.default')
+        },
+        {
+          value: 'flex',
+          label: t('settings.openai.service_tier.flex')
+        },
+        {
+          value: 'priority',
+          label: t('settings.openai.service_tier.priority')
+        }
+      ]
+    }
     return baseOptions.filter((option) => {
       if (option.value === 'flex') {
         return isSupportedFlexServiceTier
       }
       return true
     })
-  }, [isSupportedFlexServiceTier, t])
+  }, [isSupportedFlexServiceTier, provider.id, t])
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {

@@ -3054,6 +3054,8 @@
         "auto": "自动",
         "default": "默认",
         "flex": "灵活",
+        "on_demand": "按需",
+        "performance": "性能",
         "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
