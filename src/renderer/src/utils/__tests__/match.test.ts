@@ -1,4 +1,4 @@
-import type { Model, Provider } from '@renderer/types'
+import type { Model, Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
@@ -20,10 +20,10 @@ describe('match', () => {
     models: [],
     isSystem: false
   }
-  const sysProvider: Provider = {
+  const sysProvider: SystemProvider = {
     ...provider,
-    id: 'sys',
-    name: 'SystemProvider',
+    id: 'dashscope',
+    name: 'doesnt matter',
     isSystem: true
   }
 
@@ -82,9 +82,9 @@ describe('match', () => {
       expect(matchKeywordsInProvider('foo', provider)).toBe(false)
     })
 
-    it('should match i18n name for system provider', () => {
-      expect(matchKeywordsInProvider('sys', sysProvider)).toBe(true)
-      expect(matchKeywordsInProvider('SystemProvider', sysProvider)).toBe(true)
+    it('should match provider for system provider', () => {
+      // system provider 测 id，non-system provider 测 name
+      expect(matchKeywordsInProvider('dashscope', sysProvider)).toBe(true)
     })
   })
 
@@ -108,9 +108,10 @@ describe('match', () => {
     })
 
     it('should match model name and i18n provider name for system provider', () => {
-      expect(matchKeywordsInModel('gpt-4.1 sys', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('sys', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('SystemProvider', model, sysProvider)).toBe(true)
+      expect(matchKeywordsInModel('gpt-4.1 dashscope', model, sysProvider)).toBe(true)
+      expect(matchKeywordsInModel('dashscope', model, sysProvider)).toBe(true)
+      // system provider 不会直接用 name 检索
+      expect(matchKeywordsInModel('doesnt matter', model, sysProvider)).toBe(false)
     })
 
     it('should match model by id when name is customized', () => {
