@@ -3,7 +3,7 @@ import {
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
   isOpenAIModel,
-  isSupportedFlexServiceTier
+  isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
@@ -210,7 +210,7 @@ export abstract class BaseApiClient<
     let serviceTier = 'auto' as OpenAIServiceTier
 
     if (openAI && openAI?.serviceTier === 'flex') {
-      if (isSupportedFlexServiceTier(model)) {
+      if (isSupportFlexServiceTierModel(model)) {
         serviceTier = 'flex'
       } else {
         serviceTier = 'auto'
@@ -223,7 +223,7 @@ export abstract class BaseApiClient<
   }
 
   protected getTimeout(model: Model) {
-    if (isSupportedFlexServiceTier(model)) {
+    if (isSupportFlexServiceTierModel(model)) {
       return 15 * 1000 * 60
     }
     return defaultTimeout

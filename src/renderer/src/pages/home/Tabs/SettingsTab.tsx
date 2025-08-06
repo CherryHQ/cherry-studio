@@ -5,8 +5,8 @@ import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import {
   isOpenAIModel,
-  isSupportedFlexServiceTier,
-  isSupportedReasoningEffortOpenAIModel
+  isSupportedReasoningEffortOpenAIModel,
+  isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -172,7 +172,7 @@ const SettingsTab: FC<Props> = (props) => {
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
+  const isOpenAIFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   return (
     <Container className="settings-tab">

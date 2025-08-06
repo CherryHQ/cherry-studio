@@ -2548,7 +2548,7 @@ export function isOpenAIModel(model: Model): boolean {
   return model.id.includes('gpt') || isOpenAIReasoningModel(model)
 }
 
-export function isSupportedFlexServiceTier(model: Model): boolean {
+export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
     return false
   }
