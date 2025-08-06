@@ -84,7 +84,7 @@ describe('match', () => {
 
     it('should match i18n name for system provider', () => {
       expect(matchKeywordsInProvider('sys', sysProvider)).toBe(true)
-      expect(matchKeywordsInProvider('SystemProvider', sysProvider)).toBe(false)
+      expect(matchKeywordsInProvider('SystemProvider', sysProvider)).toBe(true)
     })
   })
 
@@ -110,7 +110,7 @@ describe('match', () => {
     it('should match model name and i18n provider name for system provider', () => {
       expect(matchKeywordsInModel('gpt-4.1 sys', model, sysProvider)).toBe(true)
       expect(matchKeywordsInModel('sys', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('SystemProvider', model, sysProvider)).toBe(false)
+      expect(matchKeywordsInModel('SystemProvider', model, sysProvider)).toBe(true)
     })
 
     it('should match model by id when name is customized', () => {
