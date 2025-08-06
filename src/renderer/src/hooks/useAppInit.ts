@@ -18,11 +18,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
+import { checkDataLimit } from './useDataLimit'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
-import { checkDataLimit } from './useDataLimit'
 
 const logger = loggerService.withContext('useAppInit')
 
