@@ -7786,7 +7786,7 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    openai: "npm:^5.12.0"
+    openai: "patch:openai@npm%3A5.12.0#~/.yarn/patches/openai-npm-5.12.0-a06a6369b2.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     pdf-lib: "npm:^1.17.1"
@@ -16688,24 +16688,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:5.1.0":
-  version: 5.1.0
-  resolution: "openai@npm:5.1.0"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/d5882c95f95bfc4127ccbe494d298f43fe56cd3a9fd5711d1f02a040cfa6cdcc1e706ffe05f3d428421ec4caa526fe1b5ff50e1849dbfb3016d289853262ea3d
-  languageName: node
-  linkType: hard
-
-"openai@npm:^5.12.0":
+"openai@npm:5.12.0":
   version: 5.12.0
   resolution: "openai@npm:5.12.0"
   peerDependencies:
@@ -16722,9 +16705,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch":
-  version: 5.1.0
-  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=7d7491"
+"openai@patch:openai@npm%3A5.12.0#~/.yarn/patches/openai-npm-5.12.0-a06a6369b2.patch":
+  version: 5.12.0
+  resolution: "openai@patch:openai@npm%3A5.12.0#~/.yarn/patches/openai-npm-5.12.0-a06a6369b2.patch::version=5.12.0&hash=d96796"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -16735,7 +16718,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/e7d2429887d0060cf9d8cd2c04640f759b55bffab696b3e926e510357af1b5f5b3bcf55d0e0dbe2282da8438a61fd75259847899db289d1e18ff0798b2450344
+  checksum: 10c0/207f70a43839d34f6ad3322a4bdf6d755ac923ca9c6b5fb49bd13263d816c5acb1a501228b9124b1f72eae2f7efffc8890e2d901907b3c8efc2fee3f8a273cec
   languageName: node
   linkType: hard
 
