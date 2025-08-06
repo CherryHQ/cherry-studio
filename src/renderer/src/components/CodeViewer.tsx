@@ -132,7 +132,7 @@ const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, c
               width: '100%',
               transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
             }}>
-            {virtualizer.getVirtualItems().map((virtualItem) => (
+            {virtualItems.map((virtualItem) => (
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
@@ -235,6 +235,7 @@ const ScrollContainer = styled.div<{
     width: 100%;
     line-height: ${(props) => props.$lineHeight}px;
     contain: ${(props) => (props.$wrap ? 'content' : 'none')};
+    will-change: ${(props) => (props.$wrap ? 'auto' : 'transform')};
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
