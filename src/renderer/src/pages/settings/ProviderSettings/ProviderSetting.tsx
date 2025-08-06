@@ -3,7 +3,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
@@ -57,7 +57,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const isDmxapi = provider.id === 'dmxapi'
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url

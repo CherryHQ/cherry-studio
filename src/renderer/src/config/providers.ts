@@ -659,7 +659,19 @@ export function getProviderLogo(providerId: string) {
 export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
 export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
 
-export const PROVIDER_CONFIG = {
+type ProviderUrls = {
+  api: {
+    url: string
+  }
+  websites?: {
+    official: string
+    apiKey?: string
+    docs: string
+    models?: string
+  }
+}
+
+export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   ph8: {
     api: {
       url: 'https://ph8.co'
@@ -691,17 +703,6 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models'
-    }
-  },
-  o3: {
-    api: {
-      url: 'https://api.o3.fan'
-    },
-    websites: {
-      official: 'https://o3.fan',
-      apiKey: 'https://o3.fan/token',
-      docs: '',
-      models: 'https://o3.fan/info/models/'
     }
   },
   burncloud: {
@@ -747,17 +748,6 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://cloud.siliconflow.cn/models'
-    }
-  },
-  'gitee-ai': {
-    api: {
-      url: 'https://ai.gitee.com'
-    },
-    websites: {
-      official: 'https://ai.gitee.com/',
-      apiKey: 'https://ai.gitee.com/dashboard/settings/tokens',
-      docs: 'https://ai.gitee.com/docs/openapi/v1#tag/%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90/POST/chat/completions',
-      models: 'https://ai.gitee.com/serverless-api'
     }
   },
   deepseek: {
@@ -1079,17 +1069,6 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://fireworks.ai/account/api-keys',
       docs: 'https://docs.fireworks.ai/getting-started/introduction',
       models: 'https://fireworks.ai/dashboard/models'
-    }
-  },
-  zhinao: {
-    api: {
-      url: 'https://api.360.cn'
-    },
-    websites: {
-      official: 'https://ai.360.com/',
-      apiKey: 'https://ai.360.com/platform/keys',
-      docs: 'https://ai.360.com/platform/docs/overview',
-      models: 'https://ai.360.com/platform/limit'
     }
   },
   hunyuan: {
