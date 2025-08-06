@@ -192,63 +192,81 @@ export type Provider = {
   extra_headers?: Record<string, string>
 }
 
-export type SystemProviderId =
-  | 'silicon'
-  | 'aihubmix'
-  | 'ocoolai'
-  | 'deepseek'
-  | 'ppio'
-  | 'alayanew'
-  | 'qiniu'
-  | 'dmxapi'
-  | 'burncloud'
-  | 'tokenflux'
-  | '302ai'
-  | 'cephalon'
-  | 'lanyun'
-  | 'ph8'
-  | 'openrouter'
-  | 'ollama'
-  | 'new-api'
-  | 'lmstudio'
-  | 'anthropic'
-  | 'openai'
-  | 'azure-openai'
-  | 'gemini'
-  | 'vertexai'
-  | 'github'
-  | 'copilot'
-  | 'zhipu'
-  | 'yi'
-  | 'moonshot'
-  | 'baichuan'
-  | 'dashscope'
-  | 'stepfun'
-  | 'doubao'
-  | 'infini'
-  | 'minimax'
-  | 'groq'
-  | 'together'
-  | 'fireworks'
-  | 'nvidia'
-  | 'grok'
-  | 'hyperbolic'
-  | 'mistral'
-  | 'jina'
-  | 'perplexity'
-  | 'modelscope'
-  | 'xirang'
-  | 'hunyuan'
-  | 'tencent-cloud-ti'
-  | 'baidu-cloud'
-  | 'gpustack'
-  | 'voyageai'
-  | 'aws-bedrock'
-  | 'poe'
+export const SystemProviderIds = {
+  silicon: 'silicon',
+  aihubmix: 'aihubmix',
+  ocoolai: 'ocoolai',
+  deepseek: 'deepseek',
+  ppio: 'ppio',
+  alayanew: 'alayanew',
+  qiniu: 'qiniu',
+  dmxapi: 'dmxapi',
+  burncloud: 'burncloud',
+  tokenflux: 'tokenflux',
+  '302ai': '302ai',
+  cephalon: 'cephalon',
+  lanyun: 'lanyun',
+  ph8: 'ph8',
+  openrouter: 'openrouter',
+  ollama: 'ollama',
+  'new-api': 'new-api',
+  lmstudio: 'lmstudio',
+  anthropic: 'anthropic',
+  openai: 'openai',
+  'azure-openai': 'azure-openai',
+  gemini: 'gemini',
+  vertexai: 'vertexai',
+  github: 'github',
+  copilot: 'copilot',
+  zhipu: 'zhipu',
+  yi: 'yi',
+  moonshot: 'moonshot',
+  baichuan: 'baichuan',
+  dashscope: 'dashscope',
+  stepfun: 'stepfun',
+  doubao: 'doubao',
+  infini: 'infini',
+  minimax: 'minimax',
+  groq: 'groq',
+  together: 'together',
+  fireworks: 'fireworks',
+  nvidia: 'nvidia',
+  grok: 'grok',
+  hyperbolic: 'hyperbolic',
+  mistral: 'mistral',
+  jina: 'jina',
+  perplexity: 'perplexity',
+  modelscope: 'modelscope',
+  xirang: 'xirang',
+  hunyuan: 'hunyuan',
+  'tencent-cloud-ti': 'tencent-cloud-ti',
+  'baidu-cloud': 'baidu-cloud',
+  gpustack: 'gpustack',
+  voyageai: 'voyageai',
+  'aws-bedrock': 'aws-bedrock',
+  poe: 'poe'
+} as const
+
+export type SystemProviderId = (typeof SystemProviderIds)[keyof typeof SystemProviderIds]
+
+const systemProviderIdValues = Object.values(SystemProviderIds)
+
+export const isSystemProviderId = (id: string): id is SystemProviderId => {
+  return systemProviderIdValues.some((sid) => sid === id)
+}
 
 export type SystemProvider = Provider & {
   id: SystemProviderId
   isSystem: true
+}
+
+/**
+ * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
+ * @param provider - Provider对象，包含提供商的信息
+ * @returns 是否为系统内置提供商
+ */
+export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
+  return isSystemProviderId(provider.id) && !!provider.isSystem
 }
 
 export type ProviderSupportedServiceTier = Provider & {

@@ -1,5 +1,4 @@
 import { createSelector } from '@reduxjs/toolkit'
-import { isSystemProvider } from '@renderer/config/providers'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -10,7 +9,7 @@ import {
   updateProvider,
   updateProviders
 } from '@renderer/store/llm'
-import { Assistant, Model, Provider } from '@renderer/types'
+import { Assistant, isSystemProvider, Model, Provider } from '@renderer/types'
 
 import { useDefaultModel } from './useAssistant'
 

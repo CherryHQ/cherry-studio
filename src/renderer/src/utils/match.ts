@@ -1,5 +1,5 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Model, Provider } from '@renderer/types'
+import { isSystemProvider, Model, Provider } from '@renderer/types'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords
@@ -64,8 +64,7 @@ export function matchKeywordsInModel(keywords: string | string[], model: Model, 
  * @returns 搜索字符串
  */
 function getProviderSearchString(provider: Provider) {
-  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
-  return provider.isSystem ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
+  return isSystemProvider(provider) ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
 }
 
 /**

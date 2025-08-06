@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
+import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { Provider, ProviderType } from '@renderer/types'
+import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import {
   generateColorFromChar,
   getFancyProviderName,

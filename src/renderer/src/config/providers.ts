@@ -52,8 +52,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { SYSTEM_PROVIDERS } from '@renderer/store/llm'
-import { Provider, SystemProvider } from '@renderer/types'
+import { Provider } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -754,13 +753,4 @@ const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope']
  */
 export const isSupportQwen3EnableThinkingProvider = (provider: Provider) => {
   return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.includes(provider.id)
-}
-
-/**
- * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
- * @param provider - Provider对象，包含提供商的信息
- * @returns 是否为系统内置提供商
- */
-export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
-  return SYSTEM_PROVIDERS.some((p) => p.id === provider.id)
 }
