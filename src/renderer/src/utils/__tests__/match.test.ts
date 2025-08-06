@@ -1,14 +1,7 @@
 import type { Model, Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
-
-// mock i18n for getFancyProviderName
-vi.mock('@renderer/i18n', () => ({
-  default: {
-    t: (key: string) => `i18n:${key}`
-  }
-}))
 
 describe('match', () => {
   const provider: Provider = {
@@ -112,6 +105,7 @@ describe('match', () => {
       expect(matchKeywordsInModel('dashscope', model, sysProvider)).toBe(true)
       // system provider 不会直接用 name 检索
       expect(matchKeywordsInModel('doesnt matter', model, sysProvider)).toBe(false)
+      expect(matchKeywordsInModel('Alibaba', model, sysProvider)).toBe(true)
     })
 
     it('should match model by id when name is customized', () => {
