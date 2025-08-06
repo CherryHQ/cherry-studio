@@ -108,6 +108,7 @@ const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, c
         ref={scrollerRef}
         className="shiki-scroller"
         $wrap={!unwrapped}
+        $expanded={expanded}
         $lineHeight={estimateSize()}
         style={
           {
@@ -221,6 +222,7 @@ VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ScrollContainer = styled.div<{
   $wrap?: boolean
+  $expanded?: boolean
   $lineHeight?: number
 }>`
   display: block;
@@ -237,7 +239,7 @@ const ScrollContainer = styled.div<{
     line-height: ${(props) => props.$lineHeight}px;
     /* contain 优化 wrap 时滚动性能，will-change 优化 unwrap 时滚动性能 */
     contain: ${(props) => (props.$wrap ? 'content' : 'none')};
-    will-change: ${(props) => (props.$wrap ? 'auto' : 'transform')};
+    will-change: ${(props) => (!props.$wrap && !props.$expanded ? 'transform' : 'auto')};
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
