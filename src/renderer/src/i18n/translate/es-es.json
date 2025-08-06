@@ -1561,6 +1561,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Generar imagen",
+      "merge": "combinar",
       "remix": "Mezclar",
       "upscale": "Ampliar"
     },
@@ -2715,6 +2716,8 @@
       "jsonSaveError": "Fallo al guardar la configuración JSON",
       "jsonSaveSuccess": "Configuración JSON guardada exitosamente",
       "logoUrl": "URL del logotipo",
+      "longRunning": "Modo de ejecución prolongada",
+      "longRunningTooltip": "Habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de espera al recibir notificaciones de progreso y extiende el tiempo máximo de espera hasta 10 minutos.",
       "missingDependencies": "Faltan, instalelas para continuar",
       "more": {
         "awesome": "Lista seleccionada de servidores MCP",
@@ -2987,6 +2990,7 @@
         "select_api_key": "Seleccionar clave API a usar:",
         "single": "Individual",
         "start": "Iniciar",
+        "timeout": "Tiempo agotado",
         "title": "Verificación de salud del modelo",
         "use_all_keys": "Usar todas las claves"
       },
@@ -3050,6 +3054,9 @@
         "auto": "Automático",
         "default": "Predeterminado",
         "flex": "Flexible",
+        "on_demand": "según demanda",
+        "performance": "rendimiento",
+        "priority": "prioridad",
         "tip": "Especifica el nivel de latencia utilizado para procesar la solicitud",
         "title": "Nivel de servicio"
       },
@@ -3103,6 +3110,10 @@
             "label": "Mensajes para desarrolladores compatibles"
           },
           "label": "Configuración de la API",
+          "service_tier": {
+            "help": "Si el proveedor admite la configuración del parámetro service_tier. Al activarlo, se podrá ajustar este parámetro en la configuración del nivel de servicio en la página de conversación. (Solo para modelos OpenAI)",
+            "label": "Compatible con service_tier"
+          },
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"

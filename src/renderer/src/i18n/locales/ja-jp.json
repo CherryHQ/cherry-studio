@@ -3054,6 +3054,9 @@
         "auto": "自動",
         "default": "デフォルト",
         "flex": "フレックス",
+        "on_demand": "オンデマンド",
+        "performance": "性能",
+        "priority": "優先",
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"
       },
@@ -3107,6 +3110,10 @@
             "label": "Developer Message をサポート"
           },
           "label": "API設定",
+          "service_tier": {
+            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
+            "label": "service_tier をサポート"
+          },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"

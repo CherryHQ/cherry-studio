@@ -3054,6 +3054,9 @@
         "auto": "自動",
         "default": "預設",
         "flex": "彈性",
+        "on_demand": "按需",
+        "performance": "效能",
+        "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
@@ -3107,6 +3110,10 @@
             "label": "支援開發人員訊息"
           },
           "label": "API 設定",
+          "service_tier": {
+            "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
+            "label": "支援 service_tier"
+          },
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
