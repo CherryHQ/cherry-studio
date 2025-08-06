@@ -79,7 +79,8 @@
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
     "selection-hook": "^1.0.8",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "vditor": "^3.11.1"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",

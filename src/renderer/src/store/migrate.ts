@@ -2006,6 +2006,23 @@ const migrateConfig = {
       logger.error('migrate 127 error', error as Error)
       return state
     }
+  },
+  '128': (state: RootState) => {
+    if (state.settings && state.settings.sidebarIcons) {
+      // Check if 'notes' is not already in visible icons
+      if (!state.settings.sidebarIcons.visible.includes('notes' as any)) {
+        state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'notes' as any]
+      }
+    }
+
+    if (state.settings && state.settings.showWorkspace === undefined) {
+      state.settings.showWorkspace = true
+    }
+
+    if (state.settings && state.settings.exportMenuOptions.notes === undefined) {
+      state.settings.exportMenuOptions.notes = true
+    }
+    return state
   }
 }
 

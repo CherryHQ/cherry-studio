@@ -25,6 +25,7 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
@@ -322,6 +323,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToSiyuan(title, markdown)
+            }
+          },
+          exportMenuOptions.notes && {
+            label: t('chat.topics.export.notes'),
+            key: 'notes',
+            onClick: async () => {
+              const title = await getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMessageToNotes(title, markdown)
             }
           }
         ].filter(Boolean)

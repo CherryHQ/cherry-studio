@@ -20,7 +20,15 @@ import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'notes'
 
 export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'assistants',
@@ -29,7 +37,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'translate',
   'minapp',
   'knowledge',
-  'files'
+  'files',
+  'notes'
 ]
 
 export interface NutstoreSyncRuntime extends RemoteSyncState {}
@@ -182,6 +191,7 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
     plain_text: boolean
+    notes: boolean
   }
   // OpenAI
   openAI: {
@@ -208,6 +218,8 @@ export interface SettingsState {
   navbarPosition: 'left' | 'top'
   // API Server
   apiServer: ApiServerConfig
+  // Notes Related
+  showWorkspace: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -347,7 +359,8 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true,
-    plain_text: true
+    plain_text: true,
+    notes: true
   },
   // OpenAI
   openAI: {
@@ -378,6 +391,7 @@ export const initialState: SettingsState = {
     maxBackups: 0,
     skipBackupFile: false
   },
+
   // Developer mode
   enableDeveloperMode: false,
   // UI
@@ -388,7 +402,9 @@ export const initialState: SettingsState = {
     host: 'localhost',
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
-  }
+  },
+  // Notes Related
+  showWorkspace: true
 }
 
 const settingsSlice = createSlice({
@@ -814,6 +830,12 @@ const settingsSlice = createSlice({
         ...state.apiServer,
         apiKey: action.payload
       }
+    },
+    setShowWorkspace: (state, action: PayloadAction<boolean>) => {
+      state.showWorkspace = action.payload
+    },
+    toggleShowWorkspace: (state) => {
+      state.showWorkspace = !state.showWorkspace
     }
   }
 })
@@ -941,7 +963,9 @@ export const {
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  setShowWorkspace,
+  toggleShowWorkspace
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

@@ -7833,6 +7833,7 @@ __metadata:
     undici: "npm:6.21.2"
     unified: "npm:^11.0.5"
     uuid: "npm:^10.0.0"
+    vditor: "npm:^3.11.1"
     vite: "npm:rolldown-vite@latest"
     vitest: "npm:^3.2.4"
     webdav: "npm:^5.8.0"
@@ -10507,6 +10508,13 @@ __metadata:
   version: 4.0.11
   resolution: "dexie@npm:4.0.11"
   checksum: 10c0/f8f18e17fe99fd3d4bd80a4ff76c0a543be128bb65a11b6b34297c6ab2d7426989567a8eac09b0de6b483bfb776cbbb32bebe3eedcd5c572ddda80224aac1fa1
+  languageName: node
+  linkType: hard
+
+"diff-match-patch@npm:^1.0.5":
+  version: 1.0.5
+  resolution: "diff-match-patch@npm:1.0.5"
+  checksum: 10c0/142b6fad627b9ef309d11bd935e82b84c814165a02500f046e2773f4ea894d10ed3017ac20454900d79d4a0322079f5b713cf0986aaf15fce0ec4a2479980c86
   languageName: node
   linkType: hard
 
@@ -21010,6 +21018,15 @@ __metadata:
   version: 1.1.2
   resolution: "vary@npm:1.1.2"
   checksum: 10c0/f15d588d79f3675135ba783c91a4083dcd290a2a5be9fcb6514220a1634e23df116847b1cc51f66bfb0644cf9353b2abb7815ae499bab06e46dd33c1a6bf1f4f
+  languageName: node
+  linkType: hard
+
+"vditor@npm:^3.11.1":
+  version: 3.11.1
+  resolution: "vditor@npm:3.11.1"
+  dependencies:
+    diff-match-patch: "npm:^1.0.5"
+  checksum: 10c0/bd2386323690e66704ae91475f8e25a62c7b4c87cf814c25fce4bcc1f552e48883020087796c8c41c882a53238b8bf3b6b9ba9c16071969d4654cbd11eef2d9f
   languageName: node
   linkType: hard
 

@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Monitor,
   Moon,
+  NotepadText,
   Palette,
   Settings,
   Sparkle,
@@ -153,7 +154,8 @@ const MainMenus: FC = () => {
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />
+    files: <Folder size={18} className="icon" />,
+    notes: <NotepadText size={18} className="icon" />
   }
 
   const pathMap = {
@@ -163,7 +165,8 @@ const MainMenus: FC = () => {
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    notes: '/notes'
   }
 
   return sidebarIcons.visible.map((icon) => {
