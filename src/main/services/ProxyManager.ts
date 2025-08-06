@@ -72,6 +72,8 @@ export class ProxyManager {
   private originalHttpsGet: typeof https.get
   private originalHttpsRequest: typeof https.request
 
+  private originalAxiosAdapter
+
   constructor() {
     this.originalGlobalDispatcher = getGlobalDispatcher()
     this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
@@ -79,6 +81,7 @@ export class ProxyManager {
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
+    this.originalAxiosAdapter = axios.defaults.adapter
   }
 
   private async monitorSystemProxy(): Promise<void> {
@@ -246,9 +249,9 @@ export class ProxyManager {
     if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      axios.defaults.adapter = 'http'
       this.proxyDispatcher?.close()
       this.proxyDispatcher = null
+      axios.defaults.adapter = this.originalAxiosAdapter
       return
     }
 
