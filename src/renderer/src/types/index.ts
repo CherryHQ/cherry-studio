@@ -173,19 +173,92 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
 
-  // undefined 视为支持
+  // API options
+  // undefined 视为支持，默认支持
+  /** 是否不支持 message 的 content 为数组类型 */
   isNotSupportArrayContent?: boolean
+  /** 是否不支持 stream_options 参数 */
   isNotSupportStreamOptions?: boolean
+  /** 是否不支持 message 的 role 为 developer */
   isNotSupportDeveloperRole?: boolean
+
+  // undefined 视为不支持，默认不支持
+  /** 是否支持 service_tier 参数 */
+  isSupportServiceTier?: boolean
+  serviceTier?: OpenAIServiceTier
 
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
 }
 
-// 后面会重构成更严格的类型
+export type SystemProviderId =
+  | 'silicon'
+  | 'aihubmix'
+  | 'ocoolai'
+  | 'deepseek'
+  | 'ppio'
+  | 'alayanew'
+  | 'qiniu'
+  | 'dmxapi'
+  | 'burncloud'
+  | 'tokenflux'
+  | '302ai'
+  | 'cephalon'
+  | 'lanyun'
+  | 'ph8'
+  | 'openrouter'
+  | 'ollama'
+  | 'new-api'
+  | 'lmstudio'
+  | 'anthropic'
+  | 'openai'
+  | 'azure-openai'
+  | 'gemini'
+  | 'vertexai'
+  | 'github'
+  | 'copilot'
+  | 'zhipu'
+  | 'yi'
+  | 'moonshot'
+  | 'baichuan'
+  | 'dashscope'
+  | 'stepfun'
+  | 'doubao'
+  | 'infini'
+  | 'minimax'
+  | 'groq'
+  | 'together'
+  | 'fireworks'
+  | 'nvidia'
+  | 'grok'
+  | 'hyperbolic'
+  | 'mistral'
+  | 'jina'
+  | 'perplexity'
+  | 'modelscope'
+  | 'xirang'
+  | 'hunyuan'
+  | 'tencent-cloud-ti'
+  | 'baidu-cloud'
+  | 'gpustack'
+  | 'voyageai'
+  | 'aws-bedrock'
+  | 'poe'
+
 export type SystemProvider = Provider & {
+  id: SystemProviderId
   isSystem: true
+}
+
+export type ProviderSupportedServiceTier = Provider & {
+  isSupportServiceTier: true
+  serviceTier: OpenAIServiceTier
+}
+
+export function isProviderSupportedServiceTier(provider: Provider): provider is ProviderSupportedServiceTier {
+  const p = provider as ProviderSupportedServiceTier
+  return p.isSupportServiceTier && isOpenAIServiceTier(p.serviceTier || '')
 }
 
 export type ProviderType =
@@ -824,6 +897,10 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
+  return ['auto', 'default', 'flex'].includes(tier)
+}
 
 export type S3Config = {
   endpoint: string
