@@ -464,6 +464,7 @@ const ProvidersList: FC = () => {
           onDragStart={() => setDragging(true)}
           estimateSize={useCallback(() => 40, [])}
           overscan={3}
+          disabled={searchText !== ''}
           style={{
             height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
           }}
