@@ -15,7 +15,7 @@ import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
-import { isVisionModel } from '@renderer/config/models'
+import { isVisionModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
   Chunk,
@@ -64,7 +64,8 @@ vi.mock('@renderer/config/models', () => ({
       name: 'Gemini 2.5 Pro'
     }
   },
-  isAnthropicModel: vi.fn(() => false)
+  isAnthropicModel: vi.fn(() => false),
+  SYSTEM_MODELS
 }))
 
 // Mock uuid
