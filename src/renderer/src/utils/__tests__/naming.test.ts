@@ -1,3 +1,4 @@
+import { Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -6,6 +7,7 @@ import {
   getBaseModelName,
   getBriefInfo,
   getDefaultGroupName,
+  getFancyProviderName,
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
@@ -283,6 +285,34 @@ describe('naming', () => {
       // 验证自定义最大长度
       const text = 'This is a long text'
       expect(getBriefInfo(text, 5)).toBe('This...')
+    })
+  })
+
+  describe('getFancyProviderName', () => {
+    it('should get i18n name for system provider', () => {
+      const mockSystemProvider: SystemProvider = {
+        id: 'dashscope',
+        type: 'openai',
+        name: 'whatever',
+        apiHost: 'whatever',
+        apiKey: 'whatever',
+        models: [],
+        isSystem: true
+      }
+      // 默认 i18n 环境是 en-us
+      expect(getFancyProviderName(mockSystemProvider)).toBe('Alibaba Cloud')
+    })
+
+    it('should get name for custom provider', () => {
+      const mockProvider: Provider = {
+        id: 'whatever',
+        type: 'openai',
+        name: '好名字',
+        apiHost: 'whatever',
+        apiKey: 'whatever',
+        models: []
+      }
+      expect(getFancyProviderName(mockProvider)).toBe('好名字')
     })
   })
 })
