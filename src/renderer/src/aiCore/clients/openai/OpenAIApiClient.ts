@@ -7,6 +7,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isQwen3235BA22BThinkingModel,
   isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -24,6 +25,7 @@ import {
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
+  isSupportQwen3EnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -145,6 +147,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return { reasoning: { enabled: false, exclude: true } }
       }
       if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
+        if (isQwen3235BA22BThinkingModel(model)) {
+          return {}
+        }
         return { enable_thinking: false }
       }
 
@@ -192,7 +197,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Qwen models
     if (isSupportedThinkingTokenQwenModel(model)) {
       const thinkConfig = {
-        enable_thinking: true,
+        enable_thinking: isQwen3235BA22BThinkingModel(model) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -522,7 +527,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model) && model.provider !== 'dashscope') {
+        if (
+          lastUserMsg &&
+          isSupportedThinkingTokenQwenModel(model) &&
+          !isSupportQwen3EnableThinkingProvider(this.provider)
+        ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
           const currentContent = lastUserMsg.content

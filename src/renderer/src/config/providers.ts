@@ -722,20 +722,38 @@ export const PROVIDER_CONFIG = {
 
 const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = ['deepseek', 'baichuan', 'minimax', 'xirang']
 
+/**
+ * 判断提供商是否支持 message 的 content 为数组类型。 Only for OpenAI Chat Completions API.
+ */
 export const isSupportArrayContentProvider = (provider: Provider) => {
   return provider.isNotSupportArrayContent !== true || !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.includes(provider.id)
 }
 
 const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe']
 
+/**
+ * 判断提供商是否支持 developer 作为 message role。 Only for OpenAI API.
+ */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
   return provider.isNotSupportDeveloperRole !== true || !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.includes(provider.id)
 }
 
 const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral']
 
+/**
+ * 判断提供商是否支持 stream_options 参数。Only for OpenAI API.
+ */
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return provider.isNotSupportStreamOptions !== true || !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.includes(provider.id)
+}
+
+const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope']
+
+/**
+ * 判断提供商是否支持使用enable_thinking参数来控制Qwen3系列模型的思考。 Only for OpenAI Chat Completions API.
+ */
+export const isSupportQwen3EnableThinkingProvider = (provider: Provider) => {
+  return SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.includes(provider.id)
 }
 
 /**
