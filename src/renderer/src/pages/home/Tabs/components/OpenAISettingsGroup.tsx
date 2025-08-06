@@ -5,7 +5,15 @@ import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText } from '@renderer/store/settings'
-import { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier, SystemProviderIds } from '@renderer/types'
+import {
+  GroqServiceTiers,
+  Model,
+  OpenAIServiceTier,
+  OpenAIServiceTiers,
+  OpenAISummaryText,
+  ServiceTier,
+  SystemProviderIds
+} from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'
@@ -17,13 +25,6 @@ interface Props {
   providerId: string
   SettingGroup: FC<{ children: React.ReactNode }>
   SettingRowTitleSmall: FC<{ children: React.ReactNode }>
-}
-
-const FALL_BACK_SERVICE_TIER: Record<OpenAIServiceTier, OpenAIServiceTier> = {
-  auto: 'auto',
-  default: 'default',
-  flex: 'default',
-  priority: 'priority'
 }
 
 const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, SettingRowTitleSmall }) => {
@@ -48,7 +49,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   )
 
   const setServiceTierMode = useCallback(
-    (value: OpenAIServiceTier) => {
+    (value: ServiceTier) => {
       updateProvider({ serviceTier: value })
     },
     [updateProvider]
@@ -121,9 +122,13 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      setServiceTierMode(FALL_BACK_SERVICE_TIER[serviceTierMode])
+      if (provider.id === SystemProviderIds.groq) {
+        setServiceTierMode(GroqServiceTiers.on_demand)
+      } else {
+        setServiceTierMode(OpenAIServiceTiers.auto)
+      }
     }
-  }, [serviceTierMode, serviceTierOptions, setServiceTierMode])
+  }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 
   if (!isOpenAIReasoning && !isSupportServiceTier) {
     return null
