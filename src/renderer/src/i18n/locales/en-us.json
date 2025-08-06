@@ -3562,6 +3562,9 @@
     "noReleaseNotes": "No release notes",
     "title": "Update"
   },
+  "warning": {
+    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+  },
   "words": {
     "knowledgeGraph": "Knowledge Graph",
     "quit": "Quit",

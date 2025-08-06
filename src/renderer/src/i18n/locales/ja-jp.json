@@ -3562,6 +3562,9 @@
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新"
   },
+  "warning": {
+    "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
+  },
   "words": {
     "knowledgeGraph": "ナレッジグラフ",
     "quit": "終了",
