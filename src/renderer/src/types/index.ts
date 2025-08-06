@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import * as z from 'zod/v4'
 
 export * from './file'
+
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
@@ -181,10 +182,8 @@ export type Provider = {
   isNotSupportStreamOptions?: boolean
   /** 是否不支持 message 的 role 为 developer */
   isNotSupportDeveloperRole?: boolean
-
-  // undefined 视为不支持，默认不支持
-  /** 是否支持 service_tier 参数 */
-  isSupportServiceTier?: boolean
+  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  isNotSupportServiceTier?: boolean
   serviceTier?: OpenAIServiceTier
 
   isVertex?: boolean
@@ -267,16 +266,6 @@ export type SystemProvider = Provider & {
  */
 export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
   return isSystemProviderId(provider.id) && !!provider.isSystem
-}
-
-export type ProviderSupportedServiceTier = Provider & {
-  isSupportServiceTier: true
-  serviceTier: OpenAIServiceTier
-}
-
-export function isProviderSupportedServiceTier(provider: Provider): provider is ProviderSupportedServiceTier {
-  const p = provider as ProviderSupportedServiceTier
-  return p.isSupportServiceTier && isOpenAIServiceTier(p.serviceTier || '')
 }
 
 export type ProviderType =
@@ -914,10 +903,19 @@ export interface StoreSyncAction {
 }
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export const OpenAIServiceTiers = {
+  AUTO: 'auto',
+  DEFAULT: 'default',
+  FLEX: 'flex'
+} as const
+
+export type OpenAIServiceTier = (typeof OpenAIServiceTiers)[keyof typeof OpenAIServiceTiers]
+
+const openAIServiceTiersValues = Object.values(OpenAIServiceTiers) // for type guard perf
 
 export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
-  return ['auto', 'default', 'flex'].includes(tier)
+  return openAIServiceTiersValues.some((value) => value === tier)
 }
 
 export type S3Config = {
