@@ -227,13 +227,15 @@ const ScrollContainer = styled.div<{
   overflow-x: auto;
   position: relative;
   border-radius: inherit;
-  padding: 0.5em 1em;
+  /* padding right 下沉到 line-content 中 */
+  padding: 0.5em 0 0.5em 1em;
 
   .line {
     display: flex;
     align-items: flex-start;
     width: 100%;
     line-height: ${(props) => props.$lineHeight}px;
+    /* contain 优化 wrap 时滚动性能，will-change 优化 unwrap 时滚动性能 */
     contain: ${(props) => (props.$wrap ? 'content' : 'none')};
     will-change: ${(props) => (props.$wrap ? 'auto' : 'transform')};
 
@@ -251,6 +253,7 @@ const ScrollContainer = styled.div<{
 
     .line-content {
       flex: 1;
+      padding-right: 1em;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
