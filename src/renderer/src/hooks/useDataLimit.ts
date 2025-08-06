@@ -19,6 +19,13 @@ let currentInterval: NodeJS.Timeout | null = null
  * @returns true表示需要警告，false则不需要
  */
 function shouldShowDiskWarning(freeBytes: number, totalBytes: number) {
+  if (totalBytes < 16 * GB) {
+    // for usb disk, if free percentage is less than 5%, warn user
+    if (freeBytes / totalBytes < 0.05) {
+      return true
+    }
+  }
+
   if (totalBytes < 32 * GB) {
     if (freeBytes < 1 * GB) {
       return true
