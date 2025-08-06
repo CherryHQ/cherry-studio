@@ -703,6 +703,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
     try {
       const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
+      logger.debug('disk space', diskSpace)
       const { free, size } = diskSpace
       return {
         free,

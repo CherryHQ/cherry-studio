@@ -132,6 +132,7 @@
     },
     "title": "API Server"
   },
+
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -2071,6 +2072,10 @@
         "token_placeholder": "Joplin Authorization Token",
         "url": "Joplin Web Clipper Service URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "Internal storage space is almost full, which may prevent saving new data. Please back up your data first, then clear disk space.",
+        "appStorageQuota": "Data directory space is almost full, which may prevent saving new data. Please back up your data first, then clear disk space."
       },
       "local": {
         "autoSync": {

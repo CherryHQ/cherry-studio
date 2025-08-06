@@ -132,6 +132,7 @@
     },
     "title": "API 伺服器"
   },
+
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -2071,6 +2072,10 @@
         "token_placeholder": "請輸入 Joplin 授權 Token",
         "url": "Joplin 剪輯服務 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "內部儲存空間即將用盡，可能導致無法儲存新資料。請先備份資料，再清理磁碟空間。",
+        "appStorageQuota": "資料目錄空間即將用盡，可能導致無法儲存新資料。請先備份資料，再清理磁碟空間。"
       },
       "local": {
         "autoSync": {

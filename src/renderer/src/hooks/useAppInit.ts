@@ -22,6 +22,7 @@ import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
+import { checkDataLimit } from './useDataLimit'
 
 const logger = loggerService.withContext('useAppInit')
 
@@ -157,4 +158,8 @@ export function useAppInit() {
       logger.error('Failed to update memory config:', error)
     })
   }, [memoryConfig])
+
+  useEffect(() => {
+    checkDataLimit()
+  }, [])
 }

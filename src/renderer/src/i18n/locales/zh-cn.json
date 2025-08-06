@@ -132,6 +132,7 @@
     },
     "title": "API 服务器"
   },
+
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -2071,6 +2072,10 @@
         "token_placeholder": "请输入 Joplin 授权令牌",
         "url": "Joplin 剪裁服务监听 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "内部存储空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间",
+        "appStorageQuota": "数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
       },
       "local": {
         "autoSync": {
