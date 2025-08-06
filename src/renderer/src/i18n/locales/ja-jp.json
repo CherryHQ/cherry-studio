@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Nutstoreにバックアップ"
+          "button": "Nutstoreにバックアップ",
+          "modal": {
+            "filename": {
+              "placeholder": "バックアップファイル名を入力"
+            },
+            "title": "Nutstoreにバックアップ"
+          }
         },
         "checkConnection": {
           "fail": "Nutstore接続に失敗しました",
@@ -2260,7 +2266,11 @@
           "title": "Nutstoreストレージパス"
         },
         "restore": {
-          "button": "Nutstoreから復元"
+          "button": "Nutstoreから復元",
+          "confirm": {
+            "content": "Nutstoreからの復元により現在のデータが上書きされます。続行しますか？",
+            "title": "Nutstoreから復元"
+          }
         },
         "title": "Nutstore設定",
         "username": "Nutstoreユーザー名"

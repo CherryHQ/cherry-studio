@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Backup to Nutstore"
+          "button": "Backup to Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Enter backup filename"
+            },
+            "title": "Backup to Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Nutstore connection failed",
@@ -2260,7 +2266,11 @@
           "title": "Nutstore Storage Path"
         },
         "restore": {
-          "button": "Restore from Nutstore"
+          "button": "Restore from Nutstore",
+          "confirm": {
+            "content": "Restoring from Nutstore will overwrite current data. Do you want to continue?",
+            "title": "Restore from Nutstore"
+          }
         },
         "title": "Nutstore Configuration",
         "username": "Nutstore Username"

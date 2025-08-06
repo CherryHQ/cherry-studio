@@ -325,6 +325,10 @@ const NutstoreSettings: FC = () => {
           backuping={backuping}
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
+          customLabels={{
+            modalTitle: t('settings.data.nutstore.backup.modal.title'),
+            filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
+          }}
         />
 
         <WebdavBackupManager
@@ -337,6 +341,11 @@ const NutstoreSettings: FC = () => {
             webdavPath: storagePath
           }}
           restoreMethod={restoreFromNutstore}
+          customLabels={{
+            restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
+            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
+            invalidConfigMessage: t('message.error.invalid.nutstore')
+          }}
         />
       </>
     </SettingGroup>

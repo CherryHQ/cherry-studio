@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "备份到坚果云"
+          "button": "备份到坚果云",
+          "modal": {
+            "filename": {
+              "placeholder": "请输入备份文件名"
+            },
+            "title": "备份到坚果云"
+          }
         },
         "checkConnection": {
           "fail": "坚果云连接失败",
@@ -2260,7 +2266,11 @@
           "title": "坚果云存储路径"
         },
         "restore": {
-          "button": "从坚果云恢复"
+          "button": "从坚果云恢复",
+          "confirm": {
+            "content": "从坚果云恢复将会覆盖当前数据，是否继续？",
+            "title": "从坚果云恢复"
+          }
         },
         "title": "坚果云配置",
         "username": "坚果云用户名"

@@ -2226,7 +2226,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "備份到堅果雲"
+          "button": "備份到堅果雲",
+          "modal": {
+            "filename": {
+              "placeholder": "請輸入備份檔案名"
+            },
+            "title": "備份到堅果雲"
+          }
         },
         "checkConnection": {
           "fail": "堅果雲連接失敗",
@@ -2260,7 +2266,11 @@
           "title": "堅果雲存儲路徑"
         },
         "restore": {
-          "button": "從堅果雲恢復"
+          "button": "從堅果雲恢復",
+          "confirm": {
+            "content": "從堅果雲恢復將覆蓋目前資料，是否繼續？",
+            "title": "從堅果雲恢復"
+          }
         },
         "title": "堅果雲設定",
         "username": "堅果雲用戶名"

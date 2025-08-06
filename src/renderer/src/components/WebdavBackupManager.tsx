@@ -30,9 +30,20 @@ interface WebdavBackupManagerProps {
     webdavDisableStream?: boolean
   }
   restoreMethod?: (fileName: string) => Promise<void>
+  customLabels?: {
+    restoreConfirmTitle?: string
+    restoreConfirmContent?: string
+    invalidConfigMessage?: string
+  }
 }
 
-export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMethod }: WebdavBackupManagerProps) {
+export function WebdavBackupManager({
+  visible,
+  onClose,
+  webdavConfig,
+  restoreMethod,
+  customLabels
+}: WebdavBackupManagerProps) {
   const { t } = useTranslation()
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -167,14 +178,14 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
 
   const handleRestore = async (fileName: string) => {
     if (!webdavHost) {
-      window.message.error(t('message.error.invalid.webdav'))
+      window.message.error(customLabels?.invalidConfigMessage || t('message.error.invalid.webdav'))
       return
     }
 
     window.modal.confirm({
-      title: t('settings.data.webdav.restore.confirm.title'),
+      title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
       icon: <ExclamationCircleOutlined />,
-      content: t('settings.data.webdav.restore.confirm.content'),
+      content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true,
