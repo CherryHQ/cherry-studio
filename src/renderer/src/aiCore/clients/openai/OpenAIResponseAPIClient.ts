@@ -339,8 +339,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: OpenAIResponseSdkParams): OpenAIResponseSdkMessageParam[] {
-    if (typeof sdkPayload.input === 'string') {
-      return [{ role: 'user', content: sdkPayload.input }]
+    if (!sdkPayload.input || typeof sdkPayload.input === 'string') {
+      return [{ role: 'user', content: sdkPayload.input ?? '' }]
     }
     return sdkPayload.input
   }
