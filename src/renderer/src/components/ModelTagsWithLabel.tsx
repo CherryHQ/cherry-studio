@@ -78,7 +78,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   return (
     <Container ref={containerRef} style={style}>
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
-      {isWebSearchModel(model) && <WebSearchTag showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
         <ReasoningTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
