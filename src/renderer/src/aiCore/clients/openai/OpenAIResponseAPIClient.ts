@@ -456,17 +456,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-        const sdkParams: OpenAIResponseSdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
         const timeout = this.getTimeout(model)
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }
