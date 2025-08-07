@@ -39,7 +39,6 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.developer_role.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            ...provider,
             apiOptions: { ...provider.apiOptions, isNotSupportDeveloperRole: !checked }
           })
         },
@@ -51,7 +50,6 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.stream_options.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            ...provider,
             apiOptions: { ...provider.apiOptions, isNotSupportStreamOptions: !checked }
           })
         },
@@ -63,7 +61,6 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.array_content.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            ...provider,
             apiOptions: { ...provider.apiOptions, isNotSupportArrayContent: !checked }
           })
         },
@@ -75,7 +72,6 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.service_tier.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            ...provider,
             apiOptions: { ...provider.apiOptions, isNotSupportServiceTier: !checked }
           })
         },
@@ -87,7 +83,6 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.enable_thinking.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            ...provider,
             apiOptions: { ...provider.apiOptions, isNotSupportEnableThinking: !checked }
           })
         },
