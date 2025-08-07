@@ -758,6 +758,15 @@
     "chat": {
       "response": "Ocorreu um erro, se a chave da API não foi configurada, por favor vá para Configurações > Provedores de Modelo para configurar a chave"
     },
+    "global": {
+      "refresh": "[to be translated]:刷新页面",
+      "stackTrace": "[to be translated]:错误堆栈",
+      "subtitle": "[to be translated]:应用程序发生了错误。",
+      "technicalDetails": "[to be translated]:技术详情",
+      "title": "[to be translated]:应用程序错误",
+      "tryAgain": "[to be translated]:重试",
+      "unknown": "[to be translated]:发生未知错误"
+    },
     "http": {
       "400": "Erro na solicitação, por favor verifique se os parâmetros da solicitação estão corretos. Se você alterou as configurações do modelo, redefina para as configurações padrão",
       "401": "Falha na autenticação, por favor verifique se a chave da API está correta",
@@ -1561,6 +1570,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Gerar imagem",
+      "merge": "[to be translated]:合并",
       "remix": "Misturar",
       "upscale": "Aumentar"
     },
@@ -2715,6 +2725,8 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "longRunning": "[to be translated]:长时间运行模式",
+      "longRunningTooltip": "[to be translated]:启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",
@@ -2987,6 +2999,7 @@
         "select_api_key": "Selecione a chave API a ser usada:",
         "single": "Individual",
         "start": "Começar",
+        "timeout": "[to be translated]:超时",
         "title": "Verificação de saúde do modelo",
         "use_all_keys": "Use chaves"
       },

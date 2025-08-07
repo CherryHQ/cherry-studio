@@ -758,6 +758,15 @@
     "chat": {
       "response": "Σφάλμα. Εάν δεν έχετε ρυθμίσει το κλειδί API, πηγαίνετε στο ρυθμισμένα > παρέχοντας το πρόσωπο του μοντέλου"
     },
+    "global": {
+      "refresh": "[to be translated]:刷新页面",
+      "stackTrace": "[to be translated]:错误堆栈",
+      "subtitle": "[to be translated]:应用程序发生了错误。",
+      "technicalDetails": "[to be translated]:技术详情",
+      "title": "[to be translated]:应用程序错误",
+      "tryAgain": "[to be translated]:重试",
+      "unknown": "[to be translated]:发生未知错误"
+    },
     "http": {
       "400": "Σφάλμα ζητήματος, παρακαλώ ελέγξτε αν τα παράμετρα του ζητήματος είναι σωστά. Εάν έχετε αλλάξει τις ρυθμίσεις του μοντέλου, επαναφέρετε τις προεπιλεγμένες ρυθμίσεις.",
       "401": "Αποτυχία επιβεβαίωσης ταυτότητας, παρακαλώ ελέγξτε αν η κλειδί API είναι σωστή",
@@ -1561,6 +1570,7 @@
     "mode": {
       "edit": "Επεξεργασία",
       "generate": "Δημιουργία",
+      "merge": "[to be translated]:合并",
       "remix": "Ανάμειξη",
       "upscale": "Μεγέθυνση"
     },
@@ -2715,6 +2725,8 @@
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",
       "jsonSaveSuccess": "Η διαμορφωτική ρύθμιση JSON αποθηκεύτηκε επιτυχώς",
       "logoUrl": "URL Λογότυπου",
+      "longRunning": "[to be translated]:长时间运行模式",
+      "longRunningTooltip": "[to be translated]:启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "missingDependencies": "Απο缺失, παρακαλώ εγκαταστήστε το για να συνεχίσετε",
       "more": {
         "awesome": "Επιλεγμένος κατάλογος διακομιστών MCP",
@@ -2987,6 +2999,7 @@
         "select_api_key": "Επιλέξτε το API key που θέλετε να χρησιμοποιήσετε:",
         "single": "Μόνο",
         "start": "Έναρξη",
+        "timeout": "[to be translated]:超时",
         "title": "Ελεγχος υγείας μοντέλου",
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },

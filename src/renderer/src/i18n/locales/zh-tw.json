@@ -758,6 +758,15 @@
     "chat": {
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
+    "global": {
+      "refresh": "[to be translated]:刷新页面",
+      "stackTrace": "[to be translated]:错误堆栈",
+      "subtitle": "[to be translated]:应用程序发生了错误。",
+      "technicalDetails": "[to be translated]:技术详情",
+      "title": "[to be translated]:应用程序错误",
+      "tryAgain": "[to be translated]:重试",
+      "unknown": "[to be translated]:发生未知错误"
+    },
     "http": {
       "400": "請求錯誤，請檢查請求參數是否正確。如果修改了模型設定，請重設到預設設定",
       "401": "身份驗證失敗，請檢查 API 金鑰是否正確",

@@ -758,6 +758,15 @@
     "chat": {
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
+    "global": {
+      "refresh": "Refresh Page",
+      "stackTrace": "Stack Trace",
+      "subtitle": "Something went wrong in the application.",
+      "technicalDetails": "Technical Details",
+      "title": "Application Error",
+      "tryAgain": "Try Again",
+      "unknown": "Unknown error occurred"
+    },
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",

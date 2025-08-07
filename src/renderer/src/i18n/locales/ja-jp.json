@@ -758,6 +758,15 @@
     "chat": {
       "response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください"
     },
+    "global": {
+      "refresh": "[to be translated]:刷新页面",
+      "stackTrace": "[to be translated]:错误堆栈",
+      "subtitle": "[to be translated]:应用程序发生了错误。",
+      "technicalDetails": "[to be translated]:技术详情",
+      "title": "[to be translated]:应用程序错误",
+      "tryAgain": "[to be translated]:重试",
+      "unknown": "[to be translated]:发生未知错误"
+    },
     "http": {
       "400": "リクエストに失敗しました。リクエストパラメータが正しいか確認してください。モデルの設定を変更した場合は、デフォルトの設定にリセットしてください",
       "401": "認証に失敗しました。APIキーが正しいか確認してください",
