@@ -65,8 +65,8 @@ export type ThinkingModelType =
   | 'hunyuan'
   | 'zhipu'
   | 'perplexity'
-export type ThinkingOptionConfig = { [K in ThinkingModelType]: ThinkingOption[] }
-export type ReasoningEffortConfig = { [K in ThinkingModelType]: ReasoningEffortOption[] }
+export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
+export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
 export type EffortRatio = Record<ReasoningEffortOption, number>
 
 const ThinkModelTypes: ThinkingModelType[] = [
