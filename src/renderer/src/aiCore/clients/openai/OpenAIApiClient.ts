@@ -7,6 +7,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isQwen3235BA22BThinkingModel,
   isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -24,6 +25,7 @@ import {
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
+  isSupportQwen3EnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -37,6 +39,7 @@ import {
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
   ToolCallResponse,
   TranslateAssistant,
@@ -61,6 +64,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -145,6 +149,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return { reasoning: { enabled: false, exclude: true } }
       }
       if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
+        if (isQwen3235BA22BThinkingModel(model)) {
+          return {}
+        }
         return { enable_thinking: false }
       }
 
@@ -192,7 +199,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Qwen models
     if (isSupportedThinkingTokenQwenModel(model)) {
       const thinkConfig = {
-        enable_thinking: true,
+        enable_thinking: isQwen3235BA22BThinkingModel(model) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -522,7 +529,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model) && model.provider !== 'dashscope') {
+        if (
+          lastUserMsg &&
+          isSupportedThinkingTokenQwenModel(model) &&
+          !isSupportQwen3EnableThinkingProvider(this.provider)
+        ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
           const currentContent = lastUserMsg.content
@@ -541,7 +552,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         reqMessages = processReqMessages(model, reqMessages)
 
         // 5. 创建通用参数
-        const commonParams = {
+        const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
@@ -551,7 +562,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
           tools: tools.length > 0 ? tools : undefined,
-          service_tier: this.getServiceTier(model),
+          // groq 有不同的 service tier 配置，不符合 openai 接口类型
+          service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
@@ -747,6 +759,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             emitCompletionSignals(controller)
           }
           return
+        }
+
+        if (typeof chunk === 'string') {
+          try {
+            chunk = JSON.parse(chunk)
+          } catch (error) {
+            logger.error('invalid chunk', { chunk, error })
+            throw new Error(t('error.chat.chunk.non_json'))
+          }
         }
 
         // 处理chunk

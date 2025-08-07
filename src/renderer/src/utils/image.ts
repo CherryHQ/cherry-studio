@@ -177,3 +177,96 @@ export const captureScrollableDivAsBlob = async (
     canvas?.toBlob(func, 'image/png')
   })
 }
+
+/**
+ * 将 SVG 元素转换为 Canvas 元素。
+ * @param svgElement 要转换的 SVG 元素
+ * @param scale 缩放比例
+ * @returns {Promise<HTMLCanvasElement>} 转换后的 Canvas 元素
+ */
+export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
+  // 获取 SVG 尺寸信息
+  const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+  const rect = svgElement.getBoundingClientRect()
+  const width = viewBox[2] || svgElement.clientWidth || rect.width
+  const height = viewBox[3] || svgElement.clientHeight || rect.height
+
+  // 序列化 SVG 内容
+  const svgData = new XMLSerializer().serializeToString(svgElement)
+
+  let svgBase64: string
+  try {
+    // 使用 TextEncoder 处理 Unicode 字符
+    const encoder = new TextEncoder()
+    const encodedData = encoder.encode(svgData)
+    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
+    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
+  } catch (error) {
+    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
+    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
+  }
+
+  // 创建 Canvas
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    return Promise.reject(new Error('Failed to get canvas context'))
+  }
+
+  canvas.width = width * scale
+  canvas.height = height * scale
+
+  return new Promise<HTMLCanvasElement>((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = () => {
+      try {
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas)
+      } catch (error) {
+        reject(new Error(`Failed to draw image on canvas: ${error}`))
+      }
+    }
+
+    img.onerror = () => {
+      reject(new Error('Failed to load SVG image'))
+    }
+
+    img.src = svgBase64
+  })
+}
+
+/**
+ * 将 SVG 元素转换为 PNG 格式的 Blob。
+ * @param svgElement 要转换的 SVG 元素
+ * @param scale 缩放比例
+ * @returns {Promise<Blob>} 转换后的 PNG Blob
+ */
+export const svgToPngBlob = (svgElement: SVGElement, scale = 3): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    svgToCanvas(svgElement, scale)
+      .then((canvas) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('Failed to create blob from canvas'))
+          }
+        }, 'image/png')
+      })
+      .catch(reject)
+  })
+}
+
+/**
+ * 将 SVG 元素转换为 SVG 格式的 Blob。
+ * @param svgElement 要转换的 SVG 元素
+ * @returns {Blob} 转换后的 SVG Blob
+ */
+export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
+  const svgData = new XMLSerializer().serializeToString(svgElement)
+  return new Blob([svgData], { type: 'image/svg+xml' })
+}

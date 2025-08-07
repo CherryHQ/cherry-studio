@@ -1,8 +1,7 @@
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
-import { isSystemProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
+import { isSystemProvider, Provider } from '@renderer/types'
 import { Collapse, Flex, Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,6 +59,15 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           updateProviderTransition({ ...provider, isNotSupportArrayContent: !checked })
         },
         checked: !provider.isNotSupportArrayContent
+      },
+      {
+        key: 'openai_service_tier',
+        label: t('settings.provider.api.options.service_tier.label'),
+        tip: t('settings.provider.api.options.service_tier.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({ ...provider, isNotSupportServiceTier: !checked })
+        },
+        checked: !provider.isNotSupportServiceTier
       }
     ],
     [t, provider, updateProviderTransition]

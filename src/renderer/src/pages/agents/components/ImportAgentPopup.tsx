@@ -45,6 +45,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           if (!Array.isArray(agents)) {
             agents = [agents]
           }
+        } else {
+          return
         }
       }
 

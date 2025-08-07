@@ -132,13 +132,13 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             onBlur={onUpdate}
             height="calc(80vh - 202px)"
             fontSize="var(--ant-font-size)"
+            expanded
+            unwrapped={false}
             options={{
               autocompletion: false,
-              collapsible: false,
               keymap: true,
               lineNumbers: false,
-              lint: false,
-              wrappable: true
+              lint: false
             }}
             style={{
               border: '0.5px solid var(--color-border)',

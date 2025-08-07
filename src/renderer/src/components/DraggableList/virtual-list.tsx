@@ -48,6 +48,7 @@ interface DraggableVirtualListProps<T> {
   overscan?: number
   header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
+  disabled?: boolean
 }
 
 /**
@@ -73,7 +74,8 @@ function DraggableVirtualList<T>({
   estimateSize: _estimateSize,
   overscan = 5,
   header,
-  children
+  children,
+  disabled
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
@@ -157,6 +159,7 @@ function DraggableVirtualList<T>({
                       itemContainerStyle={itemContainerStyle}
                       virtualizer={virtualizer}
                       children={children}
+                      disabled={disabled}
                     />
                   ))}
                 </div>
@@ -172,53 +175,56 @@ function DraggableVirtualList<T>({
 /**
  * 渲染单个可拖拽的虚拟列表项，高度为动态测量
  */
-const VirtualRow = memo(({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer }: any) => {
-  const item = list[virtualItem.index]
-  const draggableId = String(virtualItem.key)
-  return (
-    <Draggable
-      key={`draggable_${draggableId}_${virtualItem.index}`}
-      draggableId={draggableId}
-      index={virtualItem.index}>
-      {(provided) => {
-        const setDragRefs = (el: HTMLElement | null) => {
-          provided.innerRef(el)
-          virtualizer.measureElement(el)
-        }
+const VirtualRow = memo(
+  ({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer, disabled }: any) => {
+    const item = list[virtualItem.index]
+    const draggableId = String(virtualItem.key)
+    return (
+      <Draggable
+        key={`draggable_${draggableId}_${virtualItem.index}`}
+        draggableId={draggableId}
+        isDragDisabled={disabled}
+        index={virtualItem.index}>
+        {(provided) => {
+          const setDragRefs = (el: HTMLElement | null) => {
+            provided.innerRef(el)
+            virtualizer.measureElement(el)
+          }
 
-        const dndStyle = provided.draggableProps.style
-        const virtualizerTransform = `translateY(${virtualItem.start}px)`
+          const dndStyle = provided.draggableProps.style
+          const virtualizerTransform = `translateY(${virtualItem.start}px)`
 
-        // dnd 的 transform 负责拖拽时的位移和让位动画，
-        // virtualizer 的 translateY 负责将项定位到虚拟列表的正确位置，
-        // 它们拼接起来可以同时实现拖拽视觉效果和虚拟化定位。
-        const combinedTransform = dndStyle?.transform
-          ? `${dndStyle.transform} ${virtualizerTransform}`
-          : virtualizerTransform
+          // dnd 的 transform 负责拖拽时的位移和让位动画，
+          // virtualizer 的 translateY 负责将项定位到虚拟列表的正确位置，
+          // 它们拼接起来可以同时实现拖拽视觉效果和虚拟化定位。
+          const combinedTransform = dndStyle?.transform
+            ? `${dndStyle.transform} ${virtualizerTransform}`
+            : virtualizerTransform
 
-        return (
-          <div
-            {...provided.draggableProps}
-            ref={setDragRefs}
-            className="draggable-item"
-            data-index={virtualItem.index}
-            style={{
-              ...itemContainerStyle,
-              ...dndStyle,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: combinedTransform
-            }}>
-            <div {...provided.dragHandleProps} className="draggable-content" style={{ ...itemStyle }}>
-              {item && children(item, virtualItem.index)}
+          return (
+            <div
+              {...provided.draggableProps}
+              ref={setDragRefs}
+              className="draggable-item"
+              data-index={virtualItem.index}
+              style={{
+                ...itemContainerStyle,
+                ...dndStyle,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: combinedTransform
+              }}>
+              <div {...provided.dragHandleProps} className="draggable-content" style={itemStyle}>
+                {item && children(item, virtualItem.index)}
+              </div>
             </div>
-          </div>
-        )
-      }}
-    </Draggable>
-  )
-})
+          )
+        }}
+      </Draggable>
+    )
+  }
+)
 
 export default DraggableVirtualList
