@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
 describe('match', () => {
-  const provider: Provider = {
+  const provider = {
     id: '12345',
     type: 'openai',
     name: 'OpenAI',
@@ -12,13 +12,14 @@ describe('match', () => {
     apiHost: '',
     models: [],
     isSystem: false
-  }
+  } as const satisfies Provider
+
   const sysProvider: SystemProvider = {
     ...provider,
     id: 'dashscope',
     name: 'doesnt matter',
     isSystem: true
-  }
+  } as const
 
   describe('includeKeywords', () => {
     it('should return true if keywords is empty or blank', () => {
