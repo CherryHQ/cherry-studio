@@ -1276,15 +1276,15 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['dashscope', 'modelscope'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
  */
 export const isSupportEnableThinkingProvider = (provider: Provider) => {
   return (
-    provider.apiOptions?.isNotSupportEnableThinking !== true ||
-    SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.some((pid) => pid === provider.id)
+    provider.apiOptions?.isNotSupportEnableThinking !== true &&
+    !NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER.some((pid) => pid === provider.id)
   )
 }
 
