@@ -656,7 +656,7 @@ export function getProviderLogo(providerId: string) {
 }
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
-export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama'] as const satisfies SystemProviderId[]
+export const NOT_SUPPORTED_RERANK_PROVIDERS = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
 export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini'] as const satisfies SystemProviderId[]
 
 type ProviderUrls = {
