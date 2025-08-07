@@ -441,7 +441,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
-        const commonParams = {
+        const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
           input:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0

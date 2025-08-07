@@ -552,7 +552,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         reqMessages = processReqMessages(model, reqMessages)
 
         // 5. 创建通用参数
-        const commonParams = {
+        const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
