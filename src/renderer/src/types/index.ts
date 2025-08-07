@@ -192,6 +192,20 @@ export type User = {
   email: string
 }
 
+// undefined 视为支持，默认支持
+export type ProviderApiOptions = {
+  /** 是否不支持 message 的 content 为数组类型 */
+  isNotSupportArrayContent?: boolean
+  /** 是否不支持 stream_options 参数 */
+  isNotSupportStreamOptions?: boolean
+  /** 是否不支持 message 的 role 为 developer */
+  isNotSupportDeveloperRole?: boolean
+  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  isNotSupportServiceTier?: boolean
+  /** 是否不支持 enable_thinking 参数 */
+  isNotSupportEnableThinking?: boolean
+}
+
 export type Provider = {
   id: string
   type: ProviderType
@@ -206,16 +220,17 @@ export type Provider = {
   rateLimit?: number
 
   // API options
-  // undefined 视为支持，默认支持
-  /** 是否不支持 message 的 content 为数组类型 */
-  isNotSupportArrayContent?: boolean
-  /** 是否不支持 stream_options 参数 */
-  isNotSupportStreamOptions?: boolean
-  /** 是否不支持 message 的 role 为 developer */
-  isNotSupportDeveloperRole?: boolean
-  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
-  isNotSupportServiceTier?: boolean
+  apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
+
+  /** @deprecated */
+  isNotSupportArrayContent?: boolean
+  /** @deprecated */
+  isNotSupportStreamOptions?: boolean
+  /** @deprecated */
+  isNotSupportDeveloperRole?: boolean
+  /** @deprecated */
+  isNotSupportServiceTier?: boolean
 
   isVertex?: boolean
   notes?: string
@@ -286,6 +301,7 @@ export const isSystemProviderId = (id: string): id is SystemProviderId => {
 export type SystemProvider = Provider & {
   id: SystemProviderId
   isSystem: true
+  apiOptions?: never
 }
 
 /**
