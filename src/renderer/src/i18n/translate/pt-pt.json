@@ -2535,6 +2535,7 @@
     },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
+      "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
       "title": "Modo de Desenvolvedor"
     },
     "display": {
