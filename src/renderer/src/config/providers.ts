@@ -1276,6 +1276,7 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
+// NOTE: 暂时不知道哪些系统提供商不支持该参数，先默认都支持。出问题的时候可以先用自定义参数顶着
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [] as const satisfies SystemProviderId[]
 
 /**
