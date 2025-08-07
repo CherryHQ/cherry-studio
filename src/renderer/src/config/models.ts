@@ -2482,7 +2482,8 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
     model.id.includes('o3') ||
-    model.id.includes('o4')
+    model.id.includes('o4') ||
+    model.id.includes('gpt-5')
   )
 }
 
