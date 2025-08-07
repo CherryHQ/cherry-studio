@@ -420,7 +420,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
           borderRadius: 20,
           padding: 0,
           overflow: 'hidden',
-          paddingBottom: 16
+          paddingBottom: 16,
+          // 需要稳定高度避免布局偏移
+          height: userFilterDisabled ? undefined : 530
         },
         body: {
           maxHeight: 'inherit',
@@ -493,6 +495,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
 }
 
 const FilterContainer = styled.div`
+  padding: 8px;
   padding-left: 18px;
 `
 
