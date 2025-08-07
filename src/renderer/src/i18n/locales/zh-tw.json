@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型開放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
@@ -3571,6 +3572,9 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
     "knowledgeGraph": "知識圖譜",

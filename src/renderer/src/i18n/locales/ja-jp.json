@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8",
+    "poe": "Poe",
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -3571,6 +3572,9 @@
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新"
+  },
+  "warning": {
+    "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
   },
   "words": {
     "knowledgeGraph": "ナレッジグラフ",

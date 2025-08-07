@@ -52,7 +52,7 @@ import ChatGPT4ModelLogo from '@renderer/assets/images/models/gpt_4.png'
 import {
   default as ChatGPT4ModelLogoDark,
   default as ChatGPT35ModelLogoDark,
-  default as ChatGptModelLogoDakr,
+  default as ChatGptModelLogoDark,
   default as ChatGPTo1ModelLogoDark
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
@@ -238,6 +238,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
+  'gpt-oss(?:-[\\w-]+)',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
   'qwen',
@@ -320,14 +321,15 @@ export function getModelLogo(modelId: string) {
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
-    'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    'sora-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    '(^|/)omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'sora-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    '(^|/)omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'Embedding-V1': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     'text-embedding-v': isLight ? QwenModelLogo : QwenModelLogoDark,
-    'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
     '(qwen|qwq|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
@@ -377,8 +379,8 @@ export function getModelLogo(modelId: string) {
     'tao-': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     'ernie-': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     voice: isLight ? FlashaudioModelLogo : FlashaudioModelLogoDark,
-    'tts-1': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    'whisper-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'tts-1': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'whisper-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'stable-': isLight ? StabilityModelLogo : StabilityModelLogoDark,
     sd2: isLight ? StabilityModelLogo : StabilityModelLogoDark,
     sd3: isLight ? StabilityModelLogo : StabilityModelLogoDark,
@@ -2385,7 +2387,8 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
-  return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
+  const baseName = getLowerBaseModelName(model.id, '/')
+  return baseName.includes('o1') || baseName.includes('o3') || baseName.includes('o4') || baseName.includes('gpt-oss')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {

@@ -1,3 +1,4 @@
+import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
@@ -20,6 +21,7 @@ interface Props {
 }
 
 const PROVIDER_LOGO_MAP = {
+  '302ai': AI302ProviderLogo,
   silicon: SiliconFlowProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   ppio: PPIOProviderLogo,

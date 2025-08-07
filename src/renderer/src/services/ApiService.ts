@@ -437,6 +437,8 @@ export async function fetchChatCompletion({
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
 
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
   if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
   }
@@ -485,7 +487,6 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
   const completionsParams: CompletionsParams = {
     callType: 'chat',

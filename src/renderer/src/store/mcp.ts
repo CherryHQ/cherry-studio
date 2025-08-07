@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import i18n from '@renderer/i18n'
 import type { MCPConfig, MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
@@ -76,7 +75,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.mcp_auto_install'),
     type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
@@ -87,7 +85,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/memory',
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.memory'),
     type: 'inMemory',
     isActive: true,
     env: {
@@ -99,7 +96,6 @@ export const builtinMCPServers: MCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/sequentialthinking',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.sequentialthinking'),
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI'
@@ -108,7 +104,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/brave-search',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.brave_search'),
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
@@ -120,7 +115,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/fetch',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.fetch'),
     isActive: true,
     provider: 'CherryAI'
   },
@@ -128,7 +122,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.filesystem'),
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
@@ -138,7 +131,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/dify-knowledge',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.dify_knowledge'),
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
@@ -150,7 +142,6 @@ export const builtinMCPServers: MCPServer[] = [
     id: nanoid(),
     name: '@cherry/python',
     type: 'inMemory',
-    getBuiltinDescription: () => i18n.t('settings.mcp.builtinServersDescriptions.python'),
     isActive: false,
     provider: 'CherryAI'
   }

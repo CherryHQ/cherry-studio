@@ -138,7 +138,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <CitationBlock key={block.id} block={block} />
             break
           case MessageBlockType.ERROR:
-            blockComponent = <ErrorBlock key={block.id} block={block} />
+            blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
             break
           case MessageBlockType.THINKING:
             blockComponent = <ThinkingBlock key={block.id} block={block} />

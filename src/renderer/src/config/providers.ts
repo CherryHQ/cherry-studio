@@ -1247,7 +1247,7 @@ const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
  */
 export const isSupportArrayContentProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportArrayContent !== true ||
+    provider.isNotSupportArrayContent !== true &&
     !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
@@ -1259,7 +1259,7 @@ const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe'] as const satisfies SystemPr
  */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportDeveloperRole !== true ||
+    provider.isNotSupportDeveloperRole !== true &&
     !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
@@ -1271,7 +1271,7 @@ const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const satisfies Syst
  */
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportStreamOptions !== true ||
+    provider.isNotSupportStreamOptions !== true &&
     !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
