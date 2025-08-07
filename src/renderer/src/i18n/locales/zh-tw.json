@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型開放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
@@ -3068,6 +3069,9 @@
         "auto": "自動",
         "default": "預設",
         "flex": "彈性",
+        "on_demand": "按需",
+        "performance": "效能",
+        "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
@@ -3121,6 +3125,10 @@
             "label": "支援開發人員訊息"
           },
           "label": "API 設定",
+          "service_tier": {
+            "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
+            "label": "支援 service_tier"
+          },
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
@@ -3564,6 +3572,9 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
     "knowledgeGraph": "知識圖譜",

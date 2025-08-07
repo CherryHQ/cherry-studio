@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8",
+    "poe": "Poe",
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -3068,6 +3069,9 @@
         "auto": "自動",
         "default": "デフォルト",
         "flex": "フレックス",
+        "on_demand": "オンデマンド",
+        "performance": "性能",
+        "priority": "優先",
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"
       },
@@ -3121,6 +3125,10 @@
             "label": "Developer Message をサポート"
           },
           "label": "API設定",
+          "service_tier": {
+            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
+            "label": "service_tier をサポート"
+          },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
@@ -3564,6 +3572,9 @@
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新"
+  },
+  "warning": {
+    "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
   },
   "words": {
     "knowledgeGraph": "ナレッジグラフ",

@@ -192,6 +192,7 @@ export interface SettingsState {
   // OpenAI
   openAI: {
     summaryText: OpenAISummaryText
+    /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
   }
   // Notification
@@ -774,9 +775,6 @@ const settingsSlice = createSlice({
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
-    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
-      state.openAI.serviceTier = action.payload
-    },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
     },
@@ -941,7 +939,6 @@ export const {
   setEnableBackspaceDeleteModel,
   setDisableHardwareAcceleration,
   setOpenAISummaryText,
-  setOpenAIServiceTier,
   setNotificationSettings,
   // Local backup settings
   setLocalBackupDir,

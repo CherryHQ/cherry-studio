@@ -3,11 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import {
-  isOpenAIModel,
-  isSupportedFlexServiceTier,
-  isSupportedReasoningEffortOpenAIModel
-} from '@renderer/config/models'
+import { isOpenAIModel } from '@renderer/config/models'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -170,11 +166,6 @@ const SettingsTab: FC<Props> = (props) => {
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
-  const isOpenAIReasoning =
-    isSupportedReasoningEffortOpenAIModel(model) &&
-    !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
 
   return (
     <Container className="settings-tab">
@@ -302,8 +293,8 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       {isOpenAI && (
         <OpenAISettingsGroup
-          isOpenAIReasoning={isOpenAIReasoning}
-          isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          model={model}
+          providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />

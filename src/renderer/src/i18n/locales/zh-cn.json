@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型开放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -3068,6 +3069,9 @@
         "auto": "自动",
         "default": "默认",
         "flex": "灵活",
+        "on_demand": "按需",
+        "performance": "性能",
+        "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
       },
@@ -3121,6 +3125,10 @@
             "label": "支持 Developer Message"
           },
           "label": "API 设置",
+          "service_tier": {
+            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
+            "label": "支持 service_tier"
+          },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
@@ -3564,6 +3572,9 @@
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"
   },
   "words": {
     "knowledgeGraph": "知识图谱",

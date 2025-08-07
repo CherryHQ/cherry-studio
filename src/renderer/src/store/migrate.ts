@@ -8,11 +8,19 @@ import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider,
-  isSystemProvider
+  SYSTEM_PROVIDERS
 } from '@renderer/config/providers'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, LanguageCode, Model, Provider, WebSearchProvider } from '@renderer/types'
+import {
+  Assistant,
+  isSystemProvider,
+  LanguageCode,
+  Model,
+  Provider,
+  SystemProviderIds,
+  WebSearchProvider
+} from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
@@ -20,7 +28,7 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
-import { initialState as llmInitialState, moveProvider, SYSTEM_PROVIDERS } from './llm'
+import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -2023,6 +2031,13 @@ const migrateConfig = {
   },
   '128': (state: RootState) => {
     try {
+      // 迁移 service tier 设置
+      const openai = state.llm.providers.find((provider) => provider.id === SystemProviderIds.openai)
+      const serviceTier = state.settings.openAI.serviceTier
+      if (openai) {
+        openai.serviceTier = serviceTier
+      }
+
       // @ts-ignore eslint-disable-next-line
       if (state.settings.codePreview) {
         // @ts-ignore eslint-disable-next-line
@@ -2041,6 +2056,8 @@ const migrateConfig = {
     }
   }
 }
+
+// 注意：添加新迁移时，记得同时更新 persistReducer
 
 const migrate = createMigrate(migrateConfig as any)
 

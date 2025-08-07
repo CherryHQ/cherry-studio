@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexité",
     "ph8": "Plateforme ouverte de grands modèles PH8",
+    "poe": "Poe",
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
@@ -3068,6 +3069,9 @@
         "auto": "Automatique",
         "default": "Par défaut",
         "flex": "Flexible",
+        "on_demand": "à la demande",
+        "performance": "performance",
+        "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
       },
@@ -3121,6 +3125,10 @@
             "label": "Prise en charge du message développeur"
           },
           "label": "Paramètres de l'API",
+          "service_tier": {
+            "help": "Le fournisseur prend-il en charge la configuration du paramètre service_tier ? Lorsqu'il est activé, ce paramètre peut être ajusté dans les paramètres de niveau de service sur la page de conversation. (Modèles OpenAI uniquement)",
+            "label": "Prend en charge service_tier"
+          },
           "stream_options": {
             "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
             "label": "Prise en charge des options de flux"

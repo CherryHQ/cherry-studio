@@ -108,6 +108,7 @@ const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, c
         ref={scrollerRef}
         className="shiki-scroller"
         $wrap={!unwrapped}
+        $expanded={expanded}
         $lineHeight={estimateSize()}
         style={
           {
@@ -132,7 +133,7 @@ const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, c
               width: '100%',
               transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
             }}>
-            {virtualizer.getVirtualItems().map((virtualItem) => (
+            {virtualItems.map((virtualItem) => (
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
@@ -221,20 +222,24 @@ VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ScrollContainer = styled.div<{
   $wrap?: boolean
+  $expanded?: boolean
   $lineHeight?: number
 }>`
   display: block;
   overflow-x: auto;
   position: relative;
   border-radius: inherit;
-  padding: 0.5em 1em;
+  /* padding right 下沉到 line-content 中 */
+  padding: 0.5em 0 0.5em 1em;
 
   .line {
     display: flex;
     align-items: flex-start;
     width: 100%;
     line-height: ${(props) => props.$lineHeight}px;
-    contain: content;
+    /* contain 优化 wrap 时滚动性能，will-change 优化 unwrap 时滚动性能 */
+    contain: ${(props) => (props.$wrap ? 'content' : 'none')};
+    will-change: ${(props) => (!props.$wrap && !props.$expanded ? 'transform' : 'auto')};
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
@@ -250,6 +255,7 @@ const ScrollContainer = styled.div<{
 
     .line-content {
       flex: 1;
+      padding-right: 1em;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};

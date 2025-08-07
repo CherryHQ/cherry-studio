@@ -22,45 +22,51 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const [currentHtml, setCurrentHtml] = useState(html)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
-  // 预览刷新相关状态
+  // Preview refresh related state
   const [previewHtml, setPreviewHtml] = useState(html)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const latestHtmlRef = useRef(html)
+  const currentPreviewHtmlRef = useRef(html)
 
-  // 当外部html更新时，同步更新内部状态
+  // Sync internal state when external html updates
   useEffect(() => {
     setCurrentHtml(html)
     latestHtmlRef.current = html
   }, [html])
 
-  // 当内部编辑的html更新时，更新引用
+  // Update reference when internally edited html changes
   useEffect(() => {
     latestHtmlRef.current = currentHtml
   }, [currentHtml])
 
-  // 2秒定时检查并刷新预览（仅在内容变化时）
+  // Update reference when preview content changes
+  useEffect(() => {
+    currentPreviewHtmlRef.current = previewHtml
+  }, [previewHtml])
+
+  // Check and refresh preview every 2 seconds (only when content changes)
   useEffect(() => {
     if (!open) return
 
-    // 立即设置初始预览内容
-    setPreviewHtml(currentHtml)
+    // Set initial preview content immediately
+    setPreviewHtml(latestHtmlRef.current)
 
-    // 设置定时器，每2秒检查一次内容是否有变化
+    // Set timer to check for content changes every 2 seconds
     intervalRef.current = setInterval(() => {
-      if (latestHtmlRef.current !== previewHtml) {
+      if (latestHtmlRef.current !== currentPreviewHtmlRef.current) {
         setPreviewHtml(latestHtmlRef.current)
       }
     }, 2000)
 
-    // 清理函数
+    // Cleanup function
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
     }
-  }, [currentHtml, open, previewHtml])
+  }, [open])
 
-  // 全屏时防止 body 滚动
+  // Prevent body scroll when fullscreen
   useEffect(() => {
     if (!open || !isFullscreen) return
 
@@ -160,7 +166,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <PreviewSection>
             {previewHtml.trim() ? (
               <PreviewFrame
-                key={previewHtml} // 强制重新创建iframe当预览内容变化时
+                key={previewHtml} // Force recreate iframe when preview content changes
                 srcDoc={previewHtml}
                 title="HTML Preview"
                 sandbox="allow-scripts allow-same-origin allow-forms"
@@ -177,7 +183,6 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   )
 }
 
-// 简化的样式组件
 const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
   ${(props) =>
     props.$isFullscreen

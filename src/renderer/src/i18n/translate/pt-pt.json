@@ -1715,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexidade",
     "ph8": "Plataforma Aberta de Grandes Modelos PH8",
+    "poe": "Poe",
     "ppio": "PPIO Nuvem Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
@@ -3068,6 +3069,9 @@
         "auto": "Automático",
         "default": "Padrão",
         "flex": "Flexível",
+        "on_demand": "sob demanda",
+        "performance": "desempenho",
+        "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"
       },
@@ -3121,6 +3125,10 @@
             "label": "Mensagem de suporte ao programador"
           },
           "label": "Definições da API",
+          "service_tier": {
+            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
+            "label": "Suporta service_tier"
+          },
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
