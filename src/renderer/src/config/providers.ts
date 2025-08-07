@@ -1259,7 +1259,7 @@ const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe'] as const satisfies SystemPr
  */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportDeveloperRole !== true &&
+    provider.apiOptions?.isNotSupportDeveloperRole !== true &&
     !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
@@ -1271,7 +1271,7 @@ const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const satisfies Syst
  */
 export const isSupportStreamOptionsProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportStreamOptions !== true &&
+    provider.apiOptions?.isNotSupportStreamOptions !== true &&
     !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
@@ -1292,6 +1292,7 @@ const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisf
  */
 export const isSupportServiceTierProviders = (provider: Provider) => {
   return (
-    provider.isNotSupportServiceTier !== true || !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
+    provider.apiOptions?.isNotSupportServiceTier !== true &&
+    !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
