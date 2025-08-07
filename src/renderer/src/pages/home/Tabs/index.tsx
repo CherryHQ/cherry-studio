@@ -128,23 +128,26 @@ const HomeTabs: FC<Props> = ({
       )}
 
       <TabContent className="home-tabs-content">
-        {tab === 'assistants' && (
+        <TabContentPane className={tab === 'assistants' ? 'active' : ''}>
           <Assistants
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
-        )}
-        {tab === 'topic' && (
+        </TabContentPane>
+        <TabContentPane className={tab === 'topic' ? 'active' : ''}>
           <Topics
+            key={activeAssistant.id}
             assistant={activeAssistant}
             activeTopic={activeTopic}
             setActiveTopic={setActiveTopic}
             position={position}
           />
-        )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        </TabContentPane>
+        <TabContentPane className={tab === 'settings' ? 'active' : ''}>
+          <Settings assistant={activeAssistant} />
+        </TabContentPane>
       </TabContent>
     </Container>
   )
@@ -234,6 +237,13 @@ const TabItem = styled.button<{ active: boolean }>`
   &:hover::after {
     width: ${(props) => (props.active ? '30px' : '16px')};
     background: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-primary-soft)')};
+  }
+`
+
+const TabContentPane = styled.div`
+  display: none;
+  &.active {
+    display: block;
   }
 `
 
