@@ -1247,7 +1247,7 @@ const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
  */
 export const isSupportArrayContentProvider = (provider: Provider) => {
   return (
-    provider.isNotSupportArrayContent !== true &&
+    provider.apiOptions?.isNotSupportArrayContent !== true &&
     !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
