@@ -94,15 +94,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     let proxyConfig: ProxyConfig
 
     if (proxy === 'system') {
+      // system proxy will use the system filter by themselves
       proxyConfig = { mode: 'system' }
     } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
+      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
     } else {
       proxyConfig = { mode: 'direct' }
-    }
-
-    if (bypassRules) {
-      proxyConfig.proxyBypassRules = bypassRules
     }
 
     await proxyManager.configureProxy(proxyConfig)

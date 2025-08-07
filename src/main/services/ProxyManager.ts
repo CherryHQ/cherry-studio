@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { defaultByPassRules } from '@shared/config/constant'
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
@@ -10,9 +9,13 @@ import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 const logger = loggerService.withContext('ProxyManager')
-let byPassRules = defaultByPassRules.split(',')
+let byPassRules: string[] = []
 
 const isByPass = (hostname: string) => {
+  if (byPassRules.length === 0) {
+    return false
+  }
+
   return byPassRules.includes(hostname)
 }
 
@@ -98,7 +101,7 @@ export class ProxyManager {
       await this.configureProxy({
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase(),
-        proxyBypassRules: this.config.proxyBypassRules
+        proxyBypassRules: undefined
       })
     }, 1000 * 60)
   }
@@ -131,7 +134,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
+      byPassRules = config.proxyBypassRules?.split(',') || []
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
