@@ -2226,7 +2226,7 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Резервное копирование в坚果云",
+          "button": "Sauvegarder sur Nutstore",
           "modal": {
             "filename": {
               "placeholder": "Veuillez saisir le nom du fichier de sauvegarde"
@@ -2245,8 +2245,8 @@
         },
         "logout": {
           "button": "Выйти из аккаунта",
-          "content": "После выхода будет невозможно создать резервную копию в坚果云 или восстановить данные из нее",
-          "title": "Вы действительно хотите выйти из аккаунта坚果云?"
+          "content": "Après la déconnexion, il ne sera plus possible de sauvegarder vers Nutstore ni de restaurer depuis Nutstore.",
+          "title": "Êtes-vous sûr de vouloir vous déconnecter de Nutstore ?"
         },
         "new_folder": {
           "button": {
@@ -2257,23 +2257,23 @@
         },
         "notLogin": "Вход не выполнен",
         "path": {
-          "label": "Путь хранения данных坚果云",
-          "placeholder": "Введите путь хранения данных坚果云"
+          "label": "Chemin de stockage Nutstore",
+          "placeholder": "Veuillez saisir le chemin de stockage de Nutstore"
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
           "return": "Назад",
-          "title": "Путь хранения данных坚果云"
+          "title": "Chemin de stockage Nutstore"
         },
         "restore": {
-          "button": "Восстановление из坚果云",
+          "button": "Restauration depuis Nutstore",
           "confirm": {
             "content": "La restauration depuis Nutstore écrasera les données actuelles. Continuer ?",
             "title": "Récupérer depuis Nutstore"
           }
         },
-        "title": "Настройка坚果云",
-        "username": "Имя пользователя坚果云"
+        "title": "Configuration de Nutstore",
+        "username": "Nom d’utilisateur Nutstore"
       },
       "obsidian": {
         "default_vault": "Référentiel Obsidian par défaut",
@@ -3582,6 +3582,9 @@
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "title": "Mise à jour"
+  },
+  "warning": {
+    "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
   "words": {
     "knowledgeGraph": "Graphe de connaissances",

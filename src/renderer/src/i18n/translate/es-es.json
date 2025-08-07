@@ -3583,6 +3583,9 @@
     "noReleaseNotes": "Sin notas de la versión",
     "title": "Actualización"
   },
+  "warning": {
+    "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
+  },
   "words": {
     "knowledgeGraph": "Grafo de Conocimiento",
     "quit": "Salir",
