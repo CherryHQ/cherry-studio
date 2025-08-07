@@ -218,7 +218,7 @@ export abstract class BaseApiClient<
         !isGroqServiceTier(serviceTierSetting) ||
         (serviceTierSetting === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
       ) {
-        return GroqServiceTiers.on_demand
+        return undefined
       }
     } else {
       // 其他 OpenAI 供应商，假设他们的服务层级设置和 OpenAI 完全相同
@@ -226,7 +226,7 @@ export abstract class BaseApiClient<
         !isOpenAIServiceTier(serviceTierSetting) ||
         (serviceTierSetting === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
       ) {
-        return OpenAIServiceTiers.auto
+        return undefined
       }
     }
 
