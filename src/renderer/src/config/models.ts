@@ -300,7 +300,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
-  if (isSupportedReasoningEffortGrokModel(model)) {
+  if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       return 'gemini'
     } else {
