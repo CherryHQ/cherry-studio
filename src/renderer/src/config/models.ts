@@ -188,7 +188,7 @@ const visionAllowedModels = [
   'gemma-3(?:-[\\w-]+)',
   'doubao-seed-1[.-]6(?:-[\\w-]+)?',
   'kimi-thinking-preview',
-  `gemma3(?:-[\\w-]+)`,
+  `gemma3(?:[-:\\w]+)?`,
   'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
   'llama-guard-4(?:-[\\w-]+)?',
   'llama-4(?:-[\\w-]+)?',
