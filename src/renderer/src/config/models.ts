@@ -2535,6 +2535,7 @@ export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   return model.id.includes('gemini-2.5')
 }
 
+/** 是否为Qwen推理模型 */
 export function isQwenReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2562,6 +2563,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
   return false
 }
 
+/** 是否为支持思考控制的Qwen3推理模型 */
 export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2574,11 +2576,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   if (baseName.startsWith('qwen3')) {
-    if (baseName.includes('instruct')) {
+    // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
+    if (baseName.includes('instruct') || baseName.includes('thinking')) {
       return false
-    }
-    if (baseName.includes('thinking')) {
-      return true
     }
     return true
   }
@@ -2599,12 +2599,13 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   ].includes(baseName)
 }
 
-export function isQwen3235BA22BThinkingModel(model?: Model): boolean {
+/** 是否为不支持思考控制的Qwen推理模型 */
+export function isQwenAlwaysThinkingModel(model?: Model): boolean {
   if (!model) {
     return false
   }
   const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.includes('qwen3-235b-a22b-thinking')
+  return baseName.startsWith('qwen3') && baseName.includes('thinking')
 }
 
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
