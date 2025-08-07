@@ -1,14 +1,31 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+import {
+  EmbeddingTag,
+  FreeTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from '@renderer/components/Tags/Model'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import {
+  getModelLogo,
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isRerankModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, Provider } from '@renderer/types'
-import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { Avatar, Divider, Empty, Modal } from 'antd'
+import { Model, ModelType, Provider } from '@renderer/types'
+import { classNames, filterModelsByKeywords, getFancyProviderName, isFreeModel } from '@renderer/utils'
+import { Avatar, Divider, Empty, Flex, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import React, {
   startTransition,
@@ -32,14 +49,18 @@ const ITEM_HEIGHT = 36
 interface PopupParams {
   model?: Model
   modelFilter?: (model: Model) => boolean
+  filterTypes?: FilterType[]
 }
 
 interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
+  filterTypes?: FilterType[]
 }
 
-const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
+type FilterType = Exclude<ModelType, 'text'> | 'free'
+
+const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTypes: _filterTypes }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -55,6 +76,68 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const [focusedItemKey, _setFocusedItemKey] = useState('')
   const [isMouseOver, setIsMouseOver] = useState(false)
   const preventScrollToIndex = useRef(false)
+
+  // 管理筛选状态，
+  const [filterTypes, setFilterTypes] = useState<Record<FilterType, boolean>>({
+    vision: false,
+    web_search: false,
+    reasoning: false,
+    function_calling: false,
+    embedding: false,
+    rerank: false,
+    free: false
+  })
+
+  const filterVision = useMemo(
+    () => _filterTypes?.some((item) => item === 'vision') || !filterTypes.vision,
+    [_filterTypes, filterTypes.vision]
+  )
+  const filterWeb = useMemo(
+    () => _filterTypes?.some((item) => item === 'web_search') || !filterTypes.web_search,
+    [_filterTypes, filterTypes.web_search]
+  )
+  const filterReasoning = useMemo(
+    () => _filterTypes?.some((item) => item === 'reasoning') || !filterTypes.reasoning,
+    [_filterTypes, filterTypes.reasoning]
+  )
+  const filterTool = useMemo(
+    () => _filterTypes?.some((item) => item === 'function_calling') || !filterTypes.function_calling,
+    [_filterTypes, filterTypes.function_calling]
+  )
+  const filterEmbed = useMemo(
+    () => _filterTypes?.some((item) => item === 'embedding') || !filterTypes.embedding,
+    [_filterTypes, filterTypes.embedding]
+  )
+  const filterRerank = useMemo(
+    () => _filterTypes?.some((item) => item === 'rerank') || !filterTypes.rerank,
+    [_filterTypes, filterTypes.rerank]
+  )
+  const filterFree = useMemo(
+    () => _filterTypes?.some((item) => item === 'free') || !filterTypes.free,
+    [_filterTypes, filterTypes.free]
+  )
+
+  const typeFilter = useCallback(
+    (model: Model) => {
+      if (Object.values(filterTypes).every((v) => !v)) {
+        return true
+      }
+      return (
+        (filterVision || (filterTypes.vision && isVisionModel(model))) &&
+        (filterWeb || (filterTypes.web_search && isWebSearchModel(model))) &&
+        (filterReasoning || (filterTypes.reasoning && isReasoningModel(model))) &&
+        (filterTool || (filterTypes.function_calling && isFunctionCallingModel(model))) &&
+        (filterEmbed || (filterTypes.embedding && isEmbeddingModel(model))) &&
+        (filterRerank || (filterTypes.rerank && isRerankModel(model))) &&
+        (filterFree || (filterTypes.free && isFreeModel(model)))
+      )
+    },
+    [filterEmbed, filterFree, filterReasoning, filterRerank, filterTool, filterTypes, filterVision, filterWeb]
+  )
+
+  const onUpdateFilter = (t: FilterType) => {
+    setFilterTypes((prev) => ({ ...prev, [t]: !prev[t] }))
+  }
 
   const setFocusedItemKey = useCallback((key: string) => {
     startTransition(() => {
@@ -113,7 +196,14 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
-    const finalModelFilter = modelFilter || (() => true)
+    const finalModelFilter = (model: Model) => {
+      const customResult = typeFilter(model)
+      if (modelFilter) {
+        return customResult && modelFilter(model)
+      } else {
+        return customResult
+      }
+    }
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && pinnedModelIds.size > 0) {
@@ -159,7 +249,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     // 获取可选择的模型项（过滤掉分组标题）
     const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
     return { listItems: items, modelItems }
-  }, [searchText.length, pinnedModels, providers, modelFilter, createModelItem, t, getFilteredModels])
+  }, [pinnedModels, searchText.length, providers, typeFilter, modelFilter, createModelItem, t, getFilteredModels])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
@@ -363,6 +453,24 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+      <FilterContainer>
+        <FilterText>{t('models.filter.by_tag')}</FilterText>
+        <Flex wrap="wrap" gap={4}>
+          <VisionTag showLabel inactive={!filterTypes.vision} onClick={() => onUpdateFilter('vision')} />
+          <WebSearchTag showLabel inactive={!filterTypes.web_search} onClick={() => onUpdateFilter('web_search')} />
+          <ReasoningTag showLabel inactive={!filterTypes.reasoning} onClick={() => onUpdateFilter('reasoning')} />
+          <ToolsCallingTag
+            showLabel
+            inactive={!filterTypes.function_calling}
+            onClick={() => onUpdateFilter('function_calling')}
+          />
+          <FreeTag inactive={!filterTypes.free} onClick={() => onUpdateFilter('free')} />
+          <EmbeddingTag inactive={!filterTypes.embedding} onClick={() => onUpdateFilter('embedding')} />
+          <RerankerTag inactive={!filterTypes.rerank} onClick={() => onUpdateFilter('rerank')} />
+        </Flex>
+      </FilterContainer>
+
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
         <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
@@ -387,6 +495,16 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     </Modal>
   )
 }
+
+const FilterContainer = styled.div`
+  padding-left: 18px;
+`
+
+const FilterText = styled.div`
+  color: var(--color-text-3);
+  font-size: 12px;
+  padding: 4px 0;
+`
 
 const ListContainer = styled.div`
   position: relative;

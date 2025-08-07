@@ -1427,6 +1427,9 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "enable_tool_use": "工具调用",
+    "filter": {
+      "by_tag": "按标签筛选"
+    },
     "function_calling": "函数调用",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
