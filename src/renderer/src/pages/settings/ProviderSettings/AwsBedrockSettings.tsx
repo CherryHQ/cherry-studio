@@ -1,5 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
 import { Alert, Input } from 'antd'
 import { FC, useState } from 'react'
@@ -12,7 +12,7 @@ const AwsBedrockSettings: FC = () => {
   const { accessKeyId, secretAccessKey, region, setAccessKeyId, setSecretAccessKey, setRegion } =
     useAwsBedrockSettings()
 
-  const providerConfig = PROVIDER_CONFIG['aws-bedrock']
+  const providerConfig = PROVIDER_URLS['aws-bedrock']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const [localAccessKeyId, setLocalAccessKeyId] = useState(accessKeyId)

@@ -1,8 +1,8 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import CustomTag from '@renderer/components/CustomTag'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import CustomTag from '@renderer/components/Tags/CustomTag'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
@@ -47,7 +47,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, models, removeModel } = useProvider(providerId)
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
 

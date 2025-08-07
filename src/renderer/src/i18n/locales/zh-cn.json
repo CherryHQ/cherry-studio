@@ -505,6 +505,7 @@
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
         "title": "代码执行"
       },
+      "code_image_tools": "启用预览工具",
       "code_wrappable": "代码块可换行",
       "context_count": {
         "label": "上下文数",
@@ -648,15 +649,6 @@
     },
     "expand": "展开",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "复制为图片"
-      },
-      "label": "预览",
-      "source": "查看源代码",
-      "zoom_in": "放大",
-      "zoom_out": "缩小"
-    },
     "run": "运行代码",
     "split": {
       "label": "分割视图",
@@ -756,6 +748,9 @@
       "file_format": "备份文件格式错误"
     },
     "chat": {
+      "chunk": {
+        "non_json": "返回了无效的数据格式"
+      },
       "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
     },
     "http": {
@@ -1158,6 +1153,9 @@
       },
       "failed": "删除失败",
       "success": "删除成功"
+    },
+    "dialog": {
+      "failed": "预览失败"
     },
     "download": {
       "failed": "下载失败",
@@ -1654,6 +1652,22 @@
       "seed_tip": "控制放大结果的随机性"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "复制为图片"
+    },
+    "dialog": "打开预览窗口",
+    "label": "预览",
+    "pan": "移动",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源代码",
+    "zoom_in": "放大",
+    "zoom_out": "缩小"
+  },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
     "summarize": "帮我总结一下这段话",
@@ -1701,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型开放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -3037,7 +3052,7 @@
     "moresetting": {
       "check": {
         "confirm": "确认勾选",
-        "warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！"
+        "warn": "请慎重更改模型类型，选择错误的类型会导致模型无法正常使用！"
       },
       "label": "更多设置",
       "warn": "风险警告"
@@ -3054,6 +3069,9 @@
         "auto": "自动",
         "default": "默认",
         "flex": "灵活",
+        "on_demand": "按需",
+        "performance": "性能",
+        "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
       },
@@ -3107,6 +3125,10 @@
             "label": "支持 Developer Message"
           },
           "label": "API 设置",
+          "service_tier": {
+            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
+            "label": "支持 service_tier"
+          },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
@@ -3550,6 +3572,9 @@
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"
   },
   "words": {
     "knowledgeGraph": "知识图谱",

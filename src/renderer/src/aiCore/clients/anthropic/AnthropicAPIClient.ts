@@ -70,6 +70,7 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -520,6 +521,14 @@ export class AnthropicAPIClient extends BaseApiClient<
       const toolCalls: Record<number, ToolUseBlock> = {}
       return {
         async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+          if (typeof rawChunk === 'string') {
+            try {
+              rawChunk = JSON.parse(rawChunk)
+            } catch (error) {
+              logger.error('invalid chunk', { rawChunk, error })
+              throw new Error(t('error.chat.chunk.non_json'))
+            }
+          }
           switch (rawChunk.type) {
             case 'message': {
               let i = 0

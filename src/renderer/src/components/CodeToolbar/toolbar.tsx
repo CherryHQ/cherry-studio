@@ -1,25 +1,15 @@
+import { ActionTool } from '@renderer/components/ActionTools'
 import { HStack } from '@renderer/components/Layout'
 import { Tooltip } from 'antd'
 import { EllipsisVertical } from 'lucide-react'
-import React, { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { CodeTool } from './types'
+import CodeToolButton from './button'
+import { ToolWrapper } from './styles'
 
-interface CodeToolButtonProps {
-  tool: CodeTool
-}
-
-const CodeToolButton: React.FC<CodeToolButtonProps> = memo(({ tool }) => {
-  return (
-    <Tooltip key={tool.id} title={tool.tooltip} mouseEnterDelay={0.5}>
-      <ToolWrapper onClick={() => tool.onClick()}>{tool.icon}</ToolWrapper>
-    </Tooltip>
-  )
-})
-
-export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => {
+const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
   const [showQuickTools, setShowQuickTools] = useState(false)
   const { t } = useTranslation()
 
@@ -51,7 +41,7 @@ export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => 
         {quickTools.length > 1 && (
           <Tooltip title={t('code_block.more')} mouseEnterDelay={0.5}>
             <ToolWrapper onClick={() => setShowQuickTools(!showQuickTools)} className={showQuickTools ? 'active' : ''}>
-              <EllipsisVertical className="icon" />
+              <EllipsisVertical className="tool-icon" />
             </ToolWrapper>
           </Tooltip>
         )}
@@ -63,7 +53,7 @@ export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => 
       </ToolbarWrapper>
     </StickyWrapper>
   )
-})
+}
 
 const StickyWrapper = styled.div`
   position: sticky;
@@ -80,36 +70,4 @@ const ToolbarWrapper = styled(HStack)`
   gap: 4px;
 `
 
-const ToolWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s ease;
-  color: var(--color-text-3);
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    .icon {
-      color: var(--color-text-1);
-    }
-  }
-
-  &.active {
-    color: var(--color-primary);
-    .icon {
-      color: var(--color-primary);
-    }
-  }
-
-  /* For Lucide icons */
-  .icon {
-    width: 14px;
-    height: 14px;
-    color: var(--color-text-3);
-  }
-`
+export default memo(CodeToolbar)

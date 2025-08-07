@@ -505,6 +505,7 @@
         "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
         "title": "程式碼執行"
       },
+      "code_image_tools": "啟用預覽工具",
       "code_wrappable": "程式碼區塊可自動換行",
       "context_count": {
         "label": "上下文",
@@ -648,15 +649,6 @@
     },
     "expand": "展開",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "複製為圖片"
-      },
-      "label": "預覽",
-      "source": "查看源碼",
-      "zoom_in": "放大",
-      "zoom_out": "縮小"
-    },
     "run": "運行代碼",
     "split": {
       "label": "分割視圖",
@@ -756,6 +748,9 @@
       "file_format": "備份檔案格式錯誤"
     },
     "chat": {
+      "chunk": {
+        "non_json": "返回了無效的資料格式"
+      },
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
     "http": {
@@ -1158,6 +1153,9 @@
       },
       "failed": "刪除失敗",
       "success": "刪除成功"
+    },
+    "dialog": {
+      "failed": "預覽失敗"
     },
     "download": {
       "failed": "下載失敗",
@@ -1654,6 +1652,22 @@
       "seed_tip": "控制放大結果的隨機性"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "複製為圖片"
+    },
+    "dialog": "開啟預覽窗口",
+    "label": "預覽",
+    "pan": "移動",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源碼",
+    "zoom_in": "放大",
+    "zoom_out": "縮小"
+  },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
     "summarize": "幫我總結一下這段話",
@@ -1701,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型開放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
@@ -3054,6 +3069,9 @@
         "auto": "自動",
         "default": "預設",
         "flex": "彈性",
+        "on_demand": "按需",
+        "performance": "效能",
+        "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
@@ -3107,6 +3125,10 @@
             "label": "支援開發人員訊息"
           },
           "label": "API 設定",
+          "service_tier": {
+            "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
+            "label": "支援 service_tier"
+          },
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
@@ -3550,6 +3572,9 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
     "knowledgeGraph": "知識圖譜",

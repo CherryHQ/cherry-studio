@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { defaultByPassRules } from '@shared/config/constant'
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
@@ -10,9 +9,13 @@ import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 const logger = loggerService.withContext('ProxyManager')
-let byPassRules = defaultByPassRules.split(',')
+let byPassRules: string[] = []
 
 const isByPass = (hostname: string) => {
+  if (byPassRules.length === 0) {
+    return false
+  }
+
   return byPassRules.includes(hostname)
 }
 
@@ -72,6 +75,8 @@ export class ProxyManager {
   private originalHttpsGet: typeof https.get
   private originalHttpsRequest: typeof https.request
 
+  private originalAxiosAdapter
+
   constructor() {
     this.originalGlobalDispatcher = getGlobalDispatcher()
     this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
@@ -79,6 +84,7 @@ export class ProxyManager {
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
+    this.originalAxiosAdapter = axios.defaults.adapter
   }
 
   private async monitorSystemProxy(): Promise<void> {
@@ -87,14 +93,15 @@ export class ProxyManager {
     // Set new interval
     this.systemProxyInterval = setInterval(async () => {
       const currentProxy = await getSystemProxy()
-      if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+      if (currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules) {
         return
       }
 
+      logger.info(`system proxy changed: ${currentProxy?.proxyUrl}, this.config.proxyRules: ${this.config.proxyRules}`)
       await this.configureProxy({
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase(),
-        proxyBypassRules: this.config.proxyBypassRules
+        proxyBypassRules: undefined
       })
     }, 1000 * 60)
   }
@@ -127,7 +134,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
+      byPassRules = config.proxyBypassRules?.split(',') || []
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -245,9 +252,9 @@ export class ProxyManager {
     if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      axios.defaults.adapter = 'http'
       this.proxyDispatcher?.close()
       this.proxyDispatcher = null
+      axios.defaults.adapter = this.originalAxiosAdapter
       return
     }
 

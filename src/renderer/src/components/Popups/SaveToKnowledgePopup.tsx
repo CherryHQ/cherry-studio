@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { Message } from '@renderer/types/newMessage'

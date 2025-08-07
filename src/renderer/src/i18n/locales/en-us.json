@@ -505,6 +505,7 @@
         "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
         "title": "Code Execution"
       },
+      "code_image_tools": "Enable preview tools",
       "code_wrappable": "Code block wrappable",
       "context_count": {
         "label": "Context",
@@ -648,15 +649,6 @@
     },
     "expand": "Expand",
     "more": "More",
-    "preview": {
-      "copy": {
-        "image": "Copy as image"
-      },
-      "label": "Preview",
-      "source": "View Source Code",
-      "zoom_in": "Zoom In",
-      "zoom_out": "Zoom Out"
-    },
     "run": "Run",
     "split": {
       "label": "Split View",
@@ -756,6 +748,9 @@
       "file_format": "Backup file format error"
     },
     "chat": {
+      "chunk": {
+        "non_json": "Returned an invalid data format"
+      },
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
     "http": {
@@ -1158,6 +1153,9 @@
       },
       "failed": "Delete Failed",
       "success": "Delete Successful"
+    },
+    "dialog": {
+      "failed": "Preview failed"
     },
     "download": {
       "failed": "Download failed",
@@ -1654,6 +1652,22 @@
       "seed_tip": "Controls upscaling randomness"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "Copy as image"
+    },
+    "dialog": "Open Dialog",
+    "label": "Preview",
+    "pan": "Pan",
+    "pan_down": "Pan Down",
+    "pan_left": "Pan Left",
+    "pan_right": "Pan Right",
+    "pan_up": "Pan Up",
+    "reset": "Reset",
+    "source": "View Source Code",
+    "zoom_in": "Zoom In",
+    "zoom_out": "Zoom Out"
+  },
   "prompts": {
     "explanation": "Explain this concept to me",
     "summarize": "Summarize this text",
@@ -1701,6 +1715,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8",
+    "poe": "Poe",
     "ppio": "PPIO",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
@@ -3054,6 +3069,9 @@
         "auto": "auto",
         "default": "default",
         "flex": "flex",
+        "on_demand": "on demand",
+        "performance": "performance",
+        "priority": "priority",
         "tip": "Specifies the latency tier to use for processing the request",
         "title": "Service Tier"
       },
@@ -3107,6 +3125,10 @@
             "label": "Support Developer Message"
           },
           "label": "API Settings",
+          "service_tier": {
+            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
+            "label": "Supports service_tier"
+          },
           "stream_options": {
             "help": "Does the provider support the stream_options parameter?",
             "label": "Support stream_options"
@@ -3550,6 +3572,9 @@
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "title": "Update"
+  },
+  "warning": {
+    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },
   "words": {
     "knowledgeGraph": "Knowledge Graph",

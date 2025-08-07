@@ -229,7 +229,7 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        {(storeProxyMode === 'custom' || storeProxyMode === 'system') && (
+        {storeProxyMode === 'custom' && (
           <>
             <SettingDivider />
             <SettingRow>

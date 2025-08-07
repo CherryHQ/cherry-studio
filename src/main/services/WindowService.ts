@@ -252,7 +252,9 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://dash.302.ai/sso/login',
+        'https://dash.302.ai/charge'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
