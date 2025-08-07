@@ -527,68 +527,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
         inputbarToolsRef.current?.openMentionModelsPanel()
       }
-
-      // 删除过程中的智能重新打开逻辑：只有在有匹配项时才重新打开面板
-      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol !== '/' && lastSymbol !== '@') {
-        const textBeforeCursor = newText.slice(0, cursorPosition)
-        const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
-        const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-        const lastSymbolIndex = Math.max(lastSlashIndex, lastAtIndex)
-
-        if (lastSymbolIndex !== -1) {
-          const symbolType = lastSlashIndex > lastAtIndex ? '/' : '@'
-          const searchText = textBeforeCursor.slice(lastSymbolIndex)
-
-          if (symbolType === '/') {
-            const _searchText = searchText.replace(/^\//, '')
-            // 优化：只在搜索文本长度 > 0 且 <= 10 时执行匹配检查，避免过长搜索文本的性能问题
-            if (_searchText.length > 0 && _searchText.length <= 10) {
-              const quickPanelMenu =
-                inputbarToolsRef.current?.getQuickPanelMenu({
-                  t,
-                  files,
-                  couldAddImageFile,
-                  text: newText,
-                  openSelectFileMenu,
-                  translate
-                }) || []
-
-              // 优化：简化匹配逻辑，只做基础字符串匹配，避免复杂正则运算
-              const hasMatches = quickPanelMenu.some((item) => {
-                let filterText = item.filterText || ''
-                if (typeof item.label === 'string') {
-                  filterText += item.label
-                }
-                if (typeof item.description === 'string') {
-                  filterText += item.description
-                }
-                return filterText.toLowerCase().includes(_searchText.toLowerCase())
-              })
-
-              // 只有在确实有匹配项时才重新打开面板
-              if (hasMatches) {
-                quickPanel.open({
-                  title: t('settings.quickPanel.title'),
-                  list: quickPanelMenu,
-                  symbol: '/'
-                })
-
-                // 立即触发输入事件，让QuickPanel同步最新的搜索文本进行过滤
-                setTimeout(() => {
-                  const inputEvent = new Event('input', { bubbles: true })
-                  textArea?.dispatchEvent(inputEvent)
-                }, 0)
-              }
-            }
-          } else if (symbolType === '@') {
-            // 对于@符号，重新打开模型选择面板（模型面板通常都有内容）
-            const _searchText = searchText.replace(/^@/, '')
-            if (_searchText.length > 0 && _searchText.length <= 10) {
-              inputbarToolsRef.current?.openMentionModelsPanel()
-            }
-          }
-        }
-      }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
   )
