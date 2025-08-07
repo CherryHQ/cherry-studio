@@ -1,5 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
+import { FilterType } from '@renderer/components/Popups/SelectModelPopup/popup'
 import { isLocalAi } from '@renderer/config/env'
 import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -23,9 +24,11 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     return null
   }
 
+  const filterTypes: FilterType[] = ['vision', 'reasoning', 'function_calling', 'web_search', 'free']
+
   const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model })
+    const selectedModel = await SelectModelPopup.show({ model, filterTypes })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
       setTimeout(() => {

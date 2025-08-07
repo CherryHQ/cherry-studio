@@ -1065,3 +1065,17 @@ export interface MemoryListOptions extends MemoryEntity {
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
 // ========================================================================
+
+/**
+ * 获取对象的所有键名，并保持类型安全
+ * @param obj - 要获取键名的对象
+ * @returns 对象的所有键名数组，类型为对象键名的联合类型
+ * @example
+ * ```ts
+ * const obj = { foo: 1, bar: 'hello' };
+ * const keys = objectKeys(obj); // ['foo', 'bar']
+ * ```
+ */
+export function objectKeys<T extends object>(obj: T): (keyof T)[] {
+  return Object.keys(obj) as (keyof T)[]
+}

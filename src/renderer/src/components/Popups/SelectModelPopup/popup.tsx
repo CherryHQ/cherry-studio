@@ -58,7 +58,7 @@ interface Props extends PopupParams {
   filterTypes?: FilterType[]
 }
 
-type FilterType = Exclude<ModelType, 'text'> | 'free'
+export type FilterType = Exclude<ModelType, 'text'> | 'free'
 
 const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTypes: _filterTypes }) => {
   const { t } = useTranslation()
@@ -77,7 +77,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
   const [isMouseOver, setIsMouseOver] = useState(false)
   const preventScrollToIndex = useRef(false)
 
-  // 管理筛选状态，
+  // 管理筛选状态
   const [filterTypes, setFilterTypes] = useState<Record<FilterType, boolean>>({
     vision: false,
     web_search: false,
@@ -88,48 +88,35 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
     free: false
   })
 
-  const filterVision = useMemo(
-    () => _filterTypes?.some((item) => item === 'vision') || !filterTypes.vision,
-    [_filterTypes, filterTypes.vision]
-  )
-  const filterWeb = useMemo(
-    () => _filterTypes?.some((item) => item === 'web_search') || !filterTypes.web_search,
-    [_filterTypes, filterTypes.web_search]
-  )
-  const filterReasoning = useMemo(
-    () => _filterTypes?.some((item) => item === 'reasoning') || !filterTypes.reasoning,
-    [_filterTypes, filterTypes.reasoning]
-  )
-  const filterTool = useMemo(
-    () => _filterTypes?.some((item) => item === 'function_calling') || !filterTypes.function_calling,
-    [_filterTypes, filterTypes.function_calling]
-  )
-  const filterEmbed = useMemo(
-    () => _filterTypes?.some((item) => item === 'embedding') || !filterTypes.embedding,
-    [_filterTypes, filterTypes.embedding]
-  )
-  const filterRerank = useMemo(
-    () => _filterTypes?.some((item) => item === 'rerank') || !filterTypes.rerank,
-    [_filterTypes, filterTypes.rerank]
-  )
-  const filterFree = useMemo(
-    () => _filterTypes?.some((item) => item === 'free') || !filterTypes.free,
-    [_filterTypes, filterTypes.free]
-  )
+  const filterVision = useMemo(() => _filterTypes?.some((item) => item === 'vision'), [_filterTypes])
+  const filterWeb = useMemo(() => _filterTypes?.some((item) => item === 'web_search'), [_filterTypes])
+  const filterReasoning = useMemo(() => _filterTypes?.some((item) => item === 'reasoning'), [_filterTypes])
+  const filterTool = useMemo(() => _filterTypes?.some((item) => item === 'function_calling'), [_filterTypes])
+  const filterEmbed = useMemo(() => _filterTypes?.some((item) => item === 'embedding'), [_filterTypes])
+  const filterRerank = useMemo(() => _filterTypes?.some((item) => item === 'rerank'), [_filterTypes])
+  const filterFree = useMemo(() => _filterTypes?.some((item) => item === 'free'), [_filterTypes])
+  const userFilterDisabled = !_filterTypes || _filterTypes.length === 0
 
   const typeFilter = useCallback(
     (model: Model) => {
-      if (Object.values(filterTypes).every((v) => !v)) {
-        return true
-      }
+      // 当实际需要筛选的标签均未启用，则认为不筛选
+      // if (
+      //   objectKeys(filterTypes)
+      //     .filter((key) => _filterTypes?.includes(key))
+      //     .every((v) => !v)
+      // ) {
+      //   return true
+      // }
       return (
-        (filterVision || (filterTypes.vision && isVisionModel(model))) &&
-        (filterWeb || (filterTypes.web_search && isWebSearchModel(model))) &&
-        (filterReasoning || (filterTypes.reasoning && isReasoningModel(model))) &&
-        (filterTool || (filterTypes.function_calling && isFunctionCallingModel(model))) &&
-        (filterEmbed || (filterTypes.embedding && isEmbeddingModel(model))) &&
-        (filterRerank || (filterTypes.rerank && isRerankModel(model))) &&
-        (filterFree || (filterTypes.free && isFreeModel(model)))
+        (!filterVision || !filterTypes.vision || (filterTypes.vision && isVisionModel(model))) &&
+        (!filterWeb || !filterTypes.web_search || (filterTypes.web_search && isWebSearchModel(model))) &&
+        (!filterReasoning || !filterTypes.reasoning || (filterTypes.reasoning && isReasoningModel(model))) &&
+        (!filterTool ||
+          !filterTypes.function_calling ||
+          (filterTypes.function_calling && isFunctionCallingModel(model))) &&
+        (!filterEmbed || !filterTypes.embedding || (filterTypes.embedding && isEmbeddingModel(model))) &&
+        (!filterRerank || !filterTypes.rerank || (filterTypes.rerank && isRerankModel(model))) &&
+        (!filterFree || !filterTypes.free || (filterTypes.free && isFreeModel(model)))
       )
     },
     [filterEmbed, filterFree, filterReasoning, filterRerank, filterTool, filterTypes, filterVision, filterWeb]
@@ -453,24 +440,41 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-      <FilterContainer>
-        <FilterText>{t('models.filter.by_tag')}</FilterText>
-        <Flex wrap="wrap" gap={4}>
-          <VisionTag showLabel inactive={!filterTypes.vision} onClick={() => onUpdateFilter('vision')} />
-          <WebSearchTag showLabel inactive={!filterTypes.web_search} onClick={() => onUpdateFilter('web_search')} />
-          <ReasoningTag showLabel inactive={!filterTypes.reasoning} onClick={() => onUpdateFilter('reasoning')} />
-          <ToolsCallingTag
-            showLabel
-            inactive={!filterTypes.function_calling}
-            onClick={() => onUpdateFilter('function_calling')}
-          />
-          <FreeTag inactive={!filterTypes.free} onClick={() => onUpdateFilter('free')} />
-          <EmbeddingTag inactive={!filterTypes.embedding} onClick={() => onUpdateFilter('embedding')} />
-          <RerankerTag inactive={!filterTypes.rerank} onClick={() => onUpdateFilter('rerank')} />
-        </Flex>
-      </FilterContainer>
-
-      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+      {!userFilterDisabled && (
+        <>
+          <FilterContainer>
+            <FilterText>{t('models.filter.by_tag')}</FilterText>
+            <Flex wrap="wrap" gap={4}>
+              {filterVision && (
+                <VisionTag showLabel inactive={!filterTypes.vision} onClick={() => onUpdateFilter('vision')} />
+              )}
+              {filterWeb && (
+                <WebSearchTag
+                  showLabel
+                  inactive={!filterTypes.web_search}
+                  onClick={() => onUpdateFilter('web_search')}
+                />
+              )}
+              {filterReasoning && (
+                <ReasoningTag showLabel inactive={!filterTypes.reasoning} onClick={() => onUpdateFilter('reasoning')} />
+              )}
+              {filterTool && (
+                <ToolsCallingTag
+                  showLabel
+                  inactive={!filterTypes.function_calling}
+                  onClick={() => onUpdateFilter('function_calling')}
+                />
+              )}
+              {filterFree && <FreeTag inactive={!filterTypes.free} onClick={() => onUpdateFilter('free')} />}
+              {filterEmbed && (
+                <EmbeddingTag inactive={!filterTypes.embedding} onClick={() => onUpdateFilter('embedding')} />
+              )}
+              {filterRerank && <RerankerTag inactive={!filterTypes.rerank} onClick={() => onUpdateFilter('rerank')} />}
+            </Flex>
+          </FilterContainer>
+          <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+        </>
+      )}
 
       {listItems.length > 0 ? (
         <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
