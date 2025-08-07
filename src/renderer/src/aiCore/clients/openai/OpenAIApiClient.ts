@@ -4,6 +4,7 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
+  getThinkModelType,
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
@@ -20,7 +21,8 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  isVisionModel
+  isVisionModel,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
@@ -220,8 +222,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
-      return {
-        reasoning_effort: reasoningEffort
+      // 检查模型是否支持所选选项
+      const modelType = getThinkModelType(model)
+      const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
+      if (supportedOptions.includes(reasoningEffort)) {
+        return {
+          reasoning_effort: reasoningEffort
+        }
+      } else {
+        // 如果不支持，fallback到第一个支持的值
+        return {
+          reasoning_effort: supportedOptions[0]
+        }
       }
     }
 

@@ -52,8 +52,39 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
-export type EffortRatio = Record<ReasoningEffortOptions, number>
+export type ReasoningEffortOption = 'low' | 'medium' | 'high' | 'auto'
+export type ThinkingOption = ReasoningEffortOption | 'off'
+export type ThinkingModelType =
+  | 'default'
+  | 'grok'
+  | 'gemini'
+  | 'gemini_pro'
+  | 'qwen'
+  | 'qwen_thinking'
+  | 'doubao'
+  | 'hunyuan'
+  | 'zhipu'
+  | 'perplexity'
+export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
+export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
+export type EffortRatio = Record<ReasoningEffortOption, number>
+
+const ThinkModelTypes: ThinkingModelType[] = [
+  'default',
+  'grok',
+  'gemini',
+  'gemini_pro',
+  'qwen',
+  'qwen_thinking',
+  'doubao',
+  'hunyuan',
+  'zhipu',
+  'perplexity'
+] as const
+
+export function isThinkModelType(type: string): type is ThinkingModelType {
+  return ThinkModelTypes.some((t) => t === type)
+}
 
 export const EFFORT_RATIO: EffortRatio = {
   low: 0.05,
@@ -73,7 +104,7 @@ export type AssistantSettings = {
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: ReasoningEffortOptions
+  reasoning_effort?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
 }
