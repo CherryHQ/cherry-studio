@@ -1,5 +1,6 @@
+import { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
-import { DraggableVirtualList } from '@renderer/components/DraggableList'
+import { DraggableVirtualList, useDraggableReorder } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
@@ -271,11 +272,6 @@ const ProvidersList: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  const handleUpdateProviders = (reorderProviders: Provider[]) => {
-    setDragging(false)
-    updateProviders(reorderProviders)
-  }
-
   const onAddProvider = async () => {
     const { name: providerName, type, logo } = await AddProviderPopup.show()
 
@@ -438,6 +434,25 @@ const ProvidersList: FC = () => {
     return isProviderMatch || isModelMatch
   })
 
+  const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
+    originalList: providers,
+    filteredList: filteredProviders,
+    onUpdate: updateProviders,
+    idKey: 'id'
+  })
+
+  const handleDragStart = useCallback(() => {
+    setDragging(true)
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (result: DropResult) => {
+      setDragging(false)
+      handleReorder(result)
+    },
+    [handleReorder]
+  )
+
   return (
     <Container className="selectable">
       <ProviderListContainer>
@@ -460,11 +475,11 @@ const ProvidersList: FC = () => {
         </AddButtonWrapper>
         <DraggableVirtualList
           list={filteredProviders}
-          onUpdate={handleUpdateProviders}
-          onDragStart={() => setDragging(true)}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
           estimateSize={useCallback(() => 40, [])}
+          itemKey={itemKey}
           overscan={3}
-          disabled={searchText !== ''}
           style={{
             height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
           }}
@@ -476,7 +491,7 @@ const ProvidersList: FC = () => {
           {(provider) => (
             <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
               <ProviderListItem
-                key={JSON.stringify(provider)}
+                key={provider.id}
                 className={provider.id === selectedProvider?.id ? 'active' : ''}
                 onClick={() => setSelectedProvider(provider)}>
                 <DragHandle>

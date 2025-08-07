@@ -22,7 +22,7 @@ import { type Key, memo, useCallback, useRef } from 'react'
  * @property {React.CSSProperties} [itemStyle] 元素内容区域的附加样式
  * @property {React.CSSProperties} [itemContainerStyle] 元素拖拽容器的附加样式
  * @property {Partial<DroppableProps>} [droppableProps] 透传给 Droppable 的额外配置
- * @property {(list: T[]) => void} onUpdate 拖拽排序完成后的回调，返回新的列表顺序
+ * @property {(list: T[]) => void} [onUpdate] 拖拽排序完成后的回调，返回新的列表顺序（可被 useDraggableReorder 替代）
  * @property {OnDragStartResponder} [onDragStart] 开始拖拽时的回调
  * @property {OnDragEndResponder}   [onDragEnd] 结束拖拽时的回调
  * @property {T[]} list 渲染的数据源
@@ -39,7 +39,7 @@ interface DraggableVirtualListProps<T> {
   itemStyle?: React.CSSProperties
   itemContainerStyle?: React.CSSProperties
   droppableProps?: Partial<DroppableProps>
-  onUpdate: (list: T[]) => void
+  onUpdate?: (list: T[]) => void
   onDragStart?: OnDragStartResponder
   onDragEnd?: OnDragEndResponder
   list: T[]
@@ -79,7 +79,7 @@ function DraggableVirtualList<T>({
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
-    if (result.destination) {
+    if (onUpdate && result.destination) {
       const sourceIndex = result.source.index
       const destIndex = result.destination.index
       const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
