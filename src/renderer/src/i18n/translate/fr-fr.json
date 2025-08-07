@@ -2235,9 +2235,9 @@
           }
         },
         "checkConnection": {
-          "fail": "Не удалось подключиться к坚果云",
+          "fail": "Échec de la connexion à Nutstore",
           "name": "Проверить соединение",
-          "success": "Соединение с坚果云 установлено"
+          "success": "Connecté à Nutstore"
         },
         "isLogin": "Вход выполнен",
         "login": {
