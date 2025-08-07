@@ -52,7 +52,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
+import { AtLeast, OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { SYSTEM_MODELS } from './models'
@@ -593,7 +593,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
-const PROVIDER_LOGO_MAP = {
+const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -656,8 +656,8 @@ export function getProviderLogo(providerId: string) {
 }
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
-export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
-export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
+export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama'] as const satisfies SystemProviderId[]
+export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini'] as const satisfies SystemProviderId[]
 
 type ProviderUrls = {
   api: {

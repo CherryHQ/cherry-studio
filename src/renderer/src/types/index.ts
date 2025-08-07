@@ -1065,3 +1065,20 @@ export interface MemoryListOptions extends MemoryEntity {
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
 // ========================================================================
+
+/**
+ * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
+ * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
+ * @template T - 必需包含的键的字面量字符串联合类型
+ * @template U - 所有键对应值的类型
+ * @example
+ * type Example = AtLeast<'a' | 'b', number>;
+ * // 结果类型允许:
+ * const obj1: Example = { a: 1, b: 2 };           // 只包含必需的键
+ * const obj2: Example = { a: 1, b: 2, c: 3 };     // 包含额外的键
+ */
+export type AtLeast<T extends string, U> = {
+  [K in T]: U
+} & {
+  [key: string]: U
+}
