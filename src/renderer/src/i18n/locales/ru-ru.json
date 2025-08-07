@@ -1427,6 +1427,9 @@
     "embedding_model": "Встраиваемые модели",
     "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
     "enable_tool_use": "Вызов инструмента",
+    "filter": {
+      "by_tag": "Фильтрация по тегам"
+    },
     "function_calling": "Вызов функции",
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",

@@ -1427,6 +1427,9 @@
     "embedding_model": "Modelo de inmersión",
     "embedding_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
     "enable_tool_use": "Habilitar uso de herramientas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta"
+    },
     "function_calling": "Llamada a función",
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",

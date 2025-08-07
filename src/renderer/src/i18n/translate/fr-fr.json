@@ -1427,6 +1427,9 @@
     "embedding_model": "Modèle d'incrustation",
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
+    "filter": {
+      "by_tag": "Filtrer par étiquette"
+    },
     "function_calling": "Appel de fonction",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",

@@ -1427,6 +1427,9 @@
     "embedding_model": "Embedding Model",
     "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
     "enable_tool_use": "Enable Tool Use",
+    "filter": {
+      "by_tag": "Filter by tag"
+    },
     "function_calling": "Function Calling",
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",

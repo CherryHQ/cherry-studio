@@ -1427,6 +1427,9 @@
     "embedding_model": "Modelo de inscrição",
     "embedding_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "enable_tool_use": "Chamada de ferramentas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta"
+    },
     "function_calling": "Chamada de função",
     "no_matches": "Nenhum modelo disponível",
     "parameter_name": "Nome do parâmetro",
