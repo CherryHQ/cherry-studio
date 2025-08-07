@@ -7,7 +7,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
-  isQwenAlwaysThinkingModel,
+  isQwenAlwaysThinkModel,
   isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -199,7 +199,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Qwen models
     if (isQwenReasoningModel(model)) {
       const thinkConfig = {
-        enable_thinking: isQwenAlwaysThinkingModel(model) ? undefined : true,
+        enable_thinking: isQwenAlwaysThinkModel(model) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {

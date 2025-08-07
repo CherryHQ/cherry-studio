@@ -2600,7 +2600,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 }
 
 /** 是否为不支持思考控制的Qwen推理模型 */
-export function isQwenAlwaysThinkingModel(model?: Model): boolean {
+export function isQwenAlwaysThinkModel(model?: Model): boolean {
   if (!model) {
     return false
   }

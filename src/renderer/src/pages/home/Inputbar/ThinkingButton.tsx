@@ -9,7 +9,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isDoubaoThinkingAutoModel,
-  isQwenAlwaysThinkingModel as isQwenAlwaysThinkModel,
+  isQwenAlwaysThinkModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
