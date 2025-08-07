@@ -76,8 +76,9 @@ describe('match', () => {
     })
 
     it('should match i18n name for system provider', () => {
-      // system provider 测 id，non-system provider 测 name
+      // system provider 不应该通过 name 字段匹配
       expect(matchKeywordsInProvider('dashscope', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('Alibaba', sysProvider)).toBe(true)
       expect(matchKeywordsInProvider('doesnt matter', sysProvider)).toBe(false)
     })
   })
