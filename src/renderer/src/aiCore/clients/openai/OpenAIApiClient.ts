@@ -27,7 +27,7 @@ import {
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportQwen3EnableThinkingProvider,
+  isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -151,7 +151,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return { reasoning: { enabled: false, exclude: true } }
       }
 
-      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
+      if (
+        isSupportEnableThinkingProvider(this.provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+      ) {
         return { enable_thinking: false }
       }
 
@@ -201,7 +204,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Qwen models
     if (isQwenReasoningModel(model)) {
       const thinkConfig = {
-        enable_thinking: isQwenAlwaysThinkModel(model) ? undefined : true,
+        enable_thinking:
+          isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(this.provider) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -214,7 +218,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // Hunyuan models
-    if (isSupportedThinkingTokenHunyuanModel(model)) {
+    if (isSupportedThinkingTokenHunyuanModel(model) && isSupportEnableThinkingProvider(this.provider)) {
       return {
         enable_thinking: true
       }
@@ -544,7 +548,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         if (
           lastUserMsg &&
           isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportQwen3EnableThinkingProvider(this.provider)
+          !isSupportEnableThinkingProvider(this.provider)
         ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
