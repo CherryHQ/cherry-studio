@@ -99,14 +99,6 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
 
   const typeFilter = useCallback(
     (model: Model) => {
-      // 当实际需要筛选的标签均未启用，则认为不筛选
-      // if (
-      //   objectKeys(filterTypes)
-      //     .filter((key) => _filterTypes?.includes(key))
-      //     .every((v) => !v)
-      // ) {
-      //   return true
-      // }
       return (
         (!filterVision || !filterTypes.vision || (filterTypes.vision && isVisionModel(model))) &&
         (!filterWeb || !filterTypes.web_search || (filterTypes.web_search && isWebSearchModel(model))) &&
