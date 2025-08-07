@@ -19,7 +19,7 @@ import {
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
-import { getDefaultGroupName, getDifference, getUnion } from '@renderer/utils'
+import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import {
   Button,
   Divider,
@@ -181,10 +181,12 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 
     const updateType = useCallback((type: ModelType) => {
       setHasUserModified(true)
-      setModelCapabilities((prev) => [
-        ...prev.filter((t) => t.type !== type),
-        { type, isUserSelected: !selectedTypes.includes(type) }
-      ])
+      setModelCapabilities((prev) =>
+        uniqueObjectArray([
+          ...prev.filter((t) => t.type !== type),
+          { type, isUserSelected: !selectedTypes.includes(type) }
+        ])
+      )
     }, [])
 
     return (
