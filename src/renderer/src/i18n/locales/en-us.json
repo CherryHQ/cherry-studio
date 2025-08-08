@@ -2387,6 +2387,9 @@
           "help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
           "label": "Lightweight Backup"
         },
+        "skipTlsVerify": {
+          "label": "Skip TLS Verification"
+        },
         "syncStatus": {
           "error": "Sync error: {{message}}",
           "label": "Sync Status",

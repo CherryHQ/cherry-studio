@@ -836,6 +836,7 @@ export type S3Config = {
   autoSync: boolean
   syncInterval: number
   maxBackups: number
+  skipTlsVerify: boolean
 }
 
 export type { Message } from './newMessage'

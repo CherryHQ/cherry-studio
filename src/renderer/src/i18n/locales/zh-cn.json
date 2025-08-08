@@ -2387,6 +2387,9 @@
           "help": "开启后备份时将跳过文件数据，仅备份配置信息，显著减小备份文件体积",
           "label": "精简备份"
         },
+        "skipTlsVerify": {
+          "label": "跳过 TLS 验证"
+        },
         "syncStatus": {
           "error": "同步错误: {{message}}",
           "label": "同步状态",
