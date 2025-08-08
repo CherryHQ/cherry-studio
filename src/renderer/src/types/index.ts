@@ -345,6 +345,7 @@ export type ModelCapability = {
 
 export type Model = {
   id: string
+  customId?: string
   provider: string
   name: string
   group: string
