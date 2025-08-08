@@ -37,7 +37,13 @@ import {
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
-import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
+import {
+  abortCompletion,
+  addAbortController,
+  createAbortPromise,
+  removeAbortController
+} from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -431,6 +437,8 @@ export async function fetchChatCompletion({
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
 
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
   if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
   }
@@ -479,7 +487,6 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
   const completionsParams: CompletionsParams = {
     callType: 'chat',
@@ -850,8 +857,13 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<void> {
+export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
+
+  const controller = new AbortController()
+  const abortFn = () => controller.abort()
+  const taskId = uuid()
+  addAbortController(taskId, abortFn)
 
   const ai = new AiProvider(provider)
 
@@ -859,24 +871,54 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      await ai.getEmbeddingDimensions(model)
+      // race 超时 15s
+      logger.silly("it's a embedding model")
+      const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
+      // 通过该状态判断abort原因
+      let streamError: Error | undefined = undefined
+
+      // 15s超时
+      const timer = setTimeout(() => {
+        abortCompletion(taskId)
+        streamError = new Error('Timeout')
+      }, timeout)
+
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        shouldThrow: true
+        onChunk: () => {
+          // 接收到任意chunk都直接abort
+          abortCompletion(taskId)
+        },
+        onError: (e) => {
+          // 捕获stream error
+          streamError = e
+          abortCompletion(taskId)
+        }
       }
 
       // Try streaming check first
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
+      try {
+        await createAbortPromise(controller.signal, ai.completions(params))
+      } catch (e: any) {
+        if (isAbortError(e)) {
+          if (streamError) {
+            throw streamError
+          }
+        } else {
+          throw e
+        }
+      } finally {
+        clearTimeout(timer)
       }
     }
   } catch (error: any) {
+    // FIXME: 这种判断方法无法严格保证错误是流式引起的
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
         callType: 'check',
@@ -885,12 +927,19 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         streamOutput: false,
         shouldThrow: true
       }
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
-      }
+      // 超时判断
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.completions(params), timeoutPromise])
     } else {
       throw error
     }
+  } finally {
+    removeAbortController(taskId, abortFn)
   }
+}
+
+export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkApi(provider, model, timeout)
+  return { latency: performance.now() - startTime }
 }

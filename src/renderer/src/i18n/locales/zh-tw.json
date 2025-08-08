@@ -383,6 +383,15 @@
         "settings": "網路搜尋設定"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "存在多個匹配的MCP工具，已選擇 {{tool}}",
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {
@@ -474,7 +483,32 @@
         },
         "title": "儲存到知識庫"
       },
-      "label": "儲存"
+      "label": "保存",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "包含話題標題及所有訊息的主要文字內容"
+            }
+          },
+          "empty": {
+            "no_content": "此話題沒有可保存的內容"
+          },
+          "error": {
+            "save_failed": "保存話題失敗，請檢查知識庫設定"
+          },
+          "loading": "正在分析話題內容...",
+          "select": {
+            "content": {
+              "label": "選擇要保存的內容類型",
+              "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息",
+              "tip": "話題將以包含完整對話上下文的形式保存到知識庫"
+            }
+          },
+          "success": "話題已成功保存到知識庫（{{count}} 項內容）",
+          "title": "保存話題到知識庫"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -496,6 +530,7 @@
         "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
         "title": "程式碼執行"
       },
+      "code_image_tools": "啟用預覽工具",
       "code_wrappable": "程式碼區塊可自動換行",
       "context_count": {
         "label": "上下文",
@@ -639,15 +674,6 @@
     },
     "expand": "展開",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "複製為圖片"
-      },
-      "label": "預覽",
-      "source": "查看源碼",
-      "zoom_in": "放大",
-      "zoom_out": "縮小"
-    },
     "run": "運行代碼",
     "split": {
       "label": "分割視圖",
@@ -747,6 +773,9 @@
       "file_format": "備份檔案格式錯誤"
     },
     "chat": {
+      "chunk": {
+        "non_json": "返回了無效的資料格式"
+      },
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
     "http": {
@@ -1150,6 +1179,9 @@
       "failed": "刪除失敗",
       "success": "刪除成功"
     },
+    "dialog": {
+      "failed": "預覽失敗"
+    },
     "download": {
       "failed": "下載失敗",
       "success": "下載成功"
@@ -1454,7 +1486,7 @@
       "function_calling": "工具",
       "reasoning": "推理",
       "rerank": "重排",
-      "select": "選擇模型類型",
+      "select": "模型類型",
       "text": "文字",
       "vision": "視覺",
       "websearch": "網路搜尋"
@@ -1645,6 +1677,22 @@
       "seed_tip": "控制放大結果的隨機性"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "複製為圖片"
+    },
+    "dialog": "開啟預覽窗口",
+    "label": "預覽",
+    "pan": "移動",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源碼",
+    "zoom_in": "放大",
+    "zoom_out": "縮小"
+  },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
     "summarize": "幫我總結一下這段話",
@@ -1692,6 +1740,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型開放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
@@ -2202,7 +2251,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "備份到堅果雲"
+          "button": "備份到堅果雲",
+          "modal": {
+            "filename": {
+              "placeholder": "請輸入備份檔案名"
+            },
+            "title": "備份到堅果雲"
+          }
         },
         "checkConnection": {
           "fail": "堅果雲連接失敗",
@@ -2236,7 +2291,11 @@
           "title": "堅果雲存儲路徑"
         },
         "restore": {
-          "button": "從堅果雲恢復"
+          "button": "從堅果雲恢復",
+          "confirm": {
+            "content": "從堅果雲恢復將覆蓋目前資料，是否繼續？",
+            "title": "從堅果雲恢復"
+          }
         },
         "title": "堅果雲設定",
         "username": "堅果雲用戶名"
@@ -2501,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
+      "help": "啟用開發者模式後，將可以使用調用鏈功能查看模型調用過程的數據流。",
       "title": "開發者模式"
     },
     "display": {
@@ -2707,6 +2767,8 @@
       "jsonSaveError": "保存 JSON 配置失敗",
       "jsonSaveSuccess": "JSON 配置已儲存",
       "logoUrl": "標誌網址",
+      "longRunning": "長時間運行模式",
+      "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
       "missingDependencies": "缺失，請安裝它以繼續",
       "more": {
         "awesome": "精選的 MCP 伺服器清單",
@@ -2953,8 +3015,8 @@
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
-          "label": "增量文本輸出",
-          "tooltip": "當模型不支持的時候，將該按鈕關閉"
+          "label": "支持增量文本輸出",
+          "tooltip": "模型每次返回文本增量，而不是一次性返回所有文本，預設開啟，如果模型不支持，請關閉"
         }
       },
       "api_key": "API 密鑰",
@@ -2979,6 +3041,7 @@
         "select_api_key": "選擇要使用的 API 密鑰：",
         "single": "單個",
         "start": "開始",
+        "timeout": "超時",
         "title": "模型健康檢查",
         "use_all_keys": "使用密鑰"
       },
@@ -3010,7 +3073,6 @@
       "provider_name": "提供者名稱",
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
-      "quick_assistant_model_description": "快捷助手使用的預設模型",
       "quick_assistant_selection": "選擇助手",
       "topic_naming_model": "話題命名模型",
       "topic_naming_model_description": "自動命名新話題時使用的模型",
@@ -3043,6 +3105,9 @@
         "auto": "自動",
         "default": "預設",
         "flex": "彈性",
+        "on_demand": "按需",
+        "performance": "效能",
+        "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
@@ -3096,6 +3161,10 @@
             "label": "支援開發人員訊息"
           },
           "label": "API 設定",
+          "service_tier": {
+            "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
+            "label": "支援 service_tier"
+          },
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
@@ -3328,7 +3397,7 @@
         "title": "前置處理",
         "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
-      "title": "工具設定",
+      "title": "其他設定",
       "websearch": {
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
@@ -3598,6 +3667,9 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
     "knowledgeGraph": "知識圖譜",

@@ -3,11 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import {
-  isOpenAIModel,
-  isSupportedFlexServiceTier,
-  isSupportedReasoningEffortOpenAIModel
-} from '@renderer/config/models'
+import { isOpenAIModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -26,8 +22,9 @@ import {
   setCodeCollapsible,
   setCodeEditor,
   setCodeExecution,
-  setCodePreview,
+  setCodeImageTools,
   setCodeShowLineNumbers,
+  setCodeViewer,
   setCodeWrappable,
   setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
@@ -95,7 +92,8 @@ const SettingsTab: FC<Props> = (props) => {
     codeCollapsible,
     codeWrappable,
     codeEditor,
-    codePreview,
+    codeViewer,
+    codeImageTools,
     codeExecution,
     mathEngine,
     autoTranslateWithSpace,
@@ -136,21 +134,21 @@ const SettingsTab: FC<Props> = (props) => {
         ? codeEditor.themeLight
         : codeEditor.themeDark
       : theme === ThemeMode.light
-        ? codePreview.themeLight
-        : codePreview.themeDark
+        ? codeViewer.themeLight
+        : codeViewer.themeDark
   }, [
     codeEditor.enabled,
     codeEditor.themeLight,
     codeEditor.themeDark,
     theme,
-    codePreview.themeLight,
-    codePreview.themeDark
+    codeViewer.themeLight,
+    codeViewer.themeDark
   ])
 
   const onCodeStyleChange = useCallback(
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
-      const action = codeEditor.enabled ? setCodeEditor : setCodePreview
+      const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
       dispatch(action({ [field]: value }))
     },
     [dispatch, theme, codeEditor.enabled]
@@ -171,11 +169,6 @@ const SettingsTab: FC<Props> = (props) => {
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
-  const isOpenAIReasoning =
-    isSupportedReasoningEffortOpenAIModel(model) &&
-    !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
 
   return (
     <Container className="settings-tab">
@@ -303,8 +296,8 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       {isOpenAI && (
         <OpenAISettingsGroup
-          isOpenAIReasoning={isOpenAIReasoning}
-          isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          model={model}
+          providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
@@ -534,6 +527,15 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
             <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_image_tools')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeImageTools}
+              onChange={(checked) => dispatch(setCodeImageTools(checked))}
+            />
           </SettingRow>
         </SettingGroup>
         <SettingDivider />

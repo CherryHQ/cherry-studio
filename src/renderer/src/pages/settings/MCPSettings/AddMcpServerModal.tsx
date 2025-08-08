@@ -291,10 +291,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               language="json"
               onChange={handleEditorChange}
               maxHeight="300px"
+              expanded
+              unwrapped={false}
               options={{
                 lint: true,
-                collapsible: true,
-                wrappable: true,
                 lineNumbers: true,
                 foldGutter: true,
                 highlightActiveLine: true,

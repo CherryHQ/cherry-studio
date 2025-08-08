@@ -4,7 +4,7 @@ import { ApiKeyWithStatus, HealthStatus, ModelCheckOptions, ModelWithStatus } fr
 import { formatErrorMessage } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
 
-import { checkModel } from './ModelService'
+import { checkModel } from './ApiService'
 
 const logger = loggerService.withContext('HealthCheckService')
 
@@ -14,12 +14,13 @@ const logger = loggerService.withContext('HealthCheckService')
 export async function checkModelWithMultipleKeys(
   provider: Provider,
   model: Model,
-  apiKeys: string[]
+  apiKeys: string[],
+  timeout?: number
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
     // 如果 checkModel 抛出错误，让这个 promise 失败
-    await checkModel({ ...provider, apiKey: key }, model)
+    await checkModel({ ...provider, apiKey: key }, model, timeout)
     const latency = Date.now() - startTime
 
     return {
@@ -51,12 +52,12 @@ export async function checkModelsHealth(
   options: ModelCheckOptions,
   onModelChecked?: (result: ModelWithStatus, index: number) => void
 ): Promise<ModelWithStatus[]> {
-  const { provider, models, apiKeys, isConcurrent } = options
+  const { provider, models, apiKeys, isConcurrent, timeout } = options
   const results: ModelWithStatus[] = []
 
   try {
     const modelPromises = models.map(async (model, index) => {
-      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys)
+      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, timeout)
       const analysis = aggregateApiKeyResults(keyResults)
 
       const result: ModelWithStatus = {

@@ -104,6 +104,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
           setIsModalVisible(false)
           setFileList([])
         }}
+        maskClosable={false}
         footer={null}
         transitionName="animation-move-down"
         centered>

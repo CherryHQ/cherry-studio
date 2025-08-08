@@ -116,10 +116,10 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'left' && topicPosition === 'right' && (
+      {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
-          <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
-            {t('assistants.abbr')}
+          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
+            {t('common.topics')}
           </TabItem>
           <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
             {t('settings.title')}

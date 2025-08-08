@@ -1,11 +1,12 @@
+import { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
-import { DraggableVirtualList } from '@renderer/components/DraggableList'
+import { DraggableVirtualList, useDraggableReorder } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { getProviderLogo, isSystemProvider } from '@renderer/config/providers'
+import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { Provider, ProviderType } from '@renderer/types'
+import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import {
   generateColorFromChar,
   getFancyProviderName,
@@ -15,7 +16,7 @@ import {
   uuid
 } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
-import { Eye, EyeOff, PlusIcon, Search, UserPen } from 'lucide-react'
+import { Eye, EyeOff, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -271,11 +272,6 @@ const ProvidersList: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  const handleUpdateProviders = (reorderProviders: Provider[]) => {
-    setDragging(false)
-    updateProviders(reorderProviders)
-  }
-
   const onAddProvider = async () => {
     const { name: providerName, type, logo } = await AddProviderPopup.show()
 
@@ -413,12 +409,12 @@ const ProvidersList: FC = () => {
   const getProviderAvatar = (provider: Provider) => {
     const logoSrc = getProviderLogo(provider.id)
     if (logoSrc) {
-      return <ProviderLogo shape="circle" src={logoSrc} size={25} />
+      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]
     if (customLogo) {
-      return <ProviderLogo shape="square" src={customLogo} size={25} />
+      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={25} />
     }
 
     return (
@@ -437,6 +433,25 @@ const ProvidersList: FC = () => {
     const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
     return isProviderMatch || isModelMatch
   })
+
+  const { onDragEnd: handleReorder, itemKey } = useDraggableReorder({
+    originalList: providers,
+    filteredList: filteredProviders,
+    onUpdate: updateProviders,
+    idKey: 'id'
+  })
+
+  const handleDragStart = useCallback(() => {
+    setDragging(true)
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (result: DropResult) => {
+      setDragging(false)
+      handleReorder(result)
+    },
+    [handleReorder]
+  )
 
   return (
     <Container className="selectable">
@@ -460,9 +475,10 @@ const ProvidersList: FC = () => {
         </AddButtonWrapper>
         <DraggableVirtualList
           list={filteredProviders}
-          onUpdate={handleUpdateProviders}
-          onDragStart={() => setDragging(true)}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
           estimateSize={useCallback(() => 40, [])}
+          itemKey={itemKey}
           overscan={3}
           style={{
             height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
@@ -475,9 +491,12 @@ const ProvidersList: FC = () => {
           {(provider) => (
             <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
               <ProviderListItem
-                key={JSON.stringify(provider)}
+                key={provider.id}
                 className={provider.id === selectedProvider?.id ? 'active' : ''}
                 onClick={() => setSelectedProvider(provider)}>
+                <DragHandle>
+                  <GripVertical size={12} />
+                </DragHandle>
                 {getProviderAvatar(provider)}
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
                 {provider.enabled && (
@@ -525,11 +544,12 @@ const ProviderListItem = styled.div`
   align-items: center;
   padding: 5px 10px;
   width: 100%;
-  cursor: grab;
   border-radius: var(--list-item-border-radius);
   font-size: 14px;
   transition: all 0.2s ease-in-out;
   border: 0.5px solid transparent;
+  user-select: none;
+  cursor: pointer;
   &:hover {
     background: var(--color-background-soft);
   }
@@ -537,6 +557,26 @@ const ProviderListItem = styled.div`
     background: var(--color-background-soft);
     border: 0.5px solid var(--color-border);
     font-weight: bold !important;
+  }
+`
+
+const DragHandle = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -8px;
+  width: 12px;
+  color: var(--color-text-3);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  cursor: grab;
+
+  ${ProviderListItem}:hover & {
+    opacity: 1;
+  }
+
+  &:active {
+    cursor: grabbing;
   }
 `
 

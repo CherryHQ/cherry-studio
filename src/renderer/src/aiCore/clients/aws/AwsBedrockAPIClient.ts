@@ -42,6 +42,7 @@ import {
   mcpToolsToAwsBedrockTools
 } from '@renderer/utils/mcp-tools'
 import { findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -435,6 +436,15 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       return {
         async transform(rawChunk: AwsBedrockSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
           logger.silly('Processing AWS Bedrock chunk:', rawChunk)
+
+          if (typeof rawChunk === 'string') {
+            try {
+              rawChunk = JSON.parse(rawChunk)
+            } catch (error) {
+              logger.error('invalid chunk', { rawChunk, error })
+              throw new Error(t('error.chat.chunk.non_json'))
+            }
+          }
 
           // 处理消息开始事件
           if (rawChunk.messageStart) {

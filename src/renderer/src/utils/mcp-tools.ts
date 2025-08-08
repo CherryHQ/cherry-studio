@@ -18,7 +18,7 @@ import {
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
-import { isArray, isObject, pull, transform } from 'lodash'
+import { t } from 'i18next'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
 import {
@@ -29,244 +29,78 @@ import {
 } from 'openai/resources'
 
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
+import { filterProperties, processSchemaForO3 } from './mcp-schema'
 
 const logger = loggerService.withContext('Utils:MCPTools')
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
-const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
-
-// const ensureValidSchema = (obj: Record<string, any>) => {
-//   // Filter out unsupported keys for Gemini
-//   const filteredObj = filterUnsupportedKeys(obj)
-
-//   // Handle base schema properties
-//   const baseSchema = {
-//     description: filteredObj.description,
-//     nullable: filteredObj.nullable
-//   } as BaseSchema
-
-//   // Handle string type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
-//     if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
-//       return {
-//         ...baseSchema,
-//         type: SchemaType.STRING,
-//         format: 'enum',
-//         enum: filteredObj.enum as string[]
-//       } as EnumStringSchema
-//     }
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.STRING,
-//       format: filteredObj.format === 'date-time' ? 'date-time' : undefined
-//     } as SimpleStringSchema
-//   }
-
-//   // Handle number type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.NUMBER,
-//       format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
-//     } as NumberSchema
-//   }
-
-//   // Handle integer type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.INTEGER,
-//       format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
-//     } as IntegerSchema
-//   }
-
-//   // Handle boolean type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.BOOLEAN
-//     } as BooleanSchema
-//   }
-
-//   // Handle array type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.ARRAY,
-//       items: filteredObj.items
-//         ? ensureValidSchema(filteredObj.items as Record<string, any>)
-//         : ({ type: SchemaType.STRING } as SimpleStringSchema),
-//       minItems: filteredObj.minItems,
-//       maxItems: filteredObj.maxItems
-//     } as ArraySchema
-//   }
-
-//   // Handle object type (default)
-//   const properties = filteredObj.properties
-//     ? Object.fromEntries(
-//         Object.entries(filteredObj.properties).map(([key, value]) => [
-//           key,
-//           ensureValidSchema(value as Record<string, any>)
-//         ])
-//       )
-//     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
-
-//   return {
-//     ...baseSchema,
-//     type: SchemaType.OBJECT,
-//     properties,
-//     required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
-//   } as ObjectSchema
-// }
-
-// function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
-//   const supportedBaseKeys = ['description', 'nullable']
-//   const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
-//   const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
-//   const supportedBooleanKeys = [...supportedBaseKeys, 'type']
-//   const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
-//   const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
-
-//   const filtered: Record<string, any> = {}
-
-//   let keysToKeep: string[]
-
-//   if (obj.type?.toLowerCase() === SchemaType.STRING) {
-//     keysToKeep = supportedStringKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     keysToKeep = supportedBooleanKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     keysToKeep = supportedArrayKeys
-//   } else {
-//     // Default to object type
-//     keysToKeep = supportedObjectKeys
-//   }
-
-//   // copy supported keys
-//   for (const key of keysToKeep) {
-//     if (obj[key] !== undefined) {
-//       filtered[key] = obj[key]
-//     }
-//   }
-
-//   return filtered
-// }
-
-// function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
-//   const properties = tool.inputSchema.properties
-//   if (!properties) {
-//     return {}
-//   }
-
-//   // For OpenAI, we don't need to validate as strictly
-//   if (!filterNestedObj) {
-//     return properties
-//   }
-
-//   const processedProperties = Object.fromEntries(
-//     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-//   )
-
-//   return processedProperties
-// }
-
-export function filterProperties(
-  properties: Record<string, any> | string | number | boolean | Array<Record<string, any> | string | number | boolean>,
-  supportedKeys: string[]
-) {
-  // If it is an array, recursively process each element
-  if (isArray(properties)) {
-    return properties.map((item) => filterProperties(item, supportedKeys))
-  }
-
-  // If it is an object, recursively process each property
-  if (isObject(properties)) {
-    return transform(
-      properties,
-      (result, value, key) => {
-        if (key === 'properties') {
-          result[key] = transform(value, (acc, v, k) => {
-            acc[k] = filterProperties(v, supportedKeys)
-          })
-
-          result['additionalProperties'] = false
-          result['required'] = pull(Object.keys(value), ...EXTRA_SCHEMA_KEYS)
-        } else if (key === 'oneOf') {
-          // openai only supports anyOf
-          result['anyOf'] = filterProperties(value, supportedKeys)
-        } else if (supportedKeys.includes(key)) {
-          result[key] = filterProperties(value, supportedKeys)
-          if (key === 'type' && value === 'object') {
-            result['additionalProperties'] = false
-          }
-        }
-      },
-      {}
-    )
-  }
-
-  // Return other types directly (e.g., string, number, etc.)
-  return properties
-}
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
-  const schemaKeys = ['type', 'description', 'items', 'enum', 'additionalProperties', 'anyof']
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        name: tool.id,
-        parameters: {
-          type: 'object',
-          properties: filterProperties(tool.inputSchema, schemaKeys).properties,
-          required: pull(Object.keys(tool.inputSchema.properties), ...EXTRA_SCHEMA_KEYS),
-          additionalProperties: false
-        },
-        strict: true
-      }) satisfies OpenAI.Responses.Tool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      name: tool.id,
+      parameters: {
+        type: 'object' as const,
+        ...parameters
+      },
+      strict: true
+    } satisfies OpenAI.Responses.Tool
+  })
 }
 
 export function mcpToolsToOpenAIChatTools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
-  return mcpTools.map(
-    (tool) =>
-      ({
-        type: 'function',
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: {
-            type: 'object',
-            properties: tool.inputSchema.properties,
-            required: tool.inputSchema.required
-          }
-        }
-      }) as ChatCompletionTool
-  )
+  return mcpTools.map((tool) => {
+    const parameters = processSchemaForO3(tool.inputSchema)
+
+    return {
+      type: 'function',
+      function: {
+        name: tool.id,
+        description: tool.description,
+        parameters: {
+          type: 'object' as const,
+          ...parameters
+        },
+        strict: true
+      }
+    } as ChatCompletionTool
+  })
 }
 
 export function openAIToolsToMcpTool(
   mcpTools: MCPTool[],
   toolCall: OpenAI.Responses.ResponseFunctionToolCall | ChatCompletionMessageToolCall
 ): MCPTool | undefined {
-  const tool = mcpTools.find((mcpTool) => {
+  let toolName = ''
+  try {
     if ('name' in toolCall) {
-      return mcpTool.id === toolCall.name || mcpTool.name === toolCall.name
+      toolName = toolCall.name
     } else {
-      return mcpTool.id === toolCall.function.name || mcpTool.name === toolCall.function.name
+      toolName = toolCall.function.name
     }
+  } catch (error) {
+    logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
+    window.message.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
+    return undefined
+  }
+  const tools = mcpTools.filter((mcpTool) => {
+    return mcpTool.id === toolName || mcpTool.name === toolName
   })
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
 
-  if (!tool) {
-    logger.warn('No MCP Tool found for tool call:', toolCall)
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
 
-  return tool
+  return tools[0]
 }
 
 export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
@@ -358,11 +192,17 @@ export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> 
 
 export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolUse: ToolUseBlock): MCPTool | undefined {
   if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === toolUse.name)
-  if (!tool) {
+  const tools = mcpTools.filter((tool) => tool.id === toolUse.name)
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolUse.name}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
     return undefined
   }
-  return tool
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolUse.name}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
+  return tools[0]
 }
 
 /**
@@ -370,42 +210,16 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
  * @returns
  */
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[]): Tool[] {
-  /**
-   * @typedef {import('@google/genai').Schema} Schema
-   */
-  const schemaKeys = [
-    'example',
-    'pattern',
-    'default',
-    'maxLength',
-    'minLength',
-    'minProperties',
-    'maxProperties',
-    'anyOf',
-    'description',
-    'enum',
-    'format',
-    'items',
-    'maxItems',
-    'maximum',
-    'minItems',
-    'minimum',
-    'nullable',
-    'properties',
-    'propertyOrdering',
-    'required',
-    'title',
-    'type'
-  ]
   return [
     {
       functionDeclarations: mcpTools?.map((tool) => {
+        const filteredSchema = filterProperties(tool.inputSchema)
         return {
           name: tool.id,
           description: tool.description,
           parameters: {
             type: GeminiSchemaType.OBJECT,
-            properties: filterProperties(tool.inputSchema, schemaKeys).properties,
+            properties: filteredSchema.properties,
             required: tool.inputSchema.required
           }
         }
@@ -424,9 +238,19 @@ export function geminiFunctionCallToMcpTool(
   const toolName = toolCall.name || toolCall.id
   if (!toolName) return undefined
 
-  const tool = mcpTools.find((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+  const tools = mcpTools.filter((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
+  if (tools.length > 1) {
+    logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+  }
 
-  return tool
+  if (tools.length === 0) {
+    logger.warn(`No MCP Tool found for tool call: ${toolName}`)
+    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
+    return undefined
+  }
+
+  return tools[0]
 }
 
 export function upsertMCPToolResponse(

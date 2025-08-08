@@ -1,5 +1,5 @@
 import { FileSearchOutlined } from '@ant-design/icons'
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { KnowledgeBase } from '@renderer/types'
 import { FC } from 'react'
 import styled from 'styled-components'

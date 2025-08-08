@@ -49,4 +49,5 @@ export interface ModelCheckOptions {
   models: Model[]
   apiKeys: string[]
   isConcurrent: boolean
+  timeout?: number
 }

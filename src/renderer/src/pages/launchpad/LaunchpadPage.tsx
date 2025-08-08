@@ -92,8 +92,8 @@ const LaunchpadPage: FC = () => {
             <SectionTitle>{t('launchpad.minapps')}</SectionTitle>
             <Grid>
               {sortedMinapps.map((app) => (
-                <AppWrapper key={app.id} onClick={() => setTimeout(() => tabsService.closeTab('launchpad'), 350)}>
-                  <App app={app} size={56} />
+                <AppWrapper key={app.id}>
+                  <App app={app} size={56} onClick={() => setTimeout(() => tabsService.closeTab('launchpad'), 350)} />
                 </AppWrapper>
               ))}
             </Grid>

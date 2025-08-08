@@ -383,6 +383,15 @@
         "settings": "Configurações de Pesquisa na Web"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
+        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {
@@ -474,7 +483,32 @@
         },
         "title": "Salvar na Base de Conhecimento"
       },
-      "label": "Salvar"
+      "label": "Salvar",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Incluir o título do tópico e todo o conteúdo principal das mensagens"
+            }
+          },
+          "empty": {
+            "no_content": "Este tópico não tem conteúdo que possa ser guardado"
+          },
+          "error": {
+            "save_failed": "Falha ao guardar o tópico, verifique a configuração da base de conhecimento"
+          },
+          "loading": "A analisar o conteúdo do tópico...",
+          "select": {
+            "content": {
+              "label": "Selecionar o tipo de conteúdo a guardar",
+              "selected_tip": "Selecionadas {{count}} itens de conteúdo, provenientes de {{messages}} mensagens",
+              "tip": "O tópico será guardado na base de conhecimento com o contexto completo da conversa."
+            }
+          },
+          "success": "O tópico foi guardado com sucesso na base de conhecimento ({{count}} itens de conteúdo)",
+          "title": "Guardar tópico na base de conhecimento"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -496,6 +530,7 @@
         "tip": "A barra de ferramentas de blocos de código executáveis exibirá um botão de execução; atenção para não executar códigos perigosos!",
         "title": "Execução de Código"
       },
+      "code_image_tools": "Ativar ferramenta de pré-visualização",
       "code_wrappable": "Bloco de código com quebra de linha",
       "context_count": {
         "label": "Número de contexto",
@@ -639,15 +674,6 @@
     },
     "expand": "Expandir",
     "more": "Mais",
-    "preview": {
-      "copy": {
-        "image": "Copiar como imagem"
-      },
-      "label": "Pré-visualizar",
-      "source": "Ver código-fonte",
-      "zoom_in": "Ampliar",
-      "zoom_out": "Reduzir"
-    },
     "run": "Executar código",
     "split": {
       "label": "Dividir visualização",
@@ -747,6 +773,9 @@
       "file_format": "Formato do arquivo de backup está incorreto"
     },
     "chat": {
+      "chunk": {
+        "non_json": "Devolveu um formato de dados inválido"
+      },
       "response": "Ocorreu um erro, se a chave da API não foi configurada, por favor vá para Configurações > Provedores de Modelo para configurar a chave"
     },
     "http": {
@@ -1150,6 +1179,9 @@
       "failed": "Falha ao excluir",
       "success": "Excluído com sucesso"
     },
+    "dialog": {
+      "failed": "A pré-visualização falhou"
+    },
     "download": {
       "failed": "Falha no download",
       "success": "Download bem-sucedido"
@@ -1454,7 +1486,7 @@
       "function_calling": "chamada de função",
       "reasoning": "raciocínio",
       "rerank": "Reclassificar",
-      "select": "selecione o tipo de modelo",
+      "select": "Tipos de modelo",
       "text": "texto",
       "vision": "imagem",
       "websearch": "Procurar na web"
@@ -1552,6 +1584,7 @@
     "mode": {
       "edit": "Editar",
       "generate": "Gerar imagem",
+      "merge": "fundir",
       "remix": "Misturar",
       "upscale": "Aumentar"
     },
@@ -1644,6 +1677,22 @@
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "Copiar como imagem"
+    },
+    "dialog": "Abrir janela de pré-visualização",
+    "label": "Pré-visualização",
+    "pan": "mover",
+    "pan_down": "mover para baixo",
+    "pan_left": "Deslocar para a esquerda",
+    "pan_right": "Deslocar para a direita",
+    "pan_up": "Mover para cima",
+    "reset": "repor",
+    "source": "Ver código-fonte",
+    "zoom_in": "ampliar",
+    "zoom_out": "reduzir"
+  },
   "prompts": {
     "explanation": "Ajude-me a explicar este conceito",
     "summarize": "Ajude-me a resumir este parágrafo",
@@ -1691,6 +1740,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexidade",
     "ph8": "Plataforma Aberta de Grandes Modelos PH8",
+    "poe": "Poe",
     "ppio": "PPIO Nuvem Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
@@ -2201,7 +2251,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Fazer backup para o Nutstore"
+          "button": "Fazer backup para o Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Por favor, introduza o nome do ficheiro de cópia de segurança"
+            },
+            "title": "Fazer backup para o Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Falha na conexão com o Nutstore",
@@ -2235,7 +2291,11 @@
           "title": "Caminho de armazenamento do Nutstore"
         },
         "restore": {
-          "button": "Restaurar do Nutstore"
+          "button": "Restaurar do Nutstore",
+          "confirm": {
+            "content": "Restaurar a partir da Nutstore irá substituir os dados atuais. Deseja continuar?",
+            "title": "Restaurar a partir do Nutstore"
+          }
         },
         "title": "Configuração do Nutstore",
         "username": "Nome de usuário do Nutstore"
@@ -2500,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
+      "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
       "title": "Modo de Desenvolvedor"
     },
     "display": {
@@ -2706,6 +2767,8 @@
       "jsonSaveError": "Falha ao salvar configuração JSON",
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
+      "longRunning": "Modo de execução prolongada",
+      "longRunningTooltip": "Ativado, o servidor suporta tarefas de longa duração, reiniciando o temporizador de tempo limite ao receber notificações de progresso e prolongando o tempo máximo de tempo limite para 10 minutos.",
       "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",
@@ -2978,6 +3041,7 @@
         "select_api_key": "Selecione a chave API a ser usada:",
         "single": "Individual",
         "start": "Começar",
+        "timeout": "tempo expirado",
         "title": "Verificação de saúde do modelo",
         "use_all_keys": "Use chaves"
       },
@@ -2991,6 +3055,7 @@
           "label": "Adicionar modelo da lista"
         },
         "add_whole_group": "Adicionar todo o grupo",
+        "refetch_list": "Obter novamente a lista de modelos",
         "remove_listed": "Remover modelo da lista",
         "remove_model": "Remover Modelo",
         "remove_whole_group": "Remover todo o grupo"
@@ -3008,7 +3073,6 @@
       "provider_name": "Nome do Provedor",
       "quick_assistant_default_tag": "Padrão",
       "quick_assistant_model": "Modelo do Assistente Rápido",
-      "quick_assistant_model_description": "Modelo padrão usado pelo assistente rápido",
       "quick_assistant_selection": "Selecionar Assistente",
       "topic_naming_model": "Modelo de nomenclatura de tópicos",
       "topic_naming_model_description": "Modelo usado para nomear tópicos automaticamente",
@@ -3041,6 +3105,9 @@
         "auto": "Automático",
         "default": "Padrão",
         "flex": "Flexível",
+        "on_demand": "sob demanda",
+        "performance": "desempenho",
+        "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"
       },
@@ -3094,6 +3161,10 @@
             "label": "Mensagem de suporte ao programador"
           },
           "label": "Definições da API",
+          "service_tier": {
+            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
+            "label": "Suporta service_tier"
+          },
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
@@ -3596,6 +3667,9 @@
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
     "noReleaseNotes": "Sem notas de versão",
     "title": "Atualização"
+  },
+  "warning": {
+    "missing_provider": "O fornecedor não existe; foi revertido para o fornecedor predefinido {{provider}}. Isto pode causar problemas."
   },
   "words": {
     "knowledgeGraph": "Gráfico de Conhecimento",

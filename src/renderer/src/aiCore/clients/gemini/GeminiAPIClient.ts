@@ -60,6 +60,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout, MB } from '@shared/config/constant'
+import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -557,6 +558,14 @@ export class GeminiAPIClient extends BaseApiClient<
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         logger.silly('chunk', chunk)
+        if (typeof chunk === 'string') {
+          try {
+            chunk = JSON.parse(chunk)
+          } catch (error) {
+            logger.error('invalid chunk', { chunk, error })
+            throw new Error(t('error.chat.chunk.non_json'))
+          }
+        }
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {

@@ -383,6 +383,15 @@
         "settings": "网络搜索设置"
       }
     },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
+      },
+      "warning": {
+        "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+      }
+    },
     "message": {
       "new": {
         "branch": {
@@ -474,7 +483,32 @@
         },
         "title": "保存到知识库"
       },
-      "label": "保存"
+      "label": "保存",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "包括话题标题和所有消息的主要文本内容"
+            }
+          },
+          "empty": {
+            "no_content": "此话题没有可保存的内容"
+          },
+          "error": {
+            "save_failed": "保存话题失败，请检查知识库配置"
+          },
+          "loading": "正在分析话题内容...",
+          "select": {
+            "content": {
+              "label": "选择要保存的内容类型",
+              "selected_tip": "已选择 {{count}} 项内容，来自 {{messages}} 条消息",
+              "tip": "话题将以包含完整对话上下文的形式保存到知识库"
+            }
+          },
+          "success": "话题已成功保存到知识库（{{count}} 项内容）",
+          "title": "保存话题到知识库"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -496,6 +530,7 @@
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
         "title": "代码执行"
       },
+      "code_image_tools": "启用预览工具",
       "code_wrappable": "代码块可换行",
       "context_count": {
         "label": "上下文数",
@@ -639,15 +674,6 @@
     },
     "expand": "展开",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "复制为图片"
-      },
-      "label": "预览",
-      "source": "查看源代码",
-      "zoom_in": "放大",
-      "zoom_out": "缩小"
-    },
     "run": "运行代码",
     "split": {
       "label": "分割视图",
@@ -747,6 +773,9 @@
       "file_format": "备份文件格式错误"
     },
     "chat": {
+      "chunk": {
+        "non_json": "返回了无效的数据格式"
+      },
       "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
     },
     "http": {
@@ -1150,6 +1179,9 @@
       "failed": "删除失败",
       "success": "删除成功"
     },
+    "dialog": {
+      "failed": "预览失败"
+    },
     "download": {
       "failed": "下载失败",
       "success": "下载成功"
@@ -1454,7 +1486,7 @@
       "function_calling": "工具",
       "reasoning": "推理",
       "rerank": "重排",
-      "select": "选择模型类型",
+      "select": "模型类型",
       "text": "文本",
       "vision": "视觉",
       "websearch": "联网"
@@ -1645,6 +1677,22 @@
       "seed_tip": "控制放大结果的随机性"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "复制为图片"
+    },
+    "dialog": "打开预览窗口",
+    "label": "预览",
+    "pan": "移动",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源代码",
+    "zoom_in": "放大",
+    "zoom_out": "缩小"
+  },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
     "summarize": "帮我总结一下这段话",
@@ -1692,6 +1740,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型开放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派欧云",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -2202,7 +2251,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "备份到坚果云"
+          "button": "备份到坚果云",
+          "modal": {
+            "filename": {
+              "placeholder": "请输入备份文件名"
+            },
+            "title": "备份到坚果云"
+          }
         },
         "checkConnection": {
           "fail": "坚果云连接失败",
@@ -2236,7 +2291,11 @@
           "title": "坚果云存储路径"
         },
         "restore": {
-          "button": "从坚果云恢复"
+          "button": "从坚果云恢复",
+          "confirm": {
+            "content": "从坚果云恢复将会覆盖当前数据，是否继续？",
+            "title": "从坚果云恢复"
+          }
         },
         "title": "坚果云配置",
         "username": "坚果云用户名"
@@ -2501,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "启用开发者模式",
+      "help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。",
       "title": "开发者模式"
     },
     "display": {
@@ -2707,6 +2767,8 @@
       "jsonSaveError": "保存 JSON 配置失败",
       "jsonSaveSuccess": "JSON 配置已保存",
       "logoUrl": "标志网址",
+      "longRunning": "长时间运行模式",
+      "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "missingDependencies": "缺失，请安装它以继续",
       "more": {
         "awesome": "精选的 MCP 服务器列表",
@@ -2953,8 +3015,8 @@
           "tooltip": "例如 GPT-4"
         },
         "supported_text_delta": {
-          "label": "增量文本输出",
-          "tooltip": "当模型不支持的时候，将该按钮关闭"
+          "label": "支持增量文本输出",
+          "tooltip": "模型每次返回文本增量，而不是一次性返回所有文本，默认开启，如果模型不支持，请关闭"
         }
       },
       "api_key": "API 密钥",
@@ -2979,6 +3041,7 @@
         "select_api_key": "选择要使用的 API 密钥：",
         "single": "单个",
         "start": "开始",
+        "timeout": "超时",
         "title": "模型健康检测",
         "use_all_keys": "使用密钥"
       },
@@ -3010,7 +3073,6 @@
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
-      "quick_assistant_model_description": "快捷助手使用的默认模型",
       "quick_assistant_selection": "选择助手",
       "topic_naming_model": "话题命名模型",
       "topic_naming_model_description": "自动命名新话题时使用的模型",
@@ -3026,7 +3088,7 @@
     "moresetting": {
       "check": {
         "confirm": "确认勾选",
-        "warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！"
+        "warn": "请慎重更改模型类型，选择错误的类型会导致模型无法正常使用！"
       },
       "label": "更多设置",
       "warn": "风险警告"
@@ -3043,6 +3105,9 @@
         "auto": "自动",
         "default": "默认",
         "flex": "灵活",
+        "on_demand": "按需",
+        "performance": "性能",
+        "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
       },
@@ -3096,6 +3161,10 @@
             "label": "支持 Developer Message"
           },
           "label": "API 设置",
+          "service_tier": {
+            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
+            "label": "支持 service_tier"
+          },
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
@@ -3328,7 +3397,7 @@
         "title": "文档预处理",
         "tooltip": "在设置 -> 工具中设置文档预处理服务商，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果"
       },
-      "title": "工具设置",
+      "title": "其他设置",
       "websearch": {
         "apikey": "API 密钥",
         "blacklist": "黑名单",
@@ -3598,6 +3667,9 @@
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"
   },
   "words": {
     "knowledgeGraph": "知识图谱",

@@ -40,7 +40,6 @@ class SpanManagerService {
 
   startTrace(params: StartSpanParams, models?: Model[]) {
     if (!getEnableDeveloperMode()) {
-      logger.warn('Trace is enabled in developer mode.')
       return
     }
 
@@ -66,7 +65,6 @@ class SpanManagerService {
 
   async restartTrace(message: Message, text?: string) {
     if (!getEnableDeveloperMode()) {
-      logger.warn('Trace is enabled in developer mode.')
       return
     }
 
@@ -101,7 +99,6 @@ class SpanManagerService {
 
   async appendTrace(message: Message, model: Model) {
     if (!getEnableDeveloperMode()) {
-      logger.warn('Trace is enabled in developer mode.')
       return
     }
     if (!message.traceId) {
@@ -195,7 +192,6 @@ class SpanManagerService {
 
   addSpan(params: StartSpanParams) {
     if (!getEnableDeveloperMode()) {
-      logger.warn('Trace is enabled in developer mode.')
       return
     }
     const entity = this.getModelSpanEntity(params.topicId, params.modelName)
