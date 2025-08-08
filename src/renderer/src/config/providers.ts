@@ -52,6 +52,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import aiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.png'
 import { OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
@@ -588,6 +589,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false,
     isNotSupportDeveloperRole: true
+  },
+  aionly: {
+    id: 'aionly',
+    name: 'AIOnly',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.aionly.com',
+    models: SYSTEM_MODELS.aionly,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -648,7 +659,8 @@ const PROVIDER_LOGO_MAP = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: PoeProviderLogo
+  poe: PoeProviderLogo,
+  aionly: aiOnlyProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1231,6 +1243,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
+    }
+  },
+  aionly: {
+    api: {
+      url: 'https://api.aiionly.com'
+    },
+    websites: {
+      official: 'https://www.aiionly.com',
+      apiKey: 'https://www.aiionly.com',
+      docs: 'https://www.aiionly.com/document',
+      models: 'https://www.aiionly.com'
     }
   }
 }
