@@ -18,6 +18,7 @@ import {
   LanguageCode,
   Model,
   Provider,
+  ProviderApiOptions,
   SystemProviderIds,
   WebSearchProvider
 } from '@renderer/types'
@@ -2059,12 +2060,34 @@ const migrateConfig = {
   },
   '129': (state: RootState) => {
     try {
+      // 聚合 api options
+      state.llm.providers.forEach((p) => {
+        if (isSystemProvider(p)) {
+          updateProvider(state, p.id, { apiOptions: undefined })
+        } else {
+          const changes: ProviderApiOptions = {
+            isNotSupportArrayContent: p.isNotSupportArrayContent,
+            isNotSupportServiceTier: p.isNotSupportServiceTier,
+            isNotSupportDeveloperRole: p.isNotSupportDeveloperRole,
+            isNotSupportStreamOptions: p.isNotSupportStreamOptions
+          }
+          updateProvider(state, p.id, { apiOptions: changes })
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 129 error', error as Error)
+      return state
+    }
+  },
+    '130': (state: RootState) => {
+    try {
       if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
         state.settings.openAI.verbosity = 'medium'
       }
       return state
     } catch (error) {
-      logger.error('migrate 129 error', error as Error)
+      logger.error('migrate 130 error', error as Error)
       return state
     }
   }

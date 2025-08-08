@@ -192,6 +192,20 @@ export type User = {
   email: string
 }
 
+// undefined 视为支持，默认支持
+export type ProviderApiOptions = {
+  /** 是否不支持 message 的 content 为数组类型 */
+  isNotSupportArrayContent?: boolean
+  /** 是否不支持 stream_options 参数 */
+  isNotSupportStreamOptions?: boolean
+  /** 是否不支持 message 的 role 为 developer */
+  isNotSupportDeveloperRole?: boolean
+  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  isNotSupportServiceTier?: boolean
+  /** 是否不支持 enable_thinking 参数 */
+  isNotSupportEnableThinking?: boolean
+}
+
 export type Provider = {
   id: string
   type: ProviderType
@@ -206,16 +220,17 @@ export type Provider = {
   rateLimit?: number
 
   // API options
-  // undefined 视为支持，默认支持
-  /** 是否不支持 message 的 content 为数组类型 */
-  isNotSupportArrayContent?: boolean
-  /** 是否不支持 stream_options 参数 */
-  isNotSupportStreamOptions?: boolean
-  /** 是否不支持 message 的 role 为 developer */
-  isNotSupportDeveloperRole?: boolean
-  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
-  isNotSupportServiceTier?: boolean
+  apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
+
+  /** @deprecated */
+  isNotSupportArrayContent?: boolean
+  /** @deprecated */
+  isNotSupportStreamOptions?: boolean
+  /** @deprecated */
+  isNotSupportDeveloperRole?: boolean
+  /** @deprecated */
+  isNotSupportServiceTier?: boolean
 
   isVertex?: boolean
   notes?: string
@@ -286,6 +301,7 @@ export const isSystemProviderId = (id: string): id is SystemProviderId => {
 export type SystemProvider = Provider & {
   id: SystemProviderId
   isSystem: true
+  apiOptions?: never
 }
 
 /**
@@ -1067,3 +1083,20 @@ export interface MemoryListOptions extends MemoryEntity {
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
 // ========================================================================
+
+/**
+ * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
+ * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
+ * @template T - 必需包含的键的字面量字符串联合类型
+ * @template U - 所有键对应值的类型
+ * @example
+ * type Example = AtLeast<'a' | 'b', number>;
+ * // 结果类型允许:
+ * const obj1: Example = { a: 1, b: 2 };           // 只包含必需的键
+ * const obj2: Example = { a: 1, b: 2, c: 3 };     // 包含额外的键
+ */
+export type AtLeast<T extends string, U> = {
+  [K in T]: U
+} & {
+  [key: string]: U
+}
