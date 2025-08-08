@@ -1084,8 +1084,8 @@ async function getBackupDataToPhone() {
     llm: {
       providers: store.getState().llm.providers
     },
-    websearch: store.getState().websearch
-    // settings: store.getState().settings
+    websearch: store.getState().websearch,
+    settings: store.getState().settings
   }
   const indexedDbData = await backupPartialDatabase(['topics', 'settings', 'message_blocks'])
   return JSON.stringify({
