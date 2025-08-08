@@ -91,13 +91,14 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
   protected applyLanguageFilter(query: string, language: string): string {
     if (this.provider.id.includes('local-google')) {
       return `${query} lang:${language.split('-')[0]}`
-    } else if (this.provider.id.includes('local-bing')) {
-      return `${query} language:${language}`
-    } else if (this.provider.id.includes('local-baidu')) {
-      return `${query} language:${language.split('-')[0]}`
-    } else {
-      return query
     }
+    if (this.provider.id.includes('local-bing')) {
+      return `${query} language:${language}`
+    }
+    if (this.provider.id.includes('local-baidu')) {
+      return `${query} language:${language.split('-')[0]}`
+    }
+    return query
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
