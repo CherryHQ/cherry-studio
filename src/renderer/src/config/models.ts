@@ -2454,7 +2454,7 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4') || modelId.includes('gpt-oss')
+  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
@@ -2497,6 +2497,7 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
     (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
     modelId.includes('o3') ||
     modelId.includes('o4') ||
+    modelId.includes('gpt-oss') ||
     modelId.includes('gpt-5')
   )
 }
