@@ -24,7 +24,7 @@ type TranslateHistoryProps = {
 }
 
 // px
-const ITEM_HEIGHT = 120
+const ITEM_HEIGHT = 140
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t } = useTranslation()
@@ -90,21 +90,23 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                         }
                       ]
                     }}>
-                    <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                      <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-                        <Flex align="center" justify="space-between" style={{ flex: 1 }}>
-                          <Flex align="center" gap={6}>
-                            <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                            <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+                    <HistoryListItemContainer>
+                      <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+                        <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                          <Flex align="center" justify="space-between" style={{ flex: 1 }}>
+                            <Flex align="center" gap={6}>
+                              <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                              <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+                            </Flex>
+                            <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
                           </Flex>
-                          <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                          <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
+                          <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                            {item.targetText}
+                          </HistoryListItemTitle>
                         </Flex>
-                        <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                        <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
-                          {item.targetText}
-                        </HistoryListItemTitle>
-                      </Flex>
-                    </HistoryListItem>
+                      </HistoryListItem>
+                    </HistoryListItemContainer>
                   </Dropdown>
                 )
               }}
@@ -140,20 +142,12 @@ const HistoryList = styled.div`
   overflow-y: auto;
 `
 
-const HistoryListItem = styled.div`
+const HistoryListItemContainer = styled.div`
   height: ${ITEM_HEIGHT}px;
-  width: 100%;
   padding: 10px 24px;
-  cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
-  overflow: hidden;
-
-  button {
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
+  cursor: pointer;
   &:hover {
     background-color: var(--color-background-mute);
     button {
@@ -165,6 +159,17 @@ const HistoryListItem = styled.div`
 
   &:last-child {
     border-bottom: 1px dashed var(--color-border-soft);
+  }
+`
+
+const HistoryListItem = styled.div`
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  button {
+    opacity: 0;
+    transition: opacity 0.2s;
   }
 `
 
