@@ -899,7 +899,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       try {
         await createAbortPromise(controller.signal, ai.completions(params))
       } catch (e: any) {
-        logger.silly('got a error', { e, streamError })
         if (isAbortError(e)) {
           if (streamError) {
             throw streamError
