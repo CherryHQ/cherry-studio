@@ -1437,7 +1437,8 @@ const migrateConfig = {
     try {
       state.settings.openAI = {
         summaryText: 'off',
-        serviceTier: 'auto'
+        serviceTier: 'auto',
+        verbosity: 'medium'
       }
 
       state.settings.codeExecution = {
@@ -1529,7 +1530,8 @@ const migrateConfig = {
       if (!state.settings.openAI) {
         state.settings.openAI = {
           summaryText: 'off',
-          serviceTier: 'auto'
+          serviceTier: 'auto',
+          verbosity: 'medium'
         }
       }
       return state
