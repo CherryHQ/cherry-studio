@@ -483,7 +483,32 @@
         },
         "title": "Salvar na Base de Conhecimento"
       },
-      "label": "Salvar"
+      "label": "Salvar",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Incluir o título do tópico e todo o conteúdo principal das mensagens"
+            }
+          },
+          "empty": {
+            "no_content": "Este tópico não tem conteúdo que possa ser guardado"
+          },
+          "error": {
+            "save_failed": "Falha ao guardar o tópico, verifique a configuração da base de conhecimento"
+          },
+          "loading": "A analisar o conteúdo do tópico...",
+          "select": {
+            "content": {
+              "label": "Selecionar o tipo de conteúdo a guardar",
+              "selected_tip": "Selecionadas {{count}} itens de conteúdo, provenientes de {{messages}} mensagens",
+              "tip": "O tópico será guardado na base de conhecimento com o contexto completo da conversa."
+            }
+          },
+          "success": "O tópico foi guardado com sucesso na base de conhecimento ({{count}} itens de conteúdo)",
+          "title": "Guardar tópico na base de conhecimento"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -2535,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
+      "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
       "title": "Modo de Desenvolvedor"
     },
     "display": {

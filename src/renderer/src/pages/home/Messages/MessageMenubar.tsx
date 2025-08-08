@@ -225,7 +225,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.save.knowledge.title'),
             key: 'knowledge',
             onClick: () => {
-              SaveToKnowledgePopup.show({ message })
+              SaveToKnowledgePopup.showForMessage(message)
             }
           }
         ]

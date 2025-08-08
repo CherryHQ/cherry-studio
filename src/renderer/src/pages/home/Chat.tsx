@@ -18,6 +18,7 @@ import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
+import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
 
@@ -32,7 +33,7 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle } = useSettings()
+  const { topicPosition, messageStyle, messageNavigation } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const { isTopNavbar } = useNavbarPosition()
@@ -140,6 +141,7 @@ const Chat: FC<Props> = (props) => {
             includeUser={filterIncludeUser}
             onIncludeUserChange={userOutlinedItemClickHandler}
           />
+          {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
           <QuickPanelProvider>
             <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}

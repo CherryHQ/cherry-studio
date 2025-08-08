@@ -483,7 +483,32 @@
         },
         "title": "儲存到知識庫"
       },
-      "label": "儲存"
+      "label": "保存",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "包含話題標題及所有訊息的主要文字內容"
+            }
+          },
+          "empty": {
+            "no_content": "此話題沒有可保存的內容"
+          },
+          "error": {
+            "save_failed": "保存話題失敗，請檢查知識庫設定"
+          },
+          "loading": "正在分析話題內容...",
+          "select": {
+            "content": {
+              "label": "選擇要保存的內容類型",
+              "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息",
+              "tip": "話題將以包含完整對話上下文的形式保存到知識庫"
+            }
+          },
+          "success": "話題已成功保存到知識庫（{{count}} 項內容）",
+          "title": "保存話題到知識庫"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -2535,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
+      "help": "啟用開發者模式後，將可以使用調用鏈功能查看模型調用過程的數據流。",
       "title": "開發者模式"
     },
     "display": {
