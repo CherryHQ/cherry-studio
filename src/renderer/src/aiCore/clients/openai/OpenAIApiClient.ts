@@ -567,7 +567,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           max_tokens: maxTokens,
           tools: tools.length > 0 ? tools : undefined,
           stream: streamOutput,
-          ...(streamOutput && shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
+          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
