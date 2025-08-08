@@ -40,7 +40,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isGPT5 = model.id === 'gpt-5'
+  const isGPT5 = model.id.includes('gpt-5')
   const isSupportServiceTier = !provider.isNotSupportServiceTier
   const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
 
