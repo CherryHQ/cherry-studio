@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import {
@@ -6,8 +7,8 @@ import {
   isSupportedThinkingTokenModel
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import { Language, TranslateAssistant } from '@renderer/types'
+import { t } from 'i18next'
 
 import { hasApiKey } from './ApiService'
 import {
@@ -17,6 +18,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 
+const logger = loggerService.withContext('TranslateService')
 interface FetchTranslateProps {
   content: string
   assistant: TranslateAssistant
@@ -60,11 +62,7 @@ async function fetchTranslate({ content, assistant, onResponse }: FetchTranslate
 
   const AI = new AiProvider(provider)
 
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
-  }
+  return (await AI.completions(params)).getText().trim()
 }
 
 /**
@@ -80,25 +78,16 @@ export const translateText = async (
   targetLanguage: Language,
   onResponse?: (text: string, isComplete: boolean) => void
 ) => {
-  const translateModel = store.getState().llm.translateModel
+  try {
+    const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-  if (!translateModel) {
-    window.message.error({
-      content: i18n.t('translate.error.not_configured'),
-      key: 'translate-message'
-    })
-    return Promise.reject(new Error(i18n.t('translate.error.not_configured')))
+    const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
+
+    return translatedText
+  } catch (e) {
+    logger.error('Failed to translate', e as Error)
+    const message = e instanceof Error ? e.message : String(e)
+    window.message.error(t('translate.error.failed' + ': ' + message))
+    return ''
   }
-
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
-
-  const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
-
-  const trimmedText = translatedText.trim()
-
-  if (!trimmedText) {
-    return Promise.reject(new Error(i18n.t('translate.error.failed')))
-  }
-
-  return trimmedText
 }
