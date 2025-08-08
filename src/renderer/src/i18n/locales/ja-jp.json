@@ -3119,7 +3119,14 @@
         "tip": "モデルが行った推論の要約",
         "title": "要約モード"
       },
-      "title": "OpenAIの設定"
+      "title": "OpenAIの設定",
+      "verbosity": {
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "tip": "制御モデル出力の詳細さ",
+        "title": "詳細度"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",

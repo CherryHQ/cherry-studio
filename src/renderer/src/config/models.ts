@@ -2494,10 +2494,10 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return (
-    (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
-    model.id.includes('o3') ||
-    model.id.includes('o4') ||
-    model.id === 'gpt-5'
+    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
+    modelId.includes('o3') ||
+    modelId.includes('o4') ||
+    modelId === 'gpt-5'
   )
 }
 

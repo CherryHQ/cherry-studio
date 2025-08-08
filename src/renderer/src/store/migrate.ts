@@ -2054,6 +2054,17 @@ const migrateConfig = {
       logger.error('migrate 128 error', error as Error)
       return state
     }
+  },
+  '129': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
+        state.settings.openAI.verbosity = 'medium'
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 129 error', error as Error)
+      return state
+    }
   }
 }
 

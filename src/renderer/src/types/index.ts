@@ -930,6 +930,8 @@ export interface StoreSyncAction {
   }
 }
 
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
+
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 
 export const OpenAIServiceTiers = {
