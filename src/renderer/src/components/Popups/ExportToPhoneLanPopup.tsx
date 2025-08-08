@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
 import { Button, Modal, Progress, QRCode, Space, Spin } from 'antd'
 import { useEffect, useState } from 'react'
@@ -5,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
+const logger = loggerService.withContext('ExportToPhoneLanPopup')
 interface Props {
   resolve: (data: any) => void
 }
@@ -37,10 +39,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           }
           setQrCodeValue(JSON.stringify(connectionInfo))
         } else {
-          console.error('Failed to get IP address or port.')
+          logger.error('Failed to get IP address or port.')
         }
       } catch (error) {
-        console.error('Failed to initialize WebSocket:', error)
+        logger.error('Failed to initialize WebSocket:', error as Error)
       } finally {
         setIsLoading(false)
       }
@@ -50,11 +52,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     const handleClientConnected = (_event: any, data: { connected: boolean }) => {
       setConnectionStatus(data.connected ? 'connected' : 'disconnected')
-      console.log(data.connected ? '移动端已连接' : '移动端已断开连接')
     }
 
     const handleMessageReceived = (_event: any, data: any) => {
-      console.log(`收到移动端消息: ${JSON.stringify(data)}`)
+      logger.info(`收到移动端消息: ${JSON.stringify(data)}`)
     }
 
     const handleSendProgress = (_event: any, data: { progress: number }) => {
@@ -82,7 +83,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleSelectZip = async () => {
     const result = await window.api.file.select()
-    console.log('result', result)
+
     if (result) {
       const path = result[0].path
       setSelectedFolderPath(path)
@@ -91,15 +92,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleSendZip = async () => {
     if (!selectedFolderPath) {
-      console.error('No file selected')
+      logger.error('No file selected')
       return
     }
     setIsSending(true)
     try {
       await window.api.webSocket.sendFile(selectedFolderPath)
-      console.log('File sent successfully')
     } catch (error) {
-      console.error('Failed to send file:', error)
+      logger.error('Failed to send file:', error as Error)
     } finally {
       setIsSending(false)
     }

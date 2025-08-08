@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import * as fs from 'fs'
 import { networkInterfaces } from 'os'
 import * as path from 'path'
 import { Server, Socket } from 'socket.io'
 
 import { windowService } from './WindowService'
+
+const logger = loggerService.withContext('WebSocketService')
 
 class WebSocketService {
   private io: Server | null = null
@@ -16,12 +19,12 @@ class WebSocketService {
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name] || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
-          console.info('获取局域网 IP：', iface.address)
+          logger.info(`获取局域网 IP: ${iface.address}`)
           return iface.address
         }
       }
     }
-    console.warn('无法获取局域网 IP，使用默认 IP: 127.0.0.1')
+    logger.warn('无法获取局域网 IP，使用默认 IP: 127.0.0.1')
     return '127.0.0.1'
   }
 
@@ -38,7 +41,7 @@ class WebSocketService {
       })
 
       this.io.on('connection', (socket: Socket) => {
-        console.log('Client connected:', socket.id)
+        logger.info(`Client connected: ${socket.id}`)
         this.connectedClients.add(socket.id)
 
         const mainWindow = windowService.getMainWindow()
@@ -48,13 +51,13 @@ class WebSocketService {
         })
 
         socket.on('message', (data) => {
-          console.log('Received message from mobile:', data)
+          logger.info('Received message from mobile:', data)
           mainWindow?.webContents.send('websocket-message-received', data)
           socket.emit('message_received', { success: true })
         })
 
         socket.on('disconnect', () => {
-          console.log('Client disconnected:', socket.id)
+          logger.info(`Client disconnected: ${socket.id}`)
           this.connectedClients.delete(socket.id)
 
           if (this.connectedClients.size === 0) {
@@ -67,15 +70,15 @@ class WebSocketService {
       })
 
       this.io.engine.on('connection_error', (err) => {
-        console.error('WebSocket connection error:', err)
+        logger.error('WebSocket connection error:', err)
       })
 
       this.isStarted = true
-      console.log(`WebSocket server started on port ${this.port}`)
+      logger.info(`WebSocket server started on port ${this.port}`)
 
       return { success: true, port: this.port }
     } catch (error) {
-      console.error('Failed to start WebSocket server:', error)
+      logger.error('Failed to start WebSocket server:', error as Error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -98,11 +101,11 @@ class WebSocketService {
       this.io = null
       this.isStarted = false
       this.connectedClients.clear()
-      console.log('WebSocket server stopped')
+      logger.info('WebSocket server stopped')
 
       return { success: true }
     } catch (error) {
-      console.error('Failed to stop WebSocket server:', error)
+      logger.error('Failed to stop WebSocket server:', error as Error)
       return { success: false }
     }
   }
@@ -127,13 +130,13 @@ class WebSocketService {
   ): Promise<{ success: boolean; error?: string }> => {
     if (!this.isStarted || !this.io) {
       const errorMsg = 'WebSocket server is not running.'
-      console.error(errorMsg)
+      logger.error(errorMsg)
       return { success: false, error: errorMsg }
     }
 
     if (this.connectedClients.size === 0) {
       const errorMsg = 'No client connected.'
-      console.error(errorMsg)
+      logger.error(errorMsg)
       return { success: false, error: errorMsg }
     }
 
@@ -146,7 +149,7 @@ class WebSocketService {
       const stream = fs.createReadStream(filePath)
       let bytesSent = 0
 
-      console.log(`Starting to send file ${filename} (${totalSize} bytes)`)
+      logger.info(`Starting to send file ${filename} (${totalSize} bytes)`)
       // 向客户端发送文件开始的信号，包含文件名和总大小
       this.io!.emit('zip-file-start', { filename, totalSize })
 
@@ -161,7 +164,7 @@ class WebSocketService {
       })
 
       stream.on('end', () => {
-        console.log(`File ${filename} sent successfully.`)
+        logger.info(`File ${filename} sent successfully.`)
         // 确保发送100%的进度
         mainWindow?.webContents.send('file-send-progress', { progress: 100 })
         // 向客户端发送文件结束的信号
@@ -170,7 +173,7 @@ class WebSocketService {
       })
 
       stream.on('error', (error) => {
-        console.error('Failed to read and send file:', error)
+        logger.error('Failed to read and send file:', error)
         reject({
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
