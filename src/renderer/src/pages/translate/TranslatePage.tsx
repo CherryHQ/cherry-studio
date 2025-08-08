@@ -226,6 +226,7 @@ const TranslatePage: FC = () => {
       setSourceLanguage(history._sourceLanguage)
     }
     setTargetLanguage(history._targetLanguage)
+    setHistoryDrawerVisible(false)
   }
 
   // 控制语言切换按钮
