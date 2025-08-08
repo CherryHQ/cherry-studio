@@ -1,8 +1,11 @@
 import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
 import { EditorView } from '@codemirror/view'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Extension, keymap } from '@uiw/react-codemirror'
 import { useEffect, useMemo, useState } from 'react'
+
+const logger = loggerService.withContext('CodeEditorHooks')
 
 // 语言对应的 linter 加载器
 const linterLoaders: Record<string, () => Promise<any>> = {
@@ -39,7 +42,7 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
     try {
       return await specialLoader()
     } catch (error) {
-      console.debug(`Failed to load language ${normalizedLang}`, error)
+      logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
       return null
     }
   }
@@ -50,7 +53,7 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
     const extension = loadLanguage(normalizedLang as any)
     return extension || null
   } catch (error) {
-    console.debug(`Failed to load language ${normalizedLang}`, error)
+    logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
     return null
   }
 }
@@ -65,7 +68,7 @@ async function loadLinterExtension(language: string): Promise<Extension | null> 
   try {
     return await loader()
   } catch (error) {
-    console.debug(`Failed to load linter for ${language}`, error)
+    logger.debug(`Failed to load linter for ${language}`, error as Error)
     return null
   }
 }
@@ -105,7 +108,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
         setExtensions(results)
       } catch (error) {
         if (!cancelled) {
-          console.debug('Failed to load language extensions:', error)
+          logger.debug('Failed to load language extensions:', error as Error)
           setExtensions([])
         }
       }
@@ -171,4 +174,27 @@ export function useBlurHandler({ onBlur }: UseBlurHandlerProps) {
       }
     })
   }, [onBlur])
+}
+
+interface UseHeightListenerProps {
+  onHeightChange?: (scrollHeight: number) => void
+}
+
+/**
+ * CodeMirror 扩展，用于监听编辑器高度变化
+ * @param onHeightChange 高度变化时触发的回调函数
+ * @returns 扩展或空数组
+ */
+export function useHeightListener({ onHeightChange }: UseHeightListenerProps) {
+  return useMemo(() => {
+    if (!onHeightChange) {
+      return []
+    }
+
+    return EditorView.updateListener.of((update) => {
+      if (update.docChanged || update.heightChanged) {
+        onHeightChange(update.view.scrollDOM?.scrollHeight ?? 0)
+      }
+    })
+  }, [onHeightChange])
 }

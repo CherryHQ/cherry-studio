@@ -1,8 +1,9 @@
 import { RedoOutlined } from '@ant-design/icons'
-import CustomTag from '@renderer/components/CustomTag'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { NavbarIcon } from '@renderer/pages/home/Navbar'
+import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
@@ -11,8 +12,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettings from './components/KnowledgeSettings'
 import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
@@ -20,6 +21,7 @@ import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
 
+const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
@@ -52,7 +54,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       }),
 
       window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
-        console.log('[Progress] Directory:', itemId, percent)
+        logger.debug('[Progress] Directory:', itemId, percent)
         setProgressMap((prev) => new Map(prev).set(itemId, percent))
       })
     ]
@@ -124,7 +126,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <Button
             type="text"
             icon={<Settings size={18} color="var(--color-icon)" />}
-            onClick={() => KnowledgeSettings.show({ base })}
+            onClick={() => EditKnowledgeBasePopup.show({ base })}
             size="small"
           />
           <div className="model-row">
@@ -137,8 +139,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               </div>
             </Tooltip>
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
-            {base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessOrOcrProvider?.provider.id} quota={quota} />
+            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
+              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
           </div>
         </ModelInfo>
@@ -287,9 +289,12 @@ export const ItemHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   position: absolute;
-  top: calc(var(--navbar-height) + 14px);
   right: 16px;
   z-index: 1000;
+  top: calc(var(--navbar-height) + 12px);
+  [navbar-position='top'] & {
+    top: calc(var(--navbar-height) + 10px);
+  }
 `
 
 export const StatusIconWrapper = styled.div`

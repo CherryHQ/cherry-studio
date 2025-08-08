@@ -1,0 +1,344 @@
+diff --git a/client.js b/client.js
+index 22cc08d77ce849842a28f684c20dd5738152efa4..0c20f96405edbe7724b87517115fa2a61934b343 100644
+--- a/client.js
++++ b/client.js
+@@ -444,7 +444,7 @@ class OpenAI {
+                 'User-Agent': this.getUserAgent(),
+                 'X-Stainless-Retry-Count': String(retryCount),
+                 ...(options.timeout ? { 'X-Stainless-Timeout': String(Math.trunc(options.timeout / 1000)) } : {}),
+-                ...(0, detect_platform_1.getPlatformHeaders)(),
++                // ...(0, detect_platform_1.getPlatformHeaders)(),
+                 'OpenAI-Organization': this.organization,
+                 'OpenAI-Project': this.project,
+             },
+diff --git a/client.mjs b/client.mjs
+index 7f1af99fb30d2cae03eea6687b53e6c7828faceb..fd66373a5eff31a5846084387a3fd97956c9ad48 100644
+--- a/client.mjs
++++ b/client.mjs
+@@ -1,43 +1,41 @@
+ // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+ var _OpenAI_instances, _a, _OpenAI_encoder, _OpenAI_baseURLOverridden;
+-import { __classPrivateFieldGet, __classPrivateFieldSet } from "./internal/tslib.mjs";
+-import { uuid4 } from "./internal/utils/uuid.mjs";
+-import { validatePositiveInteger, isAbsoluteURL, safeJSON } from "./internal/utils/values.mjs";
+-import { sleep } from "./internal/utils/sleep.mjs";
+-import { castToError, isAbortError } from "./internal/errors.mjs";
+-import { getPlatformHeaders } from "./internal/detect-platform.mjs";
+-import * as Shims from "./internal/shims.mjs";
+-import * as Opts from "./internal/request-options.mjs";
+-import * as qs from "./internal/qs/index.mjs";
+-import { VERSION } from "./version.mjs";
++import { APIPromise } from "./core/api-promise.mjs";
+ import * as Errors from "./core/error.mjs";
+ import * as Pagination from "./core/pagination.mjs";
+ import * as Uploads from "./core/uploads.mjs";
+-import * as API from "./resources/index.mjs";
+-import { APIPromise } from "./core/api-promise.mjs";
+-import { Batches, } from "./resources/batches.mjs";
+-import { Completions, } from "./resources/completions.mjs";
+-import { Embeddings, } from "./resources/embeddings.mjs";
+-import { Files, } from "./resources/files.mjs";
+-import { Images, } from "./resources/images.mjs";
+-import { Models } from "./resources/models.mjs";
+-import { Moderations, } from "./resources/moderations.mjs";
+-import { Webhooks } from "./resources/webhooks.mjs";
++import { isRunningInBrowser } from "./internal/detect-platform.mjs";
++import { castToError, isAbortError } from "./internal/errors.mjs";
++import { buildHeaders } from "./internal/headers.mjs";
++import * as qs from "./internal/qs/index.mjs";
++import * as Opts from "./internal/request-options.mjs";
++import * as Shims from "./internal/shims.mjs";
++import { __classPrivateFieldGet, __classPrivateFieldSet } from "./internal/tslib.mjs";
++import { readEnv } from "./internal/utils/env.mjs";
++import { formatRequestDetails, loggerFor, parseLogLevel, } from "./internal/utils/log.mjs";
++import { sleep } from "./internal/utils/sleep.mjs";
++import { uuid4 } from "./internal/utils/uuid.mjs";
++import { isAbsoluteURL, isEmptyObj, safeJSON, validatePositiveInteger } from "./internal/utils/values.mjs";
+ import { Audio } from "./resources/audio/audio.mjs";
++import { Batches, } from "./resources/batches.mjs";
+ import { Beta } from "./resources/beta/beta.mjs";
+ import { Chat } from "./resources/chat/chat.mjs";
++import { Completions, } from "./resources/completions.mjs";
+ import { Containers, } from "./resources/containers/containers.mjs";
++import { Embeddings, } from "./resources/embeddings.mjs";
+ import { Evals, } from "./resources/evals/evals.mjs";
++import { Files, } from "./resources/files.mjs";
+ import { FineTuning } from "./resources/fine-tuning/fine-tuning.mjs";
+ import { Graders } from "./resources/graders/graders.mjs";
++import { Images, } from "./resources/images.mjs";
++import * as API from "./resources/index.mjs";
++import { Models } from "./resources/models.mjs";
++import { Moderations, } from "./resources/moderations.mjs";
+ import { Responses } from "./resources/responses/responses.mjs";
+ import { Uploads as UploadsAPIUploads, } from "./resources/uploads/uploads.mjs";
+ import { VectorStores, } from "./resources/vector-stores/vector-stores.mjs";
+-import { isRunningInBrowser } from "./internal/detect-platform.mjs";
+-import { buildHeaders } from "./internal/headers.mjs";
+-import { readEnv } from "./internal/utils/env.mjs";
+-import { formatRequestDetails, loggerFor, parseLogLevel, } from "./internal/utils/log.mjs";
+-import { isEmptyObj } from "./internal/utils/values.mjs";
++import { Webhooks } from "./resources/webhooks.mjs";
++import { VERSION } from "./version.mjs";
+ /**
+  * API Client for interfacing with the OpenAI API.
+  */
+@@ -441,7 +439,7 @@ export class OpenAI {
+                 'User-Agent': this.getUserAgent(),
+                 'X-Stainless-Retry-Count': String(retryCount),
+                 ...(options.timeout ? { 'X-Stainless-Timeout': String(Math.trunc(options.timeout / 1000)) } : {}),
+-                ...getPlatformHeaders(),
++                // ...getPlatformHeaders(),
+                 'OpenAI-Organization': this.organization,
+                 'OpenAI-Project': this.project,
+             },
+diff --git a/core/error.js b/core/error.js
+index c302cc356f0f24b50c3f5a0aa3ea0b79ae1e9a8d..164ee2ee31cd7eea8f70139e25d140b763e91d36 100644
+--- a/core/error.js
++++ b/core/error.js
+@@ -40,7 +40,7 @@ class APIError extends OpenAIError {
+         if (!status || !headers) {
+             return new APIConnectionError({ message, cause: (0, errors_1.castToError)(errorResponse) });
+         }
+-        const error = errorResponse?.['error'];
++        const error = errorResponse?.['error'] || errorResponse;
+         if (status === 400) {
+             return new BadRequestError(status, error, message, headers);
+         }
+diff --git a/core/error.mjs b/core/error.mjs
+index 75f5b0c328cc4894478f3490a00dbf6abd96fc12..269f46f96e9fad1f7a1649a3810562abc7fae37f 100644
+--- a/core/error.mjs
++++ b/core/error.mjs
+@@ -36,7 +36,7 @@ export class APIError extends OpenAIError {
+         if (!status || !headers) {
+             return new APIConnectionError({ message, cause: castToError(errorResponse) });
+         }
+-        const error = errorResponse?.['error'];
++        const error = errorResponse?.['error'] || errorResponse;
+         if (status === 400) {
+             return new BadRequestError(status, error, message, headers);
+         }
+diff --git a/resources/embeddings.js b/resources/embeddings.js
+index 2404264d4ba0204322548945ebb7eab3bea82173..93b9e286f62101b5aa7532e96ddba61f682ece3f 100644
+--- a/resources/embeddings.js
++++ b/resources/embeddings.js
+@@ -5,52 +5,64 @@ exports.Embeddings = void 0;
+ const resource_1 = require("../core/resource.js");
+ const utils_1 = require("../internal/utils.js");
+ class Embeddings extends resource_1.APIResource {
+-    /**
+-     * Creates an embedding vector representing the input text.
+-     *
+-     * @example
+-     * ```ts
+-     * const createEmbeddingResponse =
+-     *   await client.embeddings.create({
+-     *     input: 'The quick brown fox jumped over the lazy dog',
+-     *     model: 'text-embedding-3-small',
+-     *   });
+-     * ```
+-     */
+-    create(body, options) {
+-        const hasUserProvidedEncodingFormat = !!body.encoding_format;
+-        // No encoding_format specified, defaulting to base64 for performance reasons
+-        // See https://github.com/openai/openai-node/pull/1312
+-        let encoding_format = hasUserProvidedEncodingFormat ? body.encoding_format : 'base64';
+-        if (hasUserProvidedEncodingFormat) {
+-            (0, utils_1.loggerFor)(this._client).debug('embeddings/user defined encoding_format:', body.encoding_format);
+-        }
+-        const response = this._client.post('/embeddings', {
+-            body: {
+-                ...body,
+-                encoding_format: encoding_format,
+-            },
+-            ...options,
+-        });
+-        // if the user specified an encoding_format, return the response as-is
+-        if (hasUserProvidedEncodingFormat) {
+-            return response;
+-        }
+-        // in this stage, we are sure the user did not specify an encoding_format
+-        // and we defaulted to base64 for performance reasons
+-        // we are sure then that the response is base64 encoded, let's decode it
+-        // the returned result will be a float32 array since this is OpenAI API's default encoding
+-        (0, utils_1.loggerFor)(this._client).debug('embeddings/decoding base64 embeddings from base64');
+-        return response._thenUnwrap((response) => {
+-            if (response && response.data) {
+-                response.data.forEach((embeddingBase64Obj) => {
+-                    const embeddingBase64Str = embeddingBase64Obj.embedding;
+-                    embeddingBase64Obj.embedding = (0, utils_1.toFloat32Array)(embeddingBase64Str);
+-                });
+-            }
+-            return response;
+-        });
++  /**
++   * Creates an embedding vector representing the input text.
++   *
++   * @example
++   * ```ts
++   * const createEmbeddingResponse =
++   *   await client.embeddings.create({
++   *     input: 'The quick brown fox jumped over the lazy dog',
++   *     model: 'text-embedding-3-small',
++   *   });
++   * ```
++  */
++  create(body, options) {
++    const hasUserProvidedEncodingFormat = !!body.encoding_format;
++    // No encoding_format specified, defaulting to base64 for performance reasons
++    // See https://github.com/openai/openai-node/pull/1312
++    let encoding_format = hasUserProvidedEncodingFormat
++      ? body.encoding_format
++      : "base64";
++    if (body.model.includes("jina")) {
++      encoding_format = undefined;
++    }
++    if (hasUserProvidedEncodingFormat) {
++      (0, utils_1.loggerFor)(this._client).debug(
++        "embeddings/user defined encoding_format:",
++        body.encoding_format
++      );
+     }
++    const response = this._client.post("/embeddings", {
++      body: {
++        ...body,
++        encoding_format: encoding_format,
++      },
++      ...options,
++    });
++    // if the user specified an encoding_format, return the response as-is
++    if (hasUserProvidedEncodingFormat || body.model.includes("jina")) {
++      return response;
++    }
++    // in this stage, we are sure the user did not specify an encoding_format
++    // and we defaulted to base64 for performance reasons
++    // we are sure then that the response is base64 encoded, let's decode it
++    // the returned result will be a float32 array since this is OpenAI API's default encoding
++    (0, utils_1.loggerFor)(this._client).debug(
++      "embeddings/decoding base64 embeddings from base64"
++    );
++    return response._thenUnwrap((response) => {
++      if (response && response.data && typeof response.data[0]?.embedding === 'string') {
++        response.data.forEach((embeddingBase64Obj) => {
++          const embeddingBase64Str = embeddingBase64Obj.embedding;
++          embeddingBase64Obj.embedding = (0, utils_1.toFloat32Array)(
++            embeddingBase64Str
++          );
++        });
++      }
++      return response;
++    });
++  }
+ }
+ exports.Embeddings = Embeddings;
+ //# sourceMappingURL=embeddings.js.map
+diff --git a/resources/embeddings.mjs b/resources/embeddings.mjs
+index 19dcaef578c194a89759c4360073cfd4f7dd2cbf..42c903fadb03c707356a983603ff09e4152ecf11 100644
+--- a/resources/embeddings.mjs
++++ b/resources/embeddings.mjs
+@@ -2,51 +2,61 @@
+ import { APIResource } from "../core/resource.mjs";
+ import { loggerFor, toFloat32Array } from "../internal/utils.mjs";
+ export class Embeddings extends APIResource {
+-    /**
+-     * Creates an embedding vector representing the input text.
+-     *
+-     * @example
+-     * ```ts
+-     * const createEmbeddingResponse =
+-     *   await client.embeddings.create({
+-     *     input: 'The quick brown fox jumped over the lazy dog',
+-     *     model: 'text-embedding-3-small',
+-     *   });
+-     * ```
+-     */
+-    create(body, options) {
+-        const hasUserProvidedEncodingFormat = !!body.encoding_format;
+-        // No encoding_format specified, defaulting to base64 for performance reasons
+-        // See https://github.com/openai/openai-node/pull/1312
+-        let encoding_format = hasUserProvidedEncodingFormat ? body.encoding_format : 'base64';
+-        if (hasUserProvidedEncodingFormat) {
+-            loggerFor(this._client).debug('embeddings/user defined encoding_format:', body.encoding_format);
+-        }
+-        const response = this._client.post('/embeddings', {
+-            body: {
+-                ...body,
+-                encoding_format: encoding_format,
+-            },
+-            ...options,
+-        });
+-        // if the user specified an encoding_format, return the response as-is
+-        if (hasUserProvidedEncodingFormat) {
+-            return response;
+-        }
+-        // in this stage, we are sure the user did not specify an encoding_format
+-        // and we defaulted to base64 for performance reasons
+-        // we are sure then that the response is base64 encoded, let's decode it
+-        // the returned result will be a float32 array since this is OpenAI API's default encoding
+-        loggerFor(this._client).debug('embeddings/decoding base64 embeddings from base64');
+-        return response._thenUnwrap((response) => {
+-            if (response && response.data) {
+-                response.data.forEach((embeddingBase64Obj) => {
+-                    const embeddingBase64Str = embeddingBase64Obj.embedding;
+-                    embeddingBase64Obj.embedding = toFloat32Array(embeddingBase64Str);
+-                });
+-            }
+-            return response;
+-        });
++  /**
++   * Creates an embedding vector representing the input text.
++   *
++   * @example
++   * ```ts
++   * const createEmbeddingResponse =
++   *   await client.embeddings.create({
++   *     input: 'The quick brown fox jumped over the lazy dog',
++   *     model: 'text-embedding-3-small',
++   *   });
++   * ```
++   */
++  create(body, options) {
++    const hasUserProvidedEncodingFormat = !!body.encoding_format;
++    // No encoding_format specified, defaulting to base64 for performance reasons
++    // See https://github.com/openai/openai-node/pull/1312
++    let encoding_format = hasUserProvidedEncodingFormat
++      ? body.encoding_format
++      : "base64";
++    if (body.model.includes("jina")) {
++      encoding_format = undefined;
++    }
++    if (hasUserProvidedEncodingFormat) {
++      loggerFor(this._client).debug(
++        "embeddings/user defined encoding_format:",
++        body.encoding_format
++      );
+     }
++    const response = this._client.post("/embeddings", {
++      body: {
++        ...body,
++        encoding_format: encoding_format,
++      },
++      ...options,
++    });
++    // if the user specified an encoding_format, return the response as-is
++    if (hasUserProvidedEncodingFormat || body.model.includes("jina")) {
++      return response;
++    }
++    // in this stage, we are sure the user did not specify an encoding_format
++    // and we defaulted to base64 for performance reasons
++    // we are sure then that the response is base64 encoded, let's decode it
++    // the returned result will be a float32 array since this is OpenAI API's default encoding
++    loggerFor(this._client).debug(
++      "embeddings/decoding base64 embeddings from base64"
++    );
++    return response._thenUnwrap((response) => {
++      if (response && response.data && typeof response.data[0]?.embedding === 'string') {
++        response.data.forEach((embeddingBase64Obj) => {
++          const embeddingBase64Str = embeddingBase64Obj.embedding;
++          embeddingBase64Obj.embedding = toFloat32Array(embeddingBase64Str);
++        });
++      }
++      return response;
++    });
++  }
+ }
+ //# sourceMappingURL=embeddings.mjs.map

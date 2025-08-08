@@ -1,6 +1,9 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
+
+const logger = loggerService.withContext('302ai')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'ai302_token'
@@ -26,6 +29,7 @@ interface Ai302SyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
+  updatedServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -48,7 +52,8 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
@@ -58,6 +63,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
         success: false,
         message: t('settings.mcp.sync.error'),
         addedServers: [],
+        updatedServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -65,23 +71,26 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
     // Process successful response
     const data = await response.json()
     const servers: MCPServer[] = data.mcps || []
-    console.log('servers', servers)
+    logger.debug('servers', servers)
 
     if (servers.length === 0) {
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: []
+        addedServers: [],
+        updatedServers: []
       }
     }
 
-    // Transform TokenFlux servers to MCP servers format
+    // Transform 302ai servers to MCP servers format
     const addedServers: MCPServer[] = []
+    const updatedServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
-        // Skip if server already exists
-        if (existingServers.some((s) => s.id === `@302ai/${server.name}`)) continue
+        // Check if server already exists
+        const existingServer = existingServers.find((s) => s.id === `@302ai/${server.name}`)
+
         const mcpServer: MCPServer = {
           id: `@302ai/${server.name}`,
           name: server.name || `302ai Server ${nanoid()}`,
@@ -95,23 +104,32 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
           logoUrl: server.logoUrl
         }
 
-        addedServers.push(mcpServer)
+        if (existingServer) {
+          // Update existing server with latest info
+          updatedServers.push(mcpServer)
+        } else {
+          // Add new server
+          addedServers.push(mcpServer)
+        }
       } catch (err) {
-        console.error('Error processing 302ai server:', err)
+        logger.error('Error processing 302ai server:', err as Error)
       }
     }
 
+    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: addedServers.length }),
-      addedServers
+      message: t('settings.mcp.sync.success', { count: totalServers }),
+      addedServers,
+      updatedServers
     }
   } catch (error) {
-    console.error('302ai sync error:', error)
+    logger.error('302ai sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
       addedServers: [],
+      updatedServers: [],
       errorDetails: String(error)
     }
   }

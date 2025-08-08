@@ -249,7 +249,7 @@ const NutstoreSettings: FC = () => {
 
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>{t('settings.data.nutstore.path')}</SettingRowTitle>
+            <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
             <HStack gap="4px" justifyContent="space-between">
               <Input
                 placeholder={t('settings.data.nutstore.path.placeholder')}
@@ -279,7 +279,7 @@ const NutstoreSettings: FC = () => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
+            <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
             <Selector
               size={14}
               value={syncInterval}
@@ -325,6 +325,10 @@ const NutstoreSettings: FC = () => {
           backuping={backuping}
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
+          customLabels={{
+            modalTitle: t('settings.data.nutstore.backup.modal.title'),
+            filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
+          }}
         />
 
         <WebdavBackupManager
@@ -337,6 +341,11 @@ const NutstoreSettings: FC = () => {
             webdavPath: storagePath
           }}
           restoreMethod={restoreFromNutstore}
+          customLabels={{
+            restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
+            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
+            invalidConfigMessage: t('message.error.invalid.nutstore')
+          }}
         />
       </>
     </SettingGroup>

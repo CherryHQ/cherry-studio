@@ -1,6 +1,5 @@
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
-import { Button, Modal, Progress, Space, Spin } from 'antd'
-import { QRCodeSVG } from 'qrcode.react'
+import { Button, Modal, Progress, QRCode, Space, Spin } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -136,17 +135,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         {isLoading ? (
           <Spin />
         ) : !isConnected && qrCodeValue ? (
-          <QRCodeSVG
-            value={qrCodeValue}
-            level="Q"
-            size={160}
-            imageSettings={{
-              src: '/src/assets/images/logo.png',
-              height: 40,
-              width: 40,
-              excavate: true
-            }}
-          />
+          <QRCode value={qrCodeValue} errorLevel="Q" size={160} icon="/src/assets/images/logo.png" iconSize={40} />
         ) : null}
       </SettingRow>
 

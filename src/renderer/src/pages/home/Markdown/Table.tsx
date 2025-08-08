@@ -1,7 +1,8 @@
+import { CopyIcon } from '@renderer/components/Icons'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { Tooltip } from 'antd'
-import { Check, Copy } from 'lucide-react'
+import { Check } from 'lucide-react'
 import React, { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -40,11 +41,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       <ToolbarWrapper className="table-toolbar">
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
-            {copied ? (
-              <Check size={14} style={{ color: 'var(--color-primary)' }} data-testid="check-icon" />
-            ) : (
-              <Copy size={14} data-testid="copy-icon" />
-            )}
+            {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>

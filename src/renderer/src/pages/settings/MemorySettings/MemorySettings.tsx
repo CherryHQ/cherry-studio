@@ -1,43 +1,24 @@
-import {
-  CalendarOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ExclamationCircleOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SettingOutlined,
-  UserAddOutlined,
-  UserDeleteOutlined,
-  UserOutlined
-} from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
+import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
+import { HStack } from '@renderer/components/Layout'
+import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useModel } from '@renderer/hooks/useModel'
+import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import {
   selectCurrentUserId,
   selectGlobalMemoryEnabled,
+  selectMemoryConfig,
   setCurrentUserId,
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import {
-  Avatar,
-  Badge,
-  Button,
-  Dropdown,
-  Empty,
-  Form,
-  Input,
-  Modal,
-  Pagination,
-  Select,
-  Space,
-  Spin,
-  Switch
-} from 'antd'
+import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { Brain } from 'lucide-react'
+import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
@@ -52,12 +33,13 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '../index'
-import MemoriesSettingsModal from './MemoriesSettingsModal'
+import { DEFAULT_USER_ID } from './constants'
+import UserSelector from './UserSelector'
+
+const logger = loggerService.withContext('MemorySettings')
 
 dayjs.extend(relativeTime)
 
-const DEFAULT_USER_ID = 'default-user'
-const { Option } = Select
 const { TextArea } = Input
 
 interface AddMemoryModalProps {
@@ -106,10 +88,10 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
       onOk={() => form.submit()}
       okButtonProps={{ loading: loading }}
       title={
-        <Space>
-          <PlusOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <PlusIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.add_memory')}</span>
-        </Space>
+        </Flex>
       }
       styles={{
         header: {
@@ -123,10 +105,7 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
         }
       }}>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
-        <Form.Item
-          label={t('memory.memory_content')}
-          name="memory"
-          rules={[{ required: true, message: t('memory.please_enter_memory') }]}>
+        <Form.Item name="memory" rules={[{ required: true, message: t('memory.please_enter_memory') }]}>
           <TextArea
             rows={5}
             placeholder={t('memory.memory_placeholder')}
@@ -167,10 +146,10 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
   return (
     <Modal
       title={
-        <Space>
-          <EditOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <EditIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.edit_memory')}</span>
-        </Space>
+        </Flex>
       }
       open={visible}
       onCancel={onCancel}
@@ -265,10 +244,10 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
         }
       }}
       title={
-        <Space>
-          <UserAddOutlined style={{ color: 'var(--color-primary)' }} />
+        <Flex align="center" gap={8}>
+          <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
-        </Space>
+        </Flex>
       }>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item label={t('memory.new_user_id')} name="userId" rules={[{ validator: validateUserId }]}>
@@ -276,7 +255,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
             placeholder={t('memory.new_user_id_placeholder')}
             maxLength={50}
             size="large"
-            prefix={<UserOutlined />}
+            prefix={<UserRound size={16} />}
           />
         </Form.Item>
         <div
@@ -321,10 +300,6 @@ const MemorySettings = () => {
     return user === DEFAULT_USER_ID ? t('memory.default_user') : user
   }
 
-  const getUserAvatar = (user: string) => {
-    return user === DEFAULT_USER_ID ? user.slice(0, 1).toUpperCase() : user.slice(0, 2).toUpperCase()
-  }
-
   // Load unique users from database
   const loadUniqueUsers = useCallback(async () => {
     try {
@@ -332,7 +307,7 @@ const MemorySettings = () => {
       const users = usersList.map((user) => user.userId)
       setUniqueUsers(users)
     } catch (error) {
-      console.error('Failed to load users list:', error)
+      logger.error('Failed to load users list:', error as Error)
     }
   }, [memoryService])
 
@@ -340,7 +315,7 @@ const MemorySettings = () => {
   const loadMemories = useCallback(
     async (userId?: string) => {
       const targetUser = userId || currentUser
-      console.log('Loading all memories for user:', targetUser)
+      logger.debug(`Loading all memories for user: ${targetUser}`)
       setLoading(true)
       try {
         // First, ensure the memory service is using the correct user
@@ -351,10 +326,10 @@ const MemorySettings = () => {
 
         // Get all memories for current user context (load up to 10000)
         const result = await memoryService.list({ limit: 10000, offset: 0 })
-        console.log('Loaded memories for user:', targetUser, 'count:', result.results?.length || 0)
+        logger.verbose(`Loaded memories for user: ${targetUser}, count: ${result.results?.length || 0}`)
         setAllMemories(result.results || [])
       } catch (error) {
-        console.error('Failed to load memories:', error)
+        logger.error('Failed to load memories:', error as Error)
         window.message.error(t('memory.load_failed'))
       } finally {
         setLoading(false)
@@ -365,7 +340,7 @@ const MemorySettings = () => {
 
   // Sync memoryService with Redux store on mount and when currentUser changes
   useEffect(() => {
-    console.log('useEffect triggered for currentUser:', currentUser)
+    logger.verbose(`useEffect triggered for currentUser: ${currentUser}`)
     // Reset to first page when user changes
     setCurrentPage(1)
     loadMemories(currentUser)
@@ -420,7 +395,7 @@ const MemorySettings = () => {
       setCurrentPage(1)
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to add memory:', error)
+      logger.error('Failed to add memory:', error as Error)
       window.message.error(t('memory.add_failed'))
     }
   }
@@ -432,7 +407,7 @@ const MemorySettings = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to delete memory:', error)
+      logger.error('Failed to delete memory:', error as Error)
       window.message.error(t('memory.delete_failed'))
     }
   }
@@ -449,13 +424,13 @@ const MemorySettings = () => {
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
-      console.error('Failed to update memory:', error)
+      logger.error('Failed to update memory:', error as Error)
       window.message.error(t('memory.update_failed'))
     }
   }
 
   const handleUserSwitch = async (userId: string) => {
-    console.log('Switching to user:', userId)
+    logger.verbose(`Switching to user: ${userId}`)
 
     // First update Redux state
     dispatch(setCurrentUserId(userId))
@@ -474,7 +449,7 @@ const MemorySettings = () => {
         t('memory.user_switched', { user: userId === DEFAULT_USER_ID ? t('memory.default_user') : userId })
       )
     } catch (error) {
-      console.error('Failed to switch user:', error)
+      logger.error('Failed to switch user:', error as Error)
       window.message.error(t('memory.user_switch_failed'))
     }
   }
@@ -494,7 +469,7 @@ const MemorySettings = () => {
       window.message.success(t('memory.user_created', { user: userId }))
       setAddUserModalVisible(false)
     } catch (error) {
-      console.error('Failed to add user:', error)
+      logger.error('Failed to add user:', error as Error)
       window.message.error(t('memory.add_user_failed'))
     }
   }
@@ -502,11 +477,16 @@ const MemorySettings = () => {
   const handleSettingsSubmit = async () => {
     setSettingsModalVisible(false)
     await memoryService.updateConfig()
+    if (window.keyv.get('memory.wait.settings')) {
+      window.keyv.remove('memory.wait.settings')
+      dispatch(setGlobalMemoryEnabled(true))
+    }
   }
 
   const handleSettingsCancel = () => {
     setSettingsModalVisible(false)
     form.resetFields()
+    window.keyv.remove('memory.wait.settings')
   }
 
   const handleResetMemories = async (userId: string) => {
@@ -526,7 +506,7 @@ const MemorySettings = () => {
           // Reload memories to show the empty state
           await loadMemories(currentUser)
         } catch (error) {
-          console.error('Failed to reset memories:', error)
+          logger.error('Failed to reset memories:', error as Error)
           window.message.error(t('memory.reset_memories_failed'))
         }
       }
@@ -544,8 +524,6 @@ const MemorySettings = () => {
       title: t('memory.delete_user_confirm_title'),
       content: t('memory.delete_user_confirm_content', { user: userId }),
       icon: <ExclamationCircleOutlined />,
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
       okType: 'danger',
       onOk: async () => {
         try {
@@ -562,16 +540,39 @@ const MemorySettings = () => {
             await loadMemories(currentUser)
           }
         } catch (error) {
-          console.error('Failed to delete user:', error)
+          logger.error('Failed to delete user:', error as Error)
           window.message.error(t('memory.delete_user_failed'))
         }
       }
     })
   }
 
-  const handleGlobalMemoryToggle = (enabled: boolean) => {
+  const memoryConfig = useSelector(selectMemoryConfig)
+  const embedderModel = useModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider)
+
+  const handleGlobalMemoryToggle = async (enabled: boolean) => {
+    if (enabled && !embedderModel) {
+      window.keyv.set('memory.wait.settings', true)
+      return setSettingsModalVisible(true)
+    }
+
     dispatch(setGlobalMemoryEnabled(enabled))
-    window.message.success(enabled ? t('memory.global_memory_enabled') : t('memory.global_memory_disabled_title'))
+
+    if (enabled) {
+      return window.modal.confirm({
+        centered: true,
+        title: t('memory.global_memory_enabled'),
+        content: t('memory.global_memory_description'),
+        okText: t('common.i_know'),
+        cancelButtonProps: {
+          style: {
+            display: 'none'
+          }
+        }
+      })
+    }
+
+    window.message.success(t('memory.global_memory_disabled_title'))
   }
 
   const { theme } = useTheme()
@@ -579,33 +580,17 @@ const MemorySettings = () => {
   return (
     <SettingContainer theme={theme}>
       {/* Memory Settings */}
-      <SettingGroup theme={theme}>
-        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '2px' }}>
-          <SettingTitle>{t('memory.settings')}</SettingTitle>
-          <span
-            style={{
-              fontSize: '12px',
-              color: 'var(--color-primary)',
-              background: 'var(--color-primary-bg)',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontWeight: '500'
-            }}>
-            Beta
-          </span>
-        </div>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
-          <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('memory.settings')}</SettingRowTitle>
-          <Button icon={<SettingOutlined />} onClick={() => setSettingsModalVisible(true)}>
-            {t('common.settings')}
-          </Button>
-        </SettingRow>
+      <SettingGroup style={{ justifyContent: 'space-between', alignItems: 'center' }} theme={theme}>
+        <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <HStack style={{ alignItems: 'center', gap: '2px' }}>
+            <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
+            <TextBadge text="Beta" />
+          </HStack>
+          <HStack style={{ alignItems: 'center', gap: 10 }}>
+            <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
+            <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
+          </HStack>
+        </HStack>
       </SettingGroup>
 
       {/* User Management */}
@@ -619,52 +604,12 @@ const MemorySettings = () => {
               {allMemories.length} {t('memory.total_memories')}
             </SettingHelpText>
           </div>
-          <Select
-            value={currentUser}
-            onChange={handleUserSwitch}
-            style={{ width: 200 }}
-            dropdownRender={(menu) => (
-              <>
-                {menu}
-                <div style={{ padding: '8px' }}>
-                  <Button
-                    type="text"
-                    onClick={() => setAddUserModalVisible(true)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start'
-                    }}>
-                    <Space align="center">
-                      <UserAddOutlined />
-                      <span>{t('memory.add_new_user')}</span>
-                    </Space>
-                  </Button>
-                </div>
-              </>
-            )}>
-            <Option value={DEFAULT_USER_ID}>
-              <Space align="center">
-                <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                  {getUserAvatar(DEFAULT_USER_ID)}
-                </Avatar>
-                <span>{t('memory.default_user')}</span>
-              </Space>
-            </Option>
-            {uniqueUsers
-              .filter((user) => user !== DEFAULT_USER_ID)
-              .map((user) => (
-                <Option key={user} value={user}>
-                  <Space align="center">
-                    <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
-                      {getUserAvatar(user)}
-                    </Avatar>
-                    <span>{user}</span>
-                  </Space>
-                </Option>
-              ))}
-          </Select>
+          <UserSelector
+            currentUser={currentUser}
+            uniqueUsers={uniqueUsers}
+            onUserSwitch={handleUserSwitch}
+            onAddUser={() => setAddUserModalVisible(true)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -690,7 +635,7 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddMemoryModalVisible(true)}>
+            <Button type="primary" icon={<PlusIcon size={18} />} onClick={() => setAddMemoryModalVisible(true)}>
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -699,7 +644,7 @@ const MemorySettings = () => {
                   {
                     key: 'refresh',
                     label: t('common.refresh'),
-                    icon: <ReloadOutlined />,
+                    icon: <RefreshIcon size={14} />,
                     onClick: () => loadMemories(currentUser)
                   },
                   {
@@ -709,7 +654,7 @@ const MemorySettings = () => {
                   {
                     key: 'reset',
                     label: t('memory.reset_memories'),
-                    icon: <DeleteOutlined />,
+                    icon: <DeleteIcon size={14} className="lucide-custom" />,
                     danger: true,
                     onClick: () => handleResetMemories(currentUser)
                   },
@@ -722,7 +667,7 @@ const MemorySettings = () => {
                         {
                           key: 'deleteUser',
                           label: t('memory.delete_user'),
-                          icon: <UserDeleteOutlined />,
+                          icon: <UserRoundMinus size={14} className="lucide-custom" />,
                           danger: true,
                           onClick: () => handleDeleteUser(currentUser)
                         }
@@ -732,11 +677,12 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button icon={<MoreOutlined />}>{t('common.more')}</Button>
+              <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
         </div>
-        <SettingDivider />
+
+        <SettingDivider style={{ marginBottom: 15 }} />
 
         {/* Memory Content Area */}
         <div style={{ minHeight: 400 }}>
@@ -751,7 +697,7 @@ const MemorySettings = () => {
                   </div>
                   <Button
                     type="primary"
-                    icon={<PlusOutlined />}
+                    icon={<PlusIcon size={18} />}
                     onClick={() => setAddMemoryModalVisible(true)}
                     size="large">
                     {t('memory.add_first_memory')}
@@ -763,7 +709,7 @@ const MemorySettings = () => {
             <>
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-                  <Spin size="large" />
+                  <Spin indicator={<LoadingIcon color="var(--color-text-2)" />} />
                 </div>
               )}
 
@@ -778,21 +724,21 @@ const MemorySettings = () => {
                       <MemoryItem key={memory.id}>
                         <div className="memory-header">
                           <div className="memory-meta">
-                            <CalendarOutlined style={{ marginRight: 4 }} />
+                            <Calendar size={14} style={{ marginRight: 4 }} />
                             <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                           </div>
                           <Space size="small">
                             <Button
                               type="text"
                               size="small"
-                              icon={<EditOutlined />}
+                              icon={<EditIcon size={14} />}
                               onClick={() => handleEditMemory(memory)}
                             />
                             <Button
                               type="text"
                               size="small"
                               danger
-                              icon={<DeleteOutlined />}
+                              icon={<DeleteIcon size={14} className="lucide-custom" />}
                               onClick={() => {
                                 window.modal.confirm({
                                   centered: true,
@@ -867,7 +813,7 @@ const MemorySettings = () => {
 const MemoryListContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 15px;
   max-height: 500px;
   overflow-y: auto;
 `
@@ -876,7 +822,7 @@ const MemoryItem = styled.div`
   padding: 12px;
   background: var(--color-background-soft);
   border: 1px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
+  border-radius: 10px;
   transition: all 0.2s ease;
 
   &:hover {

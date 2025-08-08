@@ -6,6 +6,10 @@
 
   --color-scrollbar-thumb: var(--color-scrollbar-thumb-dark);
   --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-dark-hover);
+
+  --scrollbar-width: 6px;
+  --scrollbar-height: 6px;
+  --scrollbar-thumb-radius: 10px;
 }
 
 body[theme-mode='light'] {
@@ -15,8 +19,8 @@ body[theme-mode='light'] {
 
 /* 全局初始化滚动条样式 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-height);
 }
 
 ::-webkit-scrollbar-track,
@@ -25,7 +29,7 @@ body[theme-mode='light'] {
 }
 
 ::-webkit-scrollbar-thumb {
-  border-radius: 10px;
+  border-radius: var(--scrollbar-thumb-radius);
   background: var(--color-scrollbar-thumb);
   &:hover {
     background: var(--color-scrollbar-thumb-hover);
@@ -56,4 +60,18 @@ pre:not(.shiki)::-webkit-scrollbar-thumb {
 .hide-scrollbar,
 .hide-scrollbar * {
   scrollbar-width: none !important;
+}
+
+/* FIXME: antd select 启用 popupMatchSelectWidth 时，会给虚拟列表叠加一个滚动条，
+ * 前面的样式会被覆盖，因此在此强制统一样式。 */
+.rc-virtual-list-scrollbar {
+  width: var(--scrollbar-width) !important;
+}
+
+.rc-virtual-list-scrollbar-thumb {
+  border-radius: var(--scrollbar-thumb-radius) !important;
+  background: var(--color-scrollbar-thumb) !important;
+  &:hover {
+    background: var(--color-scrollbar-thumb-hover) !important;
+  }
 }

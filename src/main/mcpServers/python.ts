@@ -1,7 +1,9 @@
+import { loggerService } from '@logger'
 import { pythonService } from '@main/services/PythonService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import Logger from 'electron-log'
+
+const logger = loggerService.withContext('MCPServer:Python')
 
 /**
  * Python MCP Server for executing Python code using Pyodide
@@ -88,7 +90,7 @@ print('python code here')`,
           throw new McpError(ErrorCode.InvalidParams, 'Code parameter is required and must be a string')
         }
 
-        Logger.info('Executing Python code via Pyodide')
+        logger.debug('Executing Python code via Pyodide')
 
         const result = await pythonService.executeScript(code, context, timeout)
 
@@ -102,7 +104,7 @@ print('python code here')`,
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        Logger.error('Python execution error:', errorMessage)
+        logger.error(`Python execution error: ${errorMessage}`)
 
         throw new McpError(ErrorCode.InternalError, `Python execution failed: ${errorMessage}`)
       }

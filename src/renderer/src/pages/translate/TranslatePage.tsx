@@ -1,7 +1,9 @@
 import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
+import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
@@ -10,13 +12,12 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import type { Language, LanguageCode, Model, TranslateHistory } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -28,14 +29,15 @@ import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { find, isEmpty, sortBy } from 'lodash'
+import { find, isEmpty } from 'lodash'
 import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('TranslatePage')
+
 let _text = ''
-let _result = ''
 let _targetLanguage = LanguagesEnum.enUS
 
 const TranslateSettings: FC<{
@@ -51,8 +53,6 @@ const TranslateSettings: FC<{
   setBidirectionalPair: (value: [Language, Language]) => void
   translateModel: Model | undefined
   onModelChange: (model: Model) => void
-  allModels: Model[]
-  selectOptions: any[]
 }> = ({
   visible,
   onClose,
@@ -65,9 +65,7 @@ const TranslateSettings: FC<{
   bidirectionalPair,
   setBidirectionalPair,
   translateModel,
-  onModelChange,
-  allModels,
-  selectOptions
+  onModelChange
 }) => {
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
@@ -75,6 +73,14 @@ const TranslateSettings: FC<{
   const [localPair, setLocalPair] = useState<[Language, Language]>(bidirectionalPair)
   const [showPrompt, setShowPrompt] = useState(false)
   const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
+
+  const { providers } = useProviders()
+  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
+
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -133,18 +139,18 @@ const TranslateSettings: FC<{
             </Tooltip>
           </div>
           <HStack alignItems="center" gap={5}>
-            <Select
+            <ModelSelector
+              providers={providers}
+              predicate={modelPredicate}
               style={{ width: '100%' }}
-              placeholder={t('translate.settings.model_placeholder')}
               value={defaultTranslateModel}
+              placeholder={t('settings.models.empty')}
               onChange={(value) => {
                 const selectedModel = find(allModels, JSON.parse(value)) as Model
                 if (selectedModel) {
                   onModelChange(selectedModel)
                 }
               }}
-              options={selectOptions}
-              showSearch
             />
           </HStack>
           {!translateModel && (
@@ -277,10 +283,8 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const { shikiMarkdownIt } = useCodeStyle()
   const [text, setText] = useState(_text)
-  const [result, setResult] = useState(_result)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
@@ -298,9 +302,8 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
+  const { translatedContent, translating, translate, setTranslatedContent, clearHistory, deleteHistory } =
+    useTranslate()
 
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
@@ -313,62 +316,11 @@ const TranslatePage: FC = () => {
   }, [_translateHistory])
 
   _text = text
-  _result = result
   _targetLanguage = targetLanguage
-
-  const selectOptions = useMemo(
-    () =>
-      providers
-        .filter((p) => p.models.length > 0)
-        .flatMap((p) => {
-          const filteredModels = sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m))
-            .map((m) => ({
-              label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-              value: getModelUniqId(m)
-            }))
-          if (filteredModels.length > 0) {
-            return [
-              {
-                label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-                title: p.name,
-                options: filteredModels
-              }
-            ]
-          }
-          return []
-        }),
-    [providers, t]
-  )
 
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
-  }
-
-  const saveTranslateHistory = async (
-    sourceText: string,
-    targetText: string,
-    sourceLanguage: LanguageCode,
-    targetLanguage: LanguageCode
-  ) => {
-    const history: TranslateHistory = {
-      id: uuid(),
-      sourceText,
-      targetText,
-      sourceLanguage,
-      targetLanguage,
-      createdAt: new Date().toISOString()
-    }
-    await db.translate_history.add(history)
-  }
-
-  const deleteHistory = async (id: string) => {
-    db.translate_history.delete(id)
-  }
-
-  const clearHistory = async () => {
-    db.translate_history.clear()
   }
 
   const onTranslate = async () => {
@@ -381,7 +333,6 @@ const TranslatePage: FC = () => {
       return
     }
 
-    setLoading(true)
     try {
       // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
       let actualSourceLanguage: Language
@@ -405,7 +356,6 @@ const TranslatePage: FC = () => {
           content: errorMessage,
           key: 'translate-message'
         })
-        setLoading(false)
         return
       }
 
@@ -414,26 +364,13 @@ const TranslatePage: FC = () => {
         setTargetLanguage(actualTargetLanguage)
       }
 
-      const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-      let translatedText = ''
-      await fetchTranslate({
-        content: text,
-        assistant,
-        onResponse: (text) => {
-          translatedText = text.replace(/^\s*\n+/g, '')
-          setResult(translatedText)
-        }
-      })
-
-      await saveTranslateHistory(text, translatedText, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
-      setLoading(false)
+      await translate(text, actualSourceLanguage, actualTargetLanguage)
     } catch (error) {
-      console.error('Translation error:', error)
+      logger.error('Translation error:', error as Error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
       })
-      setLoading(false)
       return
     }
   }
@@ -444,27 +381,27 @@ const TranslatePage: FC = () => {
   }
 
   const onCopy = () => {
-    navigator.clipboard.writeText(result)
+    navigator.clipboard.writeText(translatedContent)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const onHistoryItemClick = (history: TranslateHistory & { _sourceLanguage: Language; _targetLanguage: Language }) => {
     setText(history.sourceText)
-    setResult(history.targetText)
+    setTranslatedContent(history.targetText)
     setSourceLanguage(history._sourceLanguage)
     setTargetLanguage(history._targetLanguage)
   }
 
   useEffect(() => {
-    isEmpty(text) && setResult('')
-  }, [text])
+    isEmpty(text) && setTranslatedContent('')
+  }, [setTranslatedContent, text])
 
   // Render markdown content when result or enableMarkdown changes
   useEffect(() => {
-    if (enableMarkdown && result) {
+    if (enableMarkdown && translatedContent) {
       let isMounted = true
-      shikiMarkdownIt(result).then((rendered) => {
+      shikiMarkdownIt(translatedContent).then((rendered) => {
         if (isMounted) {
           setRenderedMarkdown(rendered)
         }
@@ -476,7 +413,7 @@ const TranslatePage: FC = () => {
       setRenderedMarkdown('')
       return undefined
     }
-  }, [result, enableMarkdown, shikiMarkdownIt])
+  }, [enableMarkdown, shikiMarkdownIt, translatedContent])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -545,7 +482,7 @@ const TranslatePage: FC = () => {
         )
       }
     } catch (error) {
-      console.error('Error getting language display:', error)
+      logger.error('Error getting language display:', error as Error)
       setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
@@ -575,22 +512,12 @@ const TranslatePage: FC = () => {
   return (
     <Container id="translate-page">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>
-          {t('translate.title')}
-          <Button
-            className="nodrag"
-            color="default"
-            variant={historyDrawerVisible ? 'filled' : 'text'}
-            type="text"
-            icon={<HistoryOutlined />}
-            onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-          />
-        </NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <HistoryContainer $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
-            <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
+            <span style={{ fontSize: 14 }}>{t('translate.history.title')}</span>
             {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
@@ -623,13 +550,8 @@ const TranslatePage: FC = () => {
                     <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
                       <Flex align="center" justify="space-between" style={{ flex: 1 }}>
                         <Flex align="center" gap={6}>
-                          <span>
-                            {item._sourceLanguage.emoji} {item._sourceLanguage.label()}
-                          </span>
-                          →
-                          <span>
-                            {item._targetLanguage.emoji} {item._targetLanguage.label()}
-                          </span>
+                          <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                          <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                         </Flex>
                         <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
                       </Flex>
@@ -651,7 +573,7 @@ const TranslatePage: FC = () => {
 
         <InputContainer>
           <OperationBar>
-            <Flex align="center" gap={20}>
+            <Flex align="center" gap={8}>
               <Select
                 showSearch
                 value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
@@ -688,6 +610,14 @@ const TranslatePage: FC = () => {
                 onClick={() => setSettingsVisible(true)}
                 style={{ color: 'var(--color-text-2)', display: 'flex' }}
               />
+              <Button
+                className="nodrag"
+                color="default"
+                variant={historyDrawerVisible ? 'filled' : 'text'}
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
+              />
             </Flex>
 
             <Tooltip
@@ -702,7 +632,7 @@ const TranslatePage: FC = () => {
               }>
               <TranslateButton
                 type="primary"
-                loading={loading}
+                loading={translating}
                 onClick={onTranslate}
                 disabled={!text.trim()}
                 icon={<SendOutlined />}>
@@ -719,7 +649,7 @@ const TranslatePage: FC = () => {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
             onScroll={handleInputScroll}
-            disabled={loading}
+            disabled={translating}
             spellCheck={false}
             allowClear
           />
@@ -732,18 +662,18 @@ const TranslatePage: FC = () => {
             </HStack>
             <CopyButton
               onClick={onCopy}
-              disabled={!result}
+              disabled={!translatedContent}
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
           </OperationBar>
 
           <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-            {!result ? (
+            {!translatedContent ? (
               t('translate.output.placeholder')
             ) : enableMarkdown ? (
               <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
             ) : (
-              <div className="plain">{result}</div>
+              <div className="plain">{translatedContent}</div>
             )}
           </OutputText>
         </OutputContainer>
@@ -762,8 +692,6 @@ const TranslatePage: FC = () => {
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
         onModelChange={handleModelChange}
-        allModels={allModels}
-        selectOptions={selectOptions}
       />
     </Container>
   )
@@ -929,6 +857,11 @@ const HistoryListItemTitle = styled.div`
 `
 
 const HistoryListItemDate = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
 `

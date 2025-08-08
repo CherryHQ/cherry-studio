@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { backupToLocal } from '@renderer/services/BackupService'
 import { Button, Input, Modal } from 'antd'
 import dayjs from 'dayjs'
@@ -12,6 +13,8 @@ interface LocalBackupModalProps {
   customFileName: string
   setCustomFileName: (value: string) => void
 }
+
+const logger = loggerService.withContext('LocalBackupModal')
 
 export function LocalBackupModal({
   isModalVisible,
@@ -80,7 +83,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
       })
       setIsModalVisible(false)
     } catch (error) {
-      console.error('[LocalBackupModal] Backup failed:', error)
+      logger.error('Backup failed:', error as Error)
     } finally {
       setBackuping(false)
     }

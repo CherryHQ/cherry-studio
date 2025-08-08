@@ -1,10 +1,13 @@
 import { DropResult } from '@hello-pangea/dnd'
+import { loggerService } from '@logger'
 import { defaultActionItems } from '@renderer/store/selectionStore'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal'
+
+const logger = loggerService.withContext('useSettingsActionsList')
 
 const MAX_CUSTOM_ITEMS = 8
 const MAX_ENABLED_ITEMS = 6
@@ -49,7 +52,7 @@ export const useActionItems = (
         const currentItems = initialItems || []
         setActionItems([...currentItems, actionItem])
       } catch (error) {
-        console.error('Error adding item:', error)
+        logger.debug('Error adding item:', error as Error)
       }
     }
     setIsUserModalOpen(false)

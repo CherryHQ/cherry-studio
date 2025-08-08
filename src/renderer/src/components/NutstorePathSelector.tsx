@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { Button, Input } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
@@ -11,6 +12,8 @@ interface NewFolderProps {
   onCancel: () => void
   className?: string
 }
+
+const logger = loggerService.withContext('NutstorePathSelector')
 
 const NewFolderContainer = styled.div`
   display: flex;
@@ -95,7 +98,7 @@ function FileList(props: FileListProps) {
         setFiles(items)
       } catch (error) {
         if (error instanceof Error) {
-          console.error(error)
+          logger.error('Error fetching files:', error as Error)
           window.modal.error({
             content: error.message,
             centered: true
@@ -234,7 +237,7 @@ export function NustorePathSelectorFooter(props: FooterProps) {
       <HStack gap={8} alignItems="center">
         <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
         <Button size="small" type="link" onClick={props.mkdir}>
-          {t('settings.data.nutstore.new_folder.button')}
+          {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
       </HStack>
       <HStack gap={8} alignItems="center">

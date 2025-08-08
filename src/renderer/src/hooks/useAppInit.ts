@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,10 +8,12 @@ import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
 import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
+import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
@@ -20,9 +23,20 @@ import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
+const logger = loggerService.withContext('useAppInit')
+
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    proxyBypassRules,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -31,6 +45,7 @@ export function useAppInit() {
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
+    // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
 
     // Initialize MemoryService after app is ready
@@ -42,6 +57,12 @@ export function useAppInit() {
       if (dataPath) {
         window.navigate('/settings/data', { replace: true })
       }
+    })
+  }, [])
+
+  useEffect(() => {
+    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+      await handleSaveData()
     })
   }, [])
 
@@ -65,13 +86,13 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system')
+      window.api.setProxy('system', proxyBypassRules)
     } else if (proxyMode === 'custom') {
-      proxyUrl && window.api.setProxy(proxyUrl)
+      proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
     } else {
       window.api.setProxy('')
     }
-  }, [proxyUrl, proxyMode])
+  }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -133,7 +154,7 @@ export function useAppInit() {
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
     memoryService.updateConfig().catch((error) => {
-      console.error('Failed to update memory config:', error)
+      logger.error('Failed to update memory config:', error)
     })
   }, [memoryConfig])
 }

@@ -1,16 +1,19 @@
-import { InfoCircleOutlined, SettingOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Box } from '@renderer/components/Layout'
+import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Alert, Button, Card, Space, Switch, Tooltip, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
+import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import MemoriesSettingsModal from '../../memory/settings-modal'
+const logger = loggerService.withContext('AssistantMemorySettings')
 
 const { Text } = Typography
 
@@ -43,7 +46,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       })
       setMemoryStats({ count: result.results.length, loading: false })
     } catch (error) {
-      console.error('Failed to load memory stats:', error)
+      logger.error('Failed to load memory stats:', error as Error)
       setMemoryStats({ count: 0, loading: false })
     }
   }, [assistant.id, memoryService])
@@ -78,9 +81,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           </Tooltip>
         </Box>
         <Space>
-          <Button size="small" icon={<SettingOutlined />} onClick={handleNavigateToMemory}>
-            {t('common.settings')}
-          </Button>
+          <Button type="text" icon={<Settings2 size={15} />} onClick={handleNavigateToMemory} />
           <Tooltip
             title={
               !globalMemoryEnabled

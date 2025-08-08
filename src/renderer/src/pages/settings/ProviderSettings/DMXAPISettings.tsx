@@ -20,6 +20,7 @@ enum PlatformType {
   OVERSEA = 'https://ssvip.DMXAPI.com'
 }
 
+// FIXME: always Chinese. take consider of i18n
 const PlatformOptions = [
   {
     label: 'www.DMXAPI.cn 人民币站',

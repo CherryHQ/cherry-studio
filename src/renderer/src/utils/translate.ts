@@ -1,7 +1,10 @@
-import { LanguagesEnum } from '@renderer/config/translate'
+import { loggerService } from '@logger'
+import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { Language, LanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { MutableRefObject } from 'react'
+
+const logger = loggerService.withContext('Utils:translate')
 
 /**
  * 使用Unicode字符范围检测语言
@@ -71,7 +74,7 @@ export const detectLanguageByUnicode = (text: string): Language => {
     case 'en':
       return LanguagesEnum.enUS
     default:
-      console.error(`Unknown language: ${maxLang}`)
+      logger.error(`Unknown language: ${maxLang}`)
       return LanguagesEnum.enUS
   }
 }
@@ -241,8 +244,8 @@ export const createOutputScrollHandler = (
 export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
   const result = Object.values(LanguagesEnum).find((item) => item.langCode === langcode)
   if (!result) {
-    console.error(`Language not found for langcode: ${langcode}`)
-    return LanguagesEnum.enUS
+    logger.error(`Language not found for langcode: ${langcode}`)
+    return UNKNOWN
   }
   return result
 }

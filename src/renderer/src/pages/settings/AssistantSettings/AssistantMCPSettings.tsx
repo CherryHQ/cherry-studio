@@ -97,7 +97,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       ) : (
         <EmptyContainer>
           <Empty
-            description={t('assistants.settings.mcp.noAvaliable', 'No MCP servers available')}
+            description={t('assistants.settings.mcp.noServersAvailable', 'No MCP servers available')}
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </EmptyContainer>

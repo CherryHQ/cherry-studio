@@ -1,4 +1,6 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
+import store from '@renderer/store'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
@@ -6,6 +8,8 @@ import { isAbortError } from '@renderer/utils/error'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
+
+const logger = loggerService.withContext('LocalSearchProvider')
 
 export interface SearchItem {
   title: string
@@ -26,6 +30,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
+    const language = store.getState().settings.language
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -35,7 +40,8 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       }
 
       const cleanedQuery = query.split('\r\n')[1] ?? query
-      const url = this.provider.url.replace('%s', encodeURIComponent(cleanedQuery))
+      const queryWithLanguage = language ? this.applyLanguageFilter(cleanedQuery, language) : cleanedQuery
+      const url = this.provider.url.replace('%s', encodeURIComponent(queryWithLanguage))
       let content: string = ''
       const promisesToRace: [Promise<string>] = [window.api.searchService.openUrlInSearchWindow(uid, url)]
       if (httpOptions?.signal) {
@@ -69,11 +75,30 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       if (isAbortError(error)) {
         throw error
       }
-      console.error('Local search failed:', error)
+      logger.error('Local search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       await window.api.searchService.closeSearchWindow(uid)
     }
+  }
+
+  /**
+   * 根据提供的语言为查询添加语言过滤器
+   * @param query 原始查询
+   * @param language 语言代码 (例如: 'zh-CN', 'en-US')
+   * @returns 带有语言过滤的查询
+   */
+  protected applyLanguageFilter(query: string, language: string): string {
+    if (this.provider.id.includes('local-google')) {
+      return `${query} lang:${language.split('-')[0]}`
+    }
+    if (this.provider.id.includes('local-bing')) {
+      return `${query} language:${language}`
+    }
+    if (this.provider.id.includes('local-baidu')) {
+      return `${query} language:${language.split('-')[0]}`
+    }
+    return query
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

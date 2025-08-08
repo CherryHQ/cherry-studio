@@ -1,41 +1,55 @@
 import { GlobalOutlined } from '@ant-design/icons'
-import OcrIcon from '@renderer/components/Icons/OcrIcon'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
-import { FileCode } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FileCode, Zap } from 'lucide-react'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
-import OcrSettings from './OcrSettings'
 import PreprocessSettings from './PreprocessSettings'
+import QuickPhraseSettings from './QuickPhraseSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const ToolSettings: FC = () => {
   const { t } = useTranslation()
-  const [menu, setMenu] = useState<string>('web-search')
+  const { pathname } = useLocation()
   const menuItems = [
     { key: 'web-search', title: 'settings.tool.websearch.title', icon: <GlobalOutlined style={{ fontSize: 16 }} /> },
     { key: 'preprocess', title: 'settings.tool.preprocess.title', icon: <FileCode size={16} /> },
-    { key: 'ocr', title: 'settings.tool.ocr.title', icon: <OcrIcon /> }
+    { key: 'quick-phrase', title: 'settings.quickPhrase.title', icon: <Zap size={16} /> }
   ]
+
+  const isActive = (key: string): boolean => {
+    const basePath = '/settings/tool'
+    if (key === 'web-search') {
+      return pathname === basePath || pathname === `${basePath}/` || pathname === `${basePath}/${key}`
+    }
+    return pathname === `${basePath}/${key}`
+  }
+
   return (
     <Container>
       <MenuList>
         {menuItems.map((item) => (
-          <ListItem
-            key={item.key}
-            title={t(item.title)}
-            active={menu === item.key}
-            onClick={() => setMenu(item.key)}
-            titleStyle={{ fontWeight: 500 }}
-            icon={item.icon}
-          />
+          <Link key={item.key} to={`/settings/tool/${item.key}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <ListItem
+              title={t(item.title)}
+              active={isActive(item.key)}
+              titleStyle={{ fontWeight: 500 }}
+              icon={item.icon}
+            />
+          </Link>
         ))}
       </MenuList>
-      {menu == 'web-search' && <WebSearchSettings />}
-      {menu == 'preprocess' && <PreprocessSettings />}
-      {menu == 'ocr' && <OcrSettings />}
+      <ContentArea>
+        <Routes>
+          <Route path="/" element={<WebSearchSettings />} />
+          <Route path="/web-search" element={<WebSearchSettings />} />
+          <Route path="/preprocess" element={<PreprocessSettings />} />
+          <Route path="/quick-phrase" element={<QuickPhraseSettings />} />
+        </Routes>
+      </ContentArea>
     </Container>
   )
 }
@@ -43,6 +57,7 @@ const ToolSettings: FC = () => {
 const Container = styled(HStack)`
   flex: 1;
 `
+
 const MenuList = styled.div`
   display: flex;
   flex-direction: column;
@@ -54,5 +69,11 @@ const MenuList = styled.div`
   .iconfont {
     line-height: 16px;
   }
+`
+
+const ContentArea = styled.div`
+  display: flex;
+  flex: 1;
+  height: 100%;
 `
 export default ToolSettings

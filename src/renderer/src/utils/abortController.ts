@@ -1,4 +1,6 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('AbortController')
 
 export const abortMap = new Map<string, (() => void)[]>()
 
@@ -28,15 +30,15 @@ export const abortCompletion = (id: string) => {
   }
 }
 
-export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<string>) {
-  return new Promise<string>((_resolve, reject) => {
+export function createAbortPromise<T>(signal: AbortSignal, finallyPromise: Promise<T>) {
+  return new Promise<T>((_resolve, reject) => {
     if (signal.aborted) {
       reject(new DOMException('Operation aborted', 'AbortError'))
       return
     }
 
     const abortHandler = (e: Event) => {
-      Logger.log('[createAbortPromise] abortHandler', e)
+      logger.debug('abortHandler', e)
       reject(new DOMException('Operation aborted', 'AbortError'))
     }
 

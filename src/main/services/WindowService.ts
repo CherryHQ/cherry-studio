@@ -2,11 +2,11 @@
 import './ThemeService'
 
 import { is } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
-import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -19,6 +19,9 @@ import { initSessionUserAgent } from './WebviewService'
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
 
+// const logger = loggerService.withContext('WindowService')
+const logger = loggerService.withContext('WindowService')
+
 export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
@@ -28,11 +31,6 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
-
-  private miniWindowSize: { width: number; height: number } = {
-    width: DEFAULT_MINIWINDOW_WIDTH,
-    height: DEFAULT_MINIWINDOW_HEIGHT
-  }
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -71,7 +69,7 @@ export class WindowService {
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 12 },
+      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -118,14 +116,14 @@ export class WindowService {
         const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
-        Logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to set spell check languages:', error as Error)
       }
     }
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -254,7 +252,9 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://dash.302.ai/sso/login',
+        'https://dash.302.ai/charge'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -272,7 +272,7 @@ export class WindowService {
         const fileName = url.replace('http://file/', '')
         const storageDir = getFilesDir()
         const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => Logger.error('Failed to open file:', err))
+        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
         shell.openExternal(details.url)
       }
@@ -316,6 +316,13 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // save data before when close window
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to save data:', error as Error)
+      }
+
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
         return app.quit()
@@ -340,14 +347,19 @@ export class WindowService {
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
-      event.preventDefault()
+      if (!mainWindow.isFullScreen()) {
+        event.preventDefault()
+      }
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide()
-      }
+      // TODO: don't hide dock icon when close to tray
+      // will cause the cmd+h behavior not working
+      // after the electron fix the bug, we can restore this code
+      // //for mac users, should hide dock icon if close to tray
+      // if (isMac && isTrayOnClose) {
+      //   app.dock?.hide()
+      // }
     })
 
     mainWindow.on('closed', () => {
@@ -433,9 +445,21 @@ export class WindowService {
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      return this.miniWindow
+    }
+
+    const miniWindowState = windowStateKeeper({
+      defaultWidth: DEFAULT_MINIWINDOW_WIDTH,
+      defaultHeight: DEFAULT_MINIWINDOW_HEIGHT,
+      file: 'miniWindow-state.json'
+    })
+
     this.miniWindow = new BrowserWindow({
-      width: this.miniWindowSize.width,
-      height: this.miniWindowSize.height,
+      x: miniWindowState.x,
+      y: miniWindowState.y,
+      width: miniWindowState.width,
+      height: miniWindowState.height,
       minWidth: 350,
       minHeight: 380,
       maxWidth: 1024,
@@ -461,6 +485,8 @@ export class WindowService {
         webviewTag: true
       }
     })
+
+    miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
     this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -490,13 +516,6 @@ export class WindowService {
 
     this.miniWindow.on('hide', () => {
       this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
-    })
-
-    this.miniWindow.on('resized', () => {
-      this.miniWindowSize = this.miniWindow?.getBounds() || {
-        width: DEFAULT_MINIWINDOW_WIDTH,
-        height: DEFAULT_MINIWINDOW_HEIGHT
-      }
     })
 
     this.miniWindow.on('show', () => {
@@ -544,9 +563,10 @@ export class WindowService {
       if (cursorDisplay.id !== miniWindowDisplay.id) {
         const workArea = cursorDisplay.bounds
 
-        // use remembered size to avoid the bug of Electron with screens of different scale factor
-        const miniWindowWidth = this.miniWindowSize.width
-        const miniWindowHeight = this.miniWindowSize.height
+        // use current window size to avoid the bug of Electron with screens of different scale factor
+        const currentBounds = this.miniWindow.getBounds()
+        const miniWindowWidth = currentBounds.width
+        const miniWindowHeight = currentBounds.height
 
         // move to the center of the cursor's screen
         const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
@@ -567,7 +587,11 @@ export class WindowService {
       return
     }
 
-    this.miniWindow = this.createMiniWindow()
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      this.miniWindow = this.createMiniWindow()
+    }
+
+    this.miniWindow.show()
   }
 
   public hideMiniWindow() {
@@ -625,7 +649,7 @@ export class WindowService {
         }, 100)
       }
     } catch (error) {
-      Logger.error('Failed to quote to main window:', error as Error)
+      logger.error('Failed to quote to main window:', error as Error)
     }
   }
 }

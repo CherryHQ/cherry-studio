@@ -158,6 +158,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
         title={t('settings.quickPhrase.add')}
         open={isModalOpen}
         onOk={handleModalOk}
+        maskClosable={false}
         onCancel={() => {
           setIsModalOpen(false)
           setFormData({ title: '', content: '', location: 'global' })

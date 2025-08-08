@@ -18,6 +18,7 @@ exports[`Spinner > should match snapshot 1`] = `
   variants="[object Object]"
 >
   <svg
+    aria-hidden="true"
     class="lucide lucide-search"
     fill="none"
     height="16"
@@ -29,13 +30,13 @@ exports[`Spinner > should match snapshot 1`] = `
     width="16"
     xmlns="http://www.w3.org/2000/svg"
   >
+    <path
+      d="m21 21-4.34-4.34"
+    />
     <circle
       cx="11"
       cy="11"
       r="8"
-    />
-    <path
-      d="m21 21-4.3-4.3"
     />
   </svg>
   <span>

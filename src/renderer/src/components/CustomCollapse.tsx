@@ -11,6 +11,7 @@ interface CustomCollapseProps {
   defaultActiveKey?: string[]
   activeKey?: string[]
   collapsible?: 'header' | 'icon' | 'disabled'
+  onChange?: (activeKeys: string | string[]) => void
   style?: React.CSSProperties
   styles?: {
     header?: React.CSSProperties
@@ -26,6 +27,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
   defaultActiveKey = ['1'],
   activeKey,
   collapsible = undefined,
+  onChange,
   style,
   styles
 }) => {
@@ -76,9 +78,12 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
       style={collapseStyle}
       defaultActiveKey={defaultActiveKey}
       activeKey={activeKey}
-      destroyInactivePanel={destroyInactivePanel}
+      destroyOnHidden={destroyInactivePanel}
       collapsible={collapsible}
-      onChange={setActiveKeys}
+      onChange={(keys) => {
+        setActiveKeys(keys)
+        onChange?.(keys)
+      }}
       expandIcon={({ isActive }) => (
         <ChevronRight
           size={16}
