@@ -21468,12 +21468,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"windows-system-proxy@npm:^1.0.0":
+"windows-system-proxy@npm:1.0.0":
   version: 1.0.0
   resolution: "windows-system-proxy@npm:1.0.0"
   dependencies:
     registry-js: "npm:^1.15.1"
   checksum: 10c0/f3712938ce0786c359f171c40cc40df37448e06feeaaddd056312dcc93caff02c1eac9df6f0fac162ec99ac1f23dffb70bf19fe08fac097fed3c32b7ae95f6aa
+  languageName: node
+  linkType: hard
+
+"windows-system-proxy@patch:windows-system-proxy@npm%3A1.0.0#~/.yarn/patches/windows-system-proxy-npm-1.0.0-ff2a828eec.patch":
+  version: 1.0.0
+  resolution: "windows-system-proxy@patch:windows-system-proxy@npm%3A1.0.0#~/.yarn/patches/windows-system-proxy-npm-1.0.0-ff2a828eec.patch::version=1.0.0&hash=bc3cd7"
+  dependencies:
+    registry-js: "npm:^1.15.1"
+  checksum: 10c0/4941a22109ced18bece1aa7eacb828a1b4364d031c8528fc76a0a76509ef431f70886574d8629d5086ef7dbfb9595815996489acaa9468c63b337551847761fd
   languageName: node
   linkType: hard
 

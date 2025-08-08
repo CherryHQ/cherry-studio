@@ -1,0 +1,23 @@
+diff --git a/dist/index.js b/dist/index.js
+index b54962b2d332c1a3affadbdb37d39fdf90ab9f82..7906b4ea3bf9dffe60d74c279e9cfe885489c9f9 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -36,12 +36,12 @@ async function getWindowsSystemProxy() {
+         const proxies = Object.fromEntries(proxyConfigString
+             .split(';')
+             .map((proxyPair) => proxyPair.split('=')));
+-        const proxyUrl = proxies['https']
+-            ? `https://${proxies['https']}`
+-            : proxies['http']
+-                ? `http://${proxies['http']}`
+-                : proxies['socks']
+-                    ? `socks://${proxies['socks']}`
++        const proxyUrl = proxies['http']
++            ? `http://${proxies['http']}`
++            : proxies['socks']
++                ? `socks://${proxies['socks']}`
++                : proxies['https']
++                    ? `https://${proxies['https']}`
+                     : undefined;
+         if (!proxyUrl) {
+             throw new Error(`Could not get usable proxy URL from ${proxyConfigString}`);
