@@ -57,6 +57,10 @@ import {
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
+import GPT5ModelLogo from '@renderer/assets/images/models/gpt-5.png'
+import GPT5ChatModelLogo from '@renderer/assets/images/models/gpt-5-chat.png'
+import GPT5MiniModelLogo from '@renderer/assets/images/models/gpt-5-mini.png'
+import GPT5NanoModelLogo from '@renderer/assets/images/models/gpt-5-nano.png'
 import GrokModelLogo from '@renderer/assets/images/models/grok.png'
 import GrokModelLogoDark from '@renderer/assets/images/models/grok_dark.png'
 import GrypheModelLogo from '@renderer/assets/images/models/gryphe.png'
@@ -380,7 +384,10 @@ export function getModelLogo(modelId: string) {
     'gpt-image': ChatGPTImageModelLogo,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
-    'gpt-5': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
+    'gpt-5$': GPT5ModelLogo,
+    'gpt-5-mini': GPT5MiniModelLogo,
+    'gpt-5-nano': GPT5NanoModelLogo,
+    'gpt-5-chat': GPT5ChatModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
