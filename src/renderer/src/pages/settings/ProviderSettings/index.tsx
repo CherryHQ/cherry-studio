@@ -15,7 +15,7 @@ import {
   matchKeywordsInProvider,
   uuid
 } from '@renderer/utils'
-import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag, Tooltip } from 'antd'
+import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -492,24 +492,22 @@ const ProvidersList: FC = () => {
             const providerName = getFancyProviderName(provider)
             return (
               <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-                {/* FIXME: 硬编码阈值。不同字符之间宽度差异可能很大，需要更好的方案 */}
-                <Tooltip title={providerName.length >= 10 ? providerName : undefined}>
-                  <ProviderListItem
-                    key={provider.id}
-                    className={provider.id === selectedProvider?.id ? 'active' : ''}
-                    onClick={() => setSelectedProvider(provider)}>
-                    <DragHandle>
-                      <GripVertical size={12} />
-                    </DragHandle>
-                    {getProviderAvatar(provider)}
-                    <ProviderItemName className="text-nowrap">{providerName}</ProviderItemName>
-                    {provider.enabled && (
-                      <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                        ON
-                      </Tag>
-                    )}
-                  </ProviderListItem>
-                </Tooltip>
+                <ProviderListItem
+                  title={providerName}
+                  key={provider.id}
+                  className={provider.id === selectedProvider?.id ? 'active' : ''}
+                  onClick={() => setSelectedProvider(provider)}>
+                  <DragHandle>
+                    <GripVertical size={12} />
+                  </DragHandle>
+                  {getProviderAvatar(provider)}
+                  <ProviderItemName className="text-nowrap">{providerName}</ProviderItemName>
+                  {provider.enabled && (
+                    <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                      ON
+                    </Tag>
+                  )}
+                </ProviderListItem>
               </Dropdown>
             )
           }}
