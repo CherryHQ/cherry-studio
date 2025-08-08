@@ -483,7 +483,32 @@
         },
         "title": "Enregistrer dans la base de connaissances"
       },
-      "label": "Enregistrer"
+      "label": "Enregistrer",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Inclure le titre du sujet et le contenu principal de tous les messages"
+            }
+          },
+          "empty": {
+            "no_content": "Ce sujet ne contient aucun contenu à enregistrer"
+          },
+          "error": {
+            "save_failed": "Échec de l’enregistrement du sujet, veuillez vérifier la configuration de la base de connaissances"
+          },
+          "loading": "Analyse du contenu du sujet en cours...",
+          "select": {
+            "content": {
+              "label": "Sélectionner le type de contenu à enregistrer",
+              "selected_tip": "{{count}} éléments sélectionnés, provenant de {{messages}} messages",
+              "tip": "Le sujet sera enregistré dans la base de connaissances sous la forme d’un contexte de conversation complet."
+            }
+          },
+          "success": "Le sujet a été enregistré avec succès dans la base de connaissances ({{count}} éléments de contenu)",
+          "title": "Enregistrer le sujet dans la base de connaissances"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -2226,12 +2251,18 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Резервное копирование в坚果云"
+          "button": "Sauvegarder sur Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Veuillez saisir le nom du fichier de sauvegarde"
+            },
+            "title": "Sauvegarder sur Nutstore"
+          }
         },
         "checkConnection": {
-          "fail": "Не удалось подключиться к坚果云",
+          "fail": "Échec de la connexion à Nutstore",
           "name": "Проверить соединение",
-          "success": "Соединение с坚果云 установлено"
+          "success": "Connecté à Nutstore"
         },
         "isLogin": "Вход выполнен",
         "login": {
@@ -2239,8 +2270,8 @@
         },
         "logout": {
           "button": "Выйти из аккаунта",
-          "content": "После выхода будет невозможно создать резервную копию в坚果云 или восстановить данные из нее",
-          "title": "Вы действительно хотите выйти из аккаунта坚果云?"
+          "content": "Après la déconnexion, il ne sera plus possible de sauvegarder vers Nutstore ni de restaurer depuis Nutstore.",
+          "title": "Êtes-vous sûr de vouloir vous déconnecter de Nutstore ?"
         },
         "new_folder": {
           "button": {
@@ -2251,19 +2282,23 @@
         },
         "notLogin": "Вход не выполнен",
         "path": {
-          "label": "Путь хранения данных坚果云",
-          "placeholder": "Введите путь хранения данных坚果云"
+          "label": "Chemin de stockage Nutstore",
+          "placeholder": "Veuillez saisir le chemin de stockage de Nutstore"
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
           "return": "Назад",
-          "title": "Путь хранения данных坚果云"
+          "title": "Chemin de stockage Nutstore"
         },
         "restore": {
-          "button": "Восстановление из坚果云"
+          "button": "Restauration depuis Nutstore",
+          "confirm": {
+            "content": "La restauration depuis Nutstore écrasera les données actuelles. Continuer ?",
+            "title": "Récupérer depuis Nutstore"
+          }
         },
-        "title": "Настройка坚果云",
-        "username": "Имя пользователя坚果云"
+        "title": "Configuration de Nutstore",
+        "username": "Nom d’utilisateur Nutstore"
       },
       "obsidian": {
         "default_vault": "Référentiel Obsidian par défaut",
@@ -2525,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
+      "help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
       "title": "Mode Développeur"
     },
     "display": {
@@ -3572,6 +3608,9 @@
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "title": "Mise à jour"
+  },
+  "warning": {
+    "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
   "words": {
     "knowledgeGraph": "Graphe de connaissances",

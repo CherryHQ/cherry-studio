@@ -2,6 +2,7 @@ import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -38,6 +39,7 @@ import {
   PinIcon,
   PinOffIcon,
   PlusIcon,
+  Save,
   Sparkles,
   UploadIcon,
   XIcon
@@ -309,6 +311,27 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             label: t('chat.topics.copy.plain_text'),
             key: 'plain_text',
             onClick: () => copyTopicAsPlainText(topic)
+          }
+        ]
+      },
+      {
+        label: t('chat.save.label'),
+        key: 'save',
+        icon: <Save size={14} />,
+        children: [
+          {
+            label: t('chat.save.topic.knowledge.title'),
+            key: 'knowledge',
+            onClick: async () => {
+              try {
+                const result = await SaveToKnowledgePopup.showForTopic(topic)
+                if (result?.success) {
+                  window.message.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+                }
+              } catch {
+                window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
+              }
+            }
           }
         ]
       },

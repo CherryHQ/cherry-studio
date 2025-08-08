@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { DraggableList } from '../DraggableList'
+import { DraggableList } from '../'
 
 // mock @hello-pangea/dnd 组件
 vi.mock('@hello-pangea/dnd', () => {

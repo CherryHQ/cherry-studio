@@ -483,7 +483,32 @@
         },
         "title": "Guardar en la base de conocimientos"
       },
-      "label": "Guardar"
+      "label": "Guardar",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Incluye el título del tema y el contenido principal de todos los mensajes."
+            }
+          },
+          "empty": {
+            "no_content": "Este tema no tiene contenido guardable."
+          },
+          "error": {
+            "save_failed": "Error al guardar el tema, verifica la configuración de la base de conocimientos"
+          },
+          "loading": "Analizando el contenido del tema...",
+          "select": {
+            "content": {
+              "label": "Seleccionar el tipo de contenido que desea guardar",
+              "selected_tip": "Se han seleccionado {{count}} elementos, de {{messages}} mensajes",
+              "tip": "El tema se guardará en la base de conocimientos en forma de contexto de conversación completo."
+            }
+          },
+          "success": "El tema se ha guardado correctamente en la base de conocimiento ({{count}} elementos)",
+          "title": "Guardar tema en la base de conocimientos"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -2226,7 +2251,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Hacer copia de seguridad en Nutstore"
+          "button": "Hacer copia de seguridad en Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Por favor, introduzca el nombre del archivo de copia de seguridad"
+            },
+            "title": "Copia de seguridad en Nutstore"
+          }
         },
         "checkConnection": {
           "fail": "Fallo en la conexión con Nutstore",
@@ -2260,7 +2291,11 @@
           "title": "Ruta de almacenamiento de Nutstore"
         },
         "restore": {
-          "button": "Restaurar desde Nutstore"
+          "button": "Restaurar desde Nutstore",
+          "confirm": {
+            "content": "Restaurar desde Nutstore sobrescribirá los datos actuales, ¿deseas continuar?",
+            "title": "Restaurar desde Nutstore"
+          }
         },
         "title": "Configuración de Nutstore",
         "username": "Nombre de usuario de Nutstore"
@@ -2525,6 +2560,7 @@
     },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
+      "help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
       "title": "Modo de Desarrollador"
     },
     "display": {
@@ -3572,6 +3608,9 @@
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
     "title": "Actualización"
+  },
+  "warning": {
+    "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },
   "words": {
     "knowledgeGraph": "Grafo de Conocimiento",
