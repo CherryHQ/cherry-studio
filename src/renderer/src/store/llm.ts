@@ -537,6 +537,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'aionly',
+    name: 'AIOnly',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.aionly.com',
+    models: SYSTEM_MODELS.aionly,
+    isSystem: true,
+    enabled: false
   }
 ]
 

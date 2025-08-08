@@ -257,7 +257,8 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://www.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {

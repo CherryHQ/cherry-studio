@@ -173,6 +173,11 @@ export const providerCharge = async (provider: string) => {
       url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
       width: 900,
       height: 700
+    },
+    aionly: {
+      url: `https://www.aiionly.com/recharge`,
+      width: 900,
+      height: 700
     }
   }
 
@@ -206,6 +211,11 @@ export const providerBills = async (provider: string) => {
       url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details',
       width: 900,
       height: 700
+    },
+    aionly: {
+      url: `https://www.aiionly.com/billManagement`,
+      width: 900,
+      height: 700
     }
   }
 
@@ -216,4 +226,25 @@ export const providerBills = async (provider: string) => {
     'oauth',
     `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
   )
+}
+
+export const oauthWithAiOnly = async (setKey) => {
+  const authUrl = `https://www.aiionly.com/login?cherryCode=SFaJLLq0y6CAMoyDm81aMJ`
+
+  const popup = window.open(
+    authUrl,
+    'login',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
+      setKey(event.data[0]['secretKey'])
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
 }

@@ -3,6 +3,7 @@ import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import aiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.png'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
@@ -106,7 +107,8 @@ const PROVIDER_LOGO_MAP = {
   cephalon: CephalonProviderLogo,
   lanyun: LanyunProviderLogo,
   vertexai: VertexAIProviderLogo,
-  'new-api': NewAPIProviderLogo
+  'new-api': NewAPIProviderLogo,
+  aionly: aiOnlyProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -688,6 +690,17 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://docs.newapi.pro/',
       docs: 'https://docs.newapi.pro'
+    }
+  },
+  aionly: {
+    api: {
+      url: 'https://api.aiionly.com'
+    },
+    websites: {
+      official: 'https://www.aiionly.com',
+      apiKey: 'https://www.aiionly.com',
+      docs: 'https://www.aiionly.com/document',
+      models: 'https://www.aiionly.com'
     }
   }
 }
