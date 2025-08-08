@@ -298,7 +298,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'Github Models',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://models.inference.ai.azure.com/',
+    apiHost: 'https://models.github.ai/inference',
     models: SYSTEM_MODELS.github,
     isSystem: true,
     enabled: false
@@ -818,7 +818,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   github: {
     api: {
-      url: 'https://models.inference.ai.azure.com/'
+      url: 'https://models.github.ai/'
     },
     websites: {
       official: 'https://github.com/marketplace/models',
