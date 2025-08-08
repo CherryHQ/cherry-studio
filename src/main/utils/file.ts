@@ -152,6 +152,30 @@ export function getConfigDir() {
   return path.join(os.homedir(), '.cherrystudio', 'config')
 }
 
+/**
+ * 获取文件的安全路径，优先使用 file.path，如果不存在或不可访问则使用动态构建
+ */
+export function getSafeFilePath(file: any): string {
+  // 如果有 path 属性且文件存在，直接使用
+  if (file.path && fs.existsSync(file.path)) {
+    return file.path
+  }
+  
+  // 否则使用动态构建的路径
+  if (file.id && file.ext) {
+    const filesDir = getFilesDir()
+    const dynamicPath = path.join(filesDir, file.id + file.ext)
+    return dynamicPath
+  }
+  
+  // 最后备用方案，如果原路径存在就用原路径
+  if (file.path) {
+    return file.path
+  }
+  
+  throw new Error(`Cannot determine file path for file: ${JSON.stringify(file)}`)
+}
+
 export function getCacheDir() {
   return path.join(app.getPath('userData'), 'Cache')
 }
