@@ -29,7 +29,7 @@ async function fetchTranslate({ content, assistant, onResponse }: FetchTranslate
   const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
+    throw new Error(i18n.t('translate.error.not_configured'))
   }
 
   const provider = getProviderByModel(model)
