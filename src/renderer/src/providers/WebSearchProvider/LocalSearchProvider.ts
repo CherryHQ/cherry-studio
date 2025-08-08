@@ -89,12 +89,14 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
    * @returns 带有语言过滤的查询
    */
   protected applyLanguageFilter(query: string, language: string): string {
-    if (this.provider.name?.toLowerCase().includes('google')) {
+    if (this.provider.id.includes('local-google')) {
       return `${query} lang:${language.split('-')[0]}`
-    } else if (this.provider.name?.toLowerCase().includes('bing')) {
+    } else if (this.provider.id.includes('local-bing')) {
       return `${query} language:${language}`
+    } else if (this.provider.id.includes('local-baidu')) {
+      return `${query} language:${language.split('-')[0]}`
     } else {
-      return `${query} language:${language}`
+      return query
     }
   }
 
