@@ -7,7 +7,7 @@ import {
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider, isSupportStreamOptionsProvider } from '@renderer/config/providers'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -442,8 +442,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
         tools = tools.concat(extraTools)
 
-        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
         const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
           input:
@@ -454,7 +452,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_output_tokens: maxTokens,
           stream: streamOutput,
-          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           tools: !isEmpty(tools) ? tools : undefined,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
