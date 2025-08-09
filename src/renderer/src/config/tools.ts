@@ -28,7 +28,7 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
     ]
   }
 
-  if (model?.id.includes('gemini')) {
+  if (getModelId(model).includes('gemini')) {
     return [
       {
         type: 'function',
