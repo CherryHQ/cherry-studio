@@ -1,5 +1,6 @@
-import { getModelId, getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { Avatar, AvatarProps } from 'antd'
 import { first } from 'lodash'
 import { FC } from 'react'

@@ -7,7 +7,6 @@ import {
 import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { getModelId } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockRegion,
@@ -35,6 +34,7 @@ import {
   AwsBedrockSdkToolCall,
   SdkModel
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import { convertBase64ImageToAwsBedrockFormat } from '@renderer/utils/aws-bedrock-utils'
 import {
   awsBedrockToolUseToMcpTool,

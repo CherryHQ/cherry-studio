@@ -3,7 +3,6 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getModelId,
   getOpenAIWebSearchParams,
   getThinkModelType,
   isDoubaoThinkingAutoModel,
@@ -58,6 +57,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {

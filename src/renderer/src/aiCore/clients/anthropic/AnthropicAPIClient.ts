@@ -27,13 +27,7 @@ import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import {
-  findTokenLimit,
-  getModelId,
-  isClaudeReasoningModel,
-  isReasoningModel,
-  isWebSearchModel
-} from '@renderer/config/models'
+import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -67,6 +61,7 @@ import {
   AnthropicSdkRawChunk,
   AnthropicSdkRawOutput
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   anthropicToolUseToMcpTool,

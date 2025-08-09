@@ -1,7 +1,7 @@
 import { Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { ChatCompletionTool } from 'openai/resources'
 
-import { getModelId } from './models'
 import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from './prompts'
 
 export function getWebSearchTools(model: Model): ChatCompletionTool[] {

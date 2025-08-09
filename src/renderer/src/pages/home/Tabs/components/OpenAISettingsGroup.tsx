@@ -1,9 +1,5 @@
 import Selector from '@renderer/components/Selector'
-import {
-  getModelId,
-  isSupportedReasoningEffortOpenAIModel,
-  isSupportFlexServiceTierModel
-} from '@renderer/config/models'
+import { isSupportedReasoningEffortOpenAIModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -18,6 +14,7 @@ import {
   ServiceTier,
   SystemProviderIds
 } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'

@@ -1,5 +1,6 @@
-import { getModelId, isOpenAILLMModel } from '@renderer/config/models'
+import { isOpenAILLMModel } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'

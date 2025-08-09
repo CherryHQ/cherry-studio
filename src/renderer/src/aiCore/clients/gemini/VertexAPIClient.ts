@@ -1,8 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
-import { getModelId } from '@renderer/config/models'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
 import { Model, Provider } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 
 import { AnthropicVertexClient } from '../anthropic/AnthropicVertexClient'

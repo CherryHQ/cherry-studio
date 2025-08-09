@@ -1,5 +1,5 @@
-import { getModelId } from '@renderer/config/models'
 import { Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'

@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
-import { getModelId } from '@renderer/config/models'
 import { Language, Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
+
+import { getLowerBaseModelName } from './naming'
 
 const logger = loggerService.withContext('Utils')
 
@@ -233,6 +234,27 @@ export function mapLanguageToQwenMTModel(language: Language): string {
 
 export function uniqueObjectArray<T>(array: T[]): T[] {
   return array.filter((obj, index, self) => index === self.findIndex((t) => isEqual(t, obj)))
+}
+
+/**
+ * 获取模型ID，包含自定义ID的情况。用于模型类型判断、能力判断等场景，不要在网络通信API中使用。
+ * @param model - 模型对象
+ * @returns 返回模型的标准化ID字符串
+ * @description
+ * - 如果模型有自定义ID(customId)且不为空,则返回其小写的基础名称
+ * - 否则返回模型原始ID的小写基础名称
+ * - 使用 getLowerBaseModelName 进行标准化处理
+ */
+
+export const getModelId = (model?: Model): string => {
+  if (!model) {
+    return ''
+  }
+  if (model.customId?.trim()) {
+    return getLowerBaseModelName(model.customId)
+  } else {
+    return getLowerBaseModelName(model.id)
+  }
 }
 
 export * from './api'

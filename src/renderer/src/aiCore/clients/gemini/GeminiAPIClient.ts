@@ -22,7 +22,6 @@ import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getModelId,
   isGemmaModel,
   isSupportedThinkingTokenGeminiModel,
   isVisionModel
@@ -53,6 +52,7 @@ import {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import {
   geminiFunctionCallToMcpTool,
   isEnabledToolUse,

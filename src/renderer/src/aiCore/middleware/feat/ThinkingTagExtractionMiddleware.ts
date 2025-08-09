@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { getModelId } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import {
   ChunkType,
@@ -8,6 +7,7 @@ import {
   ThinkingDeltaChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
+import { getModelId } from '@renderer/utils'
 import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'

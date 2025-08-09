@@ -1,5 +1,5 @@
-import { getModelId } from '@renderer/config/models'
 import { Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { ChatCompletionContentPart, ChatCompletionContentPartText, ChatCompletionMessageParam } from 'openai/resources'
 
 export function processReqMessages(

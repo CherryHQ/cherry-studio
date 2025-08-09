@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import {
-  getModelId,
   isClaudeReasoningModel,
   isOpenAIReasoningModel,
   isSupportedModel,
@@ -24,6 +23,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import { formatApiHost } from '@renderer/utils/api'
 import OpenAI, { AzureOpenAI } from 'openai'
 
