@@ -6,6 +6,7 @@ import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { Model, Provider } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
@@ -199,7 +200,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
           boxShadow: 'none'
         }}
         fileInfo={{
-          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+          icon: <Avatar src={getModelLogo(getModelId(model))}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
           name: <ModelIdWithTags model={model} />,
           extra: model.description && <ExpandableText text={model.description} />,
           ext: '.model',

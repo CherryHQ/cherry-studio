@@ -15,6 +15,7 @@ import {
   ServiceTier,
   SystemProviderIds
 } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'
@@ -37,7 +38,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const isOpenAIReasoning =
     isSupportedReasoningEffortOpenAIModel(model) &&
-    !model.id.includes('o1-pro') &&
+    !getModelId(model).includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
   const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)

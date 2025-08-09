@@ -76,6 +76,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     const updatedModel: Model = {
       ...model,
       id: formValues.id || model.id,
+      customId: formValues.customId,
       name: formValues.name || model.name,
       group: formValues.group || model.group,
       endpoint_type: provider.id === 'new-api' ? formValues.endpointType : model.endpoint_type,
@@ -95,6 +96,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     const updatedModel: Model = {
       ...model,
       id: values.id || model.id,
+      customId: values.customId,
       name: values.name || model.name,
       group: values.group || model.group,
       endpoint_type: provider.id === 'new-api' ? values.endpointType : model.endpoint_type,
@@ -253,6 +255,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         style={{ marginTop: 15 }}
         initialValues={{
           id: model.id,
+          customId: model.customId,
           name: model.name,
           group: model.group,
           endpointType: model.endpoint_type,
@@ -296,6 +299,26 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               }
             />
           </Flex>
+        </Form.Item>
+        <Form.Item
+          name="customId"
+          label={t('settings.models.add.custom_model_id.label')}
+          tooltip={t('settings.models.add.custom_model_id.tooltip')}>
+          <Input
+            placeholder={t('settings.models.add.custom_model_id.placeholder')}
+            spellCheck={false}
+            maxLength={200}
+            suffix={
+              <CopyIcon
+                size={14}
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  navigator.clipboard.writeText(model.customId ?? '')
+                  message.success(t('message.copied'))
+                }}
+              />
+            }
+          />
         </Form.Item>
         <Form.Item
           name="name"

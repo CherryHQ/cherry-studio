@@ -2,6 +2,7 @@ import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
+import { getModelId } from '@renderer/utils'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
 import OpenAI from 'openai'
@@ -32,6 +33,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             throw new Error('Assistant model is not defined.')
           }
 
+          const modelId = getModelId(assistant.model)
           const sdk = await client.getSdkInstance()
           const lastUserMessage = messages.findLast((m) => m.role === 'user')
           const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
@@ -80,6 +82,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           if (imageFiles.length > 0) {
             response = await sdk.images.edit(
               {
+                // 创建请求应该使用 id
                 model: assistant.model.id,
                 image: imageFiles,
                 prompt: prompt || ''
@@ -89,9 +92,10 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           } else {
             response = await sdk.images.generate(
               {
+                // 创建请求应该使用 id
                 model: assistant.model.id,
                 prompt: prompt || '',
-                response_format: assistant.model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+                response_format: modelId.includes('gpt-image-1') ? undefined : 'b64_json'
               },
               options
             )

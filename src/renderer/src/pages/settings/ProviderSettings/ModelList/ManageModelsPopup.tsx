@@ -18,6 +18,7 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/Model
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName, isFreeModel } from '@renderer/utils'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -110,10 +111,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       provider.id === 'dashscope'
         ? {
             ...groupBy(
-              list.filter((model) => !model.id.startsWith('qwen')),
+              list.filter((model) => !getModelId(model).startsWith('qwen')),
               'group'
             ),
-            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+            ...groupQwenModels(list.filter((model) => getModelId(model).startsWith('qwen')))
           }
         : groupBy(list, 'group'),
     [list, provider.id]

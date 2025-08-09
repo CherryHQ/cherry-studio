@@ -2990,6 +2990,11 @@
       "add": {
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
+        "custom_model_id": {
+          "label": "カスタムモデルID",
+          "placeholder": "たとえば gpt-3.5-turbo",
+          "tooltip": "APIに必要なモデルIDと実際のモデルIDが異なる場合は、モデル能力の判定などの機能をサポートするためにカスタムモデルIDを設定する必要があります。"
+        },
         "endpoint_type": {
           "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",

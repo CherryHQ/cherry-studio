@@ -61,6 +61,7 @@ import {
   AnthropicSdkRawChunk,
   AnthropicSdkRawOutput
 } from '@renderer/types/sdk'
+import { getModelId } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   anthropicToolUseToMcpTool,
@@ -170,12 +171,13 @@ export class AnthropicAPIClient extends BaseApiClient<
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
+    const modelId = getModelId(model)
+
     const budgetTokens = Math.max(
       1024,
       Math.floor(
         Math.min(
-          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-            findTokenLimit(model.id)?.min!,
+          (findTokenLimit(modelId)?.max! - findTokenLimit(modelId)?.min!) * effortRatio + findTokenLimit(modelId)?.min!,
           (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
         )
       )
@@ -483,6 +485,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         }
 
         const commonParams: MessageCreateParamsBase = {
+          // 创建请求应该使用 id 字段
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0

@@ -4,6 +4,7 @@ import { isGenerateImageModel } from '@renderer/config/models'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown, Tooltip } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
@@ -344,7 +345,7 @@ const InputbarTools = ({
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: model.id.toLowerCase().includes('gemini')
+        condition: getModelId(model).includes('gemini')
       },
       {
         key: 'knowledge_base',

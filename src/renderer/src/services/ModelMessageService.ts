@@ -1,4 +1,5 @@
 import { Model } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { ChatCompletionContentPart, ChatCompletionContentPartText, ChatCompletionMessageParam } from 'openai/resources'
 
 export function processReqMessages(
@@ -13,7 +14,7 @@ export function processReqMessages(
 }
 
 function needStrictlyInterleaveUserAndAssistantMessages(model: Model) {
-  return model.id === 'deepseek-reasoner'
+  return getModelId(model) === 'deepseek-reasoner'
 }
 
 function interleaveUserAndAssistantMessages(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {

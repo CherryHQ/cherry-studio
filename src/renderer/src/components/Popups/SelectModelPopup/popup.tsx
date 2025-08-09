@@ -7,6 +7,7 @@ import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
+import { getModelId } from '@renderer/utils'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { Avatar, Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
@@ -97,7 +98,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogo(getModelId(model) || '')} size={24}>
             {first(model.name) || 'M'}
           </Avatar>
         ),

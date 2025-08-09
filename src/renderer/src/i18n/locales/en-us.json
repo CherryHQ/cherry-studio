@@ -2990,6 +2990,11 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "custom_model_id": {
+          "label": "Custom model ID",
+          "placeholder": "For example, gpt-3.5-turbo",
+          "tooltip": "If the model ID required by the API differs from the actual model ID, a custom model ID needs to be set to support functions such as model capability determination."
+        },
         "endpoint_type": {
           "label": "Endpoint Type",
           "placeholder": "Select endpoint type",

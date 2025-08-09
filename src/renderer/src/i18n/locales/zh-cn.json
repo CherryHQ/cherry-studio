@@ -2990,6 +2990,11 @@
       "add": {
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
+        "custom_model_id": {
+          "label": "自定义模型 ID",
+          "placeholder": "例如 gpt-3.5-turbo",
+          "tooltip": "如果 API 所需的模型 ID 与实际模型 ID 不同，需要设置自定义模型 ID 来支持模型能力判断等功能。"
+        },
         "endpoint_type": {
           "label": "端点类型",
           "placeholder": "选择端点类型",
