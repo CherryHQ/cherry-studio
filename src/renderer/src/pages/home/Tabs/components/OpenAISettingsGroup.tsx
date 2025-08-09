@@ -1,5 +1,9 @@
 import Selector from '@renderer/components/Selector'
-import { isSupportedReasoningEffortOpenAIModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import {
+  getModelId,
+  isSupportedReasoningEffortOpenAIModel,
+  isSupportFlexServiceTierModel
+} from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -36,7 +40,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const isOpenAIReasoning =
     isSupportedReasoningEffortOpenAIModel(model) &&
-    !model.id.includes('o1-pro') &&
+    !getModelId(model).includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
   const isSupportServiceTier = !provider.isNotSupportServiceTier
   const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
