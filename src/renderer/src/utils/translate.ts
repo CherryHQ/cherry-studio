@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
-import { Language, LanguageCode } from '@renderer/types'
+import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import { getAllCustomLanguages } from '@renderer/services/TranslateService'
+import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
-import React, { MutableRefObject } from 'react'
+import React, { MutableRefObject, RefObject } from 'react'
 
 const logger = loggerService.withContext('Utils:translate')
 
@@ -12,7 +13,7 @@ const logger = loggerService.withContext('Utils:translate')
  * @param text 需要检测语言的文本
  * @returns 检测到的语言
  */
-export const detectLanguageByUnicode = (text: string): Language => {
+export const detectLanguageByUnicode = (text: string): TranslateLanguage => {
   const counts = {
     zh: 0,
     ja: 0,
@@ -84,10 +85,10 @@ export const detectLanguageByUnicode = (text: string): Language => {
  * @param inputText 需要检测语言的文本
  * @returns 检测到的语言
  */
-export const detectLanguage = async (inputText: string): Promise<Language> => {
+export const detectLanguage = async (inputText: string): Promise<TranslateLanguage> => {
   const text = inputText.trim()
   if (!text) return LanguagesEnum.zhCN
-  let lang: Language
+  let lang: TranslateLanguage
 
   // 如果文本长度小于20个字符，使用Unicode范围检测
   if (text.length < 20) {
@@ -95,7 +96,7 @@ export const detectLanguage = async (inputText: string): Promise<Language> => {
   } else {
     // franc 返回 ISO 639-3 代码
     const iso3 = franc(text)
-    const isoMap: Record<string, Language> = {
+    const isoMap: Record<string, TranslateLanguage> = {
       cmn: LanguagesEnum.zhCN,
       jpn: LanguagesEnum.jaJP,
       kor: LanguagesEnum.koKR,
@@ -128,9 +129,9 @@ export const detectLanguage = async (inputText: string): Promise<Language> => {
  * @returns 目标语言
  */
 export const getTargetLanguageForBidirectional = (
-  sourceLanguage: Language,
-  languagePair: [Language, Language]
-): Language => {
+  sourceLanguage: TranslateLanguage,
+  languagePair: [TranslateLanguage, TranslateLanguage]
+): TranslateLanguage => {
   if (sourceLanguage.langCode === languagePair[0].langCode) {
     return languagePair[1]
   } else if (sourceLanguage.langCode === languagePair[1].langCode) {
@@ -145,7 +146,10 @@ export const getTargetLanguageForBidirectional = (
  * @param languagePair 配置的语言对
  * @returns 是否在语言对中
  */
-export const isLanguageInPair = (sourceLanguage: Language, languagePair: [Language, Language]): boolean => {
+export const isLanguageInPair = (
+  sourceLanguage: TranslateLanguage,
+  languagePair: [TranslateLanguage, TranslateLanguage]
+): boolean => {
   return [languagePair[0].langCode, languagePair[1].langCode].includes(sourceLanguage.langCode)
 }
 
@@ -158,11 +162,11 @@ export const isLanguageInPair = (sourceLanguage: Language, languagePair: [Langua
  * @returns 处理结果对象
  */
 export const determineTargetLanguage = (
-  sourceLanguage: Language,
-  targetLanguage: Language,
+  sourceLanguage: TranslateLanguage,
+  targetLanguage: TranslateLanguage,
   isBidirectional: boolean,
-  bidirectionalPair: [Language, Language]
-): { success: boolean; language?: Language; errorType?: 'same_language' | 'not_in_pair' } => {
+  bidirectionalPair: [TranslateLanguage, TranslateLanguage]
+): { success: boolean; language?: TranslateLanguage; errorType?: 'same_language' | 'not_in_pair' } => {
   if (isBidirectional) {
     if (!isLanguageInPair(sourceLanguage, bidirectionalPair)) {
       return { success: false, errorType: 'not_in_pair' }
@@ -207,8 +211,8 @@ export const handleScrollSync = (
  * 创建输入区域滚动处理函数
  */
 export const createInputScrollHandler = (
-  targetRef: MutableRefObject<HTMLDivElement | null>,
-  isProgrammaticScrollRef: MutableRefObject<boolean>,
+  targetRef: RefObject<HTMLDivElement | null>,
+  isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLTextAreaElement>) => {
@@ -234,18 +238,39 @@ export const createOutputScrollHandler = (
 
 /**
  * 根据语言代码获取对应的语言对象
+ * @deprecated
  * @param langcode - 语言代码
- * @returns 返回对应的语言对象，如果找不到则返回英语(enUS)
+ * @returns 返回对应的语言对象，如果找不到则返回未知语言
  * @example
  * ```typescript
  * const language = getLanguageByLangcode('zh-cn') // 返回中文语言对象
  * ```
  */
-export const getLanguageByLangcode = (langcode: LanguageCode): Language => {
+export const getLanguageByLangcode = (langcode: TranslateLanguageCode): TranslateLanguage => {
   const result = Object.values(LanguagesEnum).find((item) => item.langCode === langcode)
   if (!result) {
     logger.error(`Language not found for langcode: ${langcode}`)
     return UNKNOWN
   }
   return result
+}
+
+/**
+ * 获取所有可用的翻译语言选项。如果获取自定义语言失败，将只返回内置语言选项。
+ * @returns 返回内置语言选项和自定义语言选项的组合数组
+ */
+export const getTranslateOptions = async () => {
+  try {
+    const customLanguages = await getAllCustomLanguages()
+    // 转换为Language类型
+    const transformedCustomLangs: TranslateLanguage[] = customLanguages.map((item) => ({
+      value: item.value,
+      label: () => item.value,
+      emoji: item.emoji,
+      langCode: item.langCode
+    }))
+    return [...builtinLanguages, ...transformedCustomLangs]
+  } catch (e) {
+    return builtinLanguages
+  }
 }

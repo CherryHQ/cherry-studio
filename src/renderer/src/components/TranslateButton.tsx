@@ -1,8 +1,8 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Button, Tooltip } from 'antd'
 import { Languages } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -23,6 +23,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
   const { targetLanguage, showTranslateConfirm } = useSettings()
+  const { getLanguageByLangcode } = useTranslate()
 
   const translateConfirm = () => {
     if (!showTranslateConfirm) {

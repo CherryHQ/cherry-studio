@@ -7,7 +7,7 @@ import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { UpgradeChannel } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
@@ -531,11 +531,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
-    mainWindow?.setMinimumSize(1080, 600)
-    const [width, height] = mainWindow?.getSize() ?? [1080, 600]
-    if (width < 1080) {
-      mainWindow?.setSize(1080, height)
+    mainWindow?.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    const [width, height] = mainWindow?.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    if (width < MIN_WINDOW_WIDTH) {
+      mainWindow?.setSize(MIN_WINDOW_WIDTH, height)
     }
+  })
+
+  ipcMain.handle(IpcChannel.Windows_GetSize, () => {
+    const [width, height] = mainWindow?.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    return [width, height]
   })
 
   // VertexAI

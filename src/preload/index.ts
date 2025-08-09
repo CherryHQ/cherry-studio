@@ -232,7 +232,8 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize),
+    getSize: (): Promise<[number, number]> => ipcRenderer.invoke(IpcChannel.Windows_GetSize)
   },
   fileService: {
     upload: (provider: Provider, file: FileMetadata): Promise<FileUploadResponse> =>

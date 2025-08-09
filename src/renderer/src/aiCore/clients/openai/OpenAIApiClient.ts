@@ -30,6 +30,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
+import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -57,7 +58,6 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -509,6 +509,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           extra_body.translation_options = {
             source_lang: 'auto',
             target_lang: mapLanguageToQwenMTModel(targetLanguage!)
+          }
+          if (!extra_body.translation_options.target_lang) {
+            throw new Error(t('translate.error.not_supported', { language: targetLanguage?.value }))
           }
         }
 

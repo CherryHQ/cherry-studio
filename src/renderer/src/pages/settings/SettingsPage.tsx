@@ -7,6 +7,7 @@ import {
   FolderCog,
   HardDrive,
   Info,
+  Languages,
   MonitorCog,
   Package,
   PictureInPicture2,
@@ -30,6 +31,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
 import ToolSettings from './ToolSettings'
+import TranslateSettings from './TranslateSettings/TranslateSettings'
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
@@ -80,6 +82,12 @@ const SettingsPage: FC = () => {
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/translate">
+            <MenuItem className={isRoute('/settings/translate')}>
+              <Languages size={18} />
+              {t('settings.translate.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/memory">
             <MenuItem className={isRoute('/settings/memory')}>
               <Brain size={18} />
@@ -123,6 +131,7 @@ const SettingsPage: FC = () => {
             <Route path="model" element={<ModelSettings />} />
             <Route path="tool/*" element={<ToolSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
+            <Route path="translate" element={<TranslateSettings />} />
             <Route path="memory" element={<MemorySettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
@@ -148,6 +157,7 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  height: calc(100vh - var(--navbar-height));
 `
 
 const SettingMenus = styled.ul`

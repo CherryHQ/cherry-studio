@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
-import { loggerService } from '@renderer/services/LoggerService'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
