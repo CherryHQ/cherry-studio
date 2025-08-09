@@ -168,26 +168,28 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
       <SettingGroup>
         {isSupportServiceTier && (
-          <SettingRow>
-            <SettingRowTitleSmall>
-              {t('settings.openai.service_tier.title')}{' '}
-              <Tooltip title={t('settings.openai.service_tier.tip')}>
-                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-              </Tooltip>
-            </SettingRowTitleSmall>
-            <Selector
-              value={serviceTierMode}
-              onChange={(value) => {
-                setServiceTierMode(value as OpenAIServiceTier)
-              }}
-              options={serviceTierOptions}
-              placeholder={t('settings.openai.service_tier.auto')}
-            />
-          </SettingRow>
+          <>
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('settings.openai.service_tier.title')}{' '}
+                <Tooltip title={t('settings.openai.service_tier.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <Selector
+                value={serviceTierMode}
+                onChange={(value) => {
+                  setServiceTierMode(value as OpenAIServiceTier)
+                }}
+                options={serviceTierOptions}
+                placeholder={t('settings.openai.service_tier.auto')}
+              />
+            </SettingRow>
+            {(isOpenAIReasoning || isGPT5) && <SettingDivider />}
+          </>
         )}
         {isOpenAIReasoning && (
           <>
-            <SettingDivider />
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.summary_text_mode.title')}{' '}
@@ -203,27 +205,25 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 options={summaryTextOptions}
               />
             </SettingRow>
+            {isGPT5 && <SettingDivider />}
           </>
         )}
         {isGPT5 && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitleSmall>
-                {t('settings.openai.verbosity.title')}{' '}
-                <Tooltip title={t('settings.openai.verbosity.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
-              </SettingRowTitleSmall>
-              <Selector
-                value={verbosity}
-                onChange={(value) => {
-                  setVerbosity(value as OpenAIVerbosity)
-                }}
-                options={verbosityOptions}
-              />
-            </SettingRow>
-          </>
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.openai.verbosity.title')}{' '}
+              <Tooltip title={t('settings.openai.verbosity.tip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
+            <Selector
+              value={verbosity}
+              onChange={(value) => {
+                setVerbosity(value as OpenAIVerbosity)
+              }}
+              options={verbosityOptions}
+            />
+          </SettingRow>
         )}
       </SettingGroup>
       <SettingDivider />
