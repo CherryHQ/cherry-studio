@@ -1,4 +1,5 @@
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { EllipsisMiddle } from '@renderer/components/Ellipsis/EllipsisMiddle'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -17,7 +18,7 @@ import { Button, Divider, Flex, Input, Space, Switch, Tooltip, Typography } from
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { CSSProperties, FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -192,18 +193,22 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     updateProvider({ apiHost: configedApiHost })
   }
 
-  const hostPreview = () => {
+  const HostPreview = ({ style }: { style: CSSProperties }) => {
+    let text: string
     if (apiHost.endsWith('#')) {
-      return apiHost.replace('#', '')
+      text = apiHost.replace('#', '')
+    } else if (provider.type === 'openai') {
+      text = formatApiHost(apiHost) + 'chat/completions'
+    } else if (provider.type === 'azure-openai') {
+      text = formatApiHost(apiHost) + 'openai/v1'
+    } else {
+      text = formatApiHost(apiHost) + 'responses'
     }
-    if (provider.type === 'openai') {
-      return formatApiHost(apiHost) + 'chat/completions'
-    }
-
-    if (provider.type === 'azure-openai') {
-      return formatApiHost(apiHost) + 'openai/v1'
-    }
-    return formatApiHost(apiHost) + 'responses'
+    return (
+      <EllipsisMiddle suffixCount={32} style={style}>
+        {text}
+      </EllipsisMiddle>
+    )
   }
 
   // API key 连通性检查状态指示器，目前仅在失败时显示
@@ -330,9 +335,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               </Space.Compact>
               {isOpenAIProvider(provider) && (
                 <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-                  <SettingHelpText
-                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-                    {hostPreview()}
+                  <SettingHelpText>
+                    <HostPreview
+                      style={{
+                        marginLeft: 6,
+                        marginRight: '1em',
+                        whiteSpace: 'break-spaces',
+                        wordBreak: 'break-all',
+                        fontSize: 'inherit'
+                      }}
+                    />
                   </SettingHelpText>
                   <SettingHelpText style={{ minWidth: 'fit-content' }}>
                     {t('settings.provider.api.url.tip')}
