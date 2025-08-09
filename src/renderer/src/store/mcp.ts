@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import type { MCPConfig, MCPServer } from '@renderer/types'
+import type { BuiltinMCPServer, MCPConfig, MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
 
@@ -70,7 +70,7 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
-export const builtinMCPServers: MCPServer[] = [
+export const builtinMCPServers: BuiltinMCPServer[] = [
   {
     id: nanoid(),
     name: '@cherry/mcp-auto-install',
@@ -145,7 +145,7 @@ export const builtinMCPServers: MCPServer[] = [
     isActive: false,
     provider: 'CherryAI'
   }
-]
+] as const
 
 /**
  * Utility function to add servers to the MCP store during app initialization
