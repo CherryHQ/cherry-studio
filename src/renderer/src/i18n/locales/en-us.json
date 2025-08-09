@@ -3123,8 +3123,8 @@
       "title": "OpenAI Settings",
       "verbosity": {
         "high": "High",
-        "low": "low",
-        "medium": "middle",
+        "low": "Low",
+        "medium": "Medium",
         "tip": "Control the level of detail in the model's output",
         "title": "Level of detail"
       }
