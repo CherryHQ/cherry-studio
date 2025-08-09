@@ -242,7 +242,7 @@ export abstract class BaseApiClient<
         return verbosity
       }
     } catch (error) {
-      logger.warn('获取详细程度设置失败', error as Error)
+      logger.warn('Failed to get verbosity from state:', error as Error)
     }
 
     return 'medium'
