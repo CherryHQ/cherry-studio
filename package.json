@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.5.5",
+  "version": "1.6.0-app.beta1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -78,7 +78,9 @@
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
+    "pdfjs-dist": "4.10.38",
     "selection-hook": "^1.0.8",
+    "socket.io": "^4.8.1",
     "turndown": "7.2.0"
   },
   "devDependencies": {

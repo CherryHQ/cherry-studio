@@ -743,6 +743,7 @@
     "select": "選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
+    "sending": "發送中...",
     "settings": "設定",
     "sort": {
       "pinyin": {
@@ -812,6 +813,18 @@
     "last_updated": "最後更新",
     "messages": "訊息數",
     "user": "使用者"
+  },
+  "exportToPhone": {
+    "confirm.button": "選擇備份檔案",
+    "content": "匯出一些資料，包括聊天紀錄、設定。請注意備份過程可能需要一些時間，感謝您的耐心等待。",
+    "lan": {
+      "content": "使用區域網路傳輸，請確保電腦和手機處於同一網路。請開啟Cherry Studio應用程式掃描此QR碼。",
+      "noZipSelected": "未選擇Zip檔案",
+      "selectZip": "選擇壓縮檔案",
+      "sendZip": "開始還原資料",
+      "title": "Landrop"
+    },
+    "title": "導出至手機"
   },
   "files": {
     "actions": "操作",
@@ -2091,6 +2104,9 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
+      "export_to_phone": "匯出到手機",
+      "export_to_phone.button": "備份資料到手機",
+      "export_to_phone_use_lan.button": "區域網路傳輸",
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
       "joplin": {

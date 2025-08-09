@@ -3,6 +3,8 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   LoadingOutlined,
+  SaveOutlined,
+  WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -10,6 +12,8 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
+import ExportToPhonePopup from '@renderer/components/Popups/ExportToPhonePopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -601,6 +605,18 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.export_to_phone')}</SettingRowTitle>
+                <HStack gap="5px" justifyContent="space-between">
+                  <Button onClick={ExportToPhonePopup.show} icon={<SaveOutlined />}>
+                    {t('settings.data.export_to_phone.button')}
+                  </Button>
+                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined />}>
+                    {t('settings.data.export_to_phone_use_lan.button')}
+                  </Button>
+                </HStack>
               </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>

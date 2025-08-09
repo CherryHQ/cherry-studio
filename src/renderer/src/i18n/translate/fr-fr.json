@@ -743,6 +743,7 @@
     "select": "Sélectionner",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
+    "sending": "[to be translated]:发送中...",
     "settings": "Paramètres",
     "sort": {
       "pinyin": {
@@ -812,6 +813,18 @@
     "last_updated": "Dernière mise à jour",
     "messages": "Messages",
     "user": "Utilisateur"
+  },
+  "exportToPhone": {
+    "confirm.button": "[to be translated]:Select Backup File",
+    "content": "[to be translated]:Export some data, including chat history, settings. Please note that the backup process may take some time, thank you for your patience.",
+    "lan": {
+      "content": "[to be translated]:Using LAN transmission, please ensure the computer and phone are on the same network. Please Open Cherry Studio App to Scan this QR Code.",
+      "noZipSelected": "[to be translated]:No Zip File Selected",
+      "selectZip": "[to be translated]:Select Zip File",
+      "sendZip": "[to be translated]:Start Restore Data",
+      "title": "[to be translated]:Landrop"
+    },
+    "title": "[to be translated]:Export To Phone"
   },
   "files": {
     "actions": "Actions",
@@ -2091,6 +2104,9 @@
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
       },
+      "export_to_phone": "[to be translated]:导出到手机",
+      "export_to_phone.button": "[to be translated]:备份数据到手机",
+      "export_to_phone_use_lan.button": "[to be translated]:局域网传输",
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
       "joplin": {
