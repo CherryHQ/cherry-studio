@@ -24,6 +24,7 @@ import {
   Sparkle,
   SquareTerminal,
   Sun,
+  Terminal,
   X
 } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
@@ -57,6 +58,8 @@ const getTabIcon = (tabId: string): React.ReactNode | undefined => {
       return <Folder size={14} />
     case 'settings':
       return <Settings size={14} />
+    case 'code':
+      return <Terminal size={14} />
     default:
       return null
   }

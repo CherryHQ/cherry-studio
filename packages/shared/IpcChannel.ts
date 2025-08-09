@@ -274,5 +274,8 @@ export enum IpcChannel {
   TRACE_SET_TITLE = 'trace:setTitle',
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // CodeTools
+  CodeTools_Run = 'code-tools:run'
 }

@@ -16,6 +16,7 @@ import { Notification } from 'src/renderer/src/types/notification'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import { codeToolsService } from './services/CodeToolsService'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
@@ -696,4 +697,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  // CodeTools
+  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
 }
