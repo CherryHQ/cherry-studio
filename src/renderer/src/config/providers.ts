@@ -96,8 +96,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.deepseek.com',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   ppio: {
     id: 'ppio',
@@ -352,8 +351,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.baichuan-ai.com',
     models: SYSTEM_MODELS.baichuan,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   dashscope: {
     id: 'dashscope',
@@ -403,8 +401,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.minimax.chat/v1/',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   groq: {
     id: 'groq',
@@ -474,8 +471,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.mistral.ai',
     models: SYSTEM_MODELS.mistral,
     isSystem: true,
-    enabled: false,
-    isNotSupportStreamOptions: true
+    enabled: false
   },
   jina: {
     id: 'jina',
@@ -515,8 +511,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://wishub-x1.ctyun.cn',
     models: SYSTEM_MODELS.xirang,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   hunyuan: {
     id: 'hunyuan',
@@ -586,8 +581,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.poe.com/v1/',
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
-    enabled: false,
-    isNotSupportDeveloperRole: true
+    enabled: false
   }
 } as const
 
