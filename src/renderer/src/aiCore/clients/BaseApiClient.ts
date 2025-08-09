@@ -23,6 +23,7 @@ import {
   MemoryItem,
   Model,
   OpenAIServiceTiers,
+  OpenAIVerbosity,
   Provider,
   SystemProviderIds,
   ToolCallResponse,
@@ -233,7 +234,7 @@ export abstract class BaseApiClient<
     return serviceTierSetting
   }
 
-  protected getVerbosity() {
+  protected getVerbosity(): OpenAIVerbosity {
     try {
       const state = window.store?.getState()
       const verbosity = state?.settings?.openAI?.verbosity
