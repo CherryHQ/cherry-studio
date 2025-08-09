@@ -416,7 +416,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         mcpToolResponse,
         resp,
         isVisionModel(model),
-        this.provider.isNotSupportArrayContent ?? false
+        !isSupportArrayContentProvider(this.provider)
       )
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
       return {

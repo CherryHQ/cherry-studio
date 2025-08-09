@@ -6,7 +6,7 @@ import {
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import { isSupportServiceTierProviders } from '@renderer/config/providers'
+import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import {
@@ -208,7 +208,7 @@ export abstract class BaseApiClient<
   protected getServiceTier(model: Model) {
     const serviceTierSetting = this.provider.serviceTier
 
-    if (!isSupportServiceTierProviders(this.provider) || !isOpenAIModel(model) || !serviceTierSetting) {
+    if (!isSupportServiceTierProvider(this.provider) || !isOpenAIModel(model) || !serviceTierSetting) {
       return undefined
     }
 

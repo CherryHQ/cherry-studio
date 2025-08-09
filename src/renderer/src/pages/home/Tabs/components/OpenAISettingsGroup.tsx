@@ -1,5 +1,6 @@
 import Selector from '@renderer/components/Selector'
 import { isSupportedReasoningEffortOpenAIModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -41,7 +42,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
   const isGPT5 = model.id.includes('gpt-5')
-  const isSupportServiceTier = !provider.isNotSupportServiceTier
+  const isSupportServiceTier = isSupportServiceTierProvider(provider)
   const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   const setSummaryText = useCallback(
