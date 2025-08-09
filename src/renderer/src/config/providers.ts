@@ -1294,7 +1294,7 @@ const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisf
 /**
  * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.
  */
-export const isSupportServiceTierProviders = (provider: Provider) => {
+export const isSupportServiceTierProvider = (provider: Provider) => {
   return (
     provider.apiOptions?.isNotSupportServiceTier !== true &&
     !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
