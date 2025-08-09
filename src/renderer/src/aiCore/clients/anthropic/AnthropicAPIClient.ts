@@ -27,7 +27,13 @@ import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  findTokenLimit,
+  getModelId,
+  isClaudeReasoningModel,
+  isReasoningModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -170,12 +176,13 @@ export class AnthropicAPIClient extends BaseApiClient<
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
+    const modelId = getModelId(model)
+
     const budgetTokens = Math.max(
       1024,
       Math.floor(
         Math.min(
-          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-            findTokenLimit(model.id)?.min!,
+          (findTokenLimit(modelId)?.max! - findTokenLimit(modelId)?.min!) * effortRatio + findTokenLimit(modelId)?.min!,
           (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
         )
       )
