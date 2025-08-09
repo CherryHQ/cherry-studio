@@ -1,4 +1,4 @@
-import { isOpenAILLMModel } from '@renderer/config/models'
+import { getModelId, isOpenAILLMModel } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
 
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
@@ -57,7 +57,7 @@ export class AihubmixAPIClient extends MixedBaseAPIClient {
    * 根据模型获取合适的client
    */
   protected getClient(model: Model): BaseApiClient {
-    const id = model.id.toLowerCase()
+    const id = getModelId(model)
 
     // claude开头
     if (id.startsWith('claude')) {
@@ -83,7 +83,7 @@ export class AihubmixAPIClient extends MixedBaseAPIClient {
     }
 
     // OpenAI系列模型 不包含gpt-oss
-    if (isOpenAILLMModel(model) && !model.id.includes('gpt-oss')) {
+    if (isOpenAILLMModel(model) && !getModelId(model).includes('gpt-oss')) {
       const client = this.clients.get('openai')
       if (!client || !this.isValidClient(client)) {
         throw new Error('OpenAI client not properly initialized')
