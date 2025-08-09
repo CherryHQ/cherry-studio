@@ -203,6 +203,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
   }
 
+  const handleCenter = useCallback(() => {
+    window.api.miniWindow.center()
+  }, [])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUserInputText(e.target.value)
   }
@@ -477,9 +481,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       loading: isLoading,
       onEsc: handleEsc,
       setIsPinned,
+      onCenter: handleCenter,
       isPinned
     }),
-    [route, isLoading, handleEsc, isPinned]
+    [route, isLoading, handleEsc, isPinned, handleCenter]
   )
 
   switch (route) {
