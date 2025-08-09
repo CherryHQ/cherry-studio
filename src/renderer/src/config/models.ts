@@ -2508,7 +2508,8 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
 }
 
 export function isSupportVerbosityModel(model: Model): boolean {
-  return isGPT5SeriesModel(model) && !model.id.includes('chat')
+  const modelId = getLowerBaseModelName(model.id)
+  return isGPT5SeriesModel(model) && !modelId.includes('chat')
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
