@@ -818,7 +818,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   github: {
     api: {
-      url: 'https://models.github.ai/'
+      url: 'https://models.github.ai/inference/'
     },
     websites: {
       official: 'https://github.com/marketplace/models',
