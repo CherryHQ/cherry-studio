@@ -28,6 +28,7 @@ interface Props {
 // 选项转换映射表：当选项不支持时使用的替代选项
 const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
   off: 'low', // off -> low (for Gemini Pro models)
+  minimal: 'low', // minimal -> low (for gpt-5 and after)
   low: 'high',
   medium: 'high', // medium -> high (for Grok models)
   high: 'high',
