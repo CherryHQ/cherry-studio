@@ -2,7 +2,7 @@ import { PushpinOutlined } from '@ant-design/icons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { getModelId, getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -97,7 +97,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogo(getModelId(model) || '')} size={24}>
             {first(model.name) || 'M'}
           </Avatar>
         ),
