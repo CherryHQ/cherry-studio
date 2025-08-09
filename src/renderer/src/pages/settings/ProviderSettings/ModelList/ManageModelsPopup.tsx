@@ -3,6 +3,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import {
+  getModelId,
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -110,10 +111,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       provider.id === 'dashscope'
         ? {
             ...groupBy(
-              list.filter((model) => !model.id.startsWith('qwen')),
+              list.filter((model) => !getModelId(model).startsWith('qwen')),
               'group'
             ),
-            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+            ...groupQwenModels(list.filter((model) => getModelId(model).startsWith('qwen')))
           }
         : groupBy(list, 'group'),
     [list, provider.id]
