@@ -1,8 +1,8 @@
 import Selector from '@renderer/components/Selector'
 import {
-  isGPT5SeriesModel,
   isSupportedReasoningEffortOpenAIModel,
-  isSupportFlexServiceTierModel
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
 } from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -45,7 +45,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isGPT5 = isGPT5SeriesModel(model) && !model.id.includes('chat')
+  const isSupportVerbosity = isSupportVerbosityModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
   const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
 
@@ -160,7 +160,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 
-  if (!isOpenAIReasoning && !isSupportServiceTier && !isGPT5) {
+  if (!isOpenAIReasoning && !isSupportServiceTier && !isSupportVerbosity) {
     return null
   }
 
@@ -185,7 +185,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 placeholder={t('settings.openai.service_tier.auto')}
               />
             </SettingRow>
-            {(isOpenAIReasoning || isGPT5) && <SettingDivider />}
+            {(isOpenAIReasoning || isSupportVerbosity) && <SettingDivider />}
           </>
         )}
         {isOpenAIReasoning && (
@@ -205,10 +205,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 options={summaryTextOptions}
               />
             </SettingRow>
-            {isGPT5 && <SettingDivider />}
+            {isSupportVerbosity && <SettingDivider />}
           </>
         )}
-        {isGPT5 && (
+        {isSupportVerbosity && (
           <SettingRow>
             <SettingRowTitleSmall>
               {t('settings.openai.verbosity.title')}{' '}
