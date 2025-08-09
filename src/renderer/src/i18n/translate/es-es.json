@@ -187,6 +187,7 @@
         "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
         "medium": "Medio",
+        "minimal": "minimal",
         "off": "Apagado"
       },
       "regular_phrases": {

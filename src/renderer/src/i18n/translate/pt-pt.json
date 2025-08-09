@@ -187,6 +187,7 @@
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
         "medium": "Médio",
+        "minimal": "mínimo",
         "off": "Desligado"
       },
       "regular_phrases": {
