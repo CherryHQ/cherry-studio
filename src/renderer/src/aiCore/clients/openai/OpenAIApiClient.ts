@@ -745,7 +745,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // 持续更新usage信息
         logger.silly('chunk', chunk)
         if (chunk.usage) {
-          const usage = chunk.usage as any // OpenRouter may include additional fields like cost
+          const usage = chunk.usage
           lastUsageInfo = {
             prompt_tokens: usage.prompt_tokens || 0,
             completion_tokens: usage.completion_tokens || 0,
