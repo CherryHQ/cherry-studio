@@ -3148,19 +3148,11 @@ export const isQwenMTModel = (model: Model): boolean => {
 }
 
 export const isNotSupportedTextDelta = (model: Model): boolean => {
-  if (isQwenMTModel(model)) {
-    return true
-  }
-
-  return false
+  return isQwenMTModel(model)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
-  if (isQwenMTModel(model) || isGemmaModel(model)) {
-    return true
-  }
-
-  return false
+  return isQwenMTModel(model) || isGemmaModel(model)
 }
 
 export const isGPT5SeriesModel = (model: Model) => {
