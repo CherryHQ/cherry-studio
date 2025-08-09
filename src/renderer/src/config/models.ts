@@ -2551,7 +2551,8 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     (modelId.includes('gpt-4.1') && !modelId.includes('gpt-4.1-nano')) ||
     (modelId.includes('gpt-4o') && !modelId.includes('gpt-4o-image')) ||
     modelId.includes('o3') ||
-    modelId.includes('o4')
+    modelId.includes('o4') ||
+    (modelId.includes('gpt-5') && !modelId.includes('chat'))
   )
 }
 
