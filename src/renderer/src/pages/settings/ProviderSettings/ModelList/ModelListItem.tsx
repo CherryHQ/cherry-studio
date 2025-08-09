@@ -1,7 +1,7 @@
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelId, getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
   return (
     <ListItem ref={ref}>
       <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-        <Avatar src={getModelLogo(model.id)} size={24}>
+        <Avatar src={getModelLogo(getModelId(model))} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
         <ModelIdWithTags
