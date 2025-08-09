@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
+import { getModelId } from '@renderer/config/models'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
 import { Model, Provider } from '@renderer/types'
 import { isEmpty } from 'lodash'
@@ -32,7 +33,7 @@ export class VertexAPIClient extends GeminiAPIClient {
   }
 
   public getClient(model: Model) {
-    if (model.id.includes('claude')) {
+    if (getModelId(model).includes('claude')) {
       return this.anthropicVertexClient
     }
     return this
