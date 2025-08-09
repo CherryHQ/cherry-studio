@@ -289,6 +289,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 // 模型类型到支持的reasoning_effort的映射表
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
+  gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
@@ -303,18 +304,22 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  grok: [...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  gpt5: MODEL_SUPPORTED_REASONING_EFFORT.gpt5,
+  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
-  gemini_pro: [...MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro] as const,
+  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
-  qwen_thinking: [...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
+  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: [...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
+  if (isGPT5SeriesModel(model)) {
+    return 'gpt5'
+  }
   if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       return 'gemini'
@@ -2505,7 +2510,7 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
     modelId.includes('o3') ||
     modelId.includes('o4') ||
     modelId.includes('gpt-oss') ||
-    modelId.includes('gpt-5')
+    (isGPT5SeriesModel(model) && !modelId.includes('chat'))
   )
 }
 
@@ -3156,4 +3161,9 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
   }
 
   return false
+}
+
+export const isGPT5SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5')
 }

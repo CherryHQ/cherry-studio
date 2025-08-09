@@ -187,6 +187,7 @@
         "label": "思维链长度",
         "low": "浮想",
         "medium": "斟酌",
+        "minimal": "minimal（待定）",
         "off": "关闭"
       },
       "regular_phrases": {
