@@ -445,6 +445,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
 
         const commonParams: OpenAIResponseSdkParams = {
+          // 创建请求应该使用 id
           model: model.id,
           input:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
