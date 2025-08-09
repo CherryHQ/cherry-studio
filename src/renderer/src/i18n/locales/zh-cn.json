@@ -187,6 +187,7 @@
         "label": "思维链长度",
         "low": "浮想",
         "medium": "斟酌",
+        "minimal": "微念",
         "off": "关闭"
       },
       "regular_phrases": {
@@ -3119,7 +3120,14 @@
         "tip": "模型执行的推理摘要",
         "title": "摘要模式"
       },
-      "title": "OpenAI 设置"
+      "title": "OpenAI 设置",
+      "verbosity": {
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "tip": "控制模型输出的详细程度",
+        "title": "详细程度"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",

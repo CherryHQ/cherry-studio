@@ -1,9 +1,10 @@
 import {
   MdiLightbulbAutoOutline,
   MdiLightbulbOffOutline,
-  MdiLightbulbOn10,
+  MdiLightbulbOn,
+  MdiLightbulbOn30,
   MdiLightbulbOn50,
-  MdiLightbulbOn90
+  MdiLightbulbOn80
 } from '@renderer/components/Icons/SVGIcon'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
@@ -28,6 +29,7 @@ interface Props {
 // 选项转换映射表：当选项不支持时使用的替代选项
 const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
   off: 'low', // off -> low (for Gemini Pro models)
+  minimal: 'low', // minimal -> low (for gpt-5 and after)
   low: 'high',
   medium: 'high', // medium -> high (for Grok models)
   high: 'high',
@@ -74,12 +76,14 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     const iconColor = isActive ? 'var(--color-link)' : 'var(--color-icon)'
 
     switch (true) {
+      case option === 'minimal':
+        return <MdiLightbulbOn30 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       case option === 'low':
-        return <MdiLightbulbOn10 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
-      case option === 'medium':
         return <MdiLightbulbOn50 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
+      case option === 'medium':
+        return <MdiLightbulbOn80 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       case option === 'high':
-        return <MdiLightbulbOn90 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
+        return <MdiLightbulbOn width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       case option === 'auto':
         return <MdiLightbulbAutoOutline width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       case option === 'off':

@@ -57,6 +57,10 @@ import {
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
+import GPT5ModelLogo from '@renderer/assets/images/models/gpt-5.png'
+import GPT5ChatModelLogo from '@renderer/assets/images/models/gpt-5-chat.png'
+import GPT5MiniModelLogo from '@renderer/assets/images/models/gpt-5-mini.png'
+import GPT5NanoModelLogo from '@renderer/assets/images/models/gpt-5-nano.png'
 import GrokModelLogo from '@renderer/assets/images/models/grok.png'
 import GrokModelLogoDark from '@renderer/assets/images/models/grok_dark.png'
 import GrypheModelLogo from '@renderer/assets/images/models/gryphe.png'
@@ -185,6 +189,7 @@ const visionAllowedModels = [
   'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'o3(?:-[\\w-]+)?',
@@ -247,6 +252,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4',
   'gpt-4.5',
   'gpt-oss(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
   'qwen',
@@ -269,7 +275,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-preview',
   'AIDC-AI/Marco-o1',
   'gemini-1(?:\\.[\\w-]+)?',
-  'qwen-mt(?:-[\\w-]+)?'
+  'qwen-mt(?:-[\\w-]+)?',
+  'gpt-5-chat(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -285,6 +292,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 // 模型类型到支持的reasoning_effort的映射表
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
+  gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
@@ -299,18 +307,22 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  grok: [...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  gpt5: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
-  gemini_pro: [...MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro] as const,
+  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
-  qwen_thinking: [...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
+  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: [...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
+  if (isGPT5SeriesModel(model)) {
+    return 'gpt5'
+  }
   if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       return 'gemini'
@@ -380,6 +392,10 @@ export function getModelLogo(modelId: string) {
     'gpt-image': ChatGPTImageModelLogo,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
+    'gpt-5$': GPT5ModelLogo,
+    'gpt-5-mini': GPT5MiniModelLogo,
+    'gpt-5-nano': GPT5NanoModelLogo,
+    'gpt-5-chat': GPT5ChatModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
@@ -2453,7 +2469,7 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4') || modelId.includes('gpt-oss')
+  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1') || modelId.includes('gpt-5-chat')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
@@ -2479,6 +2495,7 @@ export function isOpenAIModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
+
   return modelId.includes('gpt') || isOpenAIReasoningModel(model)
 }
 
@@ -2487,7 +2504,14 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  return (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini')
+  return (
+    (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
+  )
+}
+
+export function isSupportVerbosityModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return isGPT5SeriesModel(model) && !modelId.includes('chat')
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
@@ -2495,7 +2519,9 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
     modelId.includes('o3') ||
-    modelId.includes('o4')
+    modelId.includes('o4') ||
+    modelId.includes('gpt-oss') ||
+    (isGPT5SeriesModel(model) && !modelId.includes('chat'))
   )
 }
 
@@ -2527,7 +2553,8 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     (modelId.includes('gpt-4.1') && !modelId.includes('gpt-4.1-nano')) ||
     (modelId.includes('gpt-4o') && !modelId.includes('gpt-4o-image')) ||
     modelId.includes('o3') ||
-    modelId.includes('o4')
+    modelId.includes('o4') ||
+    (modelId.includes('gpt-5') && !modelId.includes('chat'))
   )
 }
 
@@ -3133,17 +3160,14 @@ export const isQwenMTModel = (model: Model): boolean => {
 }
 
 export const isNotSupportedTextDelta = (model: Model): boolean => {
-  if (isQwenMTModel(model)) {
-    return true
-  }
-
-  return false
+  return isQwenMTModel(model)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
-  if (isQwenMTModel(model) || isGemmaModel(model)) {
-    return true
-  }
+  return isQwenMTModel(model) || isGemmaModel(model)
+}
 
-  return false
+export const isGPT5SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5')
 }

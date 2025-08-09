@@ -1438,7 +1438,8 @@ const migrateConfig = {
     try {
       state.settings.openAI = {
         summaryText: 'off',
-        serviceTier: 'auto'
+        serviceTier: 'auto',
+        verbosity: 'medium'
       }
 
       state.settings.codeExecution = {
@@ -1530,7 +1531,8 @@ const migrateConfig = {
       if (!state.settings.openAI) {
         state.settings.openAI = {
           summaryText: 'off',
-          serviceTier: 'auto'
+          serviceTier: 'auto',
+          verbosity: 'medium'
         }
       }
       return state
@@ -2072,10 +2074,20 @@ const migrateConfig = {
           updateProvider(state, p.id, { apiOptions: changes })
         }
       })
-
       return state
     } catch (error) {
       logger.error('migrate 129 error', error as Error)
+      return state
+    }
+  },
+    '130': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
+        state.settings.openAI.verbosity = 'medium'
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 130 error', error as Error)
       return state
     }
   }

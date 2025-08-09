@@ -5,9 +5,10 @@ import {
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
   isSupportedReasoningEffortOpenAIModel,
+  isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider, isSupportStreamOptionsProvider } from '@renderer/config/providers'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -304,8 +305,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
     const content = this.convertResponseToMessageContent(output)
 
-    const newReqMessages = [...currentReqMessages, ...content, ...(toolResults || [])]
-    return newReqMessages
+    return [...currentReqMessages, ...content, ...(toolResults || [])]
   }
 
   override estimateMessageTokens(message: OpenAIResponseSdkMessageParam): number {
@@ -442,8 +442,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
         tools = tools.concat(extraTools)
 
-        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
         const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
           input:
@@ -454,10 +452,16 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_output_tokens: maxTokens,
           stream: streamOutput,
-          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           tools: !isEmpty(tools) ? tools : undefined,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
+          ...(isSupportVerbosityModel(model)
+            ? {
+                text: {
+                  verbosity: this.getVerbosity()
+                }
+              }
+            : {}),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           // 注意：用户自定义参数总是应该覆盖其他参数

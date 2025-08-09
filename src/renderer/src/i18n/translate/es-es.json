@@ -187,6 +187,7 @@
         "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
         "medium": "Medio",
+        "minimal": "minimal",
         "off": "Apagado"
       },
       "regular_phrases": {
@@ -3119,7 +3120,14 @@
         "tip": "Resumen de la inferencia realizada por el modelo",
         "title": "Modo de resumen"
       },
-      "title": "Configuración de OpenAI"
+      "title": "Configuración de OpenAI",
+      "verbosity": {
+        "high": "alto",
+        "low": "bajo",
+        "medium": "medio",
+        "tip": "Controlar el nivel de detalle de la salida del modelo",
+        "title": "nivel de detalle"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",

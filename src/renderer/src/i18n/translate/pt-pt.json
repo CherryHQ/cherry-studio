@@ -187,6 +187,7 @@
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
         "medium": "Médio",
+        "minimal": "mínimo",
         "off": "Desligado"
       },
       "regular_phrases": {
@@ -3119,7 +3120,14 @@
         "tip": "Resumo do raciocínio executado pelo modelo",
         "title": "Modo de Resumo"
       },
-      "title": "Configurações do OpenAI"
+      "title": "Configurações do OpenAI",
+      "verbosity": {
+        "high": "alto",
+        "low": "baixo",
+        "medium": "médio",
+        "tip": "Controlar o nível de detalhe da saída do modelo",
+        "title": "nível de detalhe"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",

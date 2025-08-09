@@ -23,6 +23,7 @@ import {
   MemoryItem,
   Model,
   OpenAIServiceTiers,
+  OpenAIVerbosity,
   Provider,
   SystemProviderIds,
   ToolCallResponse,
@@ -231,6 +232,21 @@ export abstract class BaseApiClient<
     }
 
     return serviceTierSetting
+  }
+
+  protected getVerbosity(): OpenAIVerbosity {
+    try {
+      const state = window.store?.getState()
+      const verbosity = state?.settings?.openAI?.verbosity
+
+      if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
+        return verbosity
+      }
+    } catch (error) {
+      logger.warn('Failed to get verbosity from state:', error as Error)
+    }
+
+    return 'medium'
   }
 
   protected getTimeout(model: Model) {

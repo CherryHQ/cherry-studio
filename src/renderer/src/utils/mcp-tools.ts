@@ -78,8 +78,10 @@ export function openAIToolsToMcpTool(
   try {
     if ('name' in toolCall) {
       toolName = toolCall.name
-    } else {
+    } else if (toolCall.type === 'function' && 'function' in toolCall) {
       toolName = toolCall.function.name
+    } else {
+      throw new Error('Unknown tool call type')
     }
   } catch (error) {
     logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
