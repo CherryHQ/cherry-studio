@@ -1,3 +1,4 @@
+import { getModelId } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
@@ -17,6 +18,7 @@ const ModelIdWithTags = ({
   fontSize = 14,
   style
 }: ModelIdWithTagsProps & { ref?: React.RefObject<HTMLDivElement> | null }) => {
+  const modelId = getModelId(model)
   return (
     <ListItemName ref={ref} $fontSize={fontSize} style={style}>
       <Tooltip
@@ -28,8 +30,8 @@ const ModelIdWithTags = ({
         }}
         destroyOnHidden
         title={
-          <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-            {model.id}
+          <Typography.Text style={{ color: 'white' }} copyable={{ text: modelId }}>
+            {modelId}
           </Typography.Text>
         }
         mouseEnterDelay={0.5}
