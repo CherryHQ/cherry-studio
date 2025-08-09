@@ -17,6 +17,7 @@ import {
   isSystemProvider,
   Model,
   Provider,
+  ProviderApiOptions,
   SystemProviderIds,
   TranslateLanguageCode,
   WebSearchProvider
@@ -2052,6 +2053,29 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 128 error', error as Error)
+      return state
+    }
+  },
+  '129': (state: RootState) => {
+    try {
+      // 聚合 api options
+      state.llm.providers.forEach((p) => {
+        if (isSystemProvider(p)) {
+          updateProvider(state, p.id, { apiOptions: undefined })
+        } else {
+          const changes: ProviderApiOptions = {
+            isNotSupportArrayContent: p.isNotSupportArrayContent,
+            isNotSupportServiceTier: p.isNotSupportServiceTier,
+            isNotSupportDeveloperRole: p.isNotSupportDeveloperRole,
+            isNotSupportStreamOptions: p.isNotSupportStreamOptions
+          }
+          updateProvider(state, p.id, { apiOptions: changes })
+        }
+      })
+
+      return state
+    } catch (error) {
+      logger.error('migrate 129 error', error as Error)
       return state
     }
   }

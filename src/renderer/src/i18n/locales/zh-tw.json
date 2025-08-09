@@ -3160,6 +3160,10 @@
             "help": "該提供商是否支援 role: \"developer\" 的訊息",
             "label": "支援開發人員訊息"
           },
+          "enable_thinking": {
+            "help": "該提供商是否支援透過 enable_thinking 參數控制 Qwen3 等模型的思考",
+            "label": "支援 enable_thinking"
+          },
           "label": "API 設定",
           "service_tier": {
             "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",

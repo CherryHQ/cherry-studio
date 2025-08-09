@@ -3160,6 +3160,10 @@
             "help": "Does the provider support messages with role: \"developer\"?",
             "label": "Support Developer Message"
           },
+          "enable_thinking": {
+            "help": "Does the provider support controlling the reasoning of models like Qwen3 via the enable_thinking parameter?",
+            "label": "Support enable_thinking"
+          },
           "label": "API Settings",
           "service_tier": {
             "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",

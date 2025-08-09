@@ -3160,6 +3160,10 @@
             "help": "¿Admite el proveedor mensajes con el rol: \"developer\"?",
             "label": "Mensajes para desarrolladores compatibles"
           },
+          "enable_thinking": {
+            "help": "¿Admite este proveedor el control del pensamiento de modelos como Qwen3 mediante el parámetro enable_thinking?",
+            "label": "Soporta enable_thinking"
+          },
           "label": "Configuración de la API",
           "service_tier": {
             "help": "Si el proveedor admite la configuración del parámetro service_tier. Al activarlo, se podrá ajustar este parámetro en la configuración del nivel de servicio en la página de conversación. (Solo para modelos OpenAI)",

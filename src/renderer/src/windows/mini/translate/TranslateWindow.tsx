@@ -6,9 +6,8 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, TranslateLanguage } from '@renderer/types'
+import { translateText } from '@renderer/services/TranslateService'
+import { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
@@ -43,20 +42,7 @@ const Translate: FC<Props> = ({ text }) => {
     try {
       translatingRef.current = true
 
-      const assistant: Assistant = getDefaultTranslateAssistant(targetLanguage, text)
-      // const message: Message = {
-      //   id: uuid(),
-      //   role: 'user',
-      //   content: '',
-      //   assistantId: assistant.id,
-      //   topicId: uuid(),
-      //   model: translateModel,
-      //   createdAt: new Date().toISOString(),
-      //   type: 'text',
-      //   status: 'sending'
-      // }
-
-      await fetchTranslate({ content: text, assistant, onResponse: setResult })
+      await translateText(text, targetLanguage, setResult)
 
       translatingRef.current = false
     } catch (error) {

@@ -219,8 +219,10 @@ export const VISION_REGEX = new RegExp(
 
 // For middleware to identify models that must use the dedicated Image API
 export const DEDICATED_IMAGE_MODELS = ['grok-2-image', 'dall-e-3', 'dall-e-2', 'gpt-image-1']
-export const isDedicatedImageGenerationModel = (model: Model): boolean =>
-  DEDICATED_IMAGE_MODELS.filter((m) => model.id.includes(m)).length > 0
+export const isDedicatedImageGenerationModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id)
+  return DEDICATED_IMAGE_MODELS.filter((m) => modelId.includes(m)).length > 0
+}
 
 // Text to image models
 export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
@@ -335,16 +337,18 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return false
   }
 
+  const modelId = getLowerBaseModelName(model.id)
+
   if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
     return isUserSelectedModelType(model, 'function_calling')!
   }
 
   if (model.provider === 'qiniu') {
-    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
   }
 
-  if (model.provider === 'doubao' || model.id.includes('doubao')) {
-    return FUNCTION_CALLING_REGEX.test(model.id) || FUNCTION_CALLING_REGEX.test(model.name)
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
+    return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
@@ -355,7 +359,7 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return true
   }
 
-  return FUNCTION_CALLING_REGEX.test(model.id)
+  return FUNCTION_CALLING_REGEX.test(modelId)
 }
 
 export function getModelLogo(modelId: string) {
@@ -2393,13 +2397,16 @@ export const PERPLEXITY_SEARCH_MODELS = [
 ]
 
 export function isTextToImageModel(model: Model): boolean {
-  return TEXT_TO_IMAGE_REGEX.test(model.id)
+  const modelId = getLowerBaseModelName(model.id)
+  return TEXT_TO_IMAGE_REGEX.test(modelId)
 }
 
 export function isEmbeddingModel(model: Model): boolean {
   if (!model || isRerankModel(model)) {
     return false
   }
+
+  const modelId = getLowerBaseModelName(model.id)
 
   if (isUserSelectedModelType(model, 'embedding') !== undefined) {
     return isUserSelectedModelType(model, 'embedding')!
@@ -2409,18 +2416,19 @@ export function isEmbeddingModel(model: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao' || model.id.includes('doubao')) {
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return EMBEDDING_REGEX.test(model.name)
   }
 
-  return EMBEDDING_REGEX.test(model.id) || false
+  return EMBEDDING_REGEX.test(modelId) || false
 }
 
 export function isRerankModel(model: Model): boolean {
   if (isUserSelectedModelType(model, 'rerank') !== undefined) {
     return isUserSelectedModelType(model, 'rerank')!
   }
-  return model ? RERANKING_REGEX.test(model.id) || false : false
+  const modelId = getLowerBaseModelName(model.id)
+  return model ? RERANKING_REGEX.test(modelId) || false : false
 }
 
 export function isVisionModel(model: Model): boolean {
@@ -2435,29 +2443,32 @@ export function isVisionModel(model: Model): boolean {
     return isUserSelectedModelType(model, 'vision')!
   }
 
-  if (model.provider === 'doubao' || model.id.includes('doubao')) {
-    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || false
+  const modelId = getLowerBaseModelName(model.id)
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
   }
 
-  return VISION_REGEX.test(model.id) || false
+  return VISION_REGEX.test(modelId) || false
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.includes('o1') || baseName.includes('o3') || baseName.includes('o4') || baseName.includes('gpt-oss')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4') || modelId.includes('gpt-oss')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.id.includes('gpt-4o-image')) {
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (modelId.includes('gpt-4o-image')) {
     return false
   }
   if (isOpenAIReasoningModel(model)) {
     return true
   }
-  if (model.id.includes('gpt')) {
+  if (modelId.includes('gpt')) {
     return true
   }
   return false
@@ -2467,21 +2478,24 @@ export function isOpenAIModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  return model.id.includes('gpt') || isOpenAIReasoningModel(model)
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt') || isOpenAIReasoningModel(model)
 }
 
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  return (model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')
+  const modelId = getLowerBaseModelName(model.id)
+  return (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini')
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
   return (
-    (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
-    model.id.includes('o3') ||
-    model.id.includes('o4')
+    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
+    modelId.includes('o3') ||
+    modelId.includes('o4')
   )
 }
 
@@ -2490,26 +2504,30 @@ export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
     return false
   }
 
+  const modelId = getLowerBaseModelName(model.id)
   return (
-    model.id.includes('gpt-4o-search-preview') ||
-    model.id.includes('gpt-4o-mini-search-preview') ||
-    model.id.includes('o1-mini') ||
-    model.id.includes('o1-preview')
+    modelId.includes('gpt-4o-search-preview') ||
+    modelId.includes('gpt-4o-mini-search-preview') ||
+    modelId.includes('o1-mini') ||
+    modelId.includes('o1-preview')
   )
 }
 
 export function isOpenAIWebSearchChatCompletionOnlyModel(model: Model): boolean {
-  return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-4o-search-preview') || modelId.includes('gpt-4o-mini-search-preview')
 }
 
 export function isOpenAIWebSearchModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+
   return (
-    model.id.includes('gpt-4o-search-preview') ||
-    model.id.includes('gpt-4o-mini-search-preview') ||
-    (model.id.includes('gpt-4.1') && !model.id.includes('gpt-4.1-nano')) ||
-    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image')) ||
-    model.id.includes('o3') ||
-    model.id.includes('o4')
+    modelId.includes('gpt-4o-search-preview') ||
+    modelId.includes('gpt-4o-mini-search-preview') ||
+    (modelId.includes('gpt-4.1') && !modelId.includes('gpt-4.1-nano')) ||
+    (modelId.includes('gpt-4o') && !modelId.includes('gpt-4o-image')) ||
+    modelId.includes('o3') ||
+    modelId.includes('o4')
   )
 }
 
@@ -2545,7 +2563,8 @@ export function isGrokModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  return model.id.includes('grok')
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok')
 }
 
 export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
@@ -2553,7 +2572,8 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
     return false
   }
 
-  if (model.id.includes('grok-3-mini')) {
+  const modelId = getLowerBaseModelName(model.id)
+  if (modelId.includes('grok-3-mini')) {
     return true
   }
 
@@ -2564,7 +2584,8 @@ export function isGrokReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  if (isSupportedReasoningEffortGrokModel(model) || model.id.includes('grok-4')) {
+  const modelId = getLowerBaseModelName(model.id)
+  if (isSupportedReasoningEffortGrokModel(model) || modelId.includes('grok-4')) {
     return true
   }
 
@@ -2576,7 +2597,8 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return false
   }
 
-  if (model.id.startsWith('gemini') && model.id.includes('thinking')) {
+  const modelId = getLowerBaseModelName(model.id)
+  if (modelId.startsWith('gemini') && modelId.includes('thinking')) {
     return true
   }
 
@@ -2588,7 +2610,8 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 }
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
-  return model.id.includes('gemini-2.5')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('gemini-2.5')
 }
 
 /** 是否为Qwen推理模型 */
@@ -2597,12 +2620,12 @@ export function isQwenReasoningModel(model?: Model): boolean {
     return false
   }
 
-  const baseName = getLowerBaseModelName(model.id, '/')
+  const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (baseName.startsWith('qwen3')) {
-    if (baseName.includes('thinking')) {
+  if (modelId.startsWith('qwen3')) {
+    if (modelId.includes('thinking')) {
       return true
-    } else if (baseName.includes('instruct')) {
+    } else if (modelId.includes('instruct')) {
       return false
     }
     return true
@@ -2612,7 +2635,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
     return true
   }
 
-  if (model.id.includes('qwq') || model.id.includes('qvq')) {
+  if (modelId.includes('qwq') || modelId.includes('qvq')) {
     return true
   }
 
@@ -2625,15 +2648,15 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  const baseName = getLowerBaseModelName(model.id, '/')
+  const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (baseName.includes('coder')) {
+  if (modelId.includes('coder')) {
     return false
   }
 
-  if (baseName.startsWith('qwen3')) {
+  if (modelId.startsWith('qwen3')) {
     // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
-    if (baseName.includes('instruct') || baseName.includes('thinking')) {
+    if (modelId.includes('instruct') || modelId.includes('thinking')) {
       return false
     }
     return true
@@ -2652,7 +2675,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-2025-04-28',
     'qwen-turbo-0715',
     'qwen-turbo-2025-07-15'
-  ].includes(baseName)
+  ].includes(modelId)
 }
 
 /** 是否为不支持思考控制的Qwen推理模型 */
@@ -2660,8 +2683,8 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.startsWith('qwen3') && baseName.includes('thinking')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.startsWith('qwen3') && modelId.includes('thinking')
 }
 
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
@@ -2669,18 +2692,21 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
     return false
   }
 
-  return DOUBAO_THINKING_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(modelId)
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
+  const modelId = getLowerBaseModelName(model.id, '/')
   return (
-    model.id.includes('claude-3-7-sonnet') ||
-    model.id.includes('claude-3.7-sonnet') ||
-    model.id.includes('claude-sonnet-4') ||
-    model.id.includes('claude-opus-4')
+    modelId.includes('claude-3-7-sonnet') ||
+    modelId.includes('claude-3.7-sonnet') ||
+    modelId.includes('claude-sonnet-4') ||
+    modelId.includes('claude-opus-4')
   )
 }
 
@@ -2690,15 +2716,17 @@ export const isSupportedThinkingTokenHunyuanModel = (model?: Model): boolean => 
   if (!model) {
     return false
   }
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.includes('hunyuan-a13b')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('hunyuan-a13b')
 }
 
 export const isHunyuanReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false
   }
-  return isSupportedThinkingTokenHunyuanModel(model) || model.id.toLowerCase().includes('hunyuan-t1')
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  return isSupportedThinkingTokenHunyuanModel(model) || modelId.includes('hunyuan-t1')
 }
 
 export const isPerplexityReasoningModel = (model?: Model): boolean => {
@@ -2706,33 +2734,34 @@ export const isPerplexityReasoningModel = (model?: Model): boolean => {
     return false
   }
 
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortPerplexityModel(model) || baseName.includes('reasoning')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return isSupportedReasoningEffortPerplexityModel(model) || modelId.includes('reasoning')
 }
 
 export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean => {
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.includes('sonar-deep-research')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('sonar-deep-research')
 }
 
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
-  const baseName = getLowerBaseModelName(model.id, '/')
-  return baseName.includes('glm-4.5')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('glm-4.5')
 }
 
 export const isZhipuReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false
   }
-  return isSupportedThinkingTokenZhipuModel(model) || model.id.toLowerCase().includes('glm-z1')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return isSupportedThinkingTokenZhipuModel(model) || modelId.includes('glm-z1')
 }
 
 export const isStepReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false
   }
-  const baseName = getLowerBaseModelName(model.id)
-  return baseName.includes('step-3') || baseName.includes('step-r1-v-mini')
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('step-3') || modelId.includes('step-r1-v-mini')
 }
 
 export function isReasoningModel(model?: Model): boolean {
@@ -2744,9 +2773,11 @@ export function isReasoningModel(model?: Model): boolean {
     return isUserSelectedModelType(model, 'reasoning')!
   }
 
-  if (model.provider === 'doubao' || model.id.includes('doubao')) {
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return (
-      REASONING_REGEX.test(model.id) ||
+      REASONING_REGEX.test(modelId) ||
       REASONING_REGEX.test(model.name) ||
       isSupportedThinkingTokenDoubaoModel(model) ||
       false
@@ -2763,14 +2794,14 @@ export function isReasoningModel(model?: Model): boolean {
     isPerplexityReasoningModel(model) ||
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
-    model.id.toLowerCase().includes('magistral') ||
-    model.id.toLowerCase().includes('minimax-m1') ||
-    model.id.toLowerCase().includes('pangu-pro-moe')
+    modelId.includes('magistral') ||
+    modelId.includes('minimax-m1') ||
+    modelId.includes('pangu-pro-moe')
   ) {
     return true
   }
 
-  return REASONING_REGEX.test(model.id) || false
+  return REASONING_REGEX.test(modelId) || false
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -2778,7 +2809,9 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
     return false
   }
 
-  return !NOT_SUPPORTED_REGEX.test(model.id)
+  const modelId = getLowerBaseModelName(model.id)
+
+  return !NOT_SUPPORTED_REGEX.test(modelId)
 }
 
 export function isNotSupportTemperatureAndTopP(model: Model): boolean {
@@ -2814,11 +2847,11 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getLowerBaseModelName(model.id, '/')
+  const modelId = getLowerBaseModelName(model.id, '/')
 
   // 不管哪个供应商都判断了
   if (isAnthropicModel(model)) {
-    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(baseName)
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
 
   if (provider.type === 'openai-response') {
@@ -2830,7 +2863,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'perplexity') {
-    return PERPLEXITY_SEARCH_MODELS.includes(baseName)
+    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
   if (provider.id === 'aihubmix') {
@@ -2839,31 +2872,31 @@ export function isWebSearchModel(model: Model): boolean {
     }
 
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(baseName)
+    return models.includes(modelId)
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_REGEX.test(baseName) || isOpenAIWebSearchModel(model)) {
+    if (GEMINI_SEARCH_REGEX.test(modelId) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini' || provider.type === 'vertexai') {
-    return GEMINI_SEARCH_REGEX.test(baseName)
+    return GEMINI_SEARCH_REGEX.test(modelId)
   }
 
   if (provider.id === 'hunyuan') {
-    return baseName !== 'hunyuan-lite'
+    return modelId !== 'hunyuan-lite'
   }
 
   if (provider.id === 'zhipu') {
-    return baseName?.startsWith('glm-4-')
+    return modelId?.startsWith('glm-4-')
   }
 
   if (provider.id === 'dashscope') {
     const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
-    return models.some((i) => baseName.startsWith(i))
+    return models.some((i) => modelId.startsWith(i))
   }
 
   if (provider.id === 'openrouter') {
@@ -2888,7 +2921,9 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
+  const modelId = getLowerBaseModelName(model.id)
+
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || modelId.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2908,8 +2943,8 @@ export function isGenerateImageModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getLowerBaseModelName(model.id, '/')
-  if (GENERATE_IMAGE_MODELS.includes(baseName)) {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  if (GENERATE_IMAGE_MODELS.includes(modelId)) {
     return true
   }
   return false
@@ -2977,7 +3012,8 @@ export function isGemmaModel(model?: Model): boolean {
     return false
   }
 
-  return model.id.includes('gemma-') || model.group === 'Gemma'
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gemma-') || model.group === 'Gemma'
 }
 
 export function isZhipuModel(model?: Model): boolean {
@@ -2993,8 +3029,10 @@ export function isHunyuanSearchModel(model?: Model): boolean {
     return false
   }
 
+  const modelId = getLowerBaseModelName(model.id)
+
   if (model.provider === 'hunyuan') {
-    return model.id !== 'hunyuan-lite'
+    return modelId !== 'hunyuan-lite'
   }
 
   return false
@@ -3008,8 +3046,9 @@ export function isHunyuanSearchModel(model?: Model): boolean {
 export function groupQwenModels(models: Model[]): Record<string, Model[]> {
   return models.reduce(
     (groups, model) => {
+      const modelId = getLowerBaseModelName(model.id)
       // 匹配 Qwen 系列模型的前缀
-      const prefixMatch = model.id.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+      const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
       // 匹配 qwen2.5、qwen2、qwen-7b、qwen-max、qwen-coder 等
       const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
 
@@ -3064,7 +3103,8 @@ export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
   /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-[\w-]+)*/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
-  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
+  const modelId = getLowerBaseModelName(model.id)
+  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
 }
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
@@ -3083,12 +3123,13 @@ export const isAnthropicModel = (model?: Model): boolean => {
     return false
   }
 
-  return getLowerBaseModelName(model.id).startsWith('claude')
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.startsWith('claude')
 }
 
 export const isQwenMTModel = (model: Model): boolean => {
-  const name = getLowerBaseModelName(model.id)
-  return name.includes('qwen-mt')
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('qwen-mt')
 }
 
 export const isNotSupportedTextDelta = (model: Model): boolean => {

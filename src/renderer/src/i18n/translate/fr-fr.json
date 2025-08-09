@@ -3160,6 +3160,10 @@
             "help": "Le fournisseur prend-il en charge les messages avec le rôle : « développeur » ?",
             "label": "Prise en charge du message développeur"
           },
+          "enable_thinking": {
+            "help": "Le fournisseur prend-il en charge le contrôle de la réflexion des modèles tels que Qwen3 via le paramètre enable_thinking ?",
+            "label": "Prise en charge de enable_thinking"
+          },
           "label": "Paramètres de l'API",
           "service_tier": {
             "help": "Le fournisseur prend-il en charge la configuration du paramètre service_tier ? Lorsqu'il est activé, ce paramètre peut être ajusté dans les paramètres de niveau de service sur la page de conversation. (Modèles OpenAI uniquement)",

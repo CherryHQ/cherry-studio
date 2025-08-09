@@ -3160,6 +3160,10 @@
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
           },
+          "enable_thinking": {
+            "help": "このプロバイダーは、enable_thinking パラメータを使用して Qwen3 などのモデルの思考を制御することをサポートしていますか。",
+            "label": "enable_thinking をサポート"
+          },
           "label": "API設定",
           "service_tier": {
             "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",

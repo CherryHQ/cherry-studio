@@ -418,7 +418,10 @@ export class AwsBedrockAPIClient extends BaseApiClient<
           temperature: this.getTemperature(assistant, model),
           topP: this.getTopP(assistant, model),
           stream: streamOutput !== false,
-          tools: tools.length > 0 ? tools : undefined
+          tools: tools.length > 0 ? tools : undefined,
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
         const timeout = this.getTimeout(model)

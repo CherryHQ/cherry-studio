@@ -34,6 +34,7 @@ export default function useTranslate() {
         logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
         return UNKNOWN
       }
+
       const result = translateLanguages.find((item) => item.langCode === langCode)
       if (result) {
         return result

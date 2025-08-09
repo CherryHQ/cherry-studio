@@ -3160,6 +3160,10 @@
             "help": "O fornecedor suporta mensagens com role: \"developer\"?",
             "label": "Mensagem de suporte ao programador"
           },
+          "enable_thinking": {
+            "help": "O fornecedor suporta o controlo do pensamento de modelos como o Qwen3 através do parâmetro enable_thinking?",
+            "label": "Apoiar enable_thinking"
+          },
           "label": "Definições da API",
           "service_tier": {
             "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",

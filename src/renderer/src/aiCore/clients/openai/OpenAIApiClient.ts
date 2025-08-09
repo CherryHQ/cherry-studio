@@ -27,7 +27,7 @@ import {
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportQwen3EnableThinkingProvider,
+  isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
@@ -151,7 +151,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return { reasoning: { enabled: false, exclude: true } }
       }
 
-      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
+      if (
+        isSupportEnableThinkingProvider(this.provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+      ) {
         return { enable_thinking: false }
       }
 
@@ -201,7 +204,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Qwen models
     if (isQwenReasoningModel(model)) {
       const thinkConfig = {
-        enable_thinking: isQwenAlwaysThinkModel(model) ? undefined : true,
+        enable_thinking:
+          isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(this.provider) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -214,7 +218,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // Hunyuan models
-    if (isSupportedThinkingTokenHunyuanModel(model)) {
+    if (isSupportedThinkingTokenHunyuanModel(model) && isSupportEnableThinkingProvider(this.provider)) {
       return {
         enable_thinking: true
       }
@@ -547,7 +551,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         if (
           lastUserMsg &&
           isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportQwen3EnableThinkingProvider(this.provider)
+          !isSupportEnableThinkingProvider(this.provider)
         ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
@@ -567,6 +571,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         reqMessages = processReqMessages(model, reqMessages)
 
         // 5. 创建通用参数
+        // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
+
         const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
@@ -577,36 +585,24 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
           tools: tools.length > 0 ? tools : undefined,
+          stream: streamOutput,
+          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
-          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
-          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
-          ...(isQwenMTModel(model) ? extra_body : {})
+          ...(isQwenMTModel(model) ? extra_body : {}),
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-
-        // Create the appropriate parameters object based on whether streaming is enabled
-        // Note: Some providers like Mistral don't support stream_options
-        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
-        const sdkParams: OpenAISdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true,
-              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
 
         const timeout = this.getTimeout(model)
 
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }

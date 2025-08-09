@@ -85,9 +85,15 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
               logger.warn(`Received undefined chunk before stream was done.`)
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           logger.error(`Error consuming stream:`, error as Error)
-          throw error
+          // FIXME: 临时解决方案。该中间件的异常无法被 ErrorHandlerMiddleware捕获。
+          if (params.onError) {
+            params.onError(error)
+          }
+          if (params.shouldThrow) {
+            throw error
+          }
         } finally {
           if (params.onChunk && !isRecursiveCall) {
             params.onChunk({
