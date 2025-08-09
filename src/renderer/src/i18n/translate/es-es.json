@@ -2990,6 +2990,11 @@
       "add": {
         "add_model": "Agregar modelo",
         "batch_add_models": "Agregar modelos por lotes",
+        "custom_model_id": {
+          "label": "ID del modelo personalizado",
+          "placeholder": "por ejemplo gpt-3.5-turbo",
+          "tooltip": "Si el ID del modelo requerido por la API es diferente del ID del modelo real, es necesario establecer un ID de modelo personalizado para admitir funciones como la determinación de capacidades del modelo."
+        },
         "endpoint_type": {
           "label": "Tipo de punto final",
           "placeholder": "Seleccionar tipo de punto final",

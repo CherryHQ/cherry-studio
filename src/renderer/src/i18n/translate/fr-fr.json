@@ -2990,6 +2990,11 @@
       "add": {
         "add_model": "Ajouter un modèle",
         "batch_add_models": "Ajouter plusieurs modèles",
+        "custom_model_id": {
+          "label": "ID du modèle personnalisé",
+          "placeholder": "par exemple gpt-3.5-turbo",
+          "tooltip": "Si l'ID du modèle requis par l'API est différent de l'ID du modèle réel, un ID de modèle personnalisé doit être défini pour prendre en charge des fonctionnalités telles que la détermination des capacités du modèle."
+        },
         "endpoint_type": {
           "label": "Type de point d'extrémité",
           "placeholder": "Sélectionner un type de point d'extrémité",
