@@ -274,5 +274,13 @@ export enum IpcChannel {
   TRACE_SET_TITLE = 'trace:setTitle',
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // Anthropic OAuth
+  Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
+  Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
+  Anthropic_CancelOAuthFlow = 'anthropic:cancel-oauth-flow',
+  Anthropic_GetAccessToken = 'anthropic:get-access-token',
+  Anthropic_HasCredentials = 'anthropic:has-credentials',
+  Anthropic_ClearCredentials = 'anthropic:clear-credentials'
 }

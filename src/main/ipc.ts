@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
+import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -696,4 +697,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  // Anthropic OAuth
+  ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
+  ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
+    anthropicService.completeOAuthWithCode(code)
+  )
+  ipcMain.handle(IpcChannel.Anthropic_CancelOAuthFlow, () => anthropicService.cancelOAuthFlow())
+  ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
+  ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
+  ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
 }

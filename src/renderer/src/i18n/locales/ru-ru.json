@@ -3134,6 +3134,23 @@
         "title": "Добавить провайдер",
         "type": "Тип провайдера"
       },
+      "anthropic": {
+        "apikey": "API-ключ",
+        "auth_failed": "Ошибка аутентификации Anthropic",
+        "auth_method": "Способ аутентификации",
+        "authenticated": "Подтверждено",
+        "authenticating": "Выполняется аутентификация",
+        "cancel": "Отмена",
+        "code_placeholder": "Пожалуйста, введите код авторизации, отображаемый в браузере",
+        "code_required": "授权码不能为空",
+        "description": "OAuth аутентификация",
+        "description_detail": "Чтобы использовать этот способ аутентификации, вам необходимо подписаться на Claude Pro или более высокую версию.",
+        "enter_auth_code": "лицензионный ключ",
+        "logout": "退出登录",
+        "oauth": "веб OAuth",
+        "start_auth": "Начать авторизацию",
+        "submit_code": "完成登录"
+      },
       "api": {
         "key": {
           "check": {

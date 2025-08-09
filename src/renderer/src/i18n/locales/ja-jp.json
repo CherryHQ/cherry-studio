@@ -3134,6 +3134,23 @@
         "title": "プロバイダーを追加",
         "type": "プロバイダータイプ"
       },
+      "anthropic": {
+        "apikey": "API キー",
+        "auth_failed": "Anthropic 身份验证に失敗しました",
+        "auth_method": "認証方法",
+        "authenticated": "認証済み",
+        "authenticating": "認証中です",
+        "cancel": "取消",
+        "code_placeholder": "ブラウザに表示されている認証コードを入力してください",
+        "code_required": "認証コードは空にできません",
+        "description": "OAuth 認証",
+        "description_detail": "Claude Pro 以上にサブスクライブする必要があります。この認証方法を使用するには。",
+        "enter_auth_code": "認証コード",
+        "logout": "ログアウト",
+        "oauth": "WebページOAuth",
+        "start_auth": "開始承認",
+        "submit_code": "ログインを完了する"
+      },
       "api": {
         "key": {
           "check": {
