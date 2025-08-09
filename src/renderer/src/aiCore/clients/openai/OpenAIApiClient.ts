@@ -3,6 +3,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
+  getModelId,
   getOpenAIWebSearchParams,
   getThinkModelType,
   isDoubaoThinkingAutoModel,
@@ -114,6 +115,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return {}
     }
     const reasoningEffort = assistant?.settings?.reasoning_effort
+    const modelId = getModelId(model)
 
     // Doubao 思考模式支持
     if (isSupportedThinkingTokenDoubaoModel(model)) {
@@ -141,7 +143,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
         // Don't disable reasoning for Gemini models that support thinking tokens
-        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+        if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(modelId)) {
           return {}
         }
         // Don't disable reasoning for models that require it
@@ -163,7 +165,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
-        if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+        if (GEMINI_FLASH_MODEL_REGEX.test(modelId)) {
           return {
             extra_body: {
               google: {
@@ -187,7 +189,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // reasoningEffort有效的情况
     const effortRatio = EFFORT_RATIO[reasoningEffort]
     const budgetTokens = Math.floor(
-      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+      (findTokenLimit(modelId)?.max! - findTokenLimit(modelId)?.min!) * effortRatio + findTokenLimit(modelId)?.min!
     )
 
     // OpenRouter models
@@ -496,6 +498,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }> => {
         const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
         let { streamOutput } = coreRequest
+        const modelId = getModelId(model)
 
         // Qwen3商业版（思考模式）、Qwen3开源版、QwQ、QVQ只支持流式输出。
         if (isQwenReasoningModel(model)) {
@@ -522,7 +525,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
         }
 
-        if (model.id.includes('o1-mini') || model.id.includes('o1-preview')) {
+        if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
           systemMessage.role = 'assistant'
         }
 
@@ -573,6 +576,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
 
         const commonParams: OpenAISdkParams = {
+          // 创建请求使用 id
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
