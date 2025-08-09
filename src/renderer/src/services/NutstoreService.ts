@@ -63,6 +63,50 @@ let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
 
+async function cleanupOldBackups(webdavConfig: WebDavConfig, maxBackups: number): Promise<void> {
+  if (maxBackups <= 0) {
+    logger.debug('[cleanupOldBackups] Skip cleanup: maxBackups <= 0')
+    return
+  }
+
+  try {
+    const files = await window.api.backup.listWebdavFiles(webdavConfig)
+
+    if (!files || !Array.isArray(files)) {
+      logger.warn('[cleanupOldBackups] Failed to list nutstore directory contents')
+      return
+    }
+
+    const backupFiles = files
+      .filter((file) => file.fileName.startsWith('cherry-studio') && file.fileName.endsWith('.zip'))
+      .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+
+    if (backupFiles.length < maxBackups) {
+      logger.info(`[cleanupOldBackups] No cleanup needed: ${backupFiles.length}/${maxBackups} backups`)
+      return
+    }
+
+    const filesToDelete = backupFiles.slice(maxBackups - 1)
+    logger.info(`[cleanupOldBackups] Deleting ${filesToDelete.length} old backup files`)
+
+    let deletedCount = 0
+    for (const file of filesToDelete) {
+      try {
+        await window.api.backup.deleteWebdavFile(file.fileName, webdavConfig)
+        deletedCount++
+      } catch (error) {
+        logger.error(`[cleanupOldBackups] Failed to delete ${file.basename}:`, error as Error)
+      }
+    }
+
+    if (deletedCount > 0) {
+      logger.info(`[cleanupOldBackups] Successfully deleted ${deletedCount} old backups`)
+    }
+  } catch (error) {
+    logger.error('[cleanupOldBackups] Error during cleanup:', error as Error)
+  }
+}
+
 export async function backupToNutstore({
   showMessage = false,
   customFileName = ''
@@ -101,7 +145,12 @@ export async function backupToNutstore({
 
   const backupData = await getBackupData()
   const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
+  const maxBackups = store.getState().nutstore.nutstoreMaxBackups
+
   try {
+    // 先清理旧备份
+    await cleanupOldBackups(config, maxBackups)
+
     const isSuccess = await window.api.backup.backupToWebdav(backupData, {
       ...config,
       fileName: finalFileName,
@@ -109,11 +158,7 @@ export async function backupToNutstore({
     })
 
     if (isSuccess) {
-      store.dispatch(
-        setNutstoreSyncState({
-          lastSyncError: null
-        })
-      )
+      store.dispatch(setNutstoreSyncState({ lastSyncError: null }))
       showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
     } else {
       store.dispatch(setNutstoreSyncState({ lastSyncError: 'Backup failed' }))
