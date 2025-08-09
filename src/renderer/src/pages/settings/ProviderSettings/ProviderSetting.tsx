@@ -13,7 +13,7 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip, Typography } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
@@ -229,8 +229,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={5}>
-          <ProviderName>{fancyProviderName}</ProviderName>
+        <Flex align="center" gap={5} flex={1} style={{ overflow: 'hidden' }}>
+          <ProviderName ellipsis>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
@@ -372,7 +372,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   )
 }
 
-const ProviderName = styled.span`
+const ProviderName = styled(Typography.Text)`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
