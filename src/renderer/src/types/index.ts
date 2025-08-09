@@ -810,7 +810,7 @@ export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServe
   return server.type === 'inMemory' && isBuiltinMCPServerName(server.name)
 }
 
-export const BuiltinMCPServers = {
+export const BuiltinMCPServerNames = {
   '@cherry/mcp-auto-install': '@cherry/mcp-auto-install',
   '@cherry/memory': '@cherry/memory',
   '@cherry/sequentialthinking': '@cherry/sequentialthinking',
@@ -821,10 +821,10 @@ export const BuiltinMCPServers = {
   '@cherry/python': '@cherry/python'
 } as const
 
-export type BuiltinMCPServerName = keyof typeof BuiltinMCPServers
+export type BuiltinMCPServerName = keyof typeof BuiltinMCPServerNames
 
 export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
-  return Object.hasOwn(BuiltinMCPServers, name)
+  return Object.hasOwn(BuiltinMCPServerNames, name)
 }
 
 export interface MCPToolInputSchema {
