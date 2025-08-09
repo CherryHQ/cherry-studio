@@ -189,6 +189,7 @@ const visionAllowedModels = [
   'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'o3(?:-[\\w-]+)?',
@@ -2492,6 +2493,7 @@ export function isOpenAIModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
+
   return modelId.includes('gpt') || isOpenAIReasoningModel(model)
 }
 
