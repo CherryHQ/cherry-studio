@@ -344,7 +344,11 @@ export type ModelCapability = {
 }
 
 export type Model = {
+  // 大部分场景下 id 字段可用。部分场景下，API 所需模型 ID 与实际使用的模型 ID 不符。
+  // 例如：火山引擎允许用户创建自定义智能体，通过一串复杂的 ID 作为接口使用的模型 ID，但这样的 ID 无法用于模型能力判断等场景。
+  /** Model ID 在 Provider 下的 Unique ID，跨 Provider 间允许相同。 */
   id: string
+  /** 用户自定义 Model ID，允许在 Provider 下重复。在模型能力判断等需要依赖真实模型 ID 的业务场景应该使用 getModelId 安全获取模型 ID。 */
   customId?: string
   provider: string
   name: string
