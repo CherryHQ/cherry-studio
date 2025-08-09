@@ -1773,6 +1773,187 @@
     },
     "title": "データ復元"
   },
+  "richEditor": {
+    "commands": {
+      "blockMath": {
+        "description": "数式を挿入します",
+        "title": "数式"
+      },
+      "blockquote": {
+        "description": "参照されたテキストを挿入します",
+        "title": "引用"
+      },
+      "bold": {
+        "description": "太字でマークされています",
+        "title": "大胆な"
+      },
+      "bulletList": {
+        "description": "シンプルな弾丸リストを作成します",
+        "title": "順序付けられていないリスト"
+      },
+      "calloutInfo": {
+        "description": "メッセージプロンプトボックスを追加します",
+        "title": "情報プロンプトボックス"
+      },
+      "calloutWarning": {
+        "description": "警告ボックスを追加します",
+        "title": "警告プロンプトボックス"
+      },
+      "code": {
+        "description": "コードスニペットを挿入します",
+        "title": "コード"
+      },
+      "codeBlock": {
+        "description": "コードスニペットを挿入します",
+        "title": "コードブロック"
+      },
+      "columns": {
+        "description": "列レイアウトを作成します",
+        "title": "セクション列"
+      },
+      "date": {
+        "description": "現在の日付を挿入します",
+        "title": "日付"
+      },
+      "divider": {
+        "description": "水平方向のスプリットラインを追加します",
+        "title": "分割線"
+      },
+      "hardBreak": {
+        "description": "ラインブレークを挿入します",
+        "title": "ラインブレーク"
+      },
+      "heading1": {
+        "description": "大きな段落タイトル",
+        "title": "レベル1タイトル"
+      },
+      "heading2": {
+        "description": "真ん中の段落タイトル",
+        "title": "二次タイトル"
+      },
+      "heading3": {
+        "description": "小さな段落タイトル",
+        "title": "レベル3タイトル"
+      },
+      "heading4": {
+        "description": "より小さな段落タイトル",
+        "title": "レベル4タイトル"
+      },
+      "heading5": {
+        "description": "より小さな段落タイトル",
+        "title": "レベル5タイトル"
+      },
+      "heading6": {
+        "description": "最小限の段落タイトル",
+        "title": "レベル6タイトル"
+      },
+      "image": {
+        "description": "画像を挿入します",
+        "title": "写真"
+      },
+      "inlineCode": {
+        "description": "インラインコードを追加します",
+        "title": "インラインコード"
+      },
+      "inlineMath": {
+        "description": "行に数式を挿入します",
+        "title": "業界の数式"
+      },
+      "italic": {
+        "description": "イタリックとしてマークされています",
+        "title": "イタリック"
+      },
+      "link": {
+        "description": "リンクを追加します",
+        "title": "リンク"
+      },
+      "noCommandsFound": "コマンドが見つかりません",
+      "orderedList": {
+        "description": "番号付きリストを作成します",
+        "title": "注文リスト"
+      },
+      "paragraph": {
+        "description": "プレーンテキストの書き始めます",
+        "title": "文章"
+      },
+      "redo": {
+        "description": "前のステップを作り直します",
+        "title": "やり直し"
+      },
+      "strike": {
+        "description": "削除行としてマークします",
+        "title": "行を削除します"
+      },
+      "table": {
+        "description": "テーブルを挿入します",
+        "title": "シート"
+      },
+      "taskList": {
+        "description": "To Doリストを作成します",
+        "title": "タスクリスト"
+      },
+      "underline": {
+        "description": "下線付けのマーク",
+        "title": "下線"
+      },
+      "undo": {
+        "description": "前の操作を元に戻します",
+        "title": "取り消す"
+      }
+    },
+    "image": {
+      "placeholder": "写真を追加します"
+    },
+    "imageUploader": {
+      "embedImage": "埋め込まれた写真",
+      "embedLink": "埋め込みリンク",
+      "embedSuccess": "画像埋め込みは正常に埋め込まれています",
+      "invalidType": "画像ファイルを選択してください",
+      "invalidUrl": "無効な画像リンク",
+      "processing": "写真を扱う...",
+      "title": "写真を追加します",
+      "tooLarge": "画像サイズは10MBを超えることはできません",
+      "upload": "アップロード",
+      "uploadError": "画像のアップロードに失敗しました",
+      "uploadFile": "ファイルをアップロード",
+      "uploadHint": "JPG、PNG、GIFおよびその他の形式をサポートし、最大10MB",
+      "uploadSuccess": "画像アップロードに正常にアップロードします",
+      "uploadText": "画像をクリックまたはドラッグしてここにアップロードします",
+      "uploading": "写真のアップロード",
+      "urlPlaceholder": "画像リンクアドレスを貼り付けます",
+      "urlRequired": "画像リンクアドレスを入力してください"
+    },
+    "math": {
+      "placeholder": "ラテックスフォーミュラを入力します"
+    },
+    "placeholder": "'/'を入力してコマンドを呼び出します",
+    "toolbar": {
+      "blockMath": "数式",
+      "blockquote": "引用",
+      "bold": "大胆な",
+      "bulletList": "順序付けられていないリスト",
+      "clearMarks": "クリア形式",
+      "code": "インラインコード",
+      "codeBlock": "コードブロック",
+      "heading1": "レベル1タイトル",
+      "heading2": "二次タイトル",
+      "heading3": "レベル3タイトル",
+      "heading4": "レベル4タイトル",
+      "heading5": "レベル5タイトル",
+      "heading6": "CET-6タイトル",
+      "image": "写真",
+      "inlineMath": "業界の数式",
+      "italic": "イタリック",
+      "link": "リンク",
+      "orderedList": "注文リスト",
+      "paragraph": "文章",
+      "redo": "やり直し",
+      "strike": "行を削除します",
+      "table": "シート",
+      "underline": "下線",
+      "undo": "取り消す"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3205,7 +3386,7 @@
         "label": "HTTP 認証",
         "password": {
           "label": "パスワード",
-          "tip": ""
+          "tip": "パスワードを入力してください"
         },
         "tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
         "user_name": {

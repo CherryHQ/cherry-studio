@@ -1,0 +1,369 @@
+.tiptap {
+  padding: 12px 24px;
+  outline: none;
+  min-height: 120px;
+  overflow-y: auto;
+
+  &:focus {
+    outline: none;
+  }
+
+  :first-child {
+    margin-top: 0;
+  }
+
+  p {
+    margin: 0 0 8px 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul,
+  ol {
+    padding: 0 1rem;
+    margin: 1.25rem 1rem 1.25rem 0.4rem;
+
+    li p {
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+    }
+  }
+
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    line-height: 1.1;
+    margin-top: 2.5rem;
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2 {
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: 1rem;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--color-gray-3);
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+  }
+
+  code {
+    background-color: var(--color-inline-code-background);
+    border-radius: 0.4rem;
+    color: var(--color-inline-code-text);
+    font-size: 0.85rem;
+    padding: 0.25em 0.3em;
+  }
+
+  pre {
+    background: var(--color-code-background);
+    border-radius: 0.5rem;
+    color: var(--color-text);
+    font-family: 'Ubuntu', monospace;
+    margin: 1.5rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border-soft);
+
+    code {
+      background: none;
+      color: inherit;
+      font-size: 0.8rem;
+      padding: 0;
+      border: none;
+    }
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--color-gray-2);
+    margin: 2rem 0;
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  u {
+    text-decoration: underline;
+  }
+
+  strong,
+  strong * {
+    font-weight: 600;
+  }
+
+  .placeholder {
+    position: relative;
+
+    &:before {
+      content: attr(data-placeholder);
+      position: absolute;
+      color: var(--color-text-secondary);
+      opacity: 0.6;
+      pointer-events: none;
+      font-style: italic;
+      left: 0;
+      right: 0;
+    }
+  }
+
+  /* Show placeholder only when focused or when it's the only empty node */
+  .placeholder.has-focus:before {
+    opacity: 0.8;
+  }
+
+  img {
+    max-width: 800px;
+    width: 100%;
+    height: auto;
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 0;
+    overflow: hidden;
+    table-layout: fixed;
+    width: 100%;
+
+    td,
+    th {
+      border: 1px solid var(--color-border-soft);
+      box-sizing: border-box;
+      display: table-cell;
+      min-width: 1em;
+      padding: 6px 8px;
+      position: relative;
+      vertical-align: top;
+
+      > * {
+        margin-bottom: 0;
+      }
+    }
+
+    th,
+    th * {
+      background-color: var(--color-gray-1);
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .selectedCell {
+      position: relative; // 确保伪元素定位
+    }
+    .selectedCell::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 0 solid var(--color-primary);
+      border-radius: 0; // 如有需要
+    }
+    .selectedCell.selection-top::after {
+      border-top-width: 2px;
+    }
+    .selectedCell.selection-bottom::after {
+      border-bottom-width: 2px;
+    }
+    .selectedCell.selection-left::after {
+      border-left-width: 2px;
+    }
+    .selectedCell.selection-right::after {
+      border-right-width: 2px;
+    }
+
+    .column-resize-handle {
+      background-color: var(--color-primary);
+      bottom: -2px;
+      pointer-events: none;
+      position: absolute;
+      right: -2px;
+      top: 0;
+      width: 4px;
+    }
+  }
+
+  .tableWrapper {
+    position: relative;
+    margin: 1rem 0;
+    display: grid;
+    grid-template-columns: 1fr 25px;
+    grid-template-rows: 1fr 25px;
+    grid-template-areas:
+      'table column-btn'
+      'row-btn corner';
+    gap: 5px;
+
+    .table-container {
+      grid-area: table;
+      overflow-x: auto;
+      overflow-y: visible;
+
+      table {
+        width: 100%;
+        min-width: max-content;
+      }
+    }
+
+    .add-row-button,
+    .add-column-button {
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-base);
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text);
+      z-index: 20;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      pointer-events: auto;
+
+      &:hover {
+        background: var(--color-primary);
+        color: white;
+        border-color: var(--color-primary);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      &:active {
+        transform: scale(0.98);
+      }
+
+      &::before {
+        content: '+';
+        font-weight: bold;
+      }
+    }
+
+    .add-row-button {
+      grid-area: row-btn;
+    }
+
+    .add-column-button {
+      grid-area: column-btn;
+    }
+
+    &:hover,
+    &:has(.add-row-button:hover),
+    &:has(.add-column-button:hover) {
+      .add-row-button,
+      .add-column-button {
+        display: flex;
+      }
+    }
+
+    /* Do not show in readonly even on hover */
+    &.is-readonly,
+    &.is-readonly:hover {
+      .add-row-button,
+      .add-column-button {
+        display: none !important;
+      }
+    }
+
+    .add-row-button:hover,
+    .add-column-button:hover {
+      display: flex !important;
+    }
+  }
+
+  &.resize-cursor {
+    cursor: ew-resize;
+    cursor: col-resize;
+  }
+
+  ul[data-type='taskList'] {
+    list-style: none;
+    margin-left: 0;
+    padding: 0;
+
+    li {
+      align-items: center;
+      display: flex;
+
+      > label {
+        flex: 0 0 auto;
+        margin-right: 0.5rem;
+        user-select: none;
+        display: flex;
+        align-items: center;
+      }
+
+      > div {
+        flex: 1 1 auto;
+      }
+    }
+
+    input[type='checkbox'] {
+      cursor: pointer;
+    }
+
+    ul[data-type='taskList'] {
+      margin: 0;
+    }
+  }
+
+  /* Math block */
+  .block-math-inner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+// Code block wrapper and header styles
+.code-block-wrapper {
+  position: relative;
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover .code-block-header {
+    opacity: 1;
+  }
+}

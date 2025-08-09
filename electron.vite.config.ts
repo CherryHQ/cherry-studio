@@ -81,7 +81,8 @@ export default defineConfig({
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/renderer/src/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web')
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
+        '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src')
       }
     },
     optimizeDeps: {

@@ -1773,6 +1773,187 @@
     },
     "title": "数据恢复"
   },
+  "richEditor": {
+    "commands": {
+      "blockMath": {
+        "description": "插入数学公式",
+        "title": "数学公式"
+      },
+      "blockquote": {
+        "description": "插入引用文本",
+        "title": "引用"
+      },
+      "bold": {
+        "description": "标记为粗体",
+        "title": "粗体"
+      },
+      "bulletList": {
+        "description": "创建简单的项目符号列表",
+        "title": "无序列表"
+      },
+      "calloutInfo": {
+        "description": "添加信息提示框",
+        "title": "信息提示框"
+      },
+      "calloutWarning": {
+        "description": "添加警告提示框",
+        "title": "警告提示框"
+      },
+      "code": {
+        "description": "插入代码片段",
+        "title": "代码"
+      },
+      "codeBlock": {
+        "description": "插入代码片段",
+        "title": "代码块"
+      },
+      "columns": {
+        "description": "创建分栏布局",
+        "title": "分栏"
+      },
+      "date": {
+        "description": "插入当前日期",
+        "title": "日期"
+      },
+      "divider": {
+        "description": "添加水平分割线",
+        "title": "分割线"
+      },
+      "hardBreak": {
+        "description": "插入换行符",
+        "title": "换行符"
+      },
+      "heading1": {
+        "description": "大段落标题",
+        "title": "一级标题"
+      },
+      "heading2": {
+        "description": "中段落标题",
+        "title": "二级标题"
+      },
+      "heading3": {
+        "description": "小段落标题",
+        "title": "三级标题"
+      },
+      "heading4": {
+        "description": "较小的段落标题",
+        "title": "四级标题"
+      },
+      "heading5": {
+        "description": "更小的段落标题",
+        "title": "五级标题"
+      },
+      "heading6": {
+        "description": "最小的段落标题",
+        "title": "六级标题"
+      },
+      "image": {
+        "description": "插入图片",
+        "title": "图片"
+      },
+      "inlineCode": {
+        "description": "添加行内代码",
+        "title": "行内代码"
+      },
+      "inlineMath": {
+        "description": "插入行内数学公式",
+        "title": "行内数学公式"
+      },
+      "italic": {
+        "description": "标记为斜体",
+        "title": "斜体"
+      },
+      "link": {
+        "description": "添加链接",
+        "title": "链接"
+      },
+      "noCommandsFound": "未找到命令",
+      "orderedList": {
+        "description": "创建带编号的列表",
+        "title": "有序列表"
+      },
+      "paragraph": {
+        "description": "开始编写普通文本",
+        "title": "正文"
+      },
+      "redo": {
+        "description": "重做上一步操作",
+        "title": "重做"
+      },
+      "strike": {
+        "description": "标记为删除线",
+        "title": "删除线"
+      },
+      "table": {
+        "description": "插入表格",
+        "title": "表格"
+      },
+      "taskList": {
+        "description": "创建待办事项清单",
+        "title": "任务列表"
+      },
+      "underline": {
+        "description": "标记为下划线",
+        "title": "下划线"
+      },
+      "undo": {
+        "description": "撤销上一步操作",
+        "title": "撤销"
+      }
+    },
+    "image": {
+      "placeholder": "添加图片"
+    },
+    "imageUploader": {
+      "embedImage": "嵌入图片",
+      "embedLink": "嵌入链接",
+      "embedSuccess": "图片嵌入成功",
+      "invalidType": "请选择图片文件",
+      "invalidUrl": "无效的图片链接",
+      "processing": "正在处理图片...",
+      "title": "添加图片",
+      "tooLarge": "图片大小不能超过 10MB",
+      "upload": "上传",
+      "uploadError": "图片上传失败",
+      "uploadFile": "上传文件",
+      "uploadHint": "支持 JPG、PNG、GIF 等格式，最大 10MB",
+      "uploadSuccess": "图片上传成功",
+      "uploadText": "点击或拖拽图片到此处上传",
+      "uploading": "正在上传图片",
+      "urlPlaceholder": "粘贴图片链接地址",
+      "urlRequired": "请输入图片链接地址"
+    },
+    "math": {
+      "placeholder": "输入 LaTeX 公式"
+    },
+    "placeholder": "输入'/'调用命令",
+    "toolbar": {
+      "blockMath": "数学公式块",
+      "blockquote": "引用",
+      "bold": "粗体",
+      "bulletList": "无序列表",
+      "clearMarks": "清除格式",
+      "code": "行内代码",
+      "codeBlock": "代码块",
+      "heading1": "一级标题",
+      "heading2": "二级标题",
+      "heading3": "三级标题",
+      "heading4": "四级标题",
+      "heading5": "五级标题",
+      "heading6": "六级标题",
+      "image": "图片",
+      "inlineMath": "行内数学公式",
+      "italic": "斜体",
+      "link": "链接",
+      "orderedList": "有序列表",
+      "paragraph": "正文",
+      "redo": "重做",
+      "strike": "删除线",
+      "table": "表格",
+      "underline": "下划线",
+      "undo": "撤销"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
