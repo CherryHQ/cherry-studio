@@ -5,6 +5,7 @@ import {
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
   isSupportedReasoningEffortOpenAIModel,
+  isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
 import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
@@ -454,9 +455,13 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           tools: !isEmpty(tools) ? tools : undefined,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
-          text: {
-            verbosity: this.getVerbosity()
-          },
+          ...(isSupportVerbosityModel(model)
+            ? {
+                text: {
+                  verbosity: this.getVerbosity()
+                }
+              }
+            : {}),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           // 注意：用户自定义参数总是应该覆盖其他参数
