@@ -160,7 +160,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 
-  if (!isOpenAIReasoning && !isSupportServiceTier) {
+  if (!isOpenAIReasoning && !isSupportServiceTier && !isGPT5) {
     return null
   }
 
