@@ -490,6 +490,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         }
 
         const commonParams: MessageCreateParamsBase = {
+          // 创建请求应该使用 id 字段
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
