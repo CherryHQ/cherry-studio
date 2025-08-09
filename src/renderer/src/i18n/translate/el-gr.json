@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "Η νέα διαδρομή δεν έχει δικαιώματα εγγραφής",
           "select_title": "Επιλογή καταλόγου αντιγράφων ασφαλείας"
         },
+        "hour_interval": "κάθε {{count}} ώρα",
         "hour_interval_one": "{{count}} ώρα",
         "hour_interval_other": "{{count}} ώρες",
         "lastSync": "Τελευταίο αντίγραφο ασφαλείας",
@@ -2178,6 +2179,7 @@
           "label": "Μέγιστος αριθμός αντιγράφων ασφαλείας",
           "unlimited": "Απεριόριστα"
         },
+        "minute_interval": "κάθε {{count}} λεπτά",
         "minute_interval_one": "{{count}} λεπτό",
         "minute_interval_other": "{{count}} λεπτά",
         "noSync": "Αναμονή για το επόμενο αντίγραφο ασφαλείας",
@@ -2516,10 +2518,12 @@
           "label": "Διεύθυνση WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "κάθε {{count}} ώρα",
         "hour_interval_one": "{{count}} ώρα",
         "hour_interval_other": "{{count}} ώρες",
         "lastSync": "Η τελευταία αντιγραφή ασφαλείας",
         "maxBackups": "Μέγιστο αριθμό αρχείων αντιγραφής ασφαλείας",
+        "minute_interval": "κάθε {{count}} λεπτά",
         "minute_interval_one": "{{count}} λεπτό",
         "minute_interval_other": "{{count}} λεπτά",
         "noSync": "Εκκρεμεί η επόμενη αντιγραφή ασφαλείας",

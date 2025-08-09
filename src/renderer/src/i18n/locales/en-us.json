@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "New path does not have write permission",
           "select_title": "Select Backup Directory"
         },
+        "hour_interval": "every {{count}} hours",
         "hour_interval_one": "{{count}} hour",
         "hour_interval_other": "{{count}} hours",
         "lastSync": "Last Backup",
@@ -2178,6 +2179,7 @@
           "label": "Maximum backups",
           "unlimited": "Unlimited"
         },
+        "minute_interval": "every {{count}} minutes",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "noSync": "Waiting for next backup",
@@ -2516,10 +2518,12 @@
           "label": "WebDAV Host",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "every {{count}} hours",
         "hour_interval_one": "{{count}} hour",
         "hour_interval_other": "{{count}} hours",
         "lastSync": "Last Backup",
         "maxBackups": "Maximum Backups",
+        "minute_interval": "every {{count}} minutes",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "noSync": "Waiting for next backup",

@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "Новый путь не имеет разрешения на запись",
           "select_title": "Выберите каталог для резервных копий"
         },
+        "hour_interval": "каждые {{count}} часов",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часов",
         "lastSync": "Последнее копирование",
@@ -2178,6 +2179,7 @@
           "label": "Максимальное количество резервных копий",
           "unlimited": "Без ограничений"
         },
+        "minute_interval": "каждые {{count}} минут",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
         "noSync": "Ожидание следующего копирования",
@@ -2516,10 +2518,12 @@
           "label": "Хост WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "каждые {{count}} часов",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часов",
         "lastSync": "Последняя синхронизация",
         "maxBackups": "Максимальное количество резервных копий",
+        "minute_interval": "каждые {{count}} минут",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
         "noSync": "Ожидание следующего резервного копирования",

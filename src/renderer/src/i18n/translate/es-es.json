@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "La nueva ruta no tiene permisos de escritura",
           "select_title": "Seleccionar directorio de copia de seguridad"
         },
+        "hour_interval": "cada {{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
@@ -2178,6 +2179,7 @@
           "label": "Número máximo de copias de seguridad",
           "unlimited": "Ilimitado"
         },
+        "minute_interval": "cada {{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando próxima copia de seguridad",
@@ -2516,10 +2518,12 @@
           "label": "Dirección WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "cada {{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
         "maxBackups": "Número máximo de copias de seguridad",
+        "minute_interval": "cada {{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando la próxima copia de seguridad",

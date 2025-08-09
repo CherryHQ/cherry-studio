@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "O novo caminho não possui permissão de escrita",
           "select_title": "Selecionar diretório de backup"
         },
+        "hour_interval": "a cada {{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Último backup",
@@ -2178,6 +2179,7 @@
           "label": "Número máximo de backups",
           "unlimited": "Ilimitado"
         },
+        "minute_interval": "a cada {{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Aguardando próximo backup",
@@ -2516,10 +2518,12 @@
           "label": "Endereço WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "a cada {{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Último backup",
         "maxBackups": "Número máximo de backups",
+        "minute_interval": "a cada {{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Aguardando próximo backup",
