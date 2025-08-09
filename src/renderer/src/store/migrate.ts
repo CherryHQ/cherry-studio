@@ -2090,6 +2090,18 @@ const migrateConfig = {
       logger.error('migrate 130 error', error as Error)
       return state
     }
+  },
+  '130': (state: RootState) => {
+    try {
+      // 为 nutstore 添加备份数量限制的默认值
+      if (state.nutstore && state.nutstore.nutstoreMaxBackups === undefined) {
+        state.nutstore.nutstoreMaxBackups = 0
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 130 error', error as Error)
+      return state
+    }
   }
 }
 
