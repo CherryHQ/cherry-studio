@@ -307,7 +307,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  gpt5: MODEL_SUPPORTED_REASONING_EFFORT.gpt5,
+  gpt5: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
