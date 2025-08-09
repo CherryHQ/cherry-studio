@@ -29,7 +29,8 @@ const S3Settings: FC = () => {
     root: s3RootInit = '',
     syncInterval: s3SyncIntervalInit = 0,
     maxBackups: s3MaxBackupsInit = 5,
-    skipBackupFile: s3SkipBackupFileInit = false
+    skipBackupFile: s3SkipBackupFileInit = false,
+    skipTlsVerify: s3SkipTlsVerifyInit = false
   } = s3
 
   const [endpoint, setEndpoint] = useState<string | undefined>(s3EndpointInit)
@@ -43,6 +44,7 @@ const S3Settings: FC = () => {
 
   const [syncInterval, setSyncInterval] = useState<number>(s3SyncIntervalInit)
   const [maxBackups, setMaxBackups] = useState<number>(s3MaxBackupsInit)
+  const [skipTlsVerify, setSkipTlsVerify] = useState<boolean>(s3SkipTlsVerifyInit)
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -77,6 +79,11 @@ const S3Settings: FC = () => {
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(setS3Partial({ skipBackupFile: value }))
+  }
+
+  const onSkipTlsVerifyChange = (value: boolean) => {
+    setSkipTlsVerify(value)
+    dispatch(setS3Partial({ skipTlsVerify: value }))
   }
 
   const renderSyncStatus = () => {
@@ -257,6 +264,10 @@ const S3Settings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.s3.skipTlsVerify.label')}</SettingRowTitle>
+        <Switch checked={skipTlsVerify} onChange={onSkipTlsVerifyChange} />
       </SettingRow>
       {syncInterval > 0 && (
         <>

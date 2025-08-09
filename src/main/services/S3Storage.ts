@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import type { S3Config } from '@types'
 import * as net from 'net'
 import { Readable } from 'stream'
+import * as https from 'https'
 
 const logger = loggerService.withContext('S3Storage')
 
@@ -37,7 +38,7 @@ export default class S3Storage {
   private root: string
 
   constructor(config: S3Config) {
-    const { endpoint, region, accessKeyId, secretAccessKey, bucket, root } = config
+    const { endpoint, region, accessKeyId, secretAccessKey, bucket, root, skipTlsVerify } = config
 
     const usePathStyle = (() => {
       if (!endpoint) return false
@@ -57,16 +58,33 @@ export default class S3Storage {
       }
     })()
 
-    this.client = new S3Client({
-      region,
-      endpoint: endpoint || undefined,
-      credentials: {
-        accessKeyId: accessKeyId,
-        secretAccessKey: secretAccessKey
-      },
-      forcePathStyle: usePathStyle
-    })
-
+    if (skipTlsVerify) {
+      const agent = new https.Agent({
+        rejectUnauthorized: false
+      })
+      this.client = new S3Client({
+        region,
+        endpoint: endpoint || undefined,
+        credentials: {
+          accessKeyId: accessKeyId,
+          secretAccessKey: secretAccessKey
+        },
+        forcePathStyle: usePathStyle,
+        requestHandler: {
+          httpsAgent: agent
+        }
+      })
+    } else {
+      this.client = new S3Client({
+        region,
+        endpoint: endpoint || undefined,
+        credentials: {
+          accessKeyId: accessKeyId,
+          secretAccessKey: secretAccessKey
+        },
+        forcePathStyle: usePathStyle
+      })
+    }
     this.bucket = bucket
     this.root = root?.replace(/^\/+/g, '').replace(/\/+$/g, '') || ''
 
