@@ -5,6 +5,7 @@
  */
 
 import { loggerService } from '@logger'
+import { BuiltinMCPServerName } from '@renderer/types'
 
 import i18n from './index'
 
@@ -289,7 +290,7 @@ export const getFileFieldLabel = (key: string): string => {
   return getLabel(key, fileFieldKeyMap)
 }
 
-const builtInMcpDescriptionKeyMap = {
+const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   '@cherry/memory': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
