@@ -456,7 +456,7 @@ const ProvidersList: FC = () => {
   return (
     <Container className="selectable">
       <Splitter>
-        <Splitter.Panel min={250}>
+        <Splitter.Panel min={250} defaultSize={250}>
           <ProviderListContainer>
             <AddButtonWrapper>
               <Input
