@@ -233,6 +233,21 @@ export abstract class BaseApiClient<
     return serviceTierSetting
   }
 
+  protected getVerbosity() {
+    try {
+      const state = window.store?.getState()
+      const verbosity = state?.settings?.openAI?.verbosity
+
+      if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
+        return verbosity
+      }
+    } catch (error) {
+      logger.warn('获取详细程度设置失败', error as Error)
+    }
+
+    return 'medium'
+  }
+
   protected getTimeout(model: Model) {
     if (isSupportFlexServiceTierModel(model)) {
       return 15 * 1000 * 60
