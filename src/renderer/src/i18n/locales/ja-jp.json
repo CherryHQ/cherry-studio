@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "新パスに書き込み権限がありません",
           "select_title": "バックアップディレクトリを選択"
         },
+        "hour_interval": "{{count}} 時間ごと",
         "hour_interval_one": "{{count}} 時間",
         "hour_interval_other": "{{count}} 時間",
         "lastSync": "最終バックアップ",
@@ -2178,6 +2179,7 @@
           "label": "最大バックアップ数",
           "unlimited": "無制限"
         },
+        "minute_interval": "每 {{count}} 分鐘",
         "minute_interval_one": "{{count}} 分",
         "minute_interval_other": "{{count}} 分",
         "noSync": "次回のバックアップを待機中",
@@ -2516,10 +2518,12 @@
           "label": "WebDAVホスト",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "每 {{count}} 時間",
         "hour_interval_one": "{{count}} 時間",
         "hour_interval_other": "{{count}} 時間",
         "lastSync": "最終バックアップ",
         "maxBackups": "最大バックアップ数",
+        "minute_interval": "每 {{count}} 分钟",
         "minute_interval_one": "{{count}} 分",
         "minute_interval_other": "{{count}} 分",
         "noSync": "次回のバックアップを待機中",

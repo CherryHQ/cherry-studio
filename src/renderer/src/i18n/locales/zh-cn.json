@@ -2171,6 +2171,7 @@
           "select_error_write_permission": "新路径没有写入权限",
           "select_title": "选择备份目录"
         },
+        "hour_interval": "每 {{count}} 小时",
         "hour_interval_one": "{{count}} 小时",
         "hour_interval_other": "{{count}} 小时",
         "lastSync": "上次备份",
@@ -2178,6 +2179,7 @@
           "label": "最大备份数",
           "unlimited": "无限制"
         },
+        "minute_interval": "每 {{count}} 分钟",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "noSync": "等待下次备份",
@@ -2516,10 +2518,12 @@
           "label": "WebDAV 地址",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval": "每 {{count}} 小时",
         "hour_interval_one": "{{count}} 小时",
         "hour_interval_other": "{{count}} 小时",
         "lastSync": "上次备份时间",
         "maxBackups": "最大备份数",
+        "minute_interval": "每 {{count}} 分钟",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "noSync": "等待下次备份",
