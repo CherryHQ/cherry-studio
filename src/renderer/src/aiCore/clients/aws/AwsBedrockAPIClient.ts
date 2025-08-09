@@ -255,6 +255,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       }
 
       const command = new InvokeModelCommand({
+        // 创建请求应该使用 id
         modelId: model.id,
         body: JSON.stringify(requestBody),
         contentType: 'application/json',
@@ -411,6 +412,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         }
 
         const payload: AwsBedrockSdkParams = {
+          // 创建请求应该使用 id
           modelId: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
