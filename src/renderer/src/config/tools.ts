@@ -1,11 +1,12 @@
 import { Model } from '@renderer/types'
 import { ChatCompletionTool } from 'openai/resources'
 
+import { getModelId } from './models'
 import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from './prompts'
 
 export function getWebSearchTools(model: Model): ChatCompletionTool[] {
   if (model?.provider === 'zhipu') {
-    if (model.id === 'glm-4-alltools') {
+    if (getModelId(model) === 'glm-4-alltools') {
       return [
         {
           type: 'web_browser',
@@ -41,7 +42,7 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
 }
 
 export function getUrlContextTools(model: Model): ChatCompletionTool[] {
-  if (model.id.includes('gemini')) {
+  if (getModelId(model).includes('gemini')) {
     return [
       {
         type: 'function',
