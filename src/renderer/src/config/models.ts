@@ -2504,7 +2504,9 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  return (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini')
+  return (
+    (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
+  )
 }
 
 export function isSupportVerbosityModel(model: Model): boolean {
