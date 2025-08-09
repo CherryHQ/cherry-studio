@@ -16707,7 +16707,7 @@ __metadata:
 
 "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch":
   version: 5.12.2
-  resolution: "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch::version=5.12.2&hash=f81c37"
+  resolution: "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch::version=5.12.2&hash=ad5d10"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -16718,7 +16718,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/a1739d2fdb7ee79f994cdb8154ef0d3ff8bfbe267078f86333dfd61cf4aba14ad9bdd9578cbe872b2e7e63a862f2bbba77221654d7273732fdf60792d96e1535
+  checksum: 10c0/2964a1c88a98cf169c9b73e8cd6776c03c8f3103fee30961c6953e5d995ad57a697e2179615999356809349186df6496abae105928ff7ce0229e5016dec87cb3
   languageName: node
   linkType: hard
 
