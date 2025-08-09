@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { getModelId } from '@renderer/config/models'
 import { Language, Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
@@ -58,7 +59,7 @@ export const waitAsyncFunction = (
 export const uuid = () => uuidv4()
 
 export function isFreeModel(model: Model) {
-  return (model.id + model.name).toLocaleLowerCase().includes('free')
+  return (getModelId(model) + model.name).toLocaleLowerCase().includes('free')
 }
 
 /**
