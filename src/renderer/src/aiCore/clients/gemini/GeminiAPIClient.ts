@@ -22,6 +22,7 @@ import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
+  getModelId,
   isGemmaModel,
   isSupportedThinkingTokenGeminiModel,
   isVisionModel
@@ -151,6 +152,7 @@ export class GeminiAPIClient extends BaseApiClient<
     const sdk = await this.getSdkInstance()
 
     const data = await sdk.models.embedContent({
+      // 创建请求使用 id
       model: model.id,
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
     })
@@ -389,10 +391,11 @@ export class GeminiAPIClient extends BaseApiClient<
   private getBudgetToken(assistant: Assistant, model: Model) {
     if (isSupportedThinkingTokenGeminiModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
+      const modelId = getModelId(model)
 
       // 如果thinking_budget是undefined，不思考
       if (reasoningEffort === undefined) {
-        return GEMINI_FLASH_MODEL_REGEX.test(model.id)
+        return GEMINI_FLASH_MODEL_REGEX.test(modelId)
           ? {
               thinkingConfig: {
                 thinkingBudget: 0
@@ -410,7 +413,7 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       }
       const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
+      const { min, max } = findTokenLimit(modelId) || { min: 0, max: 0 }
       // 计算 budgetTokens，确保不低于 min
       const budget = Math.floor((max - min) * effortRatio + min)
 
