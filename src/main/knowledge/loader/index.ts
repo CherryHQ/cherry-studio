@@ -2,7 +2,7 @@ import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherry
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import { readTextFileWithAutoEncoding } from '@main/utils/file'
+import { getSafeFilePath, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
 
@@ -56,7 +56,7 @@ export async function addOdLoader(
   return ragApplication.addLoader(
     new OdLoader({
       odType,
-      filePath: file.path,
+      filePath: getSafeFilePath(file),
       chunkSize: base.chunkSize,
       chunkOverlap: base.chunkOverlap
     }) as any,
@@ -77,13 +77,13 @@ export async function addFileLoader(
   // JSON类型处理
   let jsonObject = {}
   let jsonParsed = true
-  logger.info(`[KnowledgeBase] processing file ${file.path} as ${loaderType} type`)
+  logger.info(`[KnowledgeBase] processing file ${getSafeFilePath(file)} as ${loaderType} type`)
   switch (loaderType) {
     case 'common':
       // 内置类型处理
       loaderReturn = await ragApplication.addLoader(
         new LocalPathLoader({
-          path: file.path,
+          path: getSafeFilePath(file),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,
@@ -99,7 +99,7 @@ export async function addFileLoader(
       // epub类型处理
       loaderReturn = await ragApplication.addLoader(
         new EpubLoader({
-          filePath: file.path,
+          filePath: getSafeFilePath(file),
           chunkSize: base.chunkSize ?? 1000,
           chunkOverlap: base.chunkOverlap ?? 200
         }) as any,
@@ -109,14 +109,14 @@ export async function addFileLoader(
 
     case 'drafts':
       // Drafts类型处理
-      loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(file.path) as any, forceReload)
+      loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(getSafeFilePath(file)) as any, forceReload)
       break
 
     case 'html':
       // HTML类型处理
       loaderReturn = await ragApplication.addLoader(
         new WebLoader({
-          urlOrContent: await readTextFileWithAutoEncoding(file.path),
+          urlOrContent: await readTextFileWithAutoEncoding(getSafeFilePath(file)),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,
@@ -126,11 +126,11 @@ export async function addFileLoader(
 
     case 'json':
       try {
-        jsonObject = JSON.parse(await readTextFileWithAutoEncoding(file.path))
+        jsonObject = JSON.parse(await readTextFileWithAutoEncoding(getSafeFilePath(file)))
       } catch (error) {
         jsonParsed = false
         logger.warn(
-          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${file.path}`,
+          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${getSafeFilePath(file)}`,
           error as Error
         )
       }
@@ -145,7 +145,7 @@ export async function addFileLoader(
       // 如果是其他文本类型且尚未读取文件，则读取文件
       loaderReturn = await ragApplication.addLoader(
         new TextLoader({
-          text: await readTextFileWithAutoEncoding(file.path),
+          text: await readTextFileWithAutoEncoding(getSafeFilePath(file)),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,

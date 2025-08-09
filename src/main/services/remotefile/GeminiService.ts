@@ -1,5 +1,6 @@
 import { File, Files, FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
+import { getSafeFilePath } from '@main/utils/file'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -29,7 +30,7 @@ export class GeminiService extends BaseFileService {
   async uploadFile(file: FileMetadata): Promise<FileUploadResponse> {
     try {
       const uploadResult = await this.fileManager.upload({
-        file: file.path,
+        file: getSafeFilePath(file),
         config: {
           mimeType: 'application/pdf',
           name: file.id,

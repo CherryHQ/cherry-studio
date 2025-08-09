@@ -1,4 +1,5 @@
 import ImageViewer from '@renderer/components/ImageViewer'
+import FileManager from '@renderer/services/FileManager'
 import { type ImageMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Skeleton } from 'antd'
 import React from 'react'
@@ -13,8 +14,8 @@ const ImageBlock: React.FC<Props> = ({ block }) => {
   if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.SUCCESS) {
     const images = block.metadata?.generateImageResponse?.images?.length
       ? block.metadata?.generateImageResponse?.images
-      : block?.file?.path
-        ? [`file://${block?.file?.path}`]
+      : block?.file
+        ? [`file://${FileManager.getFilePath(block?.file)}`]
         : []
     return (
       <Container>

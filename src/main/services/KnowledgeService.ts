@@ -29,7 +29,7 @@ import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
-import { getAllFiles } from '@main/utils/file'
+import { getAllFiles, getSafeFilePath } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
@@ -692,12 +692,12 @@ class KnowledgeService {
         // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
-          logger.debug(`File already preprocess processed, using cached result: ${file.path}`)
+          logger.debug(`File already preprocess processed, using cached result: ${getSafeFilePath(file)}`)
           return alreadyProcessed
         }
 
         // Execute preprocessing
-        logger.debug(`Starting preprocess processing for scanned PDF: ${file.path}`)
+        logger.debug(`Starting preprocess processing for scanned PDF: ${getSafeFilePath(file)}`)
         const { processedFile, quota } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
         const mainWindow = windowService.getMainWindow()
