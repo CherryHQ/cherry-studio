@@ -7,6 +7,7 @@ import {
 import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import { getModelId } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockRegion,
@@ -223,23 +224,25 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       // 可以根据需要添加更多模型
     }
 
+    const modelId = getModelId(model)
+
     // 如果是已知的嵌入模型，直接返回维度
-    if (embeddingModels[model.id]) {
-      return embeddingModels[model.id]
+    if (embeddingModels[modelId]) {
+      return embeddingModels[modelId]
     }
 
     // 对于未知模型，尝试实际调用API获取维度
     try {
       let requestBody: any
 
-      if (model.id.startsWith('cohere.embed')) {
+      if (modelId.startsWith('cohere.embed')) {
         // Cohere Embed API 格式
         requestBody = {
           texts: ['test'],
           input_type: 'search_document',
           embedding_types: ['float']
         }
-      } else if (model.id.startsWith('amazon.titan-embed')) {
+      } else if (modelId.startsWith('amazon.titan-embed')) {
         // Amazon Titan Embed API 格式
         requestBody = {
           inputText: 'test'
@@ -279,19 +282,19 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       }
 
       // 如果无法解析，则抛出错误
-      throw new Error(`Unable to determine embedding dimensions for model ${model.id}`)
+      throw new Error(`Unable to determine embedding dimensions for model ${modelId}`)
     } catch (error) {
       logger.error('Failed to get embedding dimensions from AWS Bedrock:', error as Error)
 
       // 根据模型名称推测维度
-      if (model.id.includes('titan')) {
+      if (modelId.includes('titan')) {
         return 1536 // Amazon Titan 默认维度
       }
-      if (model.id.includes('cohere')) {
+      if (modelId.includes('cohere')) {
         return 1024 // Cohere 默认维度
       }
 
-      throw new Error(`Unable to determine embedding dimensions for model ${model.id}: ${(error as Error).message}`)
+      throw new Error(`Unable to determine embedding dimensions for model ${modelId}: ${(error as Error).message}`)
     }
   }
 
