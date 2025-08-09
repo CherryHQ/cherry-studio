@@ -8,6 +8,7 @@ import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
 import AgentsPage from './pages/agents/AgentsPage'
+import CodePage from './pages/code/CodePage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
@@ -30,6 +31,7 @@ const Router: FC = () => {
         <Route path="/files" element={<FilesPage />} />
         <Route path="/knowledge" element={<KnowledgePage />} />
         <Route path="/apps" element={<MinAppsPage />} />
+        <Route path="/code" element={<CodePage />} />
         <Route path="/settings/*" element={<SettingsPage />} />
         <Route path="/launchpad" element={<LaunchpadPage />} />
       </Routes>

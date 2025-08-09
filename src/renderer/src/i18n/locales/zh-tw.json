@@ -648,6 +648,29 @@
     },
     "translate": "翻譯"
   },
+  "code": {
+    "bun_required_message": "運行 CLI 工具需要安裝 Bun 環境",
+    "cli_tool": "CLI 工具",
+    "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "folder_placeholder": "選擇工作目錄",
+    "install_bun": "安裝 Bun",
+    "installing_bun": "安裝中...",
+    "launch": {
+      "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
+      "error": "啟動失敗，請重試",
+      "label": "啟動",
+      "success": "啟動成功",
+      "validation_error": "請完成所有必填項目：CLI 工具、模型和工作目錄"
+    },
+    "launching": "啟動中...",
+    "model": "模型",
+    "model_placeholder": "選擇要使用的模型",
+    "model_required": "請選擇模型",
+    "select_folder": "選擇資料夾",
+    "title": "程式碼工具",
+    "working_directory": "工作目錄"
+  },
   "code_block": {
     "collapse": "折疊",
     "copy": {
@@ -3561,6 +3584,7 @@
   "title": {
     "agents": "智能體",
     "apps": "小程序",
+    "code": "Code",
     "files": "文件",
     "home": "主頁",
     "knowledge": "知識庫",
