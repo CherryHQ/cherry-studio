@@ -397,6 +397,7 @@ const InputbarTools = ({
             ToolbarButton={ToolbarButton}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
+            setText={setText}
           />
         )
       },
