@@ -3150,7 +3150,7 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 }
 
 /**
- * 获取模型的标识ID
+ * 获取模型ID，包含自定义ID的情况。用于模型类型判断、能力判断等场景，不要在网络通信API中使用。
  * @param model - 模型对象
  * @returns 返回模型的标准化ID字符串
  * @description
