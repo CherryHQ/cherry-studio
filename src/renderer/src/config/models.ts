@@ -252,6 +252,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4',
   'gpt-4.5',
   'gpt-oss(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
   'qwen',
@@ -274,7 +275,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-preview',
   'AIDC-AI/Marco-o1',
   'gemini-1(?:\\.[\\w-]+)?',
-  'qwen-mt(?:-[\\w-]+)?'
+  'qwen-mt(?:-[\\w-]+)?',
+  'gpt-5-chat(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
