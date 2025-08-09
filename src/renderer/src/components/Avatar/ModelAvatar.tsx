@@ -1,4 +1,4 @@
-import { getModelLogo } from '@renderer/config/models'
+import { getModelId, getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { Avatar, AvatarProps } from 'antd'
 import { first } from 'lodash'
@@ -14,7 +14,7 @@ interface Props {
 const ModelAvatar: FC<Props> = ({ model, size, props, className }) => {
   return (
     <Avatar
-      src={getModelLogo(model?.id || '')}
+      src={getModelLogo(getModelId(model))}
       style={{
         width: size,
         height: size,
