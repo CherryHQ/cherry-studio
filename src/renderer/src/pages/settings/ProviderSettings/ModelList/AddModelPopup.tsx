@@ -20,6 +20,7 @@ interface Props extends ShowParams {
 type FieldType = {
   provider: string
   id: string
+  customId?: string
   name?: string
   group?: string
 }
@@ -44,6 +45,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
 
   const onAddModel = (values: FieldType) => {
     const id = values.id.trim()
+    const customId = values.customId?.trim()
 
     if (find(models, { id })) {
       window.message.error(t('error.model.exists'))
@@ -52,6 +54,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
 
     const model: Model = {
       id,
+      customId,
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id)
@@ -108,6 +111,16 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
               form.setFieldValue('name', e.target.value)
               form.setFieldValue('group', getDefaultGroupName(e.target.value, provider.id))
             }}
+          />
+        </Form.Item>
+        <Form.Item
+          name="customId"
+          label={t('settings.models.add.custom_model_id.label')}
+          tooltip={t('settings.models.add.custom_model_id.tooltip')}>
+          <Input
+            placeholder={t('settings.models.add.custom_model_id.placeholder')}
+            spellCheck={false}
+            maxLength={200}
           />
         </Form.Item>
         <Form.Item
