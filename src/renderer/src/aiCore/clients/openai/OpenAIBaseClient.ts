@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import {
+  getModelId,
   isClaudeReasoningModel,
   isOpenAIReasoningModel,
   isSupportedModel,
@@ -89,6 +90,7 @@ export abstract class OpenAIBaseClient<
     const sdk = await this.getSdkInstance()
 
     const data = await sdk.embeddings.create({
+      // 创建请求应该使用 id
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
       encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
@@ -193,8 +195,9 @@ export abstract class OpenAIBaseClient<
   protected getProviderSpecificParameters(assistant: Assistant, model: Model) {
     const { maxTokens } = getAssistantSettings(assistant)
 
+    const modelId = getModelId(model)
     if (this.provider.id === 'openrouter') {
-      if (model.id.includes('deepseek-r1')) {
+      if (modelId.includes('deepseek-r1')) {
         return {
           include_reasoning: true
         }
@@ -222,12 +225,13 @@ export abstract class OpenAIBaseClient<
       return {}
     }
 
+    const modelId = getModelId(model)
     const openAI = getStoreSetting('openAI') as SettingsState['openAI']
     const summaryText = openAI?.summaryText || 'off'
 
     let summary: string | undefined = undefined
 
-    if (summaryText === 'off' || model.id.includes('o1-pro')) {
+    if (summaryText === 'off' || modelId.includes('o1-pro')) {
       summary = undefined
     } else {
       summary = summaryText
