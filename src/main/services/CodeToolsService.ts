@@ -357,13 +357,7 @@ end tell`
           ':: Clear screen',
           'cls',
           '',
-          ':: Display current directory',
-          'echo Current directory: %CD%',
-          'echo.',
-          '',
-          ':: Execute command',
-          `echo Executing: ${command}`,
-          'echo.',
+          ':: Execute command (without displaying environment variable settings)',
           command,
           '',
           ':: Command execution completed',
@@ -387,19 +381,16 @@ end tell`
         terminalArgs = ['/c', 'start', batFilePath]
 
         // Set cleanup task (delete temp file after 5 minutes)
-        setTimeout(
-          () => {
-            try {
-              if (fs.existsSync(batFilePath)) {
-                fs.unlinkSync(batFilePath)
-                logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
-              }
-            } catch (error) {
-              logger.warn(`Failed to cleanup temp bat file: ${error}`)
+        setTimeout(() => {
+          try {
+            if (fs.existsSync(batFilePath)) {
+              fs.unlinkSync(batFilePath)
+              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
             }
-          },
-          5 * 60 * 1000
-        ) // Delete temp file after 5 minutes
+          } catch (error) {
+            logger.warn(`Failed to cleanup temp bat file: ${error}`)
+          }
+        }, 30 * 1000) // Delete temp file after 30 seconds
 
         break
       }
