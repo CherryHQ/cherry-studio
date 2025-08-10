@@ -214,11 +214,20 @@ class CodeToolsService {
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean } = {}
   ) {
+    logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
+    logger.debug(`Environment variables:`, env)
+    logger.debug(`Options:`, options)
+
     const packageName = await this.getPackageName(cliTool)
     const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
     const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+
+    logger.debug(`Package name: ${packageName}`)
+    logger.debug(`Bun path: ${bunPath}`)
+    logger.debug(`Executable name: ${executableName}`)
+    logger.debug(`Executable path: ${executablePath}`)
 
     // Check if package is already installed
     const isInstalled = await this.isPackageInstalled(cliTool)
@@ -311,12 +320,87 @@ end tell`
         break
       }
       case 'win32': {
-        // Windows - Launch terminal and execute command, without showing startup command
+        // Windows - Use temp bat file for debugging
         const envPrefix = buildEnvPrefix(true)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
+        // Create temp bat file for debugging and avoid complex command line escaping issues
+        const tempDir = path.join(os.tmpdir(), 'cherrystudio')
+        const timestamp = Date.now()
+        const batFileName = `launch_${cliTool}_${timestamp}.bat`
+        const batFilePath = path.join(tempDir, batFileName)
+
+        // Ensure temp directory exists
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true })
+        }
+
+        // Build bat file content, including debug information
+        const batContent = [
+          '@echo off',
+          `title ${cliTool} - Cherry Studio`, // Set window title in bat file
+          'echo ================================================',
+          'echo Cherry Studio CLI Tool Launcher',
+          `echo Tool: ${cliTool}`,
+          `echo Directory: ${directory}`,
+          `echo Time: ${new Date().toLocaleString()}`,
+          'echo ================================================',
+          '',
+          ':: Change to target directory',
+          `cd /d "${directory}" || (`,
+          '  echo ERROR: Failed to change directory',
+          `  echo Target directory: ${directory}`,
+          '  pause',
+          '  exit /b 1',
+          ')',
+          '',
+          ':: Clear screen',
+          'cls',
+          '',
+          ':: Display current directory',
+          'echo Current directory: %CD%',
+          'echo.',
+          '',
+          ':: Execute command',
+          `echo Executing: ${command}`,
+          'echo.',
+          command,
+          '',
+          ':: Command execution completed',
+          'echo.',
+          'echo Command execution completed.',
+          'echo Press any key to close this window...',
+          'pause >nul'
+        ].join('\r\n')
+
+        // Write to bat file
+        try {
+          fs.writeFileSync(batFilePath, batContent, 'utf8')
+          logger.info(`Created temp bat file: ${batFilePath}`)
+        } catch (error) {
+          logger.error(`Failed to create bat file: ${error}`)
+          throw new Error(`Failed to create launch script: ${error}`)
+        }
+
+        // Launch bat file - Use safest start syntax, no title parameter
         terminalCommand = 'cmd'
-        terminalArgs = ['/c', 'start', 'cmd', '/k', `cd /d "${directory}" && cls && ${command}`]
+        terminalArgs = ['/c', 'start', batFilePath]
+
+        // Set cleanup task (delete temp file after 5 minutes)
+        setTimeout(
+          () => {
+            try {
+              if (fs.existsSync(batFilePath)) {
+                fs.unlinkSync(batFilePath)
+                logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+              }
+            } catch (error) {
+              logger.warn(`Failed to cleanup temp bat file: ${error}`)
+            }
+          },
+          5 * 60 * 1000
+        ) // Delete temp file after 5 minutes
+
         break
       }
       case 'linux': {
@@ -364,6 +448,11 @@ end tell`
 
     // Launch terminal process
     try {
+      logger.info(`Launching terminal with command: ${terminalCommand}`)
+      logger.debug(`Terminal arguments:`, terminalArgs)
+      logger.debug(`Working directory: ${directory}`)
+      logger.debug(`Process environment keys: ${Object.keys({ ...process.env, ...env }).length}`)
+
       spawn(terminalCommand, terminalArgs, {
         detached: true,
         stdio: 'ignore',
@@ -371,16 +460,20 @@ end tell`
         env: { ...process.env, ...env }
       })
 
+      const successMessage = `Launched ${cliTool} in new terminal window`
+      logger.info(successMessage)
       return {
         success: true,
-        message: `Launched ${cliTool} in new terminal window`,
+        message: successMessage,
         command: `${terminalCommand} ${terminalArgs.join(' ')}`
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      const failureMessage = `Failed to launch terminal: ${errorMessage}`
+      logger.error(failureMessage, error as Error)
       return {
         success: false,
-        message: `Failed to launch terminal: ${errorMessage}`,
+        message: failureMessage,
         command: `${terminalCommand} ${terminalArgs.join(' ')}`
       }
     }
