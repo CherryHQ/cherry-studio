@@ -212,7 +212,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { checkUpdate?: boolean; forceUpdate?: boolean } = {}
+    options: { autoUpdateToLatest?: boolean } = {}
   ) {
     const packageName = await this.getPackageName(cliTool)
     const bunPath = await this.getBunPath()
@@ -223,33 +223,26 @@ class CodeToolsService {
     // Check if package is already installed
     const isInstalled = await this.isPackageInstalled(cliTool)
 
-    // Check for updates if requested and package is installed
+    // Check for updates and auto-update if requested
     let updateMessage = ''
-    if (isInstalled && (options.checkUpdate || options.forceUpdate)) {
-      logger.info(
-        `Update check requested for ${cliTool}, checkUpdate=${options.checkUpdate}, forceUpdate=${options.forceUpdate}`
-      )
+    if (isInstalled && options.autoUpdateToLatest) {
+      logger.info(`Auto update to latest enabled for ${cliTool}`)
       try {
         const versionInfo = await this.getVersionInfo(cliTool)
         if (versionInfo.needsUpdate) {
           logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-          if (options.forceUpdate) {
-            logger.info(`Force update enabled, starting update process for ${cliTool}`)
-            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
-            const updateResult = await this.updatePackage(cliTool)
-            if (updateResult.success) {
-              logger.info(`Update completed successfully for ${cliTool}`)
-              updateMessage += ` && echo "Update completed successfully"`
-            } else {
-              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
-            }
+          logger.info(`Auto-updating ${cliTool} to latest version`)
+          updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+          const updateResult = await this.updatePackage(cliTool)
+          if (updateResult.success) {
+            logger.info(`Update completed successfully for ${cliTool}`)
+            updateMessage += ` && echo "Update completed successfully"`
           } else {
-            logger.info(`Update available but not forced, showing notification for ${cliTool}`)
-            updateMessage = ` && echo "Update available: ${cliTool} ${versionInfo.installed} -> ${versionInfo.latest} (run with --update to update)"`
+            logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
+            updateMessage += ` && echo "Update failed: ${updateResult.message}"`
           }
         } else if (versionInfo.installed && versionInfo.latest) {
-          logger.info(`${cliTool} is up to date (${versionInfo.installed})`)
+          logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
           updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
         }
       } catch (error) {

@@ -401,7 +401,7 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { checkUpdate?: boolean; forceUpdate?: boolean }
+      options?: { autoUpdateToLatest?: boolean }
     ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options)
   }
 }

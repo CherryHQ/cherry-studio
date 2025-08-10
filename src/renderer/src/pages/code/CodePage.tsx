@@ -43,8 +43,7 @@ const CodePage: FC = () => {
   // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
-  const [checkUpdate, setCheckUpdate] = useState(true)
-  const [forceUpdate, setForceUpdate] = useState(false)
+  const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
 
   // 处理 CLI 工具选择
   const handleCliToolChange = (value: string) => {
@@ -197,8 +196,7 @@ const CodePage: FC = () => {
       })
 
       window.api.codeTools.run(selectedCliTool, selectedModel?.id, currentDirectory, env, {
-        checkUpdate,
-        forceUpdate
+        autoUpdateToLatest
       })
 
       window.message.success({
@@ -311,14 +309,9 @@ const CodePage: FC = () => {
 
         <SettingsItem>
           <div className="settings-label">{t('code.update_options')}</div>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Checkbox checked={checkUpdate} onChange={(e) => setCheckUpdate(e.target.checked)}>
-              {t('code.check_update')}
-            </Checkbox>
-            <Checkbox checked={forceUpdate} onChange={(e) => setForceUpdate(e.target.checked)} disabled={!checkUpdate}>
-              {t('code.force_update')}
-            </Checkbox>
-          </Space>
+          <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
+            {t('code.auto_update_to_latest')}
+          </Checkbox>
         </SettingsItem>
       </SettingsPanel>
 

@@ -649,13 +649,12 @@
     "translate": "翻譯"
   },
   "code": {
+    "auto_update_to_latest": "檢查更新並安裝最新版本",
     "bun_required_message": "運行 CLI 工具需要安裝 Bun 環境",
-    "check_update": "啟動時檢查更新",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
     "folder_placeholder": "選擇工作目錄",
-    "force_update": "自動更新到最新版本",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",
     "launch": {

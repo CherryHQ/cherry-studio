@@ -649,13 +649,12 @@
     "translate": "翻訳"
   },
   "code": {
+    "auto_update_to_latest": "最新バージョンを自動的に更新する",
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
-    "check_update": "起動時に更新を確認",
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
     "folder_placeholder": "作業ディレクトリを選択してください",
-    "force_update": "自動更新到最新バージョン",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
     "launch": {
