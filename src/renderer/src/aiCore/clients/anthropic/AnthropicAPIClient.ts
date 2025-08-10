@@ -85,9 +85,42 @@ export class AnthropicAPIClient extends BaseApiClient<
   ToolUseBlock,
   ToolUnion
 > {
+  oauthToken: string | undefined = undefined
+  isOAuthMode: boolean = false
   sdkInstance: Anthropic | AnthropicVertex | undefined = undefined
   constructor(provider: Provider) {
     super(provider)
+  }
+
+  private async makeOAuthRequest(path: string, method: 'GET' | 'POST', body?: any): Promise<any> {
+    if (!this.oauthToken) {
+      throw new Error('No OAuth token available')
+    }
+
+    const baseUrl = 'https://api.anthropic.com'
+    const url = baseUrl + path
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'oauth-2025-04-20',
+      Authorization: `Bearer ${this.oauthToken}`
+    }
+
+    const fetchOptions: RequestInit = {
+      method,
+      headers,
+      ...(body && { body: JSON.stringify(body) })
+    }
+
+    const response = await fetch(url, fetchOptions)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`OAuth API request failed: ${response.status} ${errorText}`)
+    }
+
+    return await response.json()
   }
 
   async getSdkInstance(): Promise<Anthropic | AnthropicVertex> {
@@ -110,11 +143,25 @@ export class AnthropicAPIClient extends BaseApiClient<
     payload: AnthropicSdkParams,
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
-    const sdk = (await this.getSdkInstance()) as Anthropic
-    if (payload.stream) {
-      return sdk.messages.stream(payload, options)
+    if (this.provider.authType === 'oauth') {
+      this.oauthToken = await window.api.anthropic_oauth.getAccessToken()
+      this.isOAuthMode = true
+      if (!this.oauthToken) {
+        throw new Error('OAuth token is not available')
+      }
+      logger.info('[Anthropic Provider] Using OAuth token for authentication')
+      return await this.makeOAuthRequest('/v1/messages', 'POST', {
+        ...payload,
+        system: "You are Claude Code, Anthropic's official CLI for Claude.",
+        stream: payload.stream || false
+      })
+    } else {
+      const sdk = (await this.getSdkInstance()) as Anthropic
+      if (payload.stream) {
+        return sdk.messages.stream(payload, options)
+      }
+      return await sdk.messages.create(payload, options)
     }
-    return await sdk.messages.create(payload, options)
   }
 
   // @ts-ignore sdk未提供
@@ -124,8 +171,15 @@ export class AnthropicAPIClient extends BaseApiClient<
   }
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
-    const sdk = (await this.getSdkInstance()) as Anthropic
-    const response = await sdk.models.list()
+    let response: any
+
+    if (this.isOAuthMode) {
+      response = await this.makeOAuthRequest('/v1/models', 'GET')
+    } else {
+      const sdk = (await this.getSdkInstance()) as Anthropic
+      response = await sdk.models.list()
+    }
+
     return response.data
   }
 
@@ -190,7 +244,6 @@ export class AnthropicAPIClient extends BaseApiClient<
   /**
    * Get the message parameter
    * @param message - The message
-   * @param model - The model
    * @returns The message parameter
    */
   public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {
