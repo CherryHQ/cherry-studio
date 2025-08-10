@@ -56,7 +56,6 @@ const NutstoreSettings: FC = () => {
   const [nsConnected, setNsConnected] = useState<boolean>(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
-  const [maxBackups, setMaxBackups] = useState<number>(nutstoreMaxBackups)
 
   const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
 
@@ -147,7 +146,6 @@ const NutstoreSettings: FC = () => {
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setMaxBackups(value)
     dispatch(setNutstoreMaxBackups(value))
   }
 
@@ -320,7 +318,7 @@ const NutstoreSettings: FC = () => {
             <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
             <Selector
               size={14}
-              value={maxBackups}
+              value={nutstoreMaxBackups}
               onChange={onMaxBackupsChange}
               disabled={!nutstoreToken}
               options={[
