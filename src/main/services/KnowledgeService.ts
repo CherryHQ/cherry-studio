@@ -690,15 +690,16 @@ class KnowledgeService {
     if (base.preprocessProvider && file.ext.toLowerCase() === '.pdf') {
       try {
         const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
+        const filePath = fileStorage.getFilePathById(file)
         // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
-          logger.debug(`File already preprocess processed, using cached result: ${fileStorage.getFilePathById(file)}`)
+          logger.debug(`File already preprocess processed, using cached result: ${filePath}`)
           return alreadyProcessed
         }
 
         // Execute preprocessing
-        logger.debug(`Starting preprocess processing for scanned PDF: ${fileStorage.getFilePathById(file)}`)
+        logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
         const { processedFile, quota } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
         const mainWindow = windowService.getMainWindow()
