@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { MistralClientManager } from '@main/services/MistralClientManager'
 import { MistralService } from '@main/services/remotefile/MistralService'
-import { getSafeFilePath } from '@main/utils/file'
 import { Mistral } from '@mistralai/mistralai'
 import { DocumentURLChunk } from '@mistralai/mistralai/models/components/documenturlchunk'
 import { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
@@ -39,7 +39,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
 
   private async preupload(file: FileMetadata): Promise<PreuploadResponse> {
     let document: PreuploadResponse
-    logger.info(`preprocess preupload started for local file: ${getSafeFilePath(file)}`)
+    logger.info(`preprocess preupload started for local file: ${fileStorage.getFilePathById(file)}`)
 
     if (file.ext.toLowerCase() === '.pdf') {
       const uploadResponse = await this.fileService.uploadFile(file)
@@ -59,7 +59,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
         documentUrl: fileUrl.url
       }
     } else {
-      const base64Image = Buffer.from(fs.readFileSync(getSafeFilePath(file))).toString('base64')
+      const base64Image = Buffer.from(fs.readFileSync(fileStorage.getFilePathById(file))).toString('base64')
       document = {
         type: 'image_url',
         imageUrl: `data:image/png;base64,${base64Image}`
@@ -99,7 +99,10 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
     const conversionId = file.id
     const outputPath = path.join(this.storageDir, file.id)
     // const outputPath = this.storageDir
-    const outputFileName = path.basename(getSafeFilePath(file), path.extname(getSafeFilePath(file)))
+    const outputFileName = path.basename(
+      fileStorage.getFilePathById(file),
+      path.extname(fileStorage.getFilePathById(file))
+    )
     fs.mkdirSync(outputPath, { recursive: true })
 
     const markdownParts: string[] = []

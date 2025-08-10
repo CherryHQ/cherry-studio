@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { getSafeFilePath } from '@main/utils/file'
+import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios from 'axios'
@@ -64,8 +64,8 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
     try {
-      logger.info(`MinerU preprocess processing started: ${getSafeFilePath(file)}`)
-      await this.validateFile(getSafeFilePath(file))
+      logger.info(`MinerU preprocess processing started: ${fileStorage.getFilePathById(file)}`)
+      await this.validateFile(fileStorage.getFilePathById(file))
 
       // 1. 获取上传URL并上传文件
       const batchId = await this.uploadFile(file)
@@ -87,7 +87,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         quota
       }
     } catch (error: any) {
-      logger.error(`MinerU preprocess processing failed for ${getSafeFilePath(file)}: ${error.message}`)
+      logger.error(`MinerU preprocess processing failed for ${fileStorage.getFilePathById(file)}: ${error.message}`)
       throw new Error(error.message)
     }
   }
@@ -210,12 +210,12 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
       logger.debug(`batchId: ${batchId}, fileurls: ${fileUrls}`)
       // 步骤2: 上传文件到获取的URL
-      await this.putFileToUrl(getSafeFilePath(file), fileUrls[0])
-      logger.info(`File uploaded successfully: ${getSafeFilePath(file)}`)
+      await this.putFileToUrl(fileStorage.getFilePathById(file), fileUrls[0])
+      logger.info(`File uploaded successfully: ${fileStorage.getFilePathById(file)}`)
 
       return batchId
     } catch (error: any) {
-      logger.error(`Failed to upload file ${getSafeFilePath(file)}: ${error.message}`)
+      logger.error(`Failed to upload file ${fileStorage.getFilePathById(file)}: ${error.message}`)
       throw new Error(error.message)
     }
   }
