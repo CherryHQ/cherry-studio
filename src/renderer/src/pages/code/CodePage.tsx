@@ -49,7 +49,7 @@ const CodePage: FC = () => {
   // 处理 CLI 工具选择
   const handleCliToolChange = (value: string) => {
     setCliTool(value)
-    setModel(null)
+    // 不再清空模型选择，因为每个工具都会记住自己的模型
   }
 
   const openAiProviders = providers.filter((p) => p.type.includes('openai'))

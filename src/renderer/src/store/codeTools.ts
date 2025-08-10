@@ -7,8 +7,8 @@ const MAX_DIRECTORIES = 10 // 最多保存10个目录
 export interface CodeToolsState {
   // 当前选择的 CLI 工具，默认使用 qwen-code
   selectedCliTool: string
-  // 记录用户之前选择的模型
-  selectedModel: Model | null
+  // 为每个 CLI 工具单独保存选择的模型
+  selectedModels: Record<string, Model | null>
   // 记录用户选择过的所有目录，支持增删
   directories: string[]
   // 当前选择的目录
@@ -17,7 +17,11 @@ export interface CodeToolsState {
 
 export const initialState: CodeToolsState = {
   selectedCliTool: 'qwen-code',
-  selectedModel: null,
+  selectedModels: {
+    'qwen-code': null,
+    'claude-code': null,
+    'gemini-cli': null
+  },
   directories: [],
   currentDirectory: ''
 }
@@ -31,9 +35,9 @@ const codeToolsSlice = createSlice({
       state.selectedCliTool = action.payload
     },
 
-    // 设置选择的模型
+    // 设置选择的模型（为当前 CLI 工具设置）
     setSelectedModel: (state, action: PayloadAction<Model | null>) => {
-      state.selectedModel = action.payload
+      state.selectedModels[state.selectedCliTool] = action.payload
     },
 
     // 添加目录到列表中
@@ -84,7 +88,11 @@ const codeToolsSlice = createSlice({
     // 重置所有设置
     resetCodeTools: (state) => {
       state.selectedCliTool = 'qwen-code'
-      state.selectedModel = null
+      state.selectedModels = {
+        'qwen-code': null,
+        'claude-code': null,
+        'gemini-cli': null
+      }
       state.directories = []
       state.currentDirectory = ''
     }

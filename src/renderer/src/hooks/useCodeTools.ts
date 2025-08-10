@@ -82,15 +82,16 @@ export const useCodeTools = () => {
     }
   }, [setCurrentDir, logger])
 
+  // 获取当前CLI工具选择的模型
+  const selectedModel = codeToolsState.selectedModels[codeToolsState.selectedCliTool] || null
+
   // 检查是否可以启动（所有必需字段都已填写）
-  const canLaunch = Boolean(
-    codeToolsState.selectedCliTool && codeToolsState.selectedModel && codeToolsState.currentDirectory
-  )
+  const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
 
   return {
     // 状态
     selectedCliTool: codeToolsState.selectedCliTool,
-    selectedModel: codeToolsState.selectedModel,
+    selectedModel: selectedModel,
     directories: codeToolsState.directories,
     currentDirectory: codeToolsState.currentDirectory,
     canLaunch,
