@@ -7,7 +7,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
-import { Alert, Button, Select, Space } from 'antd'
+import { Alert, Button, Checkbox, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +43,8 @@ const CodePage: FC = () => {
   // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
+  const [checkUpdate, setCheckUpdate] = useState(true)
+  const [forceUpdate, setForceUpdate] = useState(false)
 
   // 处理 CLI 工具选择
   const handleCliToolChange = (value: string) => {
@@ -194,7 +196,10 @@ const CodePage: FC = () => {
         folder: currentDirectory
       })
 
-      window.api.codeTools.run(selectedCliTool, selectedModel?.id, currentDirectory, env)
+      window.api.codeTools.run(selectedCliTool, selectedModel?.id, currentDirectory, env, {
+        checkUpdate,
+        forceUpdate
+      })
 
       window.message.success({
         content: t('code.launch.success'),
@@ -302,6 +307,18 @@ const CodePage: FC = () => {
               {t('code.select_folder')}
             </Button>
           </Space.Compact>
+        </SettingsItem>
+
+        <SettingsItem>
+          <div className="settings-label">{t('code.update_options')}</div>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Checkbox checked={checkUpdate} onChange={(e) => setCheckUpdate(e.target.checked)}>
+              {t('code.check_update')}
+            </Checkbox>
+            <Checkbox checked={forceUpdate} onChange={(e) => setForceUpdate(e.target.checked)} disabled={!checkUpdate}>
+              {t('code.force_update')}
+            </Checkbox>
+          </Space>
         </SettingsItem>
       </SettingsPanel>
 

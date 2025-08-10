@@ -650,10 +650,12 @@
   },
   "code": {
     "bun_required_message": "Bun environment is required to run CLI tools",
+    "check_update": "Check for updates on launch",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
     "folder_placeholder": "Select working directory",
+    "force_update": "Automatically update to latest version",
     "install_bun": "Install Bun",
     "installing_bun": "Installing...",
     "launch": {
@@ -669,6 +671,7 @@
     "model_required": "Please select a model",
     "select_folder": "Select Folder",
     "title": "Code Tools",
+    "update_options": "Update Options",
     "working_directory": "Working Directory"
   },
   "code_block": {

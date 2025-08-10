@@ -650,10 +650,12 @@
   },
   "code": {
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
+    "check_update": "启动时检查更新",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
     "folder_placeholder": "选择工作目录",
+    "force_update": "自动更新到最新版本",
     "install_bun": "安装 Bun",
     "installing_bun": "安装中...",
     "launch": {
@@ -669,6 +671,7 @@
     "model_required": "请选择模型",
     "select_folder": "选择文件夹",
     "title": "代码工具",
+    "update_options": "更新选项",
     "working_directory": "工作目录"
   },
   "code_block": {
