@@ -34,10 +34,6 @@ export class AnthropicVertexClient extends AnthropicAPIClient {
     return this.formatApiHost(this.provider.apiHost)
   }
 
-  override getClientCompatibilityType(): string[] {
-    return ['AnthropicVertexClient']
-  }
-
   override async getSdkInstance(): Promise<AnthropicVertex> {
     if (this.sdkInstance) {
       return this.sdkInstance
