@@ -8,6 +8,7 @@ import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
   Assistant,
+  BuiltinMCPServerName,
   MCPCallToolResponse,
   MCPServer,
   MCPTool,
@@ -33,7 +34,7 @@ import { filterProperties, processSchemaForO3 } from './mcp-schema'
 
 const logger = loggerService.withContext('Utils:MCPTools')
 
-const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
+const MCP_AUTO_INSTALL_SERVER_NAME: BuiltinMCPServerName = '@cherry/mcp-auto-install'
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
   return mcpTools.map((tool) => {
