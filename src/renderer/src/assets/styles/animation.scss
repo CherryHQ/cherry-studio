@@ -53,3 +53,18 @@
   animation-fill-mode: both;
   animation-duration: 0.25s;
 }
+
+// 旋转动画
+@keyframes animation-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animation-rotate {
+  transform-origin: center;
+  animation: animation-rotate 0.75s linear infinite;
+}

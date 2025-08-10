@@ -4,9 +4,24 @@
  * 2. 通过函数翻译文本
  */
 
+import { loggerService } from '@logger'
+import { ThinkingOption } from '@renderer/types'
+
 import i18n from './index'
 
 const t = i18n.t
+
+const logger = loggerService.withContext('i18n:label')
+
+const getLabel = (key: string, keyMap: Record<string, string>, fallback?: string) => {
+  const result = keyMap[key]
+  if (result) {
+    return t(result)
+  } else {
+    logger.error(`Missing key ${key}`)
+    return fallback ?? key
+  }
+}
 
 const providerKeyMap = {
   '302ai': 'provider.302ai',
@@ -63,20 +78,21 @@ const providerKeyMap = {
   xirang: 'provider.xirang',
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',
-  zhipu: 'provider.zhipu'
+  zhipu: 'provider.zhipu',
+  poe: 'provider.poe'
 } as const
 
 /**
  * 获取内置供应商的本地化标签
- * @param key - 供应商的key
+ * @param id - 供应商的id
  * @returns 本地化后的供应商名称
  * @remarks
  * 该函数仅用于获取内置供应商的 i18n label
  *
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
-export const getProviderLabel = (key: string): string => {
-  return providerKeyMap[key] ? t(providerKeyMap[key]) : key
+export const getProviderLabel = (id: string): string => {
+  return getLabel(id, providerKeyMap)
 }
 
 const progressKeyMap = {
@@ -89,7 +105,7 @@ const progressKeyMap = {
 } as const
 
 export const getProgressLabel = (key: string): string => {
-  return progressKeyMap[key] ? t(progressKeyMap[key]) : key
+  return getLabel(key, progressKeyMap)
 }
 
 const titleKeyMap = {
@@ -107,7 +123,7 @@ const titleKeyMap = {
 } as const
 
 export const getTitleLabel = (key: string): string => {
-  return titleKeyMap[key] ? t(titleKeyMap[key]) : key
+  return getLabel(key, titleKeyMap)
 }
 
 const themeModeKeyMap = {
@@ -117,7 +133,7 @@ const themeModeKeyMap = {
 } as const
 
 export const getThemeModeLabel = (key: string): string => {
-  return themeModeKeyMap[key] ? t(themeModeKeyMap[key]) : key
+  return getLabel(key, themeModeKeyMap)
 }
 
 const sidebarIconKeyMap = {
@@ -131,7 +147,7 @@ const sidebarIconKeyMap = {
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
-  return sidebarIconKeyMap[key] ? t(sidebarIconKeyMap[key]) : key
+  return getLabel(key, sidebarIconKeyMap)
 }
 
 const shortcutKeyMap = {
@@ -165,7 +181,7 @@ const shortcutKeyMap = {
 } as const
 
 export const getShortcutLabel = (key: string): string => {
-  return shortcutKeyMap[key] ? t(shortcutKeyMap[key]) : key
+  return getLabel(key, shortcutKeyMap)
 }
 
 const selectionDescriptionKeyMap = {
@@ -174,7 +190,7 @@ const selectionDescriptionKeyMap = {
 } as const
 
 export const getSelectionDescriptionLabel = (key: string): string => {
-  return selectionDescriptionKeyMap[key] ? t(selectionDescriptionKeyMap[key]) : key
+  return getLabel(key, selectionDescriptionKeyMap)
 }
 
 const paintingsImageSizeOptionsKeyMap = {
@@ -182,7 +198,7 @@ const paintingsImageSizeOptionsKeyMap = {
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
-  return paintingsImageSizeOptionsKeyMap[key] ? t(paintingsImageSizeOptionsKeyMap[key]) : key
+  return getLabel(key, paintingsImageSizeOptionsKeyMap)
 }
 
 const paintingsQualityOptionsKeyMap = {
@@ -193,7 +209,7 @@ const paintingsQualityOptionsKeyMap = {
 } as const
 
 export const getPaintingsQualityOptionsLabel = (key: string): string => {
-  return paintingsQualityOptionsKeyMap[key] ? t(paintingsQualityOptionsKeyMap[key]) : key
+  return getLabel(key, paintingsQualityOptionsKeyMap)
 }
 
 const paintingsModerationOptionsKeyMap = {
@@ -202,7 +218,7 @@ const paintingsModerationOptionsKeyMap = {
 } as const
 
 export const getPaintingsModerationOptionsLabel = (key: string): string => {
-  return paintingsModerationOptionsKeyMap[key] ? t(paintingsModerationOptionsKeyMap[key]) : key
+  return getLabel(key, paintingsModerationOptionsKeyMap)
 }
 
 const paintingsBackgroundOptionsKeyMap = {
@@ -212,7 +228,7 @@ const paintingsBackgroundOptionsKeyMap = {
 } as const
 
 export const getPaintingsBackgroundOptionsLabel = (key: string): string => {
-  return paintingsBackgroundOptionsKeyMap[key] ? t(paintingsBackgroundOptionsKeyMap[key]) : key
+  return getLabel(key, paintingsBackgroundOptionsKeyMap)
 }
 
 const mcpTypeKeyMap = {
@@ -223,7 +239,7 @@ const mcpTypeKeyMap = {
 } as const
 
 export const getMcpTypeLabel = (key: string): string => {
-  return mcpTypeKeyMap[key] ? t(mcpTypeKeyMap[key]) : key
+  return getLabel(key, mcpTypeKeyMap)
 }
 
 const miniappsStatusKeyMap = {
@@ -232,7 +248,7 @@ const miniappsStatusKeyMap = {
 } as const
 
 export const getMiniappsStatusLabel = (key: string): string => {
-  return miniappsStatusKeyMap[key] ? t(miniappsStatusKeyMap[key]) : key
+  return getLabel(key, miniappsStatusKeyMap)
 }
 
 const httpMessageKeyMap = {
@@ -248,20 +264,20 @@ const httpMessageKeyMap = {
 } as const
 
 export const getHttpMessageLabel = (key: string): string => {
-  return httpMessageKeyMap[key] ? t(httpMessageKeyMap[key]) : key
+  return getLabel(key, httpMessageKeyMap)
 }
 
-const reasoningEffortOptionsKeyMap = {
-  auto: 'assistants.settings.reasoning_effort.default',
+const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
+  off: 'assistants.settings.reasoning_effort.off',
+  minimal: 'assistants.settings.reasoning_effort.minimal',
   high: 'assistants.settings.reasoning_effort.high',
-  label: 'assistants.settings.reasoning_effort.label',
   low: 'assistants.settings.reasoning_effort.low',
   medium: 'assistants.settings.reasoning_effort.medium',
-  off: 'assistants.settings.reasoning_effort.off'
+  auto: 'assistants.settings.reasoning_effort.default'
 } as const
 
 export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return reasoningEffortOptionsKeyMap[key] ? t(reasoningEffortOptionsKeyMap[key]) : key
+  return getLabel(key, reasoningEffortOptionsKeyMap)
 }
 
 const fileFieldKeyMap = {
@@ -271,5 +287,20 @@ const fileFieldKeyMap = {
 } as const
 
 export const getFileFieldLabel = (key: string): string => {
-  return fileFieldKeyMap[key] ? t(fileFieldKeyMap[key]) : key
+  return getLabel(key, fileFieldKeyMap)
+}
+
+const builtInMcpDescriptionKeyMap = {
+  '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
+  '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
+  '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
+  '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+} as const
+
+export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
+  return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
 }

@@ -187,6 +187,7 @@
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
         "medium": "Moyen",
+        "minimal": "minimal",
         "off": "Off"
       },
       "regular_phrases": {
@@ -486,7 +487,32 @@
         },
         "title": "Enregistrer dans la base de connaissances"
       },
-      "label": "Enregistrer"
+      "label": "Enregistrer",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Inclure le titre du sujet et le contenu principal de tous les messages"
+            }
+          },
+          "empty": {
+            "no_content": "Ce sujet ne contient aucun contenu à enregistrer"
+          },
+          "error": {
+            "save_failed": "Échec de l’enregistrement du sujet, veuillez vérifier la configuration de la base de connaissances"
+          },
+          "loading": "Analyse du contenu du sujet en cours...",
+          "select": {
+            "content": {
+              "label": "Sélectionner le type de contenu à enregistrer",
+              "selected_tip": "{{count}} éléments sélectionnés, provenant de {{messages}} messages",
+              "tip": "Le sujet sera enregistré dans la base de connaissances sous la forme d’un contexte de conversation complet."
+            }
+          },
+          "success": "Le sujet a été enregistré avec succès dans la base de connaissances ({{count}} éléments de contenu)",
+          "title": "Enregistrer le sujet dans la base de connaissances"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -508,6 +534,7 @@
         "tip": "Une bouton d'exécution s'affichera dans la barre d'outils des blocs de code exécutables. Attention à ne pas exécuter de code dangereux !",
         "title": "Exécution de code"
       },
+      "code_image_tools": "Activer l'outil d'aperçu",
       "code_wrappable": "Blocs de code avec retours à la ligne",
       "context_count": {
         "label": "Nombre de contextes",
@@ -651,15 +678,6 @@
     },
     "expand": "Développer",
     "more": "Plus",
-    "preview": {
-      "copy": {
-        "image": "Copier comme image"
-      },
-      "label": "Aperçu",
-      "source": "Voir le code source",
-      "zoom_in": "Agrandir",
-      "zoom_out": "Réduire"
-    },
     "run": "Exécuter le code",
     "split": {
       "label": "Fractionner la vue",
@@ -759,6 +777,9 @@
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
     "chat": {
+      "chunk": {
+        "non_json": "a renvoyé un format de données invalide"
+      },
       "response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé"
     },
     "http": {
@@ -1161,6 +1182,9 @@
       },
       "failed": "Échec de la suppression",
       "success": "Suppression réussie"
+    },
+    "dialog": {
+      "failed": "Échec de l'aperçu"
     },
     "download": {
       "failed": "Échec du téléchargement",
@@ -1657,6 +1681,22 @@
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "Copier en tant qu'image"
+    },
+    "dialog": "Ouvrir la fenêtre d'aperçu",
+    "label": "Aperçu",
+    "pan": "déplacer",
+    "pan_down": "Déplacer vers le bas",
+    "pan_left": "Déplacement vers la gauche",
+    "pan_right": "Décalage vers la droite",
+    "pan_up": "Déplacer vers le haut",
+    "reset": "Réinitialiser",
+    "source": "Voir le code source",
+    "zoom_in": "agrandir",
+    "zoom_out": "réduire"
+  },
   "prompts": {
     "explanation": "Aidez-moi à expliquer ce concept",
     "summarize": "Aidez-moi à résumer ce passage",
@@ -1704,6 +1744,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexité",
     "ph8": "Plateforme ouverte de grands modèles PH8",
+    "poe": "Poe",
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
@@ -2214,12 +2255,18 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Резервное копирование в坚果云"
+          "button": "Sauvegarder sur Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Veuillez saisir le nom du fichier de sauvegarde"
+            },
+            "title": "Sauvegarder sur Nutstore"
+          }
         },
         "checkConnection": {
-          "fail": "Не удалось подключиться к坚果云",
+          "fail": "Échec de la connexion à Nutstore",
           "name": "Проверить соединение",
-          "success": "Соединение с坚果云 установлено"
+          "success": "Connecté à Nutstore"
         },
         "isLogin": "Вход выполнен",
         "login": {
@@ -2227,8 +2274,8 @@
         },
         "logout": {
           "button": "Выйти из аккаунта",
-          "content": "После выхода будет невозможно создать резервную копию в坚果云 или восстановить данные из нее",
-          "title": "Вы действительно хотите выйти из аккаунта坚果云?"
+          "content": "Après la déconnexion, il ne sera plus possible de sauvegarder vers Nutstore ni de restaurer depuis Nutstore.",
+          "title": "Êtes-vous sûr de vouloir vous déconnecter de Nutstore ?"
         },
         "new_folder": {
           "button": {
@@ -2239,19 +2286,23 @@
         },
         "notLogin": "Вход не выполнен",
         "path": {
-          "label": "Путь хранения данных坚果云",
-          "placeholder": "Введите путь хранения данных坚果云"
+          "label": "Chemin de stockage Nutstore",
+          "placeholder": "Veuillez saisir le chemin de stockage de Nutstore"
         },
         "pathSelector": {
           "currentPath": "Текущий путь",
           "return": "Назад",
-          "title": "Путь хранения данных坚果云"
+          "title": "Chemin de stockage Nutstore"
         },
         "restore": {
-          "button": "Восстановление из坚果云"
+          "button": "Restauration depuis Nutstore",
+          "confirm": {
+            "content": "La restauration depuis Nutstore écrasera les données actuelles. Continuer ?",
+            "title": "Récupérer depuis Nutstore"
+          }
         },
-        "title": "Настройка坚果云",
-        "username": "Имя пользователя坚果云"
+        "title": "Configuration de Nutstore",
+        "username": "Nom d’utilisateur Nutstore"
       },
       "obsidian": {
         "default_vault": "Référentiel Obsidian par défaut",
@@ -2513,6 +2564,7 @@
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
+      "help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
       "title": "Mode Développeur"
     },
     "display": {
@@ -2993,6 +3045,7 @@
         "select_api_key": "Sélectionner la clé API à utiliser :",
         "single": "Unique",
         "start": "Commencer",
+        "timeout": "Délai dépassé",
         "title": "Test de santé des modèles",
         "use_all_keys": "Utiliser toutes les clés"
       },
@@ -3056,6 +3109,9 @@
         "auto": "Automatique",
         "default": "Par défaut",
         "flex": "Flexible",
+        "on_demand": "à la demande",
+        "performance": "performance",
+        "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
       },
@@ -3067,7 +3123,14 @@
         "tip": "Résumé des inférences effectuées par le modèle",
         "title": "Mode de résumé"
       },
-      "title": "Paramètres OpenAI"
+      "title": "Paramètres OpenAI",
+      "verbosity": {
+        "high": "haut",
+        "low": "faible",
+        "medium": "moyen",
+        "tip": "Contrôler le niveau de détail de la sortie du modèle",
+        "title": "niveau de détail"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
@@ -3108,7 +3171,15 @@
             "help": "Le fournisseur prend-il en charge les messages avec le rôle : « développeur » ?",
             "label": "Prise en charge du message développeur"
           },
+          "enable_thinking": {
+            "help": "Le fournisseur prend-il en charge le contrôle de la réflexion des modèles tels que Qwen3 via le paramètre enable_thinking ?",
+            "label": "Prise en charge de enable_thinking"
+          },
           "label": "Paramètres de l'API",
+          "service_tier": {
+            "help": "Le fournisseur prend-il en charge la configuration du paramètre service_tier ? Lorsqu'il est activé, ce paramètre peut être ajusté dans les paramètres de niveau de service sur la page de conversation. (Modèles OpenAI uniquement)",
+            "label": "Prend en charge service_tier"
+          },
           "stream_options": {
             "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
             "label": "Prise en charge des options de flux"
@@ -3552,6 +3623,9 @@
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "title": "Mise à jour"
+  },
+  "warning": {
+    "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
   "words": {
     "knowledgeGraph": "Graphe de connaissances",

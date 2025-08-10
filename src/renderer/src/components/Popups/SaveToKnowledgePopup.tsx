@@ -1,14 +1,18 @@
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { Topic } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import {
   analyzeMessageContent,
+  analyzeTopicContent,
   CONTENT_TYPES,
   ContentType,
   MessageContentStats,
-  processMessageContent
+  processMessageContent,
+  processTopicContent,
+  TopicContentStats
 } from '@renderer/utils/knowledge'
 import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
 import { Check, CircleHelp } from 'lucide-react'
@@ -20,11 +24,12 @@ const logger = loggerService.withContext('SaveToKnowledgePopup')
 
 const { Text } = Typography
 
-// 内容类型配置
+// Base Content Type Config
 const CONTENT_TYPE_CONFIG = {
   [CONTENT_TYPES.TEXT]: {
     label: 'chat.save.knowledge.content.maintext.title',
-    description: 'chat.save.knowledge.content.maintext.description'
+    description: 'chat.save.knowledge.content.maintext.description',
+    topicDescription: 'chat.save.topic.knowledge.content.maintext.description'
   },
   [CONTENT_TYPES.CODE]: {
     label: 'chat.save.knowledge.content.code.title',
@@ -62,16 +67,20 @@ const TAG_COLORS = {
   UNSELECTED: '#8c8c8c'
 } as const
 
+type ContentStats = MessageContentStats | TopicContentStats
+
 interface ContentTypeOption {
   type: ContentType
-  label: string
   count: number
   enabled: boolean
-  description?: string
+  label: string
+  description: string
 }
 
+type ContentSource = { type: 'message'; data: Message } | { type: 'topic'; data: Topic }
+
 interface ShowParams {
-  message: Message
+  source: ContentSource
   title?: string
 }
 
@@ -84,35 +93,73 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [analysisLoading, setAnalysisLoading] = useState(true)
   const [selectedBaseId, setSelectedBaseId] = useState<string>()
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
+  const [contentStats, setContentStats] = useState<ContentStats | null>(null)
   const { bases } = useKnowledgeBases()
   const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
   const { t } = useTranslation()
 
-  // 分析消息内容统计
-  const contentStats = useMemo(() => analyzeMessageContent(message), [message])
+  const isTopicMode = source?.type === 'topic'
 
-  // 生成内容类型选项（只显示有内容的类型）
+  // 异步分析内容统计
+  useEffect(() => {
+    const analyze = async () => {
+      setAnalysisLoading(true)
+      setContentStats(null)
+      try {
+        const stats = isTopicMode
+          ? await analyzeTopicContent(source?.data as Topic)
+          : analyzeMessageContent(source?.data as Message)
+        setContentStats(stats)
+      } catch (error) {
+        logger.error('analyze content failed:', error as Error)
+        setContentStats({
+          text: 0,
+          code: 0,
+          thinking: 0,
+          images: 0,
+          files: 0,
+          tools: 0,
+          citations: 0,
+          translations: 0,
+          errors: 0,
+          ...(isTopicMode && { messages: 0 })
+        })
+      } finally {
+        setAnalysisLoading(false)
+      }
+    }
+    analyze()
+  }, [source, isTopicMode])
+
+  // 生成内容类型选项
   const contentTypeOptions: ContentTypeOption[] = useMemo(() => {
+    if (!contentStats) return []
+
     return Object.entries(CONTENT_TYPE_CONFIG)
       .map(([type, config]) => {
         const contentType = type as ContentType
-        const count = contentStats[contentType as keyof MessageContentStats] || 0
+        const count = contentStats[contentType as keyof ContentStats] || 0
+        const descriptionKey =
+          isTopicMode && 'topicDescription' in config && config.topicDescription
+            ? config.topicDescription
+            : config.description
         return {
           type: contentType,
           count,
           enabled: count > 0,
           label: t(config.label),
-          description: t(config.description)
+          description: t(descriptionKey)
         }
       })
-      .filter((option) => option.enabled) // 只显示有内容的类型
-  }, [contentStats, t])
+      .filter((option) => option.enabled)
+  }, [contentStats, t, isTopicMode])
 
   // 知识库选项
   const knowledgeBaseOptions = useMemo(
@@ -120,12 +167,12 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
       bases.map((base) => ({
         label: base.name,
         value: base.id,
-        disabled: !base.version // 如果知识库没有配置好就禁用
+        disabled: !base.version
       })),
     [bases]
   )
 
-  // 合并状态计算
+  // 表单状态
   const formState = useMemo(() => {
     const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.version
     const hasContent = contentTypeOptions.length > 0
@@ -142,7 +189,7 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
     }
   }, [selectedBaseId, bases, contentTypeOptions, selectedTypes])
 
-  // 默认选择第一个可用的知识库
+  // 默认选择第一个可用知识库
   useEffect(() => {
     if (!selectedBaseId) {
       const firstAvailableBase = bases.find((base) => base.version)
@@ -152,49 +199,51 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
     }
   }, [bases, selectedBaseId])
 
-  // 默认选择所有可用的内容类型（仅在初始化时）
+  // 默认选择所有可用内容类型
   useEffect(() => {
     if (!hasInitialized && contentTypeOptions.length > 0) {
-      const availableTypes = contentTypeOptions.map((option) => option.type)
-      setSelectedTypes(availableTypes)
+      setSelectedTypes(contentTypeOptions.map((option) => option.type))
       setHasInitialized(true)
     }
   }, [contentTypeOptions, hasInitialized])
 
-  // 计算UI状态
+  // UI状态
   const uiState = useMemo(() => {
+    if (analysisLoading) {
+      return { type: 'loading', message: t('chat.save.topic.knowledge.loading') }
+    }
     if (!formState.hasContent) {
-      return { type: 'empty', message: t('chat.save.knowledge.empty.no_content') }
+      return {
+        type: 'empty',
+        message: t(isTopicMode ? 'chat.save.topic.knowledge.empty.no_content' : 'chat.save.knowledge.empty.no_content')
+      }
     }
     if (bases.length === 0) {
       return { type: 'empty', message: t('chat.save.knowledge.empty.no_knowledge_base') }
     }
     return { type: 'form' }
-  }, [formState.hasContent, bases.length, t])
+  }, [analysisLoading, formState.hasContent, bases.length, t, isTopicMode])
 
-  // 处理内容类型选择切换
   const handleContentTypeToggle = (type: ContentType) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
   const onOk = async () => {
-    if (!formState.canSubmit) {
-      return
-    }
+    if (!formState.canSubmit) return
 
     setLoading(true)
     let savedCount = 0
 
     try {
-      const result = processMessageContent(message, selectedTypes)
+      const result = isTopicMode
+        ? await processTopicContent(source?.data as Topic, selectedTypes)
+        : processMessageContent(source?.data as Message, selectedTypes)
 
-      // 保存文本内容
       if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
         await addNote(result.text)
         savedCount++
       }
 
-      // 保存文件
       if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
         addFiles(result.files)
         savedCount += result.files.length
@@ -204,27 +253,22 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
       resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
-      window.message.error(t('chat.save.knowledge.error.save_failed'))
+      window.message.error(
+        t(isTopicMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed')
+      )
       setLoading(false)
     }
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const onCancel = () => setOpen(false)
+  const onClose = () => resolve(null)
 
-  const onClose = () => {
-    resolve(null)
-  }
-
-  // 渲染空状态
   const renderEmptyState = () => (
     <EmptyContainer>
       <Text type="secondary">{uiState.message}</Text>
     </EmptyContainer>
   )
 
-  // 渲染表单内容
   const renderFormContent = () => (
     <>
       <Form layout="vertical">
@@ -241,7 +285,10 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
           />
         </Form.Item>
 
-        <Form.Item label={t('chat.save.knowledge.select.content.title')}>
+        <Form.Item
+          label={t(
+            isTopicMode ? 'chat.save.topic.knowledge.select.content.label' : 'chat.save.knowledge.select.content.title'
+          )}>
           <Flex gap={8} style={{ flexDirection: 'column' }}>
             {contentTypeOptions.map((option) => (
               <ContentTypeItem
@@ -267,27 +314,37 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
         </Form.Item>
       </Form>
 
-      {formState.selectedCount > 0 && (
-        <InfoContainer>
+      <InfoContainer>
+        {formState.selectedCount > 0 && (
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {t('chat.save.knowledge.select.content.tip', { count: formState.selectedCount })}
+            {t(
+              isTopicMode
+                ? 'chat.save.topic.knowledge.select.content.selected_tip'
+                : 'chat.save.knowledge.select.content.tip',
+              {
+                count: formState.selectedCount,
+                ...(isTopicMode && { messages: (contentStats as TopicContentStats)?.messages || 0 })
+              }
+            )}
           </Text>
-        </InfoContainer>
-      )}
-
-      {formState.hasNoSelection && (
-        <InfoContainer>
+        )}
+        {formState.hasNoSelection && (
           <Text type="warning" style={{ fontSize: '12px' }}>
             {t('chat.save.knowledge.error.no_content_selected')}
           </Text>
-        </InfoContainer>
-      )}
+        )}
+        {!formState.hasNoSelection && formState.selectedCount === 0 && (
+          <Text type="secondary" style={{ fontSize: '12px', opacity: 0 }}>
+            &nbsp;
+          </Text>
+        )}
+      </InfoContainer>
     </>
   )
 
   return (
     <Modal
-      title={title || t('chat.save.knowledge.title')}
+      title={title || t(isTopicMode ? 'chat.save.topic.knowledge.title' : 'chat.save.knowledge.title')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -297,11 +354,8 @@ const PopupContainer: React.FC<Props> = ({ message, title, resolve }) => {
       width={500}
       okText={t('common.save')}
       cancelText={t('common.cancel')}
-      okButtonProps={{
-        loading,
-        disabled: !formState.canSubmit
-      }}>
-      {uiState.type === 'empty' ? renderEmptyState() : renderFormContent()}
+      okButtonProps={{ loading, disabled: !formState.canSubmit || analysisLoading }}>
+      {uiState.type === 'form' ? renderFormContent() : renderEmptyState()}
     </Modal>
   )
 }
@@ -327,11 +381,22 @@ export default class SaveToKnowledgePopup {
       )
     })
   }
+
+  static showForMessage(message: Message, title?: string): Promise<SaveResult | null> {
+    return this.show({ source: { type: 'message', data: message }, title })
+  }
+
+  static showForTopic(topic: Topic, title?: string): Promise<SaveResult | null> {
+    return this.show({ source: { type: 'topic', data: topic }, title })
+  }
 }
 
 const EmptyContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
   text-align: center;
-  padding: 40px 20px;
 `
 
 const ContentTypeItem = styled(Flex)`
@@ -352,4 +417,7 @@ const InfoContainer = styled.div`
   padding: 12px;
   border-radius: 6px;
   margin-top: 16px;
+  min-height: 40px; /* To avoid layout shift */
+  display: flex;
+  align-items: center;
 `

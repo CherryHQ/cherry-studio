@@ -4,9 +4,8 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { LanguagesEnum, translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Language } from '@renderer/types'
+import { translateText } from '@renderer/services/TranslateService'
+import { Language } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { Select } from 'antd'
@@ -41,20 +40,7 @@ const Translate: FC<Props> = ({ text }) => {
     try {
       translatingRef.current = true
 
-      const assistant: Assistant = getDefaultTranslateAssistant(targetLanguage, text)
-      // const message: Message = {
-      //   id: uuid(),
-      //   role: 'user',
-      //   content: '',
-      //   assistantId: assistant.id,
-      //   topicId: uuid(),
-      //   model: translateModel,
-      //   createdAt: new Date().toISOString(),
-      //   type: 'text',
-      //   status: 'sending'
-      // }
-
-      await fetchTranslate({ content: text, assistant, onResponse: setResult })
+      await translateText(text, targetLanguage, setResult)
 
       translatingRef.current = false
     } catch (error) {

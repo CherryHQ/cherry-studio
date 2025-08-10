@@ -40,7 +40,7 @@ const defaultCodeStyleContext: CodeStyleContextType = {
 const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const { codeEditor, codePreview } = useSettings()
+  const { codeEditor, codeViewer } = useSettings()
   const { theme } = useTheme()
   const [shikiThemesInfo, setShikiThemesInfo] = useState<BundledThemeInfo[]>([])
   useMermaid()
@@ -71,12 +71,12 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
     const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
-    const codeStyle = codePreview[field]
+    const codeStyle = codeViewer[field]
     if (!codeStyle || codeStyle === 'auto' || !themeNames.includes(codeStyle)) {
       return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
     }
     return codeStyle
-  }, [theme, codePreview, themeNames])
+  }, [theme, codeViewer, themeNames])
 
   const isShikiThemeDark = useMemo(() => {
     const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)

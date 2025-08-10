@@ -1,7 +1,4 @@
-import GraphvizPreview from './GraphvizPreview'
-import MermaidPreview from './MermaidPreview'
-import PlantUmlPreview from './PlantUmlPreview'
-import SvgPreview from './SvgPreview'
+import { GraphvizPreview, MermaidPreview, PlantUmlPreview, SvgPreview } from '@renderer/components/Preview'
 
 /**
  * 特殊视图语言列表

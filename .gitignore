@@ -53,6 +53,7 @@ local
 .qwen/*
 .trae/*
 .claude-code-router/*
+CLAUDE.local.md
 
 # vitest
 coverage

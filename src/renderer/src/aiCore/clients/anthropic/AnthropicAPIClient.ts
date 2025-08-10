@@ -11,7 +11,6 @@ import {
 import {
   ContentBlock,
   ContentBlockParam,
-  MessageCreateParams,
   MessageCreateParamsBase,
   RedactedThinkingBlockParam,
   ServerToolUseBlockParam,
@@ -70,6 +69,7 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -494,22 +494,14 @@ export class AnthropicAPIClient extends BaseApiClient<
           system: systemMessage ? [systemMessage] : undefined,
           thinking: this.getBudgetToken(assistant, model),
           tools: tools.length > 0 ? tools : undefined,
+          stream: streamOutput,
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
-        const finalParams: MessageCreateParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
-
         const timeout = this.getTimeout(model)
-        return { payload: finalParams, messages: sdkMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: sdkMessages, metadata: { timeout } }
       }
     }
   }
@@ -520,6 +512,14 @@ export class AnthropicAPIClient extends BaseApiClient<
       const toolCalls: Record<number, ToolUseBlock> = {}
       return {
         async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+          if (typeof rawChunk === 'string') {
+            try {
+              rawChunk = JSON.parse(rawChunk)
+            } catch (error) {
+              logger.error('invalid chunk', { rawChunk, error })
+              throw new Error(t('error.chat.chunk.non_json'))
+            }
+          }
           switch (rawChunk.type) {
             case 'message': {
               let i = 0

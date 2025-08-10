@@ -15,6 +15,7 @@ import {
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
+import { OpenAIVerbosity } from '@types'
 
 import { RemoteSyncState } from './backup'
 
@@ -90,13 +91,19 @@ export interface SettingsState {
     autocompletion: boolean
     keymap: boolean
   }
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
+  codeViewer: {
     themeLight: CodeStyleVarious
     themeDark: CodeStyleVarious
   }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  codeImageTools: boolean
   mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
   foldDisplayMode: 'expanded' | 'compact'
@@ -186,7 +193,9 @@ export interface SettingsState {
   // OpenAI
   openAI: {
     summaryText: OpenAISummaryText
+    /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
+    verbosity: OpenAIVerbosity
   }
   // Notification
   notification: {
@@ -263,13 +272,19 @@ export const initialState: SettingsState = {
     autocompletion: true,
     keymap: false
   },
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
+  codeViewer: {
     themeLight: 'auto',
     themeDark: 'auto'
   },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeImageTools: false,
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   foldDisplayMode: 'expanded',
@@ -352,7 +367,8 @@ export const initialState: SettingsState = {
   // OpenAI
   openAI: {
     summaryText: 'off',
-    serviceTier: 'auto'
+    serviceTier: 'auto',
+    verbosity: 'medium'
   },
   notification: {
     assistant: false,
@@ -575,12 +591,12 @@ const settingsSlice = createSlice({
         state.codeEditor.keymap = action.payload.keymap
       }
     },
-    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+    setCodeViewer: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
       if (action.payload.themeLight !== undefined) {
-        state.codePreview.themeLight = action.payload.themeLight
+        state.codeViewer.themeLight = action.payload.themeLight
       }
       if (action.payload.themeDark !== undefined) {
-        state.codePreview.themeDark = action.payload.themeDark
+        state.codeViewer.themeDark = action.payload.themeDark
       }
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
@@ -591,6 +607,9 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
+    },
+    setCodeImageTools: (state, action: PayloadAction<boolean>) => {
+      state.codeImageTools = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -759,8 +778,8 @@ const settingsSlice = createSlice({
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
-    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
-      state.openAI.serviceTier = action.payload
+    setOpenAIVerbosity: (state, action: PayloadAction<OpenAIVerbosity>) => {
+      state.openAI.verbosity = action.payload
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
@@ -868,10 +887,11 @@ export const {
   setWebdavDisableStream,
   setCodeExecution,
   setCodeEditor,
-  setCodePreview,
+  setCodeViewer,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeImageTools,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
@@ -925,7 +945,7 @@ export const {
   setEnableBackspaceDeleteModel,
   setDisableHardwareAcceleration,
   setOpenAISummaryText,
-  setOpenAIServiceTier,
+  setOpenAIVerbosity,
   setNotificationSettings,
   // Local backup settings
   setLocalBackupDir,

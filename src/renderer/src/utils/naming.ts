@@ -1,5 +1,5 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Provider } from '@renderer/types'
+import { isSystemProvider, Provider } from '@renderer/types'
 
 /**
  * 从模型 ID 中提取默认组名。
@@ -82,8 +82,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
-  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
-  return provider.isSystem ? getProviderLabel(provider.id) : provider.name
+  return isSystemProvider(provider) ? getProviderLabel(provider.id) : provider.name
 }
 
 /**

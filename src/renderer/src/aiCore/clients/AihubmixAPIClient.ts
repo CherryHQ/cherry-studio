@@ -82,8 +82,8 @@ export class AihubmixAPIClient extends MixedBaseAPIClient {
       return client
     }
 
-    // OpenAI系列模型
-    if (isOpenAILLMModel(model)) {
+    // OpenAI系列模型 不包含gpt-oss
+    if (isOpenAILLMModel(model) && !model.id.includes('gpt-oss')) {
       const client = this.clients.get('openai')
       if (!client || !this.isValidClient(client)) {
         throw new Error('OpenAI client not properly initialized')

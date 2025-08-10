@@ -187,6 +187,7 @@
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "medium": "普通の思考",
+        "minimal": "最小限の思考",
         "off": "オフ"
       },
       "regular_phrases": {
@@ -486,7 +487,32 @@
         },
         "title": "ナレッジベースに保存"
       },
-      "label": "保存"
+      "label": "保存",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "トピックのタイトルとすべてのメッセージの本文を含む"
+            }
+          },
+          "empty": {
+            "no_content": "このトピックには保存可能なコンテンツがありません"
+          },
+          "error": {
+            "save_failed": "トピックの保存に失敗しました。ナレッジベースの設定を確認してください"
+          },
+          "loading": "トピックの内容を分析中...",
+          "select": {
+            "content": {
+              "label": "保存するコンテンツの種類を選択",
+              "selected_tip": "{{messages}} 件のメッセージから {{count}} 個のコンテンツを選択済み",
+              "tip": "トピックは、完全な会話コンテキストを含んだ形でナレッジベースに保存されます"
+            }
+          },
+          "success": "トピックがナレッジベースに正常に保存されました（{{count}} 個のコンテンツ）",
+          "title": "トピックをナレッジベースに保存"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -508,6 +534,7 @@
         "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
         "title": "コード実行"
       },
+      "code_image_tools": "プレビューツールを有効にする",
       "code_wrappable": "コードブロック折り返し",
       "context_count": {
         "label": "コンテキスト",
@@ -651,15 +678,6 @@
     },
     "expand": "展開する",
     "more": "もっと",
-    "preview": {
-      "copy": {
-        "image": "画像としてコピー"
-      },
-      "label": "プレビュー",
-      "source": "ソースコードを表示",
-      "zoom_in": "拡大",
-      "zoom_out": "縮小"
-    },
     "run": "コードを実行",
     "split": {
       "label": "分割視圖",
@@ -759,6 +777,9 @@
       "file_format": "バックアップファイルの形式エラー"
     },
     "chat": {
+      "chunk": {
+        "non_json": "無効なデータ形式が返されました"
+      },
       "response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください"
     },
     "http": {
@@ -1161,6 +1182,9 @@
       },
       "failed": "削除に失敗しました",
       "success": "削除が成功しました"
+    },
+    "dialog": {
+      "failed": "プレビューに失敗しました"
     },
     "download": {
       "failed": "ダウンロードに失敗しました",
@@ -1657,6 +1681,22 @@
       "seed_tip": "拡大結果のランダム性を制御します"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "画像としてコピー"
+    },
+    "dialog": "ダイアログを開く",
+    "label": "プレビュー",
+    "pan": "パン",
+    "pan_down": "下にパン",
+    "pan_left": "左にパン",
+    "pan_right": "右にパン",
+    "pan_up": "上にパン",
+    "reset": "リセット",
+    "source": "ソースコードを表示",
+    "zoom_in": "拡大",
+    "zoom_out": "縮小"
+  },
   "prompts": {
     "explanation": "この概念を説明してください",
     "summarize": "このテキストを要約してください",
@@ -1704,6 +1744,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8",
+    "poe": "Poe",
     "ppio": "PPIO パイオウクラウド",
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
@@ -2214,7 +2255,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "Nutstoreにバックアップ"
+          "button": "Nutstoreにバックアップ",
+          "modal": {
+            "filename": {
+              "placeholder": "バックアップファイル名を入力"
+            },
+            "title": "Nutstoreにバックアップ"
+          }
         },
         "checkConnection": {
           "fail": "Nutstore接続に失敗しました",
@@ -2248,7 +2295,11 @@
           "title": "Nutstoreストレージパス"
         },
         "restore": {
-          "button": "Nutstoreから復元"
+          "button": "Nutstoreから復元",
+          "confirm": {
+            "content": "Nutstoreからの復元により現在のデータが上書きされます。続行しますか？",
+            "title": "Nutstoreから復元"
+          }
         },
         "title": "Nutstore設定",
         "username": "Nutstoreユーザー名"
@@ -2513,6 +2564,7 @@
     },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
+      "help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
       "title": "開発者モード"
     },
     "display": {
@@ -2993,6 +3045,7 @@
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
         "start": "開始",
+        "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
@@ -3056,6 +3109,9 @@
         "auto": "自動",
         "default": "デフォルト",
         "flex": "フレックス",
+        "on_demand": "オンデマンド",
+        "performance": "性能",
+        "priority": "優先",
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"
       },
@@ -3067,7 +3123,14 @@
         "tip": "モデルが行った推論の要約",
         "title": "要約モード"
       },
-      "title": "OpenAIの設定"
+      "title": "OpenAIの設定",
+      "verbosity": {
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "tip": "制御モデル出力の詳細さ",
+        "title": "詳細度"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
@@ -3108,7 +3171,15 @@
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
           },
+          "enable_thinking": {
+            "help": "このプロバイダーは、enable_thinking パラメータを使用して Qwen3 などのモデルの思考を制御することをサポートしていますか。",
+            "label": "enable_thinking をサポート"
+          },
           "label": "API設定",
+          "service_tier": {
+            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
+            "label": "service_tier をサポート"
+          },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
@@ -3552,6 +3623,9 @@
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新"
+  },
+  "warning": {
+    "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
   },
   "words": {
     "knowledgeGraph": "ナレッジグラフ",

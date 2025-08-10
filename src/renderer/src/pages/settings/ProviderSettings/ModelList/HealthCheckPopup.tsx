@@ -2,7 +2,7 @@ import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Modal, Radio, Segmented, Space, Typography } from 'antd'
+import { Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ interface ResolveData {
   apiKeys: string[]
   isConcurrent: boolean
   cancelled?: boolean
+  timeout?: number
 }
 
 interface Props extends ShowParams {
@@ -31,6 +32,7 @@ type State = {
   selectedKeyIndex: number
   keyCheckMode: 'single' | 'all' // Whether to check with single key or all keys
   isConcurrent: boolean
+  timeoutSeconds: number // Timeout in seconds
 }
 
 /**
@@ -41,6 +43,7 @@ type Action =
   | { type: 'SET_KEY_INDEX'; payload: number }
   | { type: 'SET_KEY_CHECK_MODE'; payload: 'single' | 'all' }
   | { type: 'SET_CONCURRENT'; payload: boolean }
+  | { type: 'SET_TIMEOUT_SECONDS'; payload: number }
 
 /**
  * Reducer function to handle state updates
@@ -55,6 +58,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, keyCheckMode: action.payload }
     case 'SET_CONCURRENT':
       return { ...state, isConcurrent: action.payload }
+    case 'SET_TIMEOUT_SECONDS':
+      return { ...state, timeoutSeconds: action.payload }
     default:
       return state
   }
@@ -69,6 +74,7 @@ function useModalActions(
   selectedKeyIndex: number,
   keyCheckMode: 'single' | 'all',
   isConcurrent: boolean,
+  timeoutSeconds: number,
   dispatch: React.Dispatch<Action>
 ) {
   const onStart = useCallback(() => {
@@ -78,11 +84,12 @@ function useModalActions(
     // Return config data
     resolve({
       apiKeys: keysToUse,
-      isConcurrent
+      isConcurrent,
+      timeout: timeoutSeconds * 1000 // Convert seconds to milliseconds
     })
 
     dispatch({ type: 'SET_OPEN', payload: false })
-  }, [apiKeys, selectedKeyIndex, keyCheckMode, isConcurrent, resolve, dispatch])
+  }, [apiKeys, selectedKeyIndex, keyCheckMode, isConcurrent, timeoutSeconds, resolve, dispatch])
 
   const onCancel = useCallback(() => {
     dispatch({ type: 'SET_OPEN', payload: false })
@@ -106,10 +113,11 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
     open: true,
     selectedKeyIndex: 0,
     keyCheckMode: 'all',
-    isConcurrent: true
+    isConcurrent: true,
+    timeoutSeconds: 15
   })
 
-  const { open, selectedKeyIndex, keyCheckMode, isConcurrent } = state
+  const { open, selectedKeyIndex, keyCheckMode, isConcurrent, timeoutSeconds } = state
 
   // Use custom hooks
   const { onStart, onCancel, onClose } = useModalActions(
@@ -118,60 +126,92 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
     selectedKeyIndex,
     keyCheckMode,
     isConcurrent,
+    timeoutSeconds,
     dispatch
   )
 
   // Check if we have multiple API keys
   const hasMultipleKeys = useMemo(() => apiKeys.length > 1, [apiKeys.length])
 
+  const renderFooter = useMemo(() => {
+    return (
+      <Flex vertical gap={10}>
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <Typography.Text strong>{t('settings.models.check.use_all_keys')}:</Typography.Text>
+          <Segmented
+            value={keyCheckMode}
+            onChange={(value) => dispatch({ type: 'SET_KEY_CHECK_MODE', payload: value as 'single' | 'all' })}
+            size="small"
+            options={[
+              { value: 'single', label: t('settings.models.check.single') },
+              { value: 'all', label: t('settings.models.check.all') }
+            ]}
+          />
+        </Flex>
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <Typography.Text strong>{t('settings.models.check.enable_concurrent')}:</Typography.Text>
+          <Segmented
+            value={isConcurrent ? 'enabled' : 'disabled'}
+            onChange={(value) => dispatch({ type: 'SET_CONCURRENT', payload: value === 'enabled' })}
+            size="small"
+            options={[
+              { value: 'disabled', label: t('settings.models.check.disabled') },
+              { value: 'enabled', label: t('settings.models.check.enabled') }
+            ]}
+          />
+        </Flex>
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <Typography.Text strong>{t('settings.models.check.timeout')}:</Typography.Text>
+          <InputNumber
+            value={timeoutSeconds}
+            onChange={(value) => dispatch({ type: 'SET_TIMEOUT_SECONDS', payload: value || 15 })}
+            min={5}
+            max={60}
+            size="small"
+            style={{ width: 90 }}
+            addonAfter="s"
+          />
+        </Flex>
+      </Flex>
+    )
+  }, [isConcurrent, keyCheckMode, timeoutSeconds, t])
+
   return (
     <Modal
       title={title}
       open={open}
+      onOk={onStart}
       onCancel={onCancel}
       afterClose={onClose}
+      okText={t('settings.models.check.start')}
+      cancelText={t('common.cancel')}
       centered
       maskClosable={false}
       width={500}
       transitionName="animation-move-down"
-      footer={
-        <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Space>
-            <Space align="center">
-              <Typography.Text strong>{t('settings.models.check.use_all_keys')}</Typography.Text>
-              <Segmented
-                value={keyCheckMode}
-                onChange={(value) => dispatch({ type: 'SET_KEY_CHECK_MODE', payload: value as 'single' | 'all' })}
-                size="small"
-                options={[
-                  { value: 'single', label: t('settings.models.check.single') },
-                  { value: 'all', label: t('settings.models.check.all') }
-                ]}
-              />
-            </Space>
-            <Space align="center">
-              <Typography.Text strong>{t('settings.models.check.enable_concurrent')}</Typography.Text>
-              <Segmented
-                value={isConcurrent ? 'enabled' : 'disabled'}
-                onChange={(value) => dispatch({ type: 'SET_CONCURRENT', payload: value === 'enabled' })}
-                size="small"
-                options={[
-                  { value: 'disabled', label: t('settings.models.check.disabled') },
-                  { value: 'enabled', label: t('settings.models.check.enabled') }
-                ]}
-              />
-            </Space>
-          </Space>
-          <Button key="start" type="primary" onClick={onStart} size="small">
-            {t('settings.models.check.start')}
-          </Button>
-        </Space>
-      }>
-      <Alert message={t('settings.models.check.disclaimer')} type="warning" showIcon style={{ fontSize: 12 }} />
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <>
+          {renderFooter}
+          <Flex justify="space-between" style={{ marginTop: 16 }}>
+            <div /> {/* Empty div for spacing */}
+            <Flex gap={8}>
+              <CancelBtn />
+              <OkBtn />
+            </Flex>
+          </Flex>
+        </>
+      )}>
+      <Alert
+        message={t('common.warning')}
+        description={t('settings.models.check.disclaimer')}
+        type="warning"
+        showIcon
+        style={{ fontSize: 12 }}
+      />
 
       {/* API key selection section - only shown for 'single' mode and multiple keys */}
       {keyCheckMode === 'single' && hasMultipleKeys && (
-        <Box style={{ marginBottom: 16 }}>
+        <Box style={{ marginTop: 10, marginBottom: 10 }}>
           <strong>{t('settings.models.check.select_api_key')}</strong>
           <Radio.Group
             value={selectedKeyIndex}

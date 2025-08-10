@@ -51,10 +51,15 @@ export const processMessages = async (
       })
     )
 
+    let finished = false
+
     await fetchChatCompletion({
       messages: [userMessage],
       assistant: { ...assistant, settings: { streamOutput: true } },
       onChunkReceived: (chunk: Chunk) => {
+        if (finished) {
+          return
+        }
         switch (chunk.type) {
           case ChunkType.THINKING_START:
             {
@@ -162,6 +167,9 @@ export const processMessages = async (
                 })
               )
             }
+            break
+          case ChunkType.LLM_RESPONSE_COMPLETE:
+            finished = true
             break
           case ChunkType.ERROR:
             {

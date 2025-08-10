@@ -1,8 +1,7 @@
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
-import { isSystemProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
+import { isSystemProvider, Provider } from '@renderer/types'
 import { Collapse, Flex, Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,27 +38,55 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         label: t('settings.provider.api.options.developer_role.label'),
         tip: t('settings.provider.api.options.developer_role.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({ ...provider, isNotSupportDeveloperRole: !checked })
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportDeveloperRole: !checked }
+          })
         },
-        checked: !provider.isNotSupportDeveloperRole
+        checked: !provider.apiOptions?.isNotSupportDeveloperRole
       },
       {
         key: 'openai_stream_options',
         label: t('settings.provider.api.options.stream_options.label'),
         tip: t('settings.provider.api.options.stream_options.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({ ...provider, isNotSupportStreamOptions: !checked })
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportStreamOptions: !checked }
+          })
         },
-        checked: !provider.isNotSupportStreamOptions
+        checked: !provider.apiOptions?.isNotSupportStreamOptions
       },
       {
         key: 'openai_array_content',
         label: t('settings.provider.api.options.array_content.label'),
         tip: t('settings.provider.api.options.array_content.help'),
         onChange: (checked: boolean) => {
-          updateProviderTransition({ ...provider, isNotSupportArrayContent: !checked })
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportArrayContent: !checked }
+          })
         },
-        checked: !provider.isNotSupportArrayContent
+        checked: !provider.apiOptions?.isNotSupportArrayContent
+      },
+      {
+        key: 'openai_service_tier',
+        label: t('settings.provider.api.options.service_tier.label'),
+        tip: t('settings.provider.api.options.service_tier.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportServiceTier: !checked }
+          })
+        },
+        checked: !provider.apiOptions?.isNotSupportServiceTier
+      },
+      {
+        key: 'openai_enable_thinking',
+        label: t('settings.provider.api.options.enable_thinking.label'),
+        tip: t('settings.provider.api.options.enable_thinking.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportEnableThinking: !checked }
+          })
+        },
+        checked: !provider.apiOptions?.isNotSupportEnableThinking
       }
     ],
     [t, provider, updateProviderTransition]

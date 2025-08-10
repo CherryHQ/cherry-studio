@@ -50,6 +50,7 @@ files:
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
+  - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
   - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
@@ -97,6 +98,7 @@ linux:
   target:
     - target: AppImage
     - target: deb
+    - target: rpm
   maintainer: electronjs.org
   category: Utility
   desktop:
@@ -114,18 +116,4 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增服务商：AWS Bedrock
-    富文本编辑器支持：提升提示词编辑体验，支持更丰富的格式调整
-    拖拽输入优化：支持从其他软件直接拖拽文本至输入框，简化内容输入流程
-    参数调节增强：新增 Top-P 和 Temperature 开关设置，提供更灵活的模型调控选项
-    翻译任务后台执行：翻译任务支持后台运行，提升多任务处理效率
-    新模型支持：新增 Qwen-MT、Qwen3235BA22Bthinking 和 sonar-deep-research 模型，扩展推理能力
-    推理稳定性提升：修复部分模型思考内容无法输出的问题，确保推理结果完整
-    Mistral 模型修复：解决 Mistral 模型无法使用的问题，恢复其推理功能
-    备份目录优化：支持相对路径输入，提升备份配置灵活性
-    数据导出调整：新增引用内容导出开关，提供更精细的导出控制
-    文本流完整性：修复文本流末尾文字丢失问题，确保输出内容完整
-    内存泄漏修复：优化代码逻辑，解决内存泄漏问题，提升运行稳定性
-    嵌入模型简化：降低嵌入模型配置复杂度，提高易用性
-    MCP Tool 长时间运行：增强 MCP 工具的稳定性，支持长时间任务执行
-    设置页面优化：优化设置页面布局，提升用户体验
+    稳定性改进和错误修复

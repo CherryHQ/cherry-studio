@@ -4,9 +4,12 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
+  getThinkModelType,
   isDoubaoThinkingAutoModel,
+  isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isQwenAlwaysThinkModel,
   isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -19,11 +22,13 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  isVisionModel
+  isVisionModel,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
+  isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
@@ -37,6 +42,7 @@ import {
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
   ToolCallResponse,
   TranslateAssistant,
@@ -61,6 +67,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -144,7 +151,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         return { reasoning: { enabled: false, exclude: true } }
       }
-      if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
+
+      if (
+        isSupportEnableThinkingProvider(this.provider) &&
+        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+      ) {
         return { enable_thinking: false }
       }
 
@@ -173,6 +184,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       return {}
     }
+
+    // reasoningEffort有效的情况
     const effortRatio = EFFORT_RATIO[reasoningEffort]
     const budgetTokens = Math.floor(
       (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
@@ -190,9 +203,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // Qwen models
-    if (isSupportedThinkingTokenQwenModel(model)) {
+    if (isQwenReasoningModel(model)) {
       const thinkConfig = {
-        enable_thinking: true,
+        enable_thinking:
+          isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(this.provider) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -205,7 +219,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // Hunyuan models
-    if (isSupportedThinkingTokenHunyuanModel(model)) {
+    if (isSupportedThinkingTokenHunyuanModel(model) && isSupportEnableThinkingProvider(this.provider)) {
       return {
         enable_thinking: true
       }
@@ -213,8 +227,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     // Grok models/Perplexity models/OpenAI models
     if (isSupportedReasoningEffortModel(model)) {
-      return {
-        reasoning_effort: reasoningEffort
+      // 检查模型是否支持所选选项
+      const modelType = getThinkModelType(model)
+      const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
+      if (supportedOptions.includes(reasoningEffort)) {
+        return {
+          reasoning_effort: reasoningEffort
+        }
+      } else {
+        // 如果不支持，fallback到第一个支持的值
+        return {
+          reasoning_effort: supportedOptions[0]
+        }
       }
     }
 
@@ -368,9 +392,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   ): ToolCallResponse {
     let parsedArgs: any
     try {
-      parsedArgs = JSON.parse(toolCall.function.arguments)
+      if ('function' in toolCall) {
+        parsedArgs = JSON.parse(toolCall.function.arguments)
+      }
     } catch {
-      parsedArgs = toolCall.function.arguments
+      if ('function' in toolCall) {
+        parsedArgs = toolCall.function.arguments
+      }
     }
     return {
       id: toolCall.id,
@@ -393,7 +421,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         mcpToolResponse,
         resp,
         isVisionModel(model),
-        this.provider.isNotSupportArrayContent ?? false
+        !isSupportArrayContentProvider(this.provider)
       )
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
       return {
@@ -448,7 +476,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
     if ('tool_calls' in message && message.tool_calls) {
       sum += message.tool_calls.reduce((acc, toolCall) => {
-        return acc + estimateTextTokens(JSON.stringify(toolCall.function.arguments))
+        if (toolCall.type === 'function' && 'function' in toolCall) {
+          return acc + estimateTextTokens(JSON.stringify(toolCall.function.arguments))
+        }
+        return acc
       }, 0)
     }
     return sum
@@ -522,7 +553,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model) && model.provider !== 'dashscope') {
+        if (
+          lastUserMsg &&
+          isSupportedThinkingTokenQwenModel(model) &&
+          !isSupportEnableThinkingProvider(this.provider)
+        ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
           const currentContent = lastUserMsg.content
@@ -541,7 +576,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         reqMessages = processReqMessages(model, reqMessages)
 
         // 5. 创建通用参数
-        const commonParams = {
+        // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
+
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
+
+        // minimal cannot be used with web_search tool
+        if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort === 'minimal' && enableWebSearch) {
+          reasoningEffort.reasoning_effort = 'low'
+        }
+
+        const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
@@ -551,35 +597,24 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
           tools: tools.length > 0 ? tools : undefined,
-          service_tier: this.getServiceTier(model),
+          stream: streamOutput,
+          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
+          // groq 有不同的 service tier 配置，不符合 openai 接口类型
+          service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
-          ...this.getReasoningEffort(assistant, model),
+          ...reasoningEffort,
           ...getOpenAIWebSearchParams(model, enableWebSearch),
-          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
-          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
-          ...(isQwenMTModel(model) ? extra_body : {})
+          ...(isQwenMTModel(model) ? extra_body : {}),
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-
-        // Create the appropriate parameters object based on whether streaming is enabled
-        // Note: Some providers like Mistral don't support stream_options
-        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
-        const sdkParams: OpenAISdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true,
-              ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {})
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
 
         const timeout = this.getTimeout(model)
 
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }
@@ -749,6 +784,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           return
         }
 
+        if (typeof chunk === 'string') {
+          try {
+            chunk = JSON.parse(chunk)
+          } catch (error) {
+            logger.error('invalid chunk', { chunk, error })
+            throw new Error(t('error.chat.chunk.non_json'))
+          }
+        }
+
         // 处理chunk
         if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
           for (const choice of chunk.choices) {
@@ -872,7 +916,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                       type: 'function'
                     }
                   } else if (fun?.arguments) {
-                    toolCalls[index].function.arguments += fun.arguments
+                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                      toolCalls[index].function.arguments += fun.arguments
+                    }
                   }
                 } else {
                   toolCalls.push(toolCall)

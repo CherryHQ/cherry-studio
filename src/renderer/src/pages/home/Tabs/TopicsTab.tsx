@@ -2,8 +2,10 @@ import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
@@ -37,6 +39,7 @@ import {
   PinIcon,
   PinOffIcon,
   PlusIcon,
+  Save,
   Sparkles,
   UploadIcon,
   XIcon
@@ -70,6 +73,22 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+
+  const topicEdit = useInPlaceEdit({
+    onSave: (name: string) => {
+      const topic = assistant.topics.find((t) => t.id === editingTopicId)
+      if (topic && name !== topic.name) {
+        const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+        updateTopic(updatedTopic)
+        window.message.success(t('common.saved'))
+      }
+      setEditingTopicId(null)
+    },
+    onCancel: () => {
+      setEditingTopicId(null)
+    }
+  })
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
   const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
@@ -203,16 +222,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         key: 'rename',
         icon: <EditIcon size={14} />,
         disabled: isRenaming(topic.id),
-        async onClick() {
-          const name = await PromptPopup.show({
-            title: t('chat.topics.edit.title'),
-            message: '',
-            defaultValue: topic?.name || ''
-          })
-          if (name && topic?.name !== name) {
-            const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
-            updateTopic(updatedTopic)
-          }
+        onClick() {
+          setEditingTopicId(topic.id)
+          topicEdit.startEdit(topic.name)
         }
       },
       {
@@ -299,6 +311,27 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             label: t('chat.topics.copy.plain_text'),
             key: 'plain_text',
             onClick: () => copyTopicAsPlainText(topic)
+          }
+        ]
+      },
+      {
+        label: t('chat.save.label'),
+        key: 'save',
+        icon: <Save size={14} />,
+        children: [
+          {
+            label: t('chat.save.topic.knowledge.title'),
+            key: 'knowledge',
+            onClick: async () => {
+              try {
+                const result = await SaveToKnowledgePopup.showForTopic(topic)
+                if (result?.success) {
+                  window.message.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+                }
+              } catch {
+                window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
+              }
+            }
           }
         ]
       },
@@ -415,6 +448,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     assistants,
     assistant,
     updateTopic,
+    topicEdit,
     activeTopic.id,
     setActiveTopic,
     onPinTopic,
@@ -468,14 +502,27 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={() => onSwitchTopic(topic)}
-              style={{ borderRadius }}>
+              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
+              style={{
+                borderRadius,
+                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
+              }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
-                <TopicName className={getTopicNameClassName()} title={topicName}>
-                  {topicName}
-                </TopicName>
+                {editingTopicId === topic.id && topicEdit.isEditing ? (
+                  <TopicEditInput
+                    ref={topicEdit.inputRef}
+                    value={topicEdit.editValue}
+                    onChange={topicEdit.handleInputChange}
+                    onKeyDown={topicEdit.handleKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <TopicName className={getTopicNameClassName()} title={topicName}>
+                    {topicName}
+                  </TopicName>
+                )}
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
@@ -623,6 +670,23 @@ const TopicName = styled.div`
     to {
       width: 100%;
     }
+  }
+`
+
+const TopicEditInput = styled.input`
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+
+  &:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-alpha);
   }
 `
 

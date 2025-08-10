@@ -1,11 +1,10 @@
 import db from '@renderer/databases'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
+import { translateText } from '@renderer/services/TranslateService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as _setTranslating } from '@renderer/store/runtime'
 import { setTranslatedContent as _setTranslatedContent } from '@renderer/store/translate'
-import { Language, LanguageCode, TranslateAssistant, TranslateHistory } from '@renderer/types'
+import { Language, LanguageCode, TranslateHistory } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { t } from 'i18next'
 import { throttle } from 'lodash'
@@ -55,24 +54,8 @@ export default function useTranslate() {
 
       setTranslating(true)
 
-      let assistant: TranslateAssistant
       try {
-        assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-      } catch (e) {
-        if (e instanceof Error) {
-          window.message.error(e.message)
-          return
-        } else {
-          throw e
-        }
-      }
-
-      try {
-        await fetchTranslate({
-          content: text,
-          assistant,
-          onResponse: throttle(setTranslatedContent, 100)
-        })
+        await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
         logger.error('Failed to translate text', e as Error)
         window.message.error(t('translate.error.failed'))

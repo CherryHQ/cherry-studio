@@ -1,5 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
 import { Alert, Input, Space } from 'antd'
@@ -30,7 +30,7 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
   const [apiHost, setApiHost] = useState(provider.apiHost)
 
-  const providerConfig = PROVIDER_CONFIG['vertexai']
+  const providerConfig = PROVIDER_URLS['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const onUpdateApiHost = () => {

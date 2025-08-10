@@ -609,7 +609,11 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
                 <PathRow>
-                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
+                  <PathText
+                    style={{ color: 'var(--color-text-3)' }}
+                    onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                    {appInfo?.appDataPath}
+                  </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>

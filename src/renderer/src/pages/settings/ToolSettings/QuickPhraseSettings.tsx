@@ -133,7 +133,8 @@ const QuickPhraseSettings: FC = () => {
         onCancel={() => setIsModalOpen(false)}
         width={520}
         transitionName="animation-move-down"
-        centered>
+        centered
+        maskClosable={false}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('settings.quickPhrase.titleLabel')}</Label>

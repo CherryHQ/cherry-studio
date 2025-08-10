@@ -61,8 +61,8 @@ const providers: ProviderConfig[] = [
   },
   {
     key: '302ai',
-    name: '302AI',
-    description: '302AI 平台 MCP 服务',
+    name: '302.AI',
+    description: '302.AI 平台 MCP 服务',
     discoverUrl: 'https://302.ai',
     apiKeyUrl: 'https://dash.302.ai/apis/list',
     tokenFieldName: 'token302aiToken',

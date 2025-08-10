@@ -62,7 +62,8 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
         provider,
         models: modelsToCheck,
         apiKeys: result.apiKeys,
-        isConcurrent: result.isConcurrent
+        isConcurrent: result.isConcurrent,
+        timeout: result.timeout
       },
       (checkResult, index) => {
         setModelStatuses((current) => {

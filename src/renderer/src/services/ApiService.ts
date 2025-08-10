@@ -30,14 +30,19 @@ import {
   MemoryItem,
   Model,
   Provider,
-  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
-import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
+import {
+  abortCompletion,
+  addAbortController,
+  createAbortPromise,
+  removeAbortController
+} from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
@@ -57,8 +62,7 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getTopNamingModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
@@ -91,9 +95,19 @@ async function fetchExternalTool(
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
 
+  // 获取 MCP 工具
+  let mcpTools: MCPTool[] = []
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  const showListTools = enabledMCPs && enabledMCPs.length > 0
+
+  // 是否使用工具
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory || showListTools
+
   // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
+  if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
 
@@ -342,28 +356,7 @@ async function fetchExternalTool(
       }
     }
 
-    // 发送工具执行完成通知
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch,
-          memories: memorySearchReferences
-        }
-      })
-    }
-
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = []
-    const allMcpServers = store.getState().mcp.servers || []
-    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-    const assistantMcpServers = assistant.mcpServers || []
-
-    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
+    if (showListTools) {
       try {
         const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
@@ -380,9 +373,6 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
-        // 添加内置工具
-        // const { BUILT_IN_TOOLS } = await import('../tools')
-        // mcpTools.push(...BUILT_IN_TOOLS)
 
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
@@ -396,6 +386,18 @@ async function fetchExternalTool(
       } catch (toolError) {
         logger.error('Error fetching MCP tools:', toolError as Error)
       }
+    }
+
+    // 发送工具执行完成通知
+    if (hasAnyTool) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: webSearchResponseFromSearch,
+          knowledge: knowledgeReferencesFromSearch,
+          memories: memorySearchReferences
+        }
+      })
     }
 
     return { mcpTools }
@@ -454,6 +456,8 @@ export async function fetchChatCompletion({
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
   const model = assistant.model || getDefaultModel()
 
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
   const filteredMessages2 = filterUsefulMessages(filteredMessages1)
@@ -484,7 +488,6 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
   const completionsParams: CompletionsParams = {
     callType: 'chat',
@@ -603,56 +606,6 @@ async function processConversationMemory(messages: Message[], assistant: Assista
       })
   } catch (error) {
     logger.error('Error in post-conversation memory processing:', error as Error)
-  }
-}
-
-interface FetchTranslateProps {
-  content: string
-  assistant: TranslateAssistant
-  onResponse?: (text: string, isComplete: boolean) => void
-}
-
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    throw new Error(i18n.t('error.no_api_key'))
-  }
-
-  const isSupportedStreamOutput = () => {
-    if (!onResponse) {
-      return false
-    }
-    return true
-  }
-
-  const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-  const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
-    streamOutput: stream,
-    enableReasoning,
-    onResponse
-  }
-
-  const AI = new AiProvider(provider)
-
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
   }
 }
 
@@ -789,7 +742,7 @@ export async function fetchGenerate({
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
   if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
@@ -848,8 +801,13 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<void> {
+export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
+
+  const controller = new AbortController()
+  const abortFn = () => controller.abort()
+  const taskId = uuid()
+  addAbortController(taskId, abortFn)
 
   const ai = new AiProvider(provider)
 
@@ -857,24 +815,54 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      await ai.getEmbeddingDimensions(model)
+      // race 超时 15s
+      logger.silly("it's a embedding model")
+      const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
+      // 通过该状态判断abort原因
+      let streamError: Error | undefined = undefined
+
+      // 15s超时
+      const timer = setTimeout(() => {
+        abortCompletion(taskId)
+        streamError = new Error('Timeout')
+      }, timeout)
+
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        shouldThrow: true
+        onChunk: () => {
+          // 接收到任意chunk都直接abort
+          abortCompletion(taskId)
+        },
+        onError: (e) => {
+          // 捕获stream error
+          streamError = e
+          abortCompletion(taskId)
+        }
       }
 
       // Try streaming check first
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
+      try {
+        await createAbortPromise(controller.signal, ai.completions(params))
+      } catch (e: any) {
+        if (isAbortError(e)) {
+          if (streamError) {
+            throw streamError
+          }
+        } else {
+          throw e
+        }
+      } finally {
+        clearTimeout(timer)
       }
     }
   } catch (error: any) {
+    // FIXME: 这种判断方法无法严格保证错误是流式引起的
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
         callType: 'check',
@@ -883,12 +871,19 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         streamOutput: false,
         shouldThrow: true
       }
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
-      }
+      // 超时判断
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.completions(params), timeoutPromise])
     } else {
       throw error
     }
+  } finally {
+    removeAbortController(taskId, abortFn)
   }
+}
+
+export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkApi(provider, model, timeout)
+  return { latency: performance.now() - startTime }
 }
