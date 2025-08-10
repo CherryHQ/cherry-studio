@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
+  isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -441,6 +442,13 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
+
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
+
+        // minimal cannot be used with web_search tool
+        if (isGPT5SeriesModel(model) && reasoningEffort.reasoning?.effort === 'minimal' && enableWebSearch) {
+          reasoningEffort.reasoning.effort = 'low'
+        }
 
         const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
