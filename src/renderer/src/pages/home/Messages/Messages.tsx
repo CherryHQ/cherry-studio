@@ -278,7 +278,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
+  // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
+  const groupedMessages = useMemo(() => {
+    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const newGrouped: {
+      [key: string]: (Message & {
+        index: number
+      })[]
+    } = {}
+    grouped.forEach(([key, group]) => {
+      newGrouped[key] = group.toReversed()
+    })
+    return Object.entries(newGrouped)
+  }, [displayMessages])
 
   return (
     <MessagesContainer

@@ -183,10 +183,11 @@
       "prompt": "Prompt Settings",
       "reasoning_effort": {
         "default": "Default",
-        "high": "Think harder",
+        "high": "High",
         "label": "Reasoning effort",
-        "low": "Think less",
-        "medium": "Think normally",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
         "off": "Off"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Switch Model"
       },
-      "useful": "Helpful"
+      "useful": {
+        "label": "Set as context",
+        "tip": "In this group of messages, this message will be selected to join the context"
+      }
     },
     "multiple": {
       "select": {
@@ -3119,7 +3123,14 @@
         "tip": "A summary of the reasoning performed by the model",
         "title": "Summary Mode"
       },
-      "title": "OpenAI Settings"
+      "title": "OpenAI Settings",
+      "verbosity": {
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "tip": "Control the level of detail in the model's output",
+        "title": "Level of detail"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
@@ -3492,6 +3503,51 @@
         "time": "Show topic time"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Are you sure you want to delete?",
+          "title": "Delete custom language"
+        },
+        "error": {
+          "add": "Failed to add",
+          "delete": "Deletion failed",
+          "langCode": {
+            "builtin": "The language has built-in support",
+            "empty": "Language code is empty",
+            "exists": "The language already exists",
+            "invalid": "Invalid language code"
+          },
+          "update": "Update failed",
+          "value": {
+            "empty": "Language name cannot be empty",
+            "too_long": "Language name is too long"
+          }
+        },
+        "langCode": {
+          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
+          "label": "Language code",
+          "placeholder": "en-us"
+        },
+        "success": {
+          "add": "Added successfully",
+          "delete": "Deleted successfully",
+          "update": "Update successful"
+        },
+        "table": {
+          "action": {
+            "title": "Operation"
+          }
+        },
+        "value": {
+          "help": "1~32 characters",
+          "label": "Language name",
+          "placeholder": "English"
+        }
+      },
+      "prompt": "Translation prompt",
+      "title": "Translation settings"
+    },
     "tray": {
       "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
@@ -3548,14 +3604,22 @@
       "title": "Translation Confirmation"
     },
     "copied": "Translation content copied",
+    "custom": {
+      "label": "Custom language"
+    },
     "detected": {
       "language": "Auto Detect"
     },
     "empty": "Translation content is empty",
     "error": {
+      "empty": "The translation result is empty content",
       "failed": "Translation failed",
       "not_configured": "Translation model is not configured",
+      "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"
+    },
+    "exchange": {
+      "label": "Swap the source and target languages"
     },
     "history": {
       "clear": "Clear History",
@@ -3594,6 +3658,12 @@
       "preview": "Markdown Preview",
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
+    },
+    "success": {
+      "custom": {
+        "delete": "Deleted successfully",
+        "update": "Update successful"
+      }
     },
     "target_language": "Target Language",
     "title": "Translation",

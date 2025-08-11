@@ -78,8 +78,10 @@ export function openAIToolsToMcpTool(
   try {
     if ('name' in toolCall) {
       toolName = toolCall.name
-    } else {
+    } else if (toolCall.type === 'function' && 'function' in toolCall) {
       toolName = toolCall.function.name
+    } else {
+      throw new Error('Unknown tool call type')
     }
   } catch (error) {
     logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
@@ -386,14 +388,14 @@ export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
   isVisionModel: boolean = false,
-  isCompatibleMode: boolean = false
+  noSupportArrayContent: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
-  } else if (isCompatibleMode) {
+  } else if (noSupportArrayContent) {
     let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
 
     if (isVisionModel) {

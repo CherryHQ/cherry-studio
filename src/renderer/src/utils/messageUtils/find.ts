@@ -203,7 +203,19 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
 }
 
 /**
+ * 通过消息ID从状态中查询最新的消息，并返回其中的翻译块
+ * @param id - 消息ID
+ * @returns 翻译块数组，如果消息不存在则返回空数组
+ */
+export const findTranslationBlocksById = (id: string): TranslationMessageBlock[] => {
+  const state = store.getState()
+  const message = state.messages.entities[id]
+  return findTranslationBlocks(message)
+}
+
+/**
  * 构造带工具调用结果的消息内容
+ * @deprecated
  * @param blocks
  * @returns
  */
