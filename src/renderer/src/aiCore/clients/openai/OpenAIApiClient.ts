@@ -740,8 +740,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     let accumulatingText = false
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        const isOpenRouter = context.provider?.id === 'openrouter'
-
         // 持续更新usage信息
         logger.silly('chunk', chunk)
         if (chunk.usage) {
@@ -758,13 +756,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // if we've already seen finish_reason, emit completion signals. No matter whether we get usage or not.
         if (hasFinishReason && !isFinished) {
           emitCompletionSignals(controller)
-          return
-        }
-        // For OpenRouter, if this chunk only contains usage without choices, emit completion signals
-        if (isOpenRouter && chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
-          if (!isFinished) {
-            emitCompletionSignals(controller)
-          }
           return
         }
 
@@ -922,16 +913,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 })
               }
 
-              // For OpenRouter, don't emit completion signals immediately after finish_reason
+              // Don't emit completion signals immediately after finish_reason
               // Wait for the usage chunk that comes after
-              if (isOpenRouter) {
-                hasFinishReason = true
-                // If we already have usage info, emit completion signals now
-                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
-                  emitCompletionSignals(controller)
-                }
-              } else {
-                // For other providers, emit completion signals immediately
+              hasFinishReason = true
+              // If we already have usage info, emit completion signals now
+              if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
                 emitCompletionSignals(controller)
               }
             }
