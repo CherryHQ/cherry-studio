@@ -10,7 +10,7 @@ import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { FileMetadata, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { classNames, getFileExtension } from '@renderer/utils'
+import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
@@ -173,7 +173,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files) {
       let supportedFiles = 0
       files.forEach((file) => {
-        if (extensions.includes(getFileExtension(file.path))) {
+        if (extensions.includes(file.ext)) {
           setFiles((prevFiles) => [...prevFiles, file])
           supportedFiles++
         }

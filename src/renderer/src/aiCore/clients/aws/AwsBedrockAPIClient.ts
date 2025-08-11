@@ -1,3 +1,4 @@
+import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
   ConverseCommand,
@@ -87,7 +88,15 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       }
     })
 
-    this.sdkInstance = { client, region }
+    const bedrockClient = new BedrockClient({
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey
+      }
+    })
+
+    this.sdkInstance = { client, bedrockClient, region }
     return this.sdkInstance
   }
 
@@ -131,6 +140,8 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         return { text: 'Unknown content type' }
       })
     }))
+
+    logger.info('Creating completions with model ID:', { modelId: payload.modelId })
 
     const commonParams = {
       modelId: payload.modelId,
@@ -295,9 +306,76 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
   }
 
-  // @ts-ignore sdk未提供
   override async listModels(): Promise<SdkModel[]> {
-    return []
+    try {
+      const sdk = await this.getSdkInstance()
+
+      // 获取支持ON_DEMAND的基础模型列表
+      const modelsCommand = new ListFoundationModelsCommand({
+        byInferenceType: 'ON_DEMAND',
+        byOutputModality: 'TEXT'
+      })
+      const modelsResponse = await sdk.bedrockClient.send(modelsCommand)
+
+      // 获取推理配置文件列表
+      const profilesCommand = new ListInferenceProfilesCommand({})
+      const profilesResponse = await sdk.bedrockClient.send(profilesCommand)
+
+      logger.info('Found ON_DEMAND foundation models:', { count: modelsResponse.modelSummaries?.length || 0 })
+      logger.info('Found inference profiles:', { count: profilesResponse.inferenceProfileSummaries?.length || 0 })
+
+      const models: any[] = []
+
+      // 处理ON_DEMAND基础模型
+      if (modelsResponse.modelSummaries) {
+        for (const model of modelsResponse.modelSummaries) {
+          if (!model.modelId || !model.modelName) continue
+
+          logger.info('Adding ON_DEMAND model', { modelId: model.modelId })
+          models.push({
+            id: model.modelId,
+            name: model.modelName,
+            display_name: model.modelName,
+            description: `${model.providerName || 'AWS'} - ${model.modelName}`,
+            owned_by: model.providerName || 'AWS',
+            provider: this.provider.id,
+            group: 'AWS Bedrock',
+            isInferenceProfile: false
+          })
+        }
+      }
+
+      // 处理推理配置文件
+      if (profilesResponse.inferenceProfileSummaries) {
+        for (const profile of profilesResponse.inferenceProfileSummaries) {
+          if (!profile.inferenceProfileArn || !profile.inferenceProfileName) continue
+
+          logger.info('Adding inference profile', {
+            profileArn: profile.inferenceProfileArn,
+            profileName: profile.inferenceProfileName
+          })
+
+          models.push({
+            id: profile.inferenceProfileArn,
+            name: `${profile.inferenceProfileName} (Profile)`,
+            display_name: `${profile.inferenceProfileName} (Profile)`,
+            description: `AWS Inference Profile - ${profile.inferenceProfileName}`,
+            owned_by: 'AWS',
+            provider: this.provider.id,
+            group: 'AWS Bedrock Profiles',
+            isInferenceProfile: true,
+            inferenceProfileId: profile.inferenceProfileId,
+            inferenceProfileArn: profile.inferenceProfileArn
+          })
+        }
+      }
+
+      logger.info('Total models added to list', { count: models.length })
+      return models
+    } catch (error) {
+      logger.error('Failed to list AWS Bedrock models:', error as Error)
+      return []
+    }
   }
 
   public async convertMessageToSdkParam(message: Message): Promise<AwsBedrockSdkMessageParam> {
