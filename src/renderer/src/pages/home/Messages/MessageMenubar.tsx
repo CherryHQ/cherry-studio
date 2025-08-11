@@ -1,20 +1,23 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
+import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isVisionModel } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import store, { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import store, { RootState, useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, Language, Model, Topic } from '@renderer/types'
+import { TraceIcon } from '@renderer/trace/pages/Component'
+import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -28,23 +31,15 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  findMainTextBlocks,
+  findTranslationBlocks,
+  findTranslationBlocksById,
+  getMainTextContent
+} from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import {
-  AtSign,
-  Copy,
-  FilePenLine,
-  Languages,
-  ListChecks,
-  Menu,
-  RefreshCw,
-  Save,
-  Share,
-  Split,
-  ThumbsUp,
-  Trash
-} from 'lucide-react'
+import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -63,20 +58,33 @@ interface Props {
   isAssistantMessage: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
+  onUpdateUseful?: (msgId: string) => void
 }
 
+const logger = loggerService.withContext('MessageMenubar')
+
 const MessageMenubar: FC<Props> = (props) => {
-  const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
-    props
+  const {
+    message,
+    index,
+    isGrouped,
+    isLastMessage,
+    isAssistantMessage,
+    assistant,
+    topic,
+    model,
+    messageContainerRef,
+    onUpdateUseful
+  } = props
   const { t } = useTranslation()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
   const {
-    editMessage,
     deleteMessage,
     resendMessage,
     regenerateAssistantMessage,
@@ -86,12 +94,14 @@ const MessageMenubar: FC<Props> = (props) => {
   } = useMessageOperations(topic)
 
   const { isBubbleStyle } = useMessageStyle()
+  const { enableDeveloperMode } = useEnableDeveloperMode()
 
   const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const dispatch = useAppDispatch()
 
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
@@ -156,7 +166,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
-    async (language: Language) => {
+    async (language: TranslateLanguage) => {
       if (isTranslating) return
 
       setIsTranslating(true)
@@ -167,15 +177,36 @@ const MessageMenubar: FC<Props> = (props) => {
         await translateText(mainTextContent, language, translationUpdater)
       } catch (error) {
         // console.error('Translation failed:', error)
-        // window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        // editMessage(message.id, { translatedContent: undefined })
+        window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
+        // 理应只有一个
+        const translationBlocks = findTranslationBlocksById(message.id)
+        logger.silly(`there are ${translationBlocks.length} translation blocks`)
+        if (translationBlocks.length > 0) {
+          const block = translationBlocks[0]
+          logger.silly(`block`, block)
+          if (!block.content) {
+            dispatch(removeOneBlock(block.id))
+          }
+        }
+
         // clearStreamMessage(message.id)
       } finally {
         setIsTranslating(false)
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent]
+    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
   )
+
+  const handleTraceUserMessage = useCallback(async () => {
+    if (message.traceId) {
+      window.api.trace.openWindow(
+        message.topicId,
+        message.traceId,
+        true,
+        message.role === 'user' ? undefined : message.model?.name
+      )
+    }
+  }, [message])
 
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
@@ -194,13 +225,13 @@ const MessageMenubar: FC<Props> = (props) => {
           ]
         : []),
       {
-        label: t('chat.message.new.branch'),
+        label: t('chat.message.new.branch.label'),
         key: 'new-branch',
         icon: <Split size={15} />,
         onClick: onNewBranch
       },
       {
-        label: t('chat.multiple.select'),
+        label: t('chat.multiple.select.label'),
         key: 'multi-select',
         icon: <ListChecks size={15} />,
         onClick: () => {
@@ -208,9 +239,9 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       },
       {
-        label: t('chat.save'),
+        label: t('chat.save.label'),
         key: 'save',
-        icon: <Save size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Save size={15} />,
         children: [
           {
             label: t('chat.save.file.title'),
@@ -224,7 +255,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.save.knowledge.title'),
             key: 'knowledge',
             onClick: () => {
-              SaveToKnowledgePopup.show({ message })
+              SaveToKnowledgePopup.showForMessage(message)
             }
           }
         ]
@@ -232,7 +263,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <Share size={15} color="var(--color-icon)" style={{ marginTop: 3 }} />,
+        icon: <Upload size={15} />,
         children: [
           exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
@@ -262,7 +293,7 @@ const MessageMenubar: FC<Props> = (props) => {
             }
           },
           exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md'),
+            label: t('chat.topics.export.md.label'),
             key: 'markdown',
             onClick: () => exportMessageAsMarkdown(message)
           },
@@ -401,9 +432,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      editMessage(message.id, { useful: !message.useful })
+      onUpdateUseful?.(message.id)
     },
-    [message, editMessage]
+    [message.id, onUpdateUseful]
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
@@ -427,28 +458,28 @@ const MessageMenubar: FC<Props> = (props) => {
               className="message-action-button"
               onClick={() => handleResendUserMessage()}
               $softHoverBg={isBubbleStyle}>
-              <SyncOutlined />
+              <RefreshIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
         {message.role === 'user' && (
           <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
-              <EditOutlined />
+              <EditIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
-            {!copied && <Copy size={15} />}
-            {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+            {!copied && <CopyIcon size={15} />}
+            {copied && <Check size={15} color="var(--color-primary)" />}
           </ActionButton>
         </Tooltip>
         {isAssistantMessage && (
           <Popconfirm
             title={t('message.regenerate.confirm')}
             okButtonProps={{ danger: true }}
-            icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+            icon={<InfoCircleOutlined style={{ color: 'red' }} />}
             onConfirm={onRegenerate}
             onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
             <Tooltip
@@ -457,7 +488,7 @@ const MessageMenubar: FC<Props> = (props) => {
               open={showRegenerateTooltip}
               onOpenChange={setShowRegenerateTooltip}>
               <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
-                <RefreshCw size={15} />
+                <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
           </Popconfirm>
@@ -478,7 +509,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 backgroundClip: 'border-box'
               },
               items: [
-                ...translateLanguageOptions.map((item) => ({
+                ...translateLanguages.map((item) => ({
                   label: item.emoji + ' ' + item.label(),
                   key: item.langCode,
                   onClick: () => handleTranslate(item)
@@ -545,7 +576,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
@@ -558,9 +589,9 @@ const MessageMenubar: FC<Props> = (props) => {
         <Popconfirm
           title={t('message.message.delete.content')}
           okButtonProps={{ danger: true }}
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+          icon={<InfoCircleOutlined style={{ color: 'red' }} />}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id)}>
+          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
@@ -570,10 +601,17 @@ const MessageMenubar: FC<Props> = (props) => {
               mouseEnterDelay={1}
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
-              <Trash size={15} />
+              <DeleteIcon size={15} />
             </Tooltip>
           </ActionButton>
         </Popconfirm>
+        {enableDeveloperMode && message.traceId && (
+          <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+              <TraceIcon size={16} className={'lucide lucide-trash'} />
+            </ActionButton>
+          </Tooltip>
+        )}
         {!isUserMessage && (
           <Dropdown
             menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

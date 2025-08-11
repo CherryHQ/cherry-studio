@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   DEFAULT_LANGUAGES,
   DEFAULT_THEMES,
@@ -9,6 +10,32 @@ import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
 import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
+
+const logger = loggerService.withContext('ShikiStreamService')
+
+const SERVICE_CONFIG = {
+  // LRU 缓存配置
+  TOKENIZER_CACHE: {
+    MAX_SIZE: 100, // 最大缓存数量
+    TTL: 1000 * 60 * 30 // 30 分钟过期时间（毫秒）
+  },
+
+  // 降级策略配置
+  DEGRADATION_CACHE: {
+    MAX_SIZE: 500, // 最大记录数量
+    TTL: 1000 * 60 * 60 * 12 // 12 小时自动过期（毫秒）
+  },
+
+  // Worker 初始化配置
+  WORKER: {
+    MAX_INIT_RETRY: 2, // 最大初始化重试次数
+    REQUEST_TIMEOUT: {
+      INIT: 5000, // 初始化操作超时时间（毫秒）
+      HIGHLIGHT: 30000, // 高亮操作超时时间（毫秒）
+      DEFAULT: 10000 // 默认超时时间（毫秒）
+    }
+  }
+}
 
 export type ShikiPreProperties = {
   class: string
@@ -39,8 +66,8 @@ class ShikiStreamService {
 
   // 保存以 callerId-language-theme 为键的 tokenizer map
   private tokenizerCache = new LRUCache<string, ShikiStreamTokenizer>({
-    max: 100, // 最大缓存数量
-    ttl: 1000 * 60 * 30, // 30分钟过期时间
+    max: SERVICE_CONFIG.TOKENIZER_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.TOKENIZER_CACHE.TTL,
     updateAgeOnGet: true,
     dispose: (value) => {
       if (value) value.clear()
@@ -49,8 +76,8 @@ class ShikiStreamService {
 
   // 缓存每个 callerId 对应的已处理内容
   private codeCache = new LRUCache<string, string>({
-    max: 100, // 最大缓存数量
-    ttl: 1000 * 60 * 30, // 30分钟过期时间
+    max: SERVICE_CONFIG.TOKENIZER_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.TOKENIZER_CACHE.TTL,
     updateAgeOnGet: true
   })
 
@@ -58,7 +85,6 @@ class ShikiStreamService {
   private worker: Worker | null = null
   private workerInitPromise: Promise<void> | null = null
   private workerInitRetryCount: number = 0
-  private static readonly MAX_WORKER_INIT_RETRY = 2
   private pendingRequests = new Map<
     number,
     {
@@ -70,8 +96,8 @@ class ShikiStreamService {
 
   // 降级策略相关变量，用于记录调用 worker 失败过的 callerId
   private workerDegradationCache = new LRUCache<string, boolean>({
-    max: 1000, // 最大记录数量
-    ttl: 1000 * 60 * 60 * 12 // 12小时自动过期
+    max: SERVICE_CONFIG.DEGRADATION_CACHE.MAX_SIZE,
+    ttl: SERVICE_CONFIG.DEGRADATION_CACHE.TTL
   })
 
   constructor() {
@@ -100,8 +126,8 @@ class ShikiStreamService {
     if (this.workerInitPromise) return this.workerInitPromise
     if (this.worker) return
 
-    if (this.workerInitRetryCount >= ShikiStreamService.MAX_WORKER_INIT_RETRY) {
-      console.debug('ShikiStream worker initialization failed too many times, stop trying')
+    if (this.workerInitRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
+      logger.debug('ShikiStream worker initialization failed too many times, stop trying')
       return
     }
 
@@ -188,13 +214,13 @@ class ShikiStreamService {
       const getTimeoutForMessageType = (type: string): number => {
         switch (type) {
           case 'init':
-            return 5000 // 初始化操作 (5秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT
           case 'highlight':
-            return 30000 // 高亮操作 (30秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.HIGHLIGHT
           case 'cleanup':
           case 'dispose':
           default:
-            return 10000 // 其他操作 (10秒)
+            return SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.DEFAULT
         }
       }
 
@@ -329,7 +355,7 @@ class ShikiStreamService {
       return result
     } catch (error) {
       // 处理失败时不更新缓存，保持之前的状态
-      console.error('Failed to highlight streaming code:', error)
+      logger.error('Failed to highlight streaming code:', error as Error)
       throw error
     }
   }
@@ -361,7 +387,7 @@ class ShikiStreamService {
       try {
         await this.initWorker()
       } catch (error) {
-        console.warn('Failed to initialize worker, falling back to main thread:', error)
+        logger.warn('Failed to initialize worker, falling back to main thread:', error as Error)
       }
     }
 
@@ -380,9 +406,9 @@ class ShikiStreamService {
         // Worker 处理失败，记录callerId并永久降级到主线程
         // FIXME: 这种情况如果出现，流式高亮语法状态就会丢失，目前用降级策略来处理
         this.workerDegradationCache.set(callerId, true)
-        console.error(
+        logger.error(
           `Worker highlight failed for callerId ${callerId}, permanently falling back to main thread:`,
-          error
+          error as Error
         )
       }
     }
@@ -416,7 +442,7 @@ class ShikiStreamService {
         recall: result.recall
       }
     } catch (error) {
-      console.error('Failed to highlight code chunk:', error)
+      logger.error('Failed to highlight code chunk:', error as Error)
 
       // 提供简单的 fallback
       const fallbackToken: ThemedToken = { content: chunk || '', color: '#000000', offset: 0 }
@@ -474,7 +500,7 @@ class ShikiStreamService {
         type: 'cleanup',
         callerId
       }).catch((error) => {
-        console.error('Failed to cleanup worker tokenizer:', error)
+        logger.error('Failed to cleanup worker tokenizer:', error as Error)
       })
     }
 
@@ -499,7 +525,7 @@ class ShikiStreamService {
   dispose() {
     if (this.worker) {
       this.sendWorkerMessage({ type: 'dispose' }).catch((error) => {
-        console.warn('Failed to dispose worker:', error)
+        logger.warn('Failed to dispose worker:', error as Error)
       })
       this.worker.terminate()
       this.worker = null
@@ -510,6 +536,9 @@ class ShikiStreamService {
     this.workerDegradationCache.clear()
     this.tokenizerCache.clear()
     this.codeCache.clear()
+
+    // Don't dispose the highlighter directly since it's managed by AsyncInitializer
+    // Just clear the reference
     this.highlighter = null
     this.workerInitPromise = null
     this.workerInitRetryCount = 0

@@ -1,11 +1,13 @@
+import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'
-import Logger from 'electron-log'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
 import { windowService } from './WindowService'
+
+const logger = loggerService.withContext('ShortcutService')
 
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
@@ -222,7 +224,7 @@ export function registerShortcuts(window: BrowserWindow) {
 
         globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
-        Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
+        logger.warn(`Failed to register shortcut ${shortcut.key}`)
       }
     })
   }
@@ -257,7 +259,7 @@ export function registerShortcuts(window: BrowserWindow) {
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
     } catch (error) {
-      Logger.error('[ShortcutService] Failed to unregister shortcuts')
+      logger.warn('Failed to unregister shortcuts')
     }
   }
 
@@ -290,6 +292,6 @@ export function unregisterAllShortcuts() {
     windowOnHandlers.clear()
     globalShortcut.unregisterAll()
   } catch (error) {
-    Logger.error('[ShortcutService] Failed to unregister all shortcuts')
+    logger.warn('Failed to unregister all shortcuts')
   }
 }

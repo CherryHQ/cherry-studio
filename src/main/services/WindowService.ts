@@ -2,11 +2,11 @@
 import './ThemeService'
 
 import { is } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, shell } from 'electron'
-import Logger from 'electron-log'
+import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -15,6 +15,12 @@ import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
+
+const DEFAULT_MINIWINDOW_WIDTH = 550
+const DEFAULT_MINIWINDOW_HEIGHT = 400
+
+// const logger = loggerService.withContext('WindowService')
+const logger = loggerService.withContext('WindowService')
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -63,7 +69,7 @@ export class WindowService {
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 12 },
+      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -110,14 +116,14 @@ export class WindowService {
         const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
-        Logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to set spell check languages:', error as Error)
       }
     }
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -185,8 +191,11 @@ export class WindowService {
     // the zoom factor is reset to cached value when window is resized after routing to other page
     // see: https://github.com/electron/electron/issues/10572
     //
+    // and resize ipc
+    //
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
@@ -201,8 +210,17 @@ export class WindowService {
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+        mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
+
+    mainWindow.on('unmaximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
+
+    mainWindow.on('maximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
 
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -246,7 +264,9 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://dash.302.ai/sso/login',
+        'https://dash.302.ai/charge'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -264,7 +284,7 @@ export class WindowService {
         const fileName = url.replace('http://file/', '')
         const storageDir = getFilesDir()
         const filePath = storageDir + '/' + fileName
-        shell.openPath(filePath).catch((err) => Logger.error('Failed to open file:', err))
+        shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
       } else {
         shell.openExternal(details.url)
       }
@@ -308,6 +328,13 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // save data before when close window
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to save data:', error as Error)
+      }
+
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
         return app.quit()
@@ -332,14 +359,19 @@ export class WindowService {
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
-      event.preventDefault()
+      if (!mainWindow.isFullScreen()) {
+        event.preventDefault()
+      }
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide()
-      }
+      // TODO: don't hide dock icon when close to tray
+      // will cause the cmd+h behavior not working
+      // after the electron fix the bug, we can restore this code
+      // //for mac users, should hide dock icon if close to tray
+      // if (isMac && isTrayOnClose) {
+      //   app.dock?.hide()
+      // }
     })
 
     mainWindow.on('closed', () => {
@@ -425,9 +457,21 @@ export class WindowService {
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      return this.miniWindow
+    }
+
+    const miniWindowState = windowStateKeeper({
+      defaultWidth: DEFAULT_MINIWINDOW_WIDTH,
+      defaultHeight: DEFAULT_MINIWINDOW_HEIGHT,
+      file: 'miniWindow-state.json'
+    })
+
     this.miniWindow = new BrowserWindow({
-      width: 550,
-      height: 400,
+      x: miniWindowState.x,
+      y: miniWindowState.y,
+      width: miniWindowState.width,
+      height: miniWindowState.height,
       minWidth: 350,
       minHeight: 380,
       maxWidth: 1024,
@@ -437,13 +481,12 @@ export class WindowService {
       transparent: isMac,
       vibrancy: 'under-window',
       visualEffectState: 'followWindow',
-      center: true,
       frame: false,
       alwaysOnTop: true,
-      resizable: true,
       useContentSize: true,
       ...(isMac ? { type: 'panel' } : {}),
       skipTaskbar: true,
+      resizable: true,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -454,6 +497,8 @@ export class WindowService {
         webviewTag: true
       }
     })
+
+    miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
     this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -508,31 +553,80 @@ export class WindowService {
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
 
-      if (this.miniWindow.isMinimized()) {
-        this.miniWindow.restore()
+      // [Windows] hacky fix
+      // the window is minimized only when in Windows platform
+      // because it's a workround for Windows, see `hideMiniWindow()`
+      if (this.miniWindow?.isMinimized()) {
+        // don't let the window being seen before we finish adusting the position across screens
+        this.miniWindow?.setOpacity(0)
+        // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
+        // We have to use `show()` here, then set the position and bounds
+        this.miniWindow?.show()
       }
-      this.miniWindow.show()
+
+      const miniWindowBounds = this.miniWindow.getBounds()
+
+      // Check if miniWindow is on the same screen as mouse cursor
+      const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      const miniWindowDisplay = screen.getDisplayNearestPoint(miniWindowBounds)
+
+      // Show the miniWindow on the cursor's screen center
+      // If miniWindow is not on the same screen as cursor, move it to cursor's screen center
+      if (cursorDisplay.id !== miniWindowDisplay.id) {
+        const workArea = cursorDisplay.bounds
+
+        // use current window size to avoid the bug of Electron with screens of different scale factor
+        const currentBounds = this.miniWindow.getBounds()
+        const miniWindowWidth = currentBounds.width
+        const miniWindowHeight = currentBounds.height
+
+        // move to the center of the cursor's screen
+        const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
+        const miniWindowY = Math.round(workArea.y + (workArea.height - miniWindowHeight) / 2)
+
+        this.miniWindow.setPosition(miniWindowX, miniWindowY, false)
+        this.miniWindow.setBounds({
+          x: miniWindowX,
+          y: miniWindowY,
+          width: miniWindowWidth,
+          height: miniWindowHeight
+        })
+      }
+
+      this.miniWindow?.setOpacity(1)
+      this.miniWindow?.show()
+
       return
     }
 
-    this.miniWindow = this.createMiniWindow()
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      this.miniWindow = this.createMiniWindow()
+    }
+
+    this.miniWindow.show()
   }
 
   public hideMiniWindow() {
-    //hacky-fix:[mac/win] previous window(not self-app) should be focused again after miniWindow hide
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      return
+    }
+
+    //[macOs/Windows] hacky fix
+    // previous window(not self-app) should be focused again after miniWindow hide
+    // this workaround is to make previous window focused again after miniWindow hide
     if (isWin) {
-      this.miniWindow?.minimize()
-      this.miniWindow?.hide()
+      this.miniWindow.setOpacity(0) // don't show the minimizing animation
+      this.miniWindow.minimize()
       return
     } else if (isMac) {
-      this.miniWindow?.hide()
+      this.miniWindow.hide()
       if (!this.wasMainWindowFocused) {
         app.hide()
       }
       return
     }
 
-    this.miniWindow?.hide()
+    this.miniWindow.hide()
   }
 
   public closeMiniWindow() {
@@ -567,7 +661,7 @@ export class WindowService {
         }, 100)
       }
     } catch (error) {
-      Logger.error('Failed to quote to main window:', error as Error)
+      logger.error('Failed to quote to main window:', error as Error)
     }
   }
 }

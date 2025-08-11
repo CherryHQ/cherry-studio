@@ -1,12 +1,5 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  EllipsisOutlined,
-  ExportOutlined,
-  PlusOutlined,
-  SortAscendingOutlined
-} from '@ant-design/icons'
-import CustomTag from '@renderer/components/CustomTag'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -14,6 +7,7 @@ import type { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Dropdown } from 'antd'
 import { t } from 'i18next'
+import { ArrowDownAZ, Ellipsis, PlusIcon, SquareArrowOutUpRight } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -66,7 +60,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     {
       key: 'edit',
       label: t('agents.edit.title'),
-      icon: <EditOutlined />,
+      icon: <EditIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         AssistantSettingsPopup.show({ assistant: agent })
@@ -75,7 +69,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     {
       key: 'create',
       label: t('agents.add.button'),
-      icon: <PlusOutlined />,
+      icon: <PlusIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         createAssistantFromAgent(agent)
@@ -84,7 +78,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     {
       key: 'sort',
       label: t('agents.sorting.title'),
-      icon: <SortAscendingOutlined />,
+      icon: <ArrowDownAZ size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         ManageAgentsPopup.show()
@@ -93,7 +87,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     {
       key: 'export',
       label: t('agents.export.agent'),
-      icon: <ExportOutlined />,
+      icon: <SquareArrowOutUpRight size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         exportAgent()
@@ -102,7 +96,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     {
       key: 'delete',
       label: t('common.delete'),
-      icon: <DeleteOutlined />,
+      icon: <DeleteIcon size={14} className="lucide-custom" />,
       danger: true,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
@@ -173,7 +167,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
                     color="default"
                     variant="filled"
                     shape="circle"
-                    icon={<EllipsisOutlined />}
+                    icon={<Ellipsis size={14} color="var(--color-text-3)" />}
                   />
                 </Dropdown>
               </AgentCardHeaderInfoAction>

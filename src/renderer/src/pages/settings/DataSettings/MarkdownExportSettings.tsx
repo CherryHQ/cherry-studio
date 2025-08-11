@@ -3,10 +3,12 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
+  setExcludeCitationsInExport,
   setForceDollarMathInMarkdown,
   setmarkdownExportPath,
   setShowModelNameInMarkdown,
   setShowModelProviderInMarkdown,
+  setStandardizeCitationsInExport,
   setUseTopicNamingForMessageTitle
 } from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
@@ -27,6 +29,8 @@ const MarkdownExportSettings: FC = () => {
   const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
   const showModelNameInExport = useSelector((state: RootState) => state.settings.showModelNameInMarkdown)
   const showModelProviderInMarkdown = useSelector((state: RootState) => state.settings.showModelProviderInMarkdown)
+  const excludeCitationsInExport = useSelector((state: RootState) => state.settings.excludeCitationsInExport)
+  const standardizeCitationsInExport = useSelector((state: RootState) => state.settings.standardizeCitationsInExport)
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
@@ -53,6 +57,14 @@ const MarkdownExportSettings: FC = () => {
 
   const handleToggleShowModelProvider = (checked: boolean) => {
     dispatch(setShowModelProviderInMarkdown(checked))
+  }
+
+  const handleToggleExcludeCitations = (checked: boolean) => {
+    dispatch(setExcludeCitationsInExport(checked))
+  }
+
+  const handleToggleStandardizeCitations = (checked: boolean) => {
+    dispatch(setStandardizeCitationsInExport(checked))
   }
 
   return (
@@ -113,6 +125,22 @@ const MarkdownExportSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.exclude_citations.title')}</SettingRowTitle>
+        <Switch checked={excludeCitationsInExport} onChange={handleToggleExcludeCitations} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
+        <Switch checked={standardizeCitationsInExport} onChange={handleToggleStandardizeCitations} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.standardize_citations.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

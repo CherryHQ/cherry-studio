@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import { Shortcut } from '@renderer/types'
@@ -307,14 +308,15 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  // 由于启用了showHeader = false，不再需要title字段
   const columns: ColumnsType<Shortcut> = [
     {
-      title: t('settings.shortcuts.action'),
+      // title: t('settings.shortcuts.action'),
       dataIndex: 'name',
       key: 'name'
     },
     {
-      title: t('settings.shortcuts.key'),
+      // title: t('settings.shortcuts.label'),
       dataIndex: 'shortcut',
       key: 'shortcut',
       align: 'right',
@@ -354,7 +356,7 @@ const ShortcutSettings: FC = () => {
       }
     },
     {
-      title: t('settings.shortcuts.actions'),
+      // title: t('settings.shortcuts.actions'),
       key: 'actions',
       align: 'right',
       width: '70px',
@@ -382,7 +384,7 @@ const ShortcutSettings: FC = () => {
       )
     },
     {
-      title: t('settings.shortcuts.enabled'),
+      // title: t('settings.shortcuts.enabled'),
       key: 'enabled',
       align: 'right',
       width: '50px',
@@ -399,7 +401,7 @@ const ShortcutSettings: FC = () => {
         <SettingDivider style={{ marginBottom: 0 }} />
         <Table
           columns={columns as ColumnsType<unknown>}
-          dataSource={shortcuts.map((s) => ({ ...s, name: t(`settings.shortcuts.${s.key}`) }))}
+          dataSource={shortcuts.map((s) => ({ ...s, name: getShortcutLabel(s.key) }))}
           pagination={false}
           size="middle"
           showHeader={false}

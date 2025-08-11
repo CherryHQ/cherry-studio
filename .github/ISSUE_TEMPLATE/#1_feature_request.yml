@@ -1,7 +1,7 @@
 name: 💡 功能建议 (中文)
 description: 为项目提出新的想法
 title: '[功能]: '
-labels: ['kind/enhancement']
+labels: ['feature']
 body:
   - type: markdown
     attributes:

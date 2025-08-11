@@ -1,12 +1,13 @@
-import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { DeleteIcon } from '@renderer/components/Icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { handleDelete } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
-import VirtualList from 'rc-virtual-list'
-import React, { memo } from 'react'
+import React, { memo, useCallback } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
@@ -27,6 +28,8 @@ interface FileItemProps {
 }
 
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
+  const estimateSize = useCallback(() => 75, [])
+
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
       <div style={{ padding: 16, overflowY: 'auto' }}>
@@ -66,7 +69,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                         icon: <ExclamationCircleOutlined style={{ color: 'red' }} />
                       })
                     }}>
-                    <DeleteOutlined />
+                    <DeleteIcon size={14} className="lucide-custom" />
                   </DeleteButton>
                 </ImageWrapper>
               </Col>
@@ -78,38 +81,29 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   }
 
   return (
-    <VirtualList
-      data={list}
-      height={window.innerHeight - 100}
-      itemHeight={75}
-      itemKey="key"
-      style={{ padding: '0 16px 16px 16px' }}
-      styles={{
-        verticalScrollBar: {
-          width: 6
-        },
-        verticalScrollBarThumb: {
-          background: 'var(--color-scrollbar-thumb)'
-        }
+    <DynamicVirtualList
+      list={list}
+      estimateSize={estimateSize}
+      overscan={2}
+      scrollerStyle={{
+        padding: '0 16px 16px 16px'
+      }}
+      itemContainerStyle={{
+        height: '75px',
+        paddingTop: '12px'
       }}>
       {(item) => (
-        <div
-          style={{
-            height: '75px',
-            paddingTop: '12px'
-          }}>
-          <FileItem
-            key={item.key}
-            fileInfo={{
-              name: item.file,
-              ext: item.ext,
-              extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
-              actions: item.actions
-            }}
-          />
-        </div>
+        <FileItem
+          key={item.key}
+          fileInfo={{
+            name: item.file,
+            ext: item.ext,
+            extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
+            actions: item.actions
+          }}
+        />
       )}
-    </VirtualList>
+    </DynamicVirtualList>
   )
 }
 

@@ -1,8 +1,8 @@
-import { ArrowUpOutlined, MenuOutlined } from '@ant-design/icons'
 import { HStack, VStack } from '@renderer/components/Layout'
 import MaxContextCount from '@renderer/components/MaxContextCount'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Divider, Popover } from 'antd'
+import { ArrowUp, MenuIcon } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -49,13 +49,14 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
       <Popover content={PopoverContent} arrow={false}>
         <HStack>
           <HStack style={{ alignItems: 'center' }}>
-            <MenuOutlined /> {contextCount.current}
+            <MenuIcon size={12} className="icon" />
+            {contextCount.current}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             <MaxContextCount maxContext={contextCount.max} />
           </HStack>
-          <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
+          <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
           <HStack style={{ alignItems: 'center' }}>
-            <ArrowUpOutlined />
+            <ArrowUp size={12} className="icon" />
             {inputTokenCount}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             {estimateTokenCount}
@@ -77,8 +78,7 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  .anticon {
-    font-size: 10px;
+  .icon {
     margin-right: 3px;
   }
   @media (max-width: 800px) {

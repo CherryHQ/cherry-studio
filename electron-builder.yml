@@ -53,8 +53,6 @@ files:
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
-  - '!node_modules/pdfjs-dist/web/**/*'
-  - '!node_modules/pdfjs-dist/legacy/web/*'
   - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
   - '!node_modules/selection-hook/src' # we don't need source files
   - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
@@ -100,6 +98,7 @@ linux:
   target:
     - target: AppImage
     - target: deb
+    - target: rpm
   maintainer: electronjs.org
   category: Utility
   desktop:
@@ -117,8 +116,4 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    • [新增] MCP 工具调用自动审批流程
-    • [优化] 输入框快捷弹窗多选交互支持
-    • [新增] 网页内容生成实时预览功能
-    • [支持] Grok-4 大语言模型接入
-    • [修复] Anthropic 模型输出截断缺陷
+    稳定性改进和错误修复

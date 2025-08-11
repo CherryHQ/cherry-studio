@@ -101,7 +101,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            {t('settings.provider.api_key')}
+            {t('settings.provider.api_key.label')}
             <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
@@ -110,7 +110,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             <Input.Password
               value={apiKey}
               placeholder={
-                preprocessProvider.id === 'mineru' ? t('settings.mineru.api_key') : t('settings.provider.api_key')
+                preprocessProvider.id === 'mineru' ? t('settings.mineru.api_key') : t('settings.provider.api_key.label')
               }
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
@@ -144,6 +144,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
         </>
       )}
 
+      {/* 这部分看起来暂时用不上了 */}
       {hasObjectKey(preprocessProvider, 'options') && preprocessProvider.id === 'system' && (
         <>
           <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />

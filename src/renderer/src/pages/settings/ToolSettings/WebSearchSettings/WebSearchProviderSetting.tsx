@@ -1,4 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
@@ -20,6 +21,7 @@ import {
   SettingTitle
 } from '../..'
 
+const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
   providerId: string
 }
@@ -116,7 +118,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
       setApiValid(valid)
     } catch (err) {
-      console.error('Check search error:', err)
+      logger.error('Check search error:', err as Error)
       setApiValid(false)
       window.message.error({
         key: 'check-search-error',
@@ -161,7 +163,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            {t('settings.provider.api_key')}
+            {t('settings.provider.api_key.label')}
             <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
@@ -169,7 +171,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={apiKey}
-              placeholder={t('settings.provider.api_key')}
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
@@ -217,7 +219,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.basic_auth')}
+            {t('settings.provider.basic_auth.label')}
             <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
               <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
             </Tooltip>
@@ -239,14 +241,14 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                   setBasicAuthPassword(changedValues.password || '')
                 }
               }}>
-              <Form.Item label={t('settings.provider.basic_auth.user_name')} name="username">
+              <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
                 <Input
                   placeholder={t('settings.provider.basic_auth.user_name.tip')}
                   onBlur={onUpdateBasicAuthUsername}
                 />
               </Form.Item>
               <Form.Item
-                label={t('settings.provider.basic_auth.password')}
+                label={t('settings.provider.basic_auth.password.label')}
                 name="password"
                 rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
                 help=""

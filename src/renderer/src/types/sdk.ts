@@ -8,6 +8,8 @@ import {
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import {
   Content,
   CreateChatParameters,
@@ -23,21 +25,43 @@ import { Stream } from 'openai/streaming'
 
 import { EndpointType } from './index'
 
-export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
-export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
-export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
-export type SdkRawOutput = OpenAISdkRawOutput | OpenAIResponseSdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
+export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI | AwsBedrockSdkInstance
+export type SdkParams =
+  | OpenAISdkParams
+  | OpenAIResponseSdkParams
+  | AnthropicSdkParams
+  | GeminiSdkParams
+  | AwsBedrockSdkParams
+export type SdkRawChunk =
+  | OpenAISdkRawChunk
+  | OpenAIResponseSdkRawChunk
+  | AnthropicSdkRawChunk
+  | GeminiSdkRawChunk
+  | AwsBedrockSdkRawChunk
+export type SdkRawOutput =
+  | OpenAISdkRawOutput
+  | OpenAIResponseSdkRawOutput
+  | AnthropicSdkRawOutput
+  | GeminiSdkRawOutput
+  | AwsBedrockSdkRawOutput
 export type SdkMessageParam =
   | OpenAISdkMessageParam
   | OpenAIResponseSdkMessageParam
   | AnthropicSdkMessageParam
   | GeminiSdkMessageParam
+  | AwsBedrockSdkMessageParam
 export type SdkToolCall =
   | OpenAI.Chat.Completions.ChatCompletionMessageToolCall
   | ToolUseBlock
   | FunctionCall
   | OpenAIResponseSdkToolCall
-export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool | OpenAIResponseSdkTool
+  | AwsBedrockSdkToolCall
+export type SdkTool =
+  | OpenAI.Chat.Completions.ChatCompletionTool
+  | ToolUnion
+  | Tool
+  | OpenAIResponseSdkTool
+  | AwsBedrockSdkTool
 export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel | NewApiModel
 
 export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions
@@ -115,4 +139,120 @@ export type GeminiOptions = {
  */
 export interface NewApiModel extends OpenAI.Models.Model {
   supported_endpoint_types?: EndpointType[]
+}
+
+/**
+ * AWS Bedrock
+ */
+export interface AwsBedrockSdkInstance {
+  client: BedrockRuntimeClient
+  region: string
+}
+
+export interface AwsBedrockSdkParams {
+  modelId: string
+  messages: AwsBedrockSdkMessageParam[]
+  system?: string
+  maxTokens?: number
+  temperature?: number
+  topP?: number
+  stream?: boolean
+  tools?: AwsBedrockSdkTool[]
+}
+
+export interface AwsBedrockSdkMessageParam {
+  role: 'user' | 'assistant'
+  content: Array<{
+    text?: string
+    image?: {
+      format: 'png' | 'jpeg' | 'gif' | 'webp'
+      source: {
+        bytes?: Uint8Array
+        s3Location?: {
+          uri: string
+          bucketOwner?: string
+        }
+      }
+    }
+    toolResult?: {
+      toolUseId: string
+      content: Array<{
+        json?: any
+        text?: string
+        image?: {
+          format: 'png' | 'jpeg' | 'gif' | 'webp'
+          source: {
+            bytes?: Uint8Array
+            s3Location?: {
+              uri: string
+              bucketOwner?: string
+            }
+          }
+        }
+        document?: any
+        video?: any
+      }>
+      status?: 'success' | 'error'
+    }
+    toolUse?: {
+      toolUseId: string
+      name: string
+      input: any
+    }
+  }>
+}
+
+export interface AwsBedrockSdkRawChunk {
+  contentBlockStart?: {
+    start?: {
+      toolUse?: {
+        toolUseId: string
+        name: string
+      }
+    }
+    contentBlockIndex?: number
+  }
+  contentBlockDelta?: {
+    delta?: {
+      text?: string
+      toolUse?: {
+        input?: string
+      }
+    }
+    contentBlockIndex?: number
+  }
+  contentBlockStop?: {
+    contentBlockIndex?: number
+  }
+  messageStart?: any
+  messageStop?: any
+  metadata?: any
+}
+
+export type AwsBedrockSdkRawOutput = { output: any } | AsyncIterable<AwsBedrockSdkRawChunk>
+
+export interface AwsBedrockSdkTool {
+  toolSpec: {
+    name: string
+    description?: string
+    inputSchema: {
+      json: {
+        type: string
+        properties?: {
+          [key: string]: {
+            type: string
+            description?: string
+          }
+        }
+        required?: string[]
+      }
+    }
+  }
+}
+
+export interface AwsBedrockSdkToolCall {
+  id: string
+  name: string
+  input: any
+  toolUseId: string
 }

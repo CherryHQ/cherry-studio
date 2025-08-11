@@ -1,9 +1,11 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import CustomTag from '@renderer/components/CustomTag'
+import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -27,8 +29,10 @@ const AgentsPage: FC = () => {
   const [searchInput, setSearchInput] = useState('')
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const systemAgents = useSystemAgents()
   const { agents: userAgents } = useAgents()
+  const { isTopNavbar } = useNavbarPosition()
 
   useEffect(() => {
     const systemAgentsGroupList = groupByCategories(systemAgents)
@@ -41,27 +45,22 @@ const AgentsPage: FC = () => {
   }, [systemAgents, userAgents])
 
   const filteredAgents = useMemo(() => {
-    let agents: Agent[] = []
-
-    if (search.trim()) {
-      const uniqueAgents = new Map<string, Agent>()
-
-      Object.entries(agentGroups).forEach(([, agents]) => {
-        agents.forEach((agent) => {
-          if (
-            (agent.name.toLowerCase().includes(search.toLowerCase()) ||
-              agent.description?.toLowerCase().includes(search.toLowerCase())) &&
-            !uniqueAgents.has(agent.name)
-          ) {
-            uniqueAgents.set(agent.name, agent)
-          }
-        })
-      })
-      agents = Array.from(uniqueAgents.values())
-    } else {
-      agents = agentGroups[activeGroup] || []
+    // 搜索框为空直接返回「我的」分组下的 agent
+    if (!search.trim()) {
+      return agentGroups[activeGroup] || []
     }
-    return agents.filter((agent) => agent.name.toLowerCase().includes(search.toLowerCase()))
+    const uniqueAgents = new Map<string, Agent>()
+    Object.entries(agentGroups).forEach(([, agents]) => {
+      agents.forEach((agent) => {
+        if (
+          agent.name.toLowerCase().includes(search.toLowerCase()) ||
+          agent.description?.toLowerCase().includes(search.toLowerCase())
+        ) {
+          uniqueAgents.set(agent.id, agent)
+        }
+      })
+    })
+    return Array.from(uniqueAgents.values())
   }, [agentGroups, activeGroup, search])
 
   const { t, i18n } = useTranslation()
@@ -124,7 +123,35 @@ const AgentsPage: FC = () => {
 
   const handleSearchClear = () => {
     setSearch('')
+    setSearchInput('')
     setActiveGroup('我的')
+    setIsSearchExpanded(false)
+  }
+
+  const handleSearchIconClick = () => {
+    if (!isSearchExpanded) {
+      setIsSearchExpanded(true)
+    } else {
+      handleSearch()
+    }
+  }
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchInput(value)
+    // 如果输入内容为空，折叠搜索框
+    if (value.trim() === '') {
+      setIsSearchExpanded(false)
+      setSearch('')
+      setActiveGroup('我的')
+    }
+  }
+
+  const handleSearchInputBlur = () => {
+    // 如果输入内容为空，失焦时折叠搜索框
+    if (searchInput.trim() === '') {
+      setIsSearchExpanded(false)
+    }
   }
 
   const handleGroupClick = (group: string) => () => {
@@ -166,8 +193,9 @@ const AgentsPage: FC = () => {
             suffix={<Search size={14} color="var(--color-icon)" onClick={handleSearch} />}
             value={searchInput}
             maxLength={50}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={handleSearchInputChange}
             onPressEnter={handleSearch}
+            onBlur={handleSearchInputBlur}
           />
           <div style={{ width: 80 }} />
         </NavbarCenter>
@@ -186,11 +214,11 @@ const AgentsPage: FC = () => {
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <div style={{ minWidth: 40, textAlign: 'center' }}>
+                    <HStack alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>
-                    </div>
+                    </HStack>
                   }
                 </Flex>
               }
@@ -221,6 +249,33 @@ const AgentsPage: FC = () => {
               }
             </AgentsListTitle>
             <Flex gap={8}>
+              {isSearchExpanded ? (
+                <Input
+                  placeholder={t('common.search')}
+                  className="nodrag"
+                  style={{ width: 300, height: 28, borderRadius: 15, paddingLeft: 12 }}
+                  size="small"
+                  variant="filled"
+                  allowClear
+                  onClear={handleSearchClear}
+                  suffix={<Search size={14} color="var(--color-icon)" onClick={handleSearchIconClick} />}
+                  value={searchInput}
+                  maxLength={50}
+                  onChange={handleSearchInputChange}
+                  onPressEnter={handleSearch}
+                  onBlur={handleSearchInputBlur}
+                  autoFocus
+                />
+              ) : (
+                isTopNavbar && (
+                  <Button
+                    type="text"
+                    onClick={handleSearchIconClick}
+                    icon={<Search size={18} color="var(--color-icon)" />}>
+                    {t('common.search')}
+                  </Button>
+                )
+              )}
               <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
                 {t('agents.import.title')}
               </Button>

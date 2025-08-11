@@ -1,9 +1,11 @@
 import { TavilyClient } from '@agentic/tavily'
+import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
+const logger = loggerService.withContext('TavilyProvider')
 export default class TavilyProvider extends BaseWebSearchProvider {
   private tvly: TavilyClient
 
@@ -39,7 +41,7 @@ export default class TavilyProvider extends BaseWebSearchProvider {
         })
       }
     } catch (error) {
-      console.error('Tavily search failed:', error)
+      logger.error('Tavily search failed:', error as Error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

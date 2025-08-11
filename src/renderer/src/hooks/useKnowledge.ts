@@ -1,11 +1,9 @@
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { RootState } from '@renderer/store'
+import { RootState, useAppDispatch } from '@renderer/store'
 import {
   addBase,
-  addFiles as addFilesAction,
-  addItem,
   clearAllProcessing,
   clearCompletedProcessing,
   deleteBase,
@@ -17,17 +15,19 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
+import { addFilesThunk, addItemThunk, addNoteThunk } from '@renderer/store/thunk/knowledgeThunk'
 import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import dayjs from 'dayjs'
+import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { v4 as uuidv4 } from 'uuid'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
 
 export const useKnowledge = (baseId: string) => {
-  const dispatch = useDispatch()
+  const dispatch = useAppDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
 
   // 重命名知识库
@@ -42,71 +42,33 @@ export const useKnowledge = (baseId: string) => {
 
   // 批量添加文件
   const addFiles = (files: FileMetadata[]) => {
-    const filesItems: KnowledgeItem[] = files.map((file) => ({
-      id: uuidv4(),
-      type: 'file' as const,
-      content: file,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }))
-    console.log('Adding files:', filesItems)
-    dispatch(addFilesAction({ baseId, items: filesItems }))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
-  }
-
-  // 添加URL
-  const addUrl = (url: string) => {
-    const newUrlItem: KnowledgeItem = {
-      id: uuidv4(),
-      type: 'url' as const,
-      content: url,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }
-    dispatch(addItem({ baseId, item: newUrlItem }))
+    dispatch(addFilesThunk(baseId, files))
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 添加笔记
   const addNote = async (content: string) => {
-    const noteId = uuidv4()
-    const note: KnowledgeItem = {
-      id: noteId,
-      type: 'note',
-      content,
-      created_at: Date.now(),
-      updated_at: Date.now()
-    }
-
-    // 存储完整笔记到数据库
-    await db.knowledge_notes.add(note)
-
-    // 在 store 中只存储引用
-    const noteRef: KnowledgeItem = {
-      id: noteId,
-      baseId,
-      type: 'note',
-      content: '', // store中不需要存储实际内容
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }
-
-    dispatch(updateNotes({ baseId, item: noteRef }))
+    await dispatch(addNoteThunk(baseId, content))
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
+  // 添加URL
+  const addUrl = (url: string) => {
+    dispatch(addItemThunk(baseId, 'url', url))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
+  // 添加 Sitemap
+  const addSitemap = (url: string) => {
+    dispatch(addItemThunk(baseId, 'sitemap', url))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
+  // Add directory support
+  const addDirectory = (path: string) => {
+    dispatch(addItemThunk(baseId, 'directory', path))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
   // 更新笔记内容
   const updateNoteContent = async (noteId: string, content: string) => {
     const note = await db.knowledge_notes.get(noteId)
@@ -211,37 +173,62 @@ export const useKnowledge = (baseId: string) => {
     dispatch(clearAllProcessing({ baseId }))
   }
 
-  // 添加 Sitemap
-  const addSitemap = (url: string) => {
-    const newSitemapItem: KnowledgeItem = {
-      id: uuidv4(),
-      type: 'sitemap' as const,
-      content: url,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }
-    dispatch(addItem({ baseId, item: newSitemapItem }))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
-  }
+  // 迁移知识库（保留原知识库）
+  const migrateBase = async (newBase: KnowledgeBase) => {
+    if (!base) return
 
-  // Add directory support
-  const addDirectory = (path: string) => {
-    const newDirectoryItem: KnowledgeItem = {
-      id: uuidv4(),
-      type: 'directory',
-      content: path,
+    const timestamp = dayjs().format('YYMMDDHHmmss')
+    const newName = `${newBase.name || base.name}-${timestamp}`
+
+    const migratedBase = {
+      ...cloneDeep(base), // 深拷贝原始知识库
+      ...newBase,
+      id: newBase.id, // 确保使用新的ID
+      name: newName,
       created_at: Date.now(),
       updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
+      items: []
+    } as KnowledgeBase
+
+    dispatch(addBase(migratedBase))
+
+    const files: FileMetadata[] = []
+
+    // 遍历原知识库的 items，重新添加到新知识库
+    for (const item of base.items) {
+      switch (item.type) {
+        case 'file':
+          if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
+            files.push(item.content as FileMetadata)
+          }
+          break
+        case 'note':
+          try {
+            const note = await db.knowledge_notes.get(item.id)
+            const content = (note?.content || '') as string
+            await dispatch(addNoteThunk(newBase.id, content))
+          } catch (error) {
+            throw new Error(`Failed to migrate note item ${item.id}: ${error}`)
+          }
+          break
+        default:
+          try {
+            dispatch(addItemThunk(newBase.id, item.type, item.content as string))
+          } catch (error) {
+            throw new Error(`Failed to migrate item ${item.id}: ${error}`)
+          }
+          break
+      }
     }
-    dispatch(addItem({ baseId, item: newDirectoryItem }))
+
+    try {
+      if (files.length > 0) {
+        dispatch(addFilesThunk(newBase.id, files))
+      }
+    } catch (error) {
+      throw new Error(`Failed to migrate files ${files}: ${error}`)
+    }
+
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
@@ -272,6 +259,7 @@ export const useKnowledge = (baseId: string) => {
     noteItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
+    migrateBase,
     addFiles,
     addUrl,
     addSitemap,

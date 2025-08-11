@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -9,6 +10,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -32,6 +34,8 @@ import PaintingsList from './components/PaintingsList'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
 import TokenFluxService from './utils/TokenFluxService'
 
+const logger = loggerService.withContext('TokenFluxPage')
+
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
@@ -52,9 +56,16 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
 
@@ -259,7 +270,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      console.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -320,7 +331,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const readI18nContext = (property: Record<string, any>, key: string): string => {
     const lang = i18n.language.split('-')[0] // Get the base language code (e.g., 'en' from 'en-US')
-    console.log('readI18nContext', { property, key, lang })
+    logger.debug('readI18nContext', { property, key, lang })
     return property[`${key}_${lang}`] || property[key]
   }
 
@@ -346,7 +357,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       tokenFluxService
         .pollGenerationResult(painting.generationId, {
           onStatusUpdate: (updates) => {
-            console.log('Polling status update:', updates)
+            logger.debug('Polling status update:', updates)
             updatePaintingState(updates)
           }
         })
@@ -360,7 +371,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
         })
         .catch((error) => {
-          console.error('Polling failed:', error)
+          logger.error('Polling failed:', error)
           updatePaintingState({ status: 'failed' })
         })
     }

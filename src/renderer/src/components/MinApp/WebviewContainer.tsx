@@ -1,4 +1,4 @@
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
 
@@ -23,6 +23,7 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const { enableSpellCheck } = useSettings()
+    const { isLeftNavbar } = useNavbarPosition()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -63,13 +64,20 @@ const WebviewContainer = memo(
       webviewRef.current.src = url
 
       return () => {
+        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
-        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
+
+    const WebviewStyle: React.CSSProperties = {
+      width: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw',
+      height: 'calc(100vh - var(--navbar-height))',
+      backgroundColor: 'var(--color-background)',
+      display: 'inline-flex'
+    }
 
     return (
       <webview
@@ -87,12 +95,5 @@ const WebviewContainer = memo(
     )
   }
 )
-
-const WebviewStyle: React.CSSProperties = {
-  width: 'calc(100vw - var(--sidebar-width))',
-  height: 'calc(100vh - var(--navbar-height))',
-  backgroundColor: 'var(--color-background)',
-  display: 'inline-flex'
-}
 
 export default WebviewContainer

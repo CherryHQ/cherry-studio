@@ -1,13 +1,15 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import { CloseCircleFilled } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import { Edit, Eye, HelpCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -28,7 +30,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [prompt, setPrompt] = useState(assistant.prompt)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
+  const [showPreview, setShowPreview] = useState(prompt.length > 0)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -38,9 +40,15 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateTokenCount()
   }, [prompt])
 
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
+
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
+    window.message.success(t('common.saved'))
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
@@ -106,42 +114,47 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
+          <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
       </HStack>
       <TextAreaContainer>
-        {showMarkdown ? (
-          <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown>{prompt}</ReactMarkdown>
+        {showPreview ? (
+          <MarkdownContainer className="markdown" onClick={() => setShowPreview(false)}>
+            <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (
-          <TextArea
-            rows={10}
-            placeholder={t('common.assistant') + t('common.prompt')}
+          <CodeEditor
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onBlur={() => {
-              onUpdate()
+            language="markdown"
+            placeholder={t('common.assistant') + t('common.prompt')}
+            onChange={setPrompt}
+            onBlur={onUpdate}
+            height="calc(80vh - 202px)"
+            fontSize="var(--ant-font-size)"
+            expanded
+            unwrapped={false}
+            options={{
+              autocompletion: false,
+              keymap: true,
+              lineNumbers: false,
+              lint: false
             }}
-            autoFocus={true}
-            spellCheck={false}
-            style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
+            style={{
+              border: '0.5px solid var(--color-border)',
+              borderRadius: '5px'
+            }}
           />
         )}
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
-
-        {showMarkdown ? (
-          <Button type="primary" onClick={() => setShowMarkdown(false)}>
-            {t('common.edit')}
-          </Button>
-        ) : (
-          <Button type="primary" onClick={() => setShowMarkdown(true)}>
-            {t('common.save')}
-          </Button>
-        )}
+        <Button
+          type="primary"
+          icon={showPreview ? <Edit size={14} /> : <Eye size={14} />}
+          onClick={() => setShowPreview((prev) => !prev)}>
+          {showPreview ? t('common.edit') : t('common.preview')}
+        </Button>
       </HSpaceBetweenStack>
     </Container>
   )

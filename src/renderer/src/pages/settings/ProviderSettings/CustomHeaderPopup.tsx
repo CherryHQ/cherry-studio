@@ -68,6 +68,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      maskClosable={false}
       transitionName="animation-move-down"
       centered>
       <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
@@ -77,10 +78,10 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           language="json"
           onChange={(value) => setHeaderText(value)}
           placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
+          expanded
+          unwrapped={false}
           options={{
             lint: true,
-            collapsible: false,
-            wrappable: true,
             lineNumbers: true,
             foldGutter: true,
             highlightActiveLine: true,
