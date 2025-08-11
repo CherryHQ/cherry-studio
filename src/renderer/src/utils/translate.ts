@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { fetchLanguageDetection } from '@renderer/services/ApiService'
@@ -6,7 +7,7 @@ import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { RefObject } from 'react'
 
-// const logger = loggerService.withContext('Utils:translate')
+const logger = loggerService.withContext('Utils:translate')
 
 /**
  * 检测输入文本的语言
@@ -20,21 +21,29 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
 
   let method = (await db.settings.get({ id: 'translate:detect:method' }))?.value
   if (!method) method = 'auto'
+  logger.info(`auto detection method: ${method}`)
 
+  let result: TranslateLanguageCode
   switch (method) {
     case 'auto':
       // hard encoded threshold
-      return text.length < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
+      result = text.length < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
+      break
     case 'franc':
-      return detectLanguageByFranc(text)
+      result = detectLanguageByFranc(text)
+      break
     case 'llm':
-      return await detectLanguageByLLM(text)
+      result = await detectLanguageByLLM(text)
+      break
     default:
       throw new Error('Invalid detection method.')
   }
+  logger.info(`Detected Language: ${result}`)
+  return result
 }
 
 const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
+  logger.info('Detect langugage by llm')
   let detectedLang = ''
   await fetchLanguageDetection({
     text: inputText.slice(0, 50),
@@ -46,6 +55,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
 }
 
 const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
+  logger.info('Detect langugage by franc')
   const iso3 = franc(inputText)
 
   const isoMap: Record<string, TranslateLanguage> = {
