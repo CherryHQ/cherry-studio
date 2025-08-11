@@ -3612,7 +3612,7 @@
       "method": {
         "algo": {
           "label": "算法",
-          "tip": "使用franc算法进行语言检测"
+          "tip": "使用franc进行语言检测"
         },
         "auto": {
           "label": "自动",

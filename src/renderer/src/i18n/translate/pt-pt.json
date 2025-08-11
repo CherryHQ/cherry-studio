@@ -795,7 +795,8 @@
     },
     "missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do usuário foi excluída. Envie uma nova mensagem para obter a resposta deste modelo",
     "model": {
-      "exists": "O modelo já existe"
+      "exists": "O modelo já existe",
+      "not_exists": "O modelo não existe"
     },
     "no_api_key": "A chave da API não foi configurada",
     "pause_placeholder": "Interrompido",
@@ -3607,11 +3608,32 @@
     "custom": {
       "label": "idioma personalizado"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algoritmo",
+          "tip": "Usar o algoritmo franc para detecção de idioma"
+        },
+        "auto": {
+          "label": "automático",
+          "tip": "Selecionar automaticamente o método de detecção adequado"
+        },
+        "label": "Método de detecção automática",
+        "llm": {
+          "tip": "Usar o modelo de tradução para detecção de idioma consome uma pequena quantidade de tokens. (O QwenMT não suporta detecção de idioma e reverterá automaticamente para o modelo assistente padrão)"
+        },
+        "placeholder": "Escolha o método de detecção automática",
+        "tip": "Método utilizado para detecção automática do idioma de entrada"
+      }
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "detect": {
+        "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma"
+      },
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "not_configured": "Modelo de tradução não configurado",

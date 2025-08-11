@@ -795,7 +795,8 @@
     },
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
-      "exists": "Model already exists"
+      "exists": "Model already exists",
+      "not_exists": "Model does not exist"
     },
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
@@ -3607,11 +3608,32 @@
     "custom": {
       "label": "Custom language"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algorithm",
+          "tip": "Using the franc library for language detection"
+        },
+        "auto": {
+          "label": "Automatic",
+          "tip": "Automatically select the appropriate detection method"
+        },
+        "label": "Automatic detection method",
+        "llm": {
+          "tip": "Using a translation model for language detection consumes a small number of tokens. (QwenMT does not support language detection and will automatically fall back to the default assistant model.)"
+        },
+        "placeholder": "Select automatic detection method",
+        "tip": "Method used when automatically detecting the input language"
+      }
+    },
     "detected": {
       "language": "Auto Detect"
     },
     "empty": "Translation content is empty",
     "error": {
+      "detect": {
+        "qwen_mt": "QwenMT model cannot be used for language detection"
+      },
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
       "not_configured": "Translation model is not configured",
