@@ -46,11 +46,15 @@ const FilesPage: FC = () => {
   const dataSource = sortedFiles?.map((file) => {
     return {
       key: file.id,
-      file: <span onClick={() => window.api.file.openPath(file.path)}>{FileManager.formatFileName(file)}</span>,
+      file: (
+        <span onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
+          {FileManager.formatFileName(file)}
+        </span>
+      ),
       size: formatFileSize(file.size),
       size_bytes: file.size,
       count: file.count,
-      path: file.path,
+      path: FileManager.getFilePath(file),
       ext: file.ext,
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
       created_at_unix: dayjs(file.created_at).unix(),

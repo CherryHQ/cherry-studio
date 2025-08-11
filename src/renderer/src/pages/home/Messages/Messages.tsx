@@ -36,7 +36,6 @@ import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
 
-import ChatNavigation from './ChatNavigation'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
@@ -279,7 +278,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
+  // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
+  const groupedMessages = useMemo(() => {
+    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const newGrouped: {
+      [key: string]: (Message & {
+        index: number
+      })[]
+    } = {}
+    grouped.forEach(([key, group]) => {
+      newGrouped[key] = group.toReversed()
+    })
+    return Object.entries(newGrouped)
+  }, [displayMessages])
 
   return (
     <MessagesContainer
@@ -319,7 +330,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
-      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}
         scrollContainerRef={scrollContainerRef}

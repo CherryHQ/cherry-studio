@@ -184,3 +184,26 @@
     box-shadow: 0 1px 4px 0px rgb(128 128 128 / 50%) !important;
   }
 }
+
+.ant-splitter-bar {
+  .ant-splitter-bar-dragger {
+    &::before {
+      background-color: var(--color-border) !important;
+      transition: background-color 0.15s ease-in-out;
+    }
+    &:hover {
+      &::before {
+        width: 4px !important;
+        background-color: var(--color-primary) !important;
+        transition: background-color 0.15s ease-in-out;
+      }
+    }
+  }
+
+  .ant-splitter-bar-dragger-active {
+    &::before {
+      width: 4px !important;
+      background-color: var(--color-primary) !important;
+    }
+  }
+}

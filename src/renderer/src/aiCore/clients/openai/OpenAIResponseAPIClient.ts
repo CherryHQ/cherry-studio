@@ -2,9 +2,11 @@ import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
+  isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
   isSupportedReasoningEffortOpenAIModel,
+  isSupportVerbosityModel,
   isVisionModel
 } from '@renderer/config/models'
 import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
@@ -304,8 +306,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
     const content = this.convertResponseToMessageContent(output)
 
-    const newReqMessages = [...currentReqMessages, ...content, ...(toolResults || [])]
-    return newReqMessages
+    return [...currentReqMessages, ...content, ...(toolResults || [])]
   }
 
   override estimateMessageTokens(message: OpenAIResponseSdkMessageParam): number {
@@ -441,6 +442,14 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
+
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
+
+        // minimal cannot be used with web_search tool
+        if (isGPT5SeriesModel(model) && reasoningEffort.reasoning?.effort === 'minimal' && enableWebSearch) {
+          reasoningEffort.reasoning.effort = 'low'
+        }
+
         const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
           input:
@@ -454,21 +463,20 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           tools: !isEmpty(tools) ? tools : undefined,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
+          ...(isSupportVerbosityModel(model)
+            ? {
+                text: {
+                  verbosity: this.getVerbosity()
+                }
+              }
+            : {}),
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-        const sdkParams: OpenAIResponseSdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
         const timeout = this.getTimeout(model)
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }

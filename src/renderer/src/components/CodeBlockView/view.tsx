@@ -58,9 +58,12 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const { t } = useTranslation()
   const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
+  const [viewState, setViewState] = useState(() => {
+    const initialMode = SPECIAL_VIEWS.includes(language) ? 'special' : 'source'
+    return {
+      mode: initialMode as ViewMode,
+      previousMode: initialMode as ViewMode
+    }
   })
   const { mode: viewMode } = viewState
 
@@ -96,9 +99,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
 
+  // TODO: 考虑移除
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
+
+  // 不支持特殊视图时回退到 source
+  useEffect(() => {
+    if (!hasSpecialView && viewMode !== 'source') {
+      setViewMode('source')
+    }
+  }, [hasSpecialView, viewMode, setViewMode])
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)

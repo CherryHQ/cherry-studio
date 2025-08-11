@@ -35,7 +35,7 @@ import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
-import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { classNames, delay, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {
   getFilesFromDropEvent,
@@ -590,7 +590,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         let supportedFiles = 0
 
         files.forEach((file) => {
-          if (supportedExts.includes(getFileExtension(file.path))) {
+          if (supportedExts.includes(file.ext)) {
             setFiles((prevFiles) => [...prevFiles, file])
             supportedFiles++
           }

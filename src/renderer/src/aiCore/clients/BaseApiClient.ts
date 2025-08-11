@@ -6,7 +6,7 @@ import {
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import { isSupportServiceTierProviders } from '@renderer/config/providers'
+import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import {
@@ -23,6 +23,7 @@ import {
   MemoryItem,
   Model,
   OpenAIServiceTiers,
+  OpenAIVerbosity,
   Provider,
   SystemProviderIds,
   ToolCallResponse,
@@ -208,7 +209,7 @@ export abstract class BaseApiClient<
   protected getServiceTier(model: Model) {
     const serviceTierSetting = this.provider.serviceTier
 
-    if (!isSupportServiceTierProviders(this.provider) || !isOpenAIModel(model) || !serviceTierSetting) {
+    if (!isSupportServiceTierProvider(this.provider) || !isOpenAIModel(model) || !serviceTierSetting) {
       return undefined
     }
 
@@ -231,6 +232,21 @@ export abstract class BaseApiClient<
     }
 
     return serviceTierSetting
+  }
+
+  protected getVerbosity(): OpenAIVerbosity {
+    try {
+      const state = window.store?.getState()
+      const verbosity = state?.settings?.openAI?.verbosity
+
+      if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
+        return verbosity
+      }
+    } catch (error) {
+      logger.warn('Failed to get verbosity from state:', error as Error)
+    }
+
+    return 'medium'
   }
 
   protected getTimeout(model: Model) {

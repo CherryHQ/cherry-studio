@@ -132,7 +132,7 @@ class FileManager {
   }
 
   static getSafePath(file: FileMetadata) {
-    return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
+    return this.isDangerFile(file) ? getFileDirectory(this.getFilePath(file)) : this.getFilePath(file)
   }
 
   static getFileUrl(file: FileMetadata) {

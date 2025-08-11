@@ -91,7 +91,9 @@ export default class AiProvider {
       }
 
       const isAnthropicOrOpenAIResponseCompatible =
-        clientTypes.includes('AnthropicAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+        clientTypes.includes('AnthropicAPIClient') ||
+        clientTypes.includes('OpenAIResponseAPIClient') ||
+        clientTypes.includes('AnthropicVertexAPIClient')
       if (!isAnthropicOrOpenAIResponseCompatible) {
         logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)
@@ -123,7 +125,10 @@ export default class AiProvider {
     }
 
     const middlewares = builder.build()
-    logger.silly('middlewares', middlewares)
+    logger.silly(
+      'middlewares',
+      middlewares.map((m) => m.name)
+    )
 
     // 3. Create the wrapped SDK method with middlewares
     const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)

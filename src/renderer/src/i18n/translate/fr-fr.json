@@ -187,6 +187,7 @@
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
         "medium": "Moyen",
+        "minimal": "minimal",
         "off": "Off"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Changer de modèle"
       },
-      "useful": "Utile"
+      "useful": {
+        "label": "Définir comme contexte",
+        "tip": "Dans ce groupe de messages, ce message sera sélectionné pour être inclus dans le contexte"
+      }
     },
     "multiple": {
       "select": {
@@ -483,7 +487,32 @@
         },
         "title": "Enregistrer dans la base de connaissances"
       },
-      "label": "Enregistrer"
+      "label": "Enregistrer",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Inclure le titre du sujet et le contenu principal de tous les messages"
+            }
+          },
+          "empty": {
+            "no_content": "Ce sujet ne contient aucun contenu à enregistrer"
+          },
+          "error": {
+            "save_failed": "Échec de l’enregistrement du sujet, veuillez vérifier la configuration de la base de connaissances"
+          },
+          "loading": "Analyse du contenu du sujet en cours...",
+          "select": {
+            "content": {
+              "label": "Sélectionner le type de contenu à enregistrer",
+              "selected_tip": "{{count}} éléments sélectionnés, provenant de {{messages}} messages",
+              "tip": "Le sujet sera enregistré dans la base de connaissances sous la forme d’un contexte de conversation complet."
+            }
+          },
+          "success": "Le sujet a été enregistré avec succès dans la base de connaissances ({{count}} éléments de contenu)",
+          "title": "Enregistrer le sujet dans la base de connaissances"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -2538,6 +2567,7 @@
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
+      "help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
       "title": "Mode Développeur"
     },
     "display": {
@@ -2745,7 +2775,7 @@
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
       "longRunning": "Mode d'exécution prolongée",
-      "longRunningTooltip": "Activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de délai d'attente lorsqu'il reçoit une notification de progression et prolonge le délai d'expiration maximal à 10 minutes.",
+      "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
@@ -3096,7 +3126,14 @@
         "tip": "Résumé des inférences effectuées par le modèle",
         "title": "Mode de résumé"
       },
-      "title": "Paramètres OpenAI"
+      "title": "Paramètres OpenAI",
+      "verbosity": {
+        "high": "haut",
+        "low": "faible",
+        "medium": "moyen",
+        "tip": "Contrôler le niveau de détail de la sortie du modèle",
+        "title": "niveau de détail"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
@@ -3136,6 +3173,10 @@
           "developer_role": {
             "help": "Le fournisseur prend-il en charge les messages avec le rôle : « développeur » ?",
             "label": "Prise en charge du message développeur"
+          },
+          "enable_thinking": {
+            "help": "Le fournisseur prend-il en charge le contrôle de la réflexion des modèles tels que Qwen3 via le paramètre enable_thinking ?",
+            "label": "Prise en charge de enable_thinking"
           },
           "label": "Paramètres de l'API",
           "service_tier": {
@@ -3465,6 +3506,51 @@
         "time": "Afficher l'heure du sujet"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Voulez-vous vraiment supprimer ?",
+          "title": "Supprimer la langue personnalisée"
+        },
+        "error": {
+          "add": "Échec de l'ajout",
+          "delete": "Échec de la suppression",
+          "langCode": {
+            "builtin": "Cette langue est prise en charge intégrée",
+            "empty": "Le code de langue est vide",
+            "exists": "Ce langage existe déjà",
+            "invalid": "Code de langue non valide"
+          },
+          "update": "Échec de la mise à jour",
+          "value": {
+            "empty": "Le nom de la langue ne peut pas être vide",
+            "too_long": "Le nom de la langue est trop long"
+          }
+        },
+        "langCode": {
+          "help": "[2~3 lettres minuscules]-[2~3 lettres minuscules] au format [langue+zone]",
+          "label": "code de langue",
+          "placeholder": "fr-fr"
+        },
+        "success": {
+          "add": "Ajout réussi",
+          "delete": "Suppression réussie",
+          "update": "Mise à jour réussie"
+        },
+        "table": {
+          "action": {
+            "title": "Opération"
+          }
+        },
+        "value": {
+          "help": "1 à 32 caractères",
+          "label": "Nom de la langue",
+          "placeholder": "français"
+        }
+      },
+      "prompt": "suivez l'invite du système",
+      "title": "Paramètres de traduction"
+    },
     "tray": {
       "onclose": "Minimiser dans la barre d'état système lors de la fermeture",
       "show": "Afficher l'icône dans la barre d'état système",
@@ -3521,14 +3607,22 @@
       "title": "Confirmation de traduction"
     },
     "copied": "Le contenu traduit a été copié",
+    "custom": {
+      "label": "Langue personnalisée"
+    },
     "detected": {
       "language": "Détection automatique"
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
+      "not_supported": "Langue non prise en charge {{language}}",
       "unknown": "Une erreur inconnue s'est produite lors de la traduction"
+    },
+    "exchange": {
+      "label": "Échanger la langue source et la langue cible"
     },
     "history": {
       "clear": "Effacer l'historique",
@@ -3567,6 +3661,12 @@
       "preview": "Aperçu Markdown",
       "scroll_sync": "Paramètres de synchronisation du défilement",
       "title": "Paramètres de traduction"
+    },
+    "success": {
+      "custom": {
+        "delete": "Suppression réussie",
+        "update": "Mise à jour réussie"
+      }
     },
     "target_language": "Langue cible",
     "title": "traduction",
