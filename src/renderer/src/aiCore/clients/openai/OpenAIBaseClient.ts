@@ -108,7 +108,7 @@ export abstract class OpenAIBaseClient<
         // @ts-ignore key is not typed
         return response?.body
           .map((model) => ({
-            id: model.name,
+            id: model.id,
             description: model.summary,
             object: 'model',
             owned_by: model.publisher

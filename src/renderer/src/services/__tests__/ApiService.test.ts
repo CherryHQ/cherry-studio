@@ -1222,7 +1222,9 @@ const mockOpenaiApiClient = {
                       type: 'function'
                     }
                   } else if (fun?.arguments) {
-                    toolCalls[index].function.arguments += fun.arguments
+                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                      toolCalls[index].function.arguments += fun.arguments
+                    }
                   }
                 } else {
                   toolCalls.push(toolCall)

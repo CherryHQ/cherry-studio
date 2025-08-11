@@ -52,10 +52,11 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOption = 'low' | 'medium' | 'high' | 'auto'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
 export type ThinkingOption = ReasoningEffortOption | 'off'
 export type ThinkingModelType =
   | 'default'
+  | 'gpt5'
   | 'grok'
   | 'gemini'
   | 'gemini_pro'
@@ -87,6 +88,7 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  minimal: 0.05,
   low: 0.05,
   medium: 0.5,
   high: 0.8,
@@ -931,6 +933,8 @@ export interface StoreSyncAction {
     source?: string
   }
 }
+
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 

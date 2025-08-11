@@ -187,6 +187,7 @@
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
         "medium": "Moyen",
+        "minimal": "minimal",
         "off": "Off"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Changer de modèle"
       },
-      "useful": "Utile"
+      "useful": {
+        "label": "Définir comme contexte",
+        "tip": "Dans ce groupe de messages, ce message sera sélectionné pour être inclus dans le contexte"
+      }
     },
     "multiple": {
       "select": {
@@ -2768,7 +2772,7 @@
       "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
       "longRunning": "Mode d'exécution prolongée",
-      "longRunningTooltip": "Activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de délai d'attente lorsqu'il reçoit une notification de progression et prolonge le délai d'expiration maximal à 10 minutes.",
+      "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
@@ -3119,7 +3123,14 @@
         "tip": "Résumé des inférences effectuées par le modèle",
         "title": "Mode de résumé"
       },
-      "title": "Paramètres OpenAI"
+      "title": "Paramètres OpenAI",
+      "verbosity": {
+        "high": "haut",
+        "low": "faible",
+        "medium": "moyen",
+        "tip": "Contrôler le niveau de détail de la sortie du modèle",
+        "title": "niveau de détail"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",

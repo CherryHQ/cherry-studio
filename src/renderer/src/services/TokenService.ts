@@ -5,7 +5,7 @@ import { flatten, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
-import { filterContextMessages, filterMessages } from './MessagesService'
+import { filterAfterContextClearMessages, filterMessages } from './MessagesService'
 
 interface MessageItem {
   name?: string
@@ -167,7 +167,7 @@ export async function estimateMessagesUsage({
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {
   const { contextCount } = getAssistantSettings(assistant)
   const maxContextCount = contextCount
-  const messages = filterMessages(filterContextMessages(takeRight(msgs, maxContextCount)))
+  const messages = filterMessages(filterAfterContextClearMessages(takeRight(msgs, maxContextCount)))
 
   // 有 usage 数据的消息，快速计算总数
   const uasageTokens = messages
