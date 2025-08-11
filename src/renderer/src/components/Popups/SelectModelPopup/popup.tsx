@@ -41,7 +41,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import SelectModelSearchBar from './searchbar'
-import { FlatListItem } from './types'
+import { FlatListItem, FlatListModel } from './types'
 
 const PAGE_SIZE = 11
 const ITEM_HEIGHT = 36
@@ -140,7 +140,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean): FlatListItem => {
+    (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
 
@@ -226,7 +226,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
-    const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
+    const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
   }, [pinnedModels, searchText.length, providers, typeFilter, modelFilter, createModelItem, t, getFilteredModels])
 
