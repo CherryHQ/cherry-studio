@@ -224,17 +224,32 @@ const TranslatePage: FC = () => {
   }
 
   // 控制语言切换按钮
-  const couldExchange = useMemo(() => sourceLanguage !== 'auto' && !isBidirectional, [isBidirectional, sourceLanguage])
+  const couldExchangeAuto = useMemo(
+    () =>
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
+      sourceLanguage !== 'auto',
+    [detectedLanguage, sourceLanguage]
+  )
+
+  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
 
   const handleExchange = useCallback(() => {
-    if (sourceLanguage === 'auto') {
+    if (sourceLanguage === 'auto' && !couldExchangeAuto) {
       return
     }
-    const source = sourceLanguage
+    const source = sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage
+    if (!source) {
+      window.message.error(t('translate.error.invalid_source'))
+      return
+    }
+    if (source.langCode === UNKNOWN.langCode) {
+      window.message.error(t('translate.error.detected_unknown'))
+      return
+    }
     const target = targetLanguage
     setSourceLanguage(target)
     setTargetLanguage(source)
-  }, [sourceLanguage, targetLanguage])
+  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
