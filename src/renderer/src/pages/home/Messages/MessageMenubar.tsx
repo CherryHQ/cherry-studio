@@ -4,12 +4,10 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useExportActions } from '@renderer/hooks/useExportsActions'
 import { useMessageActions } from '@renderer/hooks/useMessageActions'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
-import useTranslate from '@renderer/hooks/useTranslate'
 import { useTranslationActions } from '@renderer/hooks/useTranslationActions'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { type Message } from '@renderer/types/newMessage'
@@ -21,7 +19,6 @@ import dayjs from 'dayjs'
 import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import MessageTokens from './MessageTokens'
@@ -57,8 +54,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
-  const { translateLanguages } = useTranslate()
-  const { removeMessageBlock } = useMessageOperations(topic)
+
   const {
     copied,
     handleCopy,
@@ -69,7 +65,7 @@ const MessageMenubar: FC<Props> = (props) => {
     handleDeleteMessage,
     handleMentionModel
   } = useMessageActions(message, topic, assistant)
-  const { hasTranslationBlocks, mainTextContent, handleTranslate } = useTranslationActions(message, topic)
+  const { mainTextContent, translationMenuItems } = useTranslationActions(message, topic)
   const { exportMenuItems } = useExportActions(message, topic, messageContainerRef)
 
   const { isBubbleStyle } = useMessageStyle()
@@ -173,8 +169,6 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
-  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
-
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = !isBubbleStyle
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
@@ -243,58 +237,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 overflowY: 'auto',
                 backgroundClip: 'border-box'
               },
-              items: [
-                ...translateLanguages.map((item) => ({
-                  label: item.emoji + ' ' + item.label(),
-                  key: item.langCode,
-                  onClick: () => handleTranslate(item)
-                })),
-                ...(hasTranslationBlocks
-                  ? [
-                      { type: 'divider' as const },
-                      {
-                        label: '📋 ' + t('common.copy'),
-                        key: 'translate-copy',
-                        onClick: () => {
-                          const translationBlocks = message.blocks
-                            .map((blockId) => blockEntities[blockId])
-                            .filter((block) => block?.type === 'translation')
-
-                          if (translationBlocks.length > 0) {
-                            const translationContent = translationBlocks
-                              .map((block) => block?.content || '')
-                              .join('\n\n')
-                              .trim()
-
-                            if (translationContent) {
-                              navigator.clipboard.writeText(translationContent)
-                              window.message.success({ content: t('translate.copied'), key: 'translate-copy' })
-                            } else {
-                              window.message.warning({ content: t('translate.empty'), key: 'translate-copy' })
-                            }
-                          }
-                        }
-                      },
-                      {
-                        label: '✖ ' + t('translate.close'),
-                        key: 'translate-close',
-                        onClick: () => {
-                          const translationBlocks = message.blocks
-                            .map((blockId) => blockEntities[blockId])
-                            .filter((block) => block?.type === 'translation')
-                            .map((block) => block?.id)
-
-                          if (translationBlocks.length > 0) {
-                            translationBlocks.forEach((blockId) => {
-                              if (blockId) removeMessageBlock(message.id, blockId)
-                            })
-                            window.message.success({ content: t('translate.closed'), key: 'translate-close' })
-                          }
-                        }
-                      }
-                    ]
-                  : [])
-              ],
+              items: translationMenuItems,
               onClick: (e) => e.domEvent.stopPropagation()
             }}
             trigger={['click']}
