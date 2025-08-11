@@ -15,11 +15,11 @@ import i18n from '@renderer/i18n'
 import {
   Assistant,
   isSystemProvider,
-  LanguageCode,
   Model,
   Provider,
   ProviderApiOptions,
   SystemProviderIds,
+  TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
@@ -1807,7 +1807,7 @@ const migrateConfig = {
         state.settings.s3 = settingsInitialState.s3
       }
 
-      const langMap: Record<string, LanguageCode> = {
+      const langMap: Record<string, TranslateLanguageCode> = {
         english: 'en-us',
         chinese: 'zh-cn',
         'chinese-traditional': 'zh-tw',

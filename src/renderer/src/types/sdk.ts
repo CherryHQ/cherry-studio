@@ -9,6 +9,7 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import {
   Content,
@@ -146,6 +147,7 @@ export interface NewApiModel extends OpenAI.Models.Model {
  */
 export interface AwsBedrockSdkInstance {
   client: BedrockRuntimeClient
+  bedrockClient: BedrockClient
   region: string
 }
 

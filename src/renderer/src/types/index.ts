@@ -60,7 +60,7 @@ export type Assistant = {
 }
 
 export type TranslateAssistant = Assistant & {
-  targetLanguage?: Language
+  targetLanguage?: TranslateLanguage
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -529,9 +529,8 @@ export enum ThemeMode {
   system = 'system'
 }
 
+/** 有限的UI语言 */
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
-
-export type TranslateLanguageVarious = LanguageCode
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -663,10 +662,13 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
+// 为了支持自定义语言，设置为string别名
+export type TranslateLanguageCode = string
+
 // langCode应当能够唯一确认一种语言
-export type Language = {
+export type TranslateLanguage = {
   value: string
-  langCode: LanguageCode
+  langCode: TranslateLanguageCode
   label: () => string
   emoji: string
 }
@@ -675,9 +677,16 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: LanguageCode
-  targetLanguage: LanguageCode
+  sourceLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLanguageCode
   createdAt: string
+}
+
+export type CustomTranslateLanguage = {
+  id: string
+  langCode: TranslateLanguageCode
+  value: string
+  emoji: string
 }
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
