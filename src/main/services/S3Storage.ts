@@ -4,13 +4,14 @@ import {
   HeadBucketCommand,
   ListObjectsV2Command,
   PutObjectCommand,
-  S3Client
+  S3Client,
+  S3ClientConfig
 } from '@aws-sdk/client-s3'
 import { loggerService } from '@logger'
 import type { S3Config } from '@types'
+import * as https from 'https'
 import * as net from 'net'
 import { Readable } from 'stream'
-import * as https from 'https'
 
 const logger = loggerService.withContext('S3Storage')
 
@@ -58,33 +59,25 @@ export default class S3Storage {
       }
     })()
 
-    if (skipTlsVerify) {
-      const agent = new https.Agent({
-        rejectUnauthorized: false
-      })
-      this.client = new S3Client({
-        region,
-        endpoint: endpoint || undefined,
-        credentials: {
-          accessKeyId: accessKeyId,
-          secretAccessKey: secretAccessKey
-        },
-        forcePathStyle: usePathStyle,
-        requestHandler: {
-          httpsAgent: agent
-        }
-      })
-    } else {
-      this.client = new S3Client({
-        region,
-        endpoint: endpoint || undefined,
-        credentials: {
-          accessKeyId: accessKeyId,
-          secretAccessKey: secretAccessKey
-        },
-        forcePathStyle: usePathStyle
-      })
+    const clientConfig: S3ClientConfig = {
+      region,
+      endpoint: endpoint || undefined,
+      credentials: {
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey
+      },
+      forcePathStyle: usePathStyle
     }
+
+    if (skipTlsVerify) {
+      clientConfig.requestHandler = {
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false
+        })
+      }
+    }
+
+    this.client = new S3Client(clientConfig)
     this.bucket = bucket
     this.root = root?.replace(/^\/+/g, '').replace(/\/+$/g, '') || ''
 
