@@ -69,6 +69,8 @@ const TranslateSettings: FC<{
     db.settings.put({ id: 'translate:scroll:sync', value: isScrollSyncEnabled })
     db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
     db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
+    db.settings.put({ id: 'translate:detect:method', value: autoDetectionMethod })
+
     dispatch(setTranslateModelPrompt(localPrompt))
     window.message.success({
       content: t('message.save.success.title'),
