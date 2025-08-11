@@ -7,8 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
-import { Model, TranslateLanguage } from '@renderer/types'
-import { AutoDetectionMethod } from '@renderer/utils/translate'
+import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
 import { Button, Flex, Input, Modal, Radio, Space, Switch, Tooltip } from 'antd'
 import { ChevronDown, HelpCircle } from 'lucide-react'
 import { Dispatch, FC, memo, SetStateAction, useEffect, useState } from 'react'
@@ -92,7 +91,7 @@ const TranslateSettings: FC<{
           {t('common.save')}
         </Button>
       ]}>
-      <Flex vertical gap={16} style={{ marginTop: 16 }}>
+      <Flex vertical gap={16} style={{ marginTop: 16, padding: '8px 0' }}>
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
@@ -204,15 +203,17 @@ const TranslateSettings: FC<{
           </Flex>
         </div>
 
-        <div style={{ display: showPrompt ? 'block' : 'none' }}>
-          <Textarea
-            rows={8}
-            value={localPrompt}
-            onChange={(e) => setLocalPrompt(e.target.value)}
-            placeholder={t('settings.models.translate_model_prompt_message')}
-            style={{ borderRadius: '8px' }}
-          />
-        </div>
+        {showPrompt && (
+          <div>
+            <Textarea
+              rows={8}
+              value={localPrompt}
+              onChange={(e) => setLocalPrompt(e.target.value)}
+              placeholder={t('settings.models.translate_model_prompt_message')}
+              style={{ borderRadius: '8px' }}
+            />
+          </div>
+        )}
       </Flex>
     </Modal>
   )
