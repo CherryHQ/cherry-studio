@@ -215,7 +215,7 @@ class CodeToolsService {
     options: { autoUpdateToLatest?: boolean } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
-    logger.debug(`Environment variables:`, env)
+    logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
 
     const packageName = await this.getPackageName(cliTool)
@@ -303,6 +303,8 @@ class CodeToolsService {
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${executablePath}"`
     }
 
+    let winBatFilePath = ''
+
     switch (platform) {
       case 'darwin': {
         // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
@@ -370,6 +372,7 @@ end tell`
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
+          winBatFilePath = batFilePath
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -379,18 +382,6 @@ end tell`
         // Launch bat file - Use safest start syntax, no title parameter
         terminalCommand = 'cmd'
         terminalArgs = ['/c', 'start', batFilePath]
-
-        // Set cleanup task (delete temp file after 5 minutes)
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(batFilePath)) {
-              fs.unlinkSync(batFilePath)
-              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
-            }
-          } catch (error) {
-            logger.warn(`Failed to cleanup temp bat file: ${error}`)
-          }
-        }, 30 * 1000) // Delete temp file after 30 seconds
 
         break
       }
@@ -451,8 +442,10 @@ end tell`
         env: { ...process.env, ...env }
       })
 
+      winBatFilePath && fs.unlinkSync(winBatFilePath)
       const successMessage = `Launched ${cliTool} in new terminal window`
       logger.info(successMessage)
+
       return {
         success: true,
         message: successMessage,
