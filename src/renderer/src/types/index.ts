@@ -328,6 +328,8 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
+export type ModelTag = Exclude<ModelType, 'text'> | 'free'
+
 export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
