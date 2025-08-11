@@ -456,7 +456,7 @@ const ProvidersList: FC = () => {
   return (
     <Container className="selectable">
       <Splitter>
-        <Splitter.Panel min={250} defaultSize={250}>
+        <Splitter.Panel min={250} defaultSize={250} style={{ overflow: 'auto', scrollbarWidth: 'none' }}>
           <ProviderListContainer>
             <AddButtonWrapper>
               <Input
@@ -522,7 +522,7 @@ const ProvidersList: FC = () => {
           </ProviderListContainer>
         </Splitter.Panel>
 
-        <Splitter.Panel min={'50%'}>
+        <Splitter.Panel min={'50%'} style={{ overflow: 'auto', scrollbarWidth: 'none' }}>
           <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
         </Splitter.Panel>
       </Splitter>
