@@ -2,7 +2,6 @@ import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherry
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import { fileStorage } from '@main/services/FileStorage'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
@@ -57,7 +56,7 @@ export async function addOdLoader(
   return ragApplication.addLoader(
     new OdLoader({
       odType,
-      filePath: fileStorage.getFilePathById(file),
+      filePath: file.path,
       chunkSize: base.chunkSize,
       chunkOverlap: base.chunkOverlap
     }) as any,
@@ -74,7 +73,8 @@ export async function addFileLoader(
   // 获取文件类型，如果没有匹配则默认为文本类型
   const loaderType = FILE_LOADER_MAP[file.ext.toLowerCase()] || 'text'
   let loaderReturn: AddLoaderReturn
-  const filePath = fileStorage.getFilePathById(file)
+  // 使用文件的实际路径
+  const filePath = file.path
 
   // JSON类型处理
   let jsonObject = {}
