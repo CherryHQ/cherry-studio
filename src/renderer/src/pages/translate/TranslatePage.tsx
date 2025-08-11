@@ -116,7 +116,7 @@ const TranslatePage: FC = () => {
 
       setTranslating(true)
 
-      let translated
+      let translated: string
       try {
         translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
