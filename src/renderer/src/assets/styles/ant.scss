@@ -187,6 +187,10 @@
 
 .ant-splitter-bar {
   .ant-splitter-bar-dragger {
+    &::before {
+      background-color: var(--color-border) !important;
+      transition: background-color 0.15s ease-in-out;
+    }
     &:hover {
       &::before {
         width: 4px !important;
