@@ -22,9 +22,9 @@ const CLI_TOOLS = [
   { value: 'gemini-cli', label: 'Gemini CLI' }
 ]
 
-const logger = loggerService.withContext('CodePage')
+const logger = loggerService.withContext('CodeToolsPage')
 
-const CodePage: FC = () => {
+const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const dispatch = useAppDispatch()
@@ -380,4 +380,4 @@ const BunInstallAlert = styled.div`
   margin-bottom: 24px;
 `
 
-export default CodePage
+export default CodeToolsPage

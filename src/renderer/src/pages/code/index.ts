@@ -1,1 +1,1 @@
-export { default } from './CodePage'
+export { default } from './CodeToolsPage'
