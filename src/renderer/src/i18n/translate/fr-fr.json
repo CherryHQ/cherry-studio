@@ -3503,6 +3503,51 @@
         "time": "Afficher l'heure du sujet"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Voulez-vous vraiment supprimer ?",
+          "title": "Supprimer la langue personnalisée"
+        },
+        "error": {
+          "add": "Échec de l'ajout",
+          "delete": "Échec de la suppression",
+          "langCode": {
+            "builtin": "Cette langue est prise en charge intégrée",
+            "empty": "Le code de langue est vide",
+            "exists": "Ce langage existe déjà",
+            "invalid": "Code de langue non valide"
+          },
+          "update": "Échec de la mise à jour",
+          "value": {
+            "empty": "Le nom de la langue ne peut pas être vide",
+            "too_long": "Le nom de la langue est trop long"
+          }
+        },
+        "langCode": {
+          "help": "[2~3 lettres minuscules]-[2~3 lettres minuscules] au format [langue+zone]",
+          "label": "code de langue",
+          "placeholder": "fr-fr"
+        },
+        "success": {
+          "add": "Ajout réussi",
+          "delete": "Suppression réussie",
+          "update": "Mise à jour réussie"
+        },
+        "table": {
+          "action": {
+            "title": "Opération"
+          }
+        },
+        "value": {
+          "help": "1 à 32 caractères",
+          "label": "Nom de la langue",
+          "placeholder": "français"
+        }
+      },
+      "prompt": "suivez l'invite du système",
+      "title": "Paramètres de traduction"
+    },
     "tray": {
       "onclose": "Minimiser dans la barre d'état système lors de la fermeture",
       "show": "Afficher l'icône dans la barre d'état système",
@@ -3559,14 +3604,22 @@
       "title": "Confirmation de traduction"
     },
     "copied": "Le contenu traduit a été copié",
+    "custom": {
+      "label": "Langue personnalisée"
+    },
     "detected": {
       "language": "Détection automatique"
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
+      "not_supported": "Langue non prise en charge {{language}}",
       "unknown": "Une erreur inconnue s'est produite lors de la traduction"
+    },
+    "exchange": {
+      "label": "Échanger la langue source et la langue cible"
     },
     "history": {
       "clear": "Effacer l'historique",
@@ -3605,6 +3658,12 @@
       "preview": "Aperçu Markdown",
       "scroll_sync": "Paramètres de synchronisation du défilement",
       "title": "Paramètres de traduction"
+    },
+    "success": {
+      "custom": {
+        "delete": "Suppression réussie",
+        "update": "Mise à jour réussie"
+      }
     },
     "target_language": "Langue cible",
     "title": "traduction",

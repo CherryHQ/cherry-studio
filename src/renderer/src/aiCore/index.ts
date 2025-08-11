@@ -91,7 +91,9 @@ export default class AiProvider {
       }
 
       const isAnthropicOrOpenAIResponseCompatible =
-        clientTypes.includes('AnthropicAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+        clientTypes.includes('AnthropicAPIClient') ||
+        clientTypes.includes('OpenAIResponseAPIClient') ||
+        clientTypes.includes('AnthropicVertexAPIClient')
       if (!isAnthropicOrOpenAIResponseCompatible) {
         logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)

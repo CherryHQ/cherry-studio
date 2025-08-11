@@ -3503,6 +3503,51 @@
         "time": "トピックの時間を表示"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "本当に削除しますか？",
+          "title": "カスタム言語を削除する"
+        },
+        "error": {
+          "add": "追加に失敗しました",
+          "delete": "削除に失敗しました",
+          "langCode": {
+            "builtin": "その言語はすでに組み込みサポートされています",
+            "empty": "言語コードが空です",
+            "exists": "該言語は既に存在します",
+            "invalid": "無効な言語コード"
+          },
+          "update": "更新に失敗しました",
+          "value": {
+            "empty": "言語名は空にできません",
+            "too_long": "言語名が長すぎます"
+          }
+        },
+        "langCode": {
+          "help": "[2~3文字の小文字]-[2~3文字の小文字]の形式の[言語+地域]",
+          "label": "言語コード",
+          "placeholder": "ja-jp"
+        },
+        "success": {
+          "add": "追加成功",
+          "delete": "削除が成功しました",
+          "update": "更新成功"
+        },
+        "table": {
+          "action": {
+            "title": "操作"
+          }
+        },
+        "value": {
+          "help": "1〜32文字",
+          "label": "言語名",
+          "placeholder": "日本語"
+        }
+      },
+      "prompt": "翻訳プロンプト",
+      "title": "翻訳設定"
+    },
     "tray": {
       "onclose": "閉じるときにトレイに最小化",
       "show": "トレイアイコンを表示",
@@ -3559,14 +3604,22 @@
       "title": "翻訳確認"
     },
     "copied": "翻訳内容がコピーされました",
+    "custom": {
+      "label": "カスタム言語"
+    },
     "detected": {
       "language": "自動検出"
     },
     "empty": "翻訳内容が空です",
     "error": {
+      "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
       "not_configured": "翻訳モデルが設定されていません",
+      "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"
+    },
+    "exchange": {
+      "label": "入力言語と出力言語を入れ替える"
     },
     "history": {
       "clear": "履歴をクリア",
@@ -3605,6 +3658,12 @@
       "preview": "Markdown プレビュー",
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
+    },
+    "success": {
+      "custom": {
+        "delete": "削除が成功しました",
+        "update": "更新成功"
+      }
     },
     "target_language": "目標言語",
     "title": "翻訳",

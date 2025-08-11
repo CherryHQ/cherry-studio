@@ -3503,6 +3503,51 @@
         "time": "Mostrar tempo do tópico"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Tem a certeza de que deseja eliminar?",
+          "title": "Eliminar idioma personalizado"
+        },
+        "error": {
+          "add": "Falha ao adicionar",
+          "delete": "Falha ao eliminar",
+          "langCode": {
+            "builtin": "O idioma já tem suporte integrado",
+            "empty": "Código de idioma vazio",
+            "exists": "Este idioma já existe",
+            "invalid": "Código de idioma inválido"
+          },
+          "update": "Falha ao atualizar",
+          "value": {
+            "empty": "O nome do idioma não pode estar vazio",
+            "too_long": "O nome do idioma é muito longo"
+          }
+        },
+        "langCode": {
+          "help": "[linguagem+região] no formato, [2~3 letras minúsculas]-[2~3 letras minúsculas]",
+          "label": "código do idioma",
+          "placeholder": "pt-pt"
+        },
+        "success": {
+          "add": "Adicionado com sucesso",
+          "delete": "Eliminação bem-sucedida",
+          "update": "Atualização bem-sucedida"
+        },
+        "table": {
+          "action": {
+            "title": "Operação"
+          }
+        },
+        "value": {
+          "help": "1~32 caracteres",
+          "label": "Nome do idioma",
+          "placeholder": "Português"
+        }
+      },
+      "prompt": "Prompt de tradução",
+      "title": "Definições de tradução"
+    },
     "tray": {
       "onclose": "Minimizar para bandeja ao fechar",
       "show": "Mostrar ícone de bandeja",
@@ -3559,14 +3604,22 @@
       "title": "Confirmação de Tradução"
     },
     "copied": "Conteúdo de tradução copiado",
+    "custom": {
+      "label": "idioma personalizado"
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "not_configured": "Modelo de tradução não configurado",
+      "not_supported": "Idioma não suportado {{language}}",
       "unknown": "Ocorreu um erro desconhecido durante a tradução"
+    },
+    "exchange": {
+      "label": "Trocar idioma de origem e idioma de destino"
     },
     "history": {
       "clear": "Limpar Histórico",
@@ -3605,6 +3658,12 @@
       "preview": "Pré-visualização Markdown",
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
+    },
+    "success": {
+      "custom": {
+        "delete": "Eliminação bem-sucedida",
+        "update": "Atualização bem-sucedida"
+      }
     },
     "target_language": "Idioma de destino",
     "title": "Tradução",

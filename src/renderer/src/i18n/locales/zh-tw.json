@@ -3503,6 +3503,51 @@
         "time": "顯示話題時間"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "確定要刪除嗎？",
+          "title": "刪除自訂語言"
+        },
+        "error": {
+          "add": "添加失敗",
+          "delete": "删除失败",
+          "langCode": {
+            "builtin": "該語言已內建支援",
+            "empty": "語言代碼為空",
+            "exists": "該語言已存在",
+            "invalid": "無效的語言代碼"
+          },
+          "update": "更新失敗",
+          "value": {
+            "empty": "語言名不能為空",
+            "too_long": "語言名過長"
+          }
+        },
+        "langCode": {
+          "help": "[語言+區域]的格式，[2~3位小寫字母]-[2~3位小寫字母]",
+          "label": "語言代碼",
+          "placeholder": "zh-tw"
+        },
+        "success": {
+          "add": "添加成功",
+          "delete": "刪除成功",
+          "update": "更新成功"
+        },
+        "table": {
+          "action": {
+            "title": "操作"
+          }
+        },
+        "value": {
+          "help": "1~32個字元",
+          "label": "语言名称",
+          "placeholder": "繁體中文"
+        }
+      },
+      "prompt": "翻译提示词",
+      "title": "翻译设置"
+    },
     "tray": {
       "onclose": "關閉時最小化到系统匣",
       "show": "顯示系统匣圖示",
@@ -3559,14 +3604,22 @@
       "title": "翻譯確認"
     },
     "copied": "翻譯內容已複製",
+    "custom": {
+      "label": "自定義語言"
+    },
     "detected": {
       "language": "自動檢測"
     },
     "empty": "翻譯內容為空",
     "error": {
+      "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
       "not_configured": "翻譯模型未設定",
+      "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
+    },
+    "exchange": {
+      "label": "交換源語言與目標語言"
     },
     "history": {
       "clear": "清空歷史",
@@ -3605,6 +3658,12 @@
       "preview": "Markdown 預覽",
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
+    },
+    "success": {
+      "custom": {
+        "delete": "刪除成功",
+        "update": "更新成功"
+      }
     },
     "target_language": "目標語言",
     "title": "翻譯",

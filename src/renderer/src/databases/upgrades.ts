@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
-import type { LanguageCode, LegacyMessage as OldMessage, Topic } from '@renderer/types'
+import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
@@ -314,7 +314,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 export async function upgradeToV8(tx: Transaction): Promise<void> {
   logger.info('DB migration to version 8 started')
 
-  const langMap: Record<string, LanguageCode> = {
+  const langMap: Record<string, TranslateLanguageCode> = {
     english: 'en-us',
     chinese: 'zh-cn',
     'chinese-traditional': 'zh-tw',
@@ -337,7 +337,10 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   const settingsTable = tx.table('settings')
-  const defaultPair: [LanguageCode, LanguageCode] = [LanguagesEnum.enUS.langCode, LanguagesEnum.zhCN.langCode]
+  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = [
+    LanguagesEnum.enUS.langCode,
+    LanguagesEnum.zhCN.langCode
+  ]
   const originSource = (await settingsTable.get('translate:source:language'))?.value
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value

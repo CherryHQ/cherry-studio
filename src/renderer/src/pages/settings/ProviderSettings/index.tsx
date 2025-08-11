@@ -15,7 +15,7 @@ import {
   matchKeywordsInProvider,
   uuid
 } from '@renderer/utils'
-import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { Avatar, Button, Card, Dropdown, Input, MenuProps, Splitter, Tag } from 'antd'
 import { Eye, EyeOff, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -455,70 +455,77 @@ const ProvidersList: FC = () => {
 
   return (
     <Container className="selectable">
-      <ProviderListContainer>
-        <AddButtonWrapper>
-          <Input
-            type="text"
-            placeholder={t('settings.provider.search')}
-            value={searchText}
-            style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
-            suffix={<Search size={14} />}
-            onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setSearchText('')
-              }
-            }}
-            allowClear
-            disabled={dragging}
-          />
-        </AddButtonWrapper>
-        <DraggableVirtualList
-          list={filteredProviders}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          estimateSize={useCallback(() => 40, [])}
-          itemKey={itemKey}
-          overscan={3}
-          style={{
-            height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
-          }}
-          scrollerStyle={{
-            padding: 8,
-            paddingRight: 5
-          }}
-          itemContainerStyle={{ paddingBottom: 5 }}>
-          {(provider) => (
-            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-              <ProviderListItem
-                key={provider.id}
-                className={provider.id === selectedProvider?.id ? 'active' : ''}
-                onClick={() => setSelectedProvider(provider)}>
-                <DragHandle>
-                  <GripVertical size={12} />
-                </DragHandle>
-                {getProviderAvatar(provider)}
-                <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
-                {provider.enabled && (
-                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                    ON
-                  </Tag>
-                )}
-              </ProviderListItem>
-            </Dropdown>
-          )}
-        </DraggableVirtualList>
-        <AddButtonWrapper>
-          <Button
-            style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
-            onClick={onAddProvider}
-            disabled={dragging}>
-            {t('button.add')}
-          </Button>
-        </AddButtonWrapper>
-      </ProviderListContainer>
-      <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+      <Splitter>
+        <Splitter.Panel min={250} defaultSize={250}>
+          <ProviderListContainer>
+            <AddButtonWrapper>
+              <Input
+                type="text"
+                placeholder={t('settings.provider.search')}
+                value={searchText}
+                style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+                suffix={<Search size={14} />}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchText('')
+                  }
+                }}
+                allowClear
+                disabled={dragging}
+              />
+            </AddButtonWrapper>
+            <DraggableVirtualList
+              list={filteredProviders}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              estimateSize={useCallback(() => 40, [])}
+              itemKey={itemKey}
+              overscan={3}
+              style={{
+                height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
+              }}
+              scrollerStyle={{
+                padding: 8,
+                paddingRight: 5
+              }}
+              itemContainerStyle={{ paddingBottom: 5 }}>
+              {(provider) => (
+                <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
+                  <ProviderListItem
+                    key={provider.id}
+                    className={provider.id === selectedProvider?.id ? 'active' : ''}
+                    onClick={() => setSelectedProvider(provider)}>
+                    <DragHandle>
+                      <GripVertical size={12} />
+                    </DragHandle>
+                    {getProviderAvatar(provider)}
+                    <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
+                    {provider.enabled && (
+                      <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                        ON
+                      </Tag>
+                    )}
+                  </ProviderListItem>
+                </Dropdown>
+              )}
+            </DraggableVirtualList>
+            <AddButtonWrapper>
+              <Button
+                style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
+                icon={<PlusIcon size={16} />}
+                onClick={onAddProvider}
+                disabled={dragging}>
+                {t('button.add')}
+              </Button>
+            </AddButtonWrapper>
+          </ProviderListContainer>
+        </Splitter.Panel>
+
+        <Splitter.Panel min={'50%'}>
+          <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
+        </Splitter.Panel>
+      </Splitter>
     </Container>
   )
 }
@@ -533,9 +540,7 @@ const Container = styled.div`
 const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
-  min-width: calc(var(--settings-width) + 10px);
   height: calc(100vh - var(--navbar-height));
-  border-right: 0.5px solid var(--color-border);
 `
 
 const ProviderListItem = styled.div`
