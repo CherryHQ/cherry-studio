@@ -329,6 +329,9 @@
         "context": "Clear Context {{Command}}"
       },
       "new_topic": "New Topic {{Command}}",
+      "optimize_prompt": "Optimize Prompt",
+      "optimize_prompt_failed": "Prompt optimization failed",
+      "optimize_prompt_result": "Optimization Result",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send...",
       "send": "Send",

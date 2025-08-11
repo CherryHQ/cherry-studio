@@ -329,6 +329,9 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新话题 {{Command}}",
+      "optimize_prompt": "优化提示词",
+      "optimize_prompt_failed": "提示词优化失败",
+      "optimize_prompt_result": "优化结果",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送...",
       "send": "发送",

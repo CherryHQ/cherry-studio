@@ -1,4 +1,4 @@
-import { HolderOutlined } from '@ant-design/icons'
+import { HolderOutlined, LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -62,6 +62,9 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import { PromptOptimizationService } from '@renderer/services/PromptOptimizationService'
+import { Sparkles } from 'lucide-react'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -104,6 +107,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
+  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionedModels, setMentionedModels] = useState<Model[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -281,6 +285,49 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setIsTranslating(false)
     }
   }, [isTranslating, text, targetLanguage, resizeTextArea])
+
+  const handleOptimizePrompt = useCallback(async () => {
+    if (isOptimizingPrompt || !text.trim()) {
+      return
+    }
+
+    setIsOptimizingPrompt(true)
+    try {
+      const optimizedText = await PromptOptimizationService.optimizePrompt(text, assistant)
+      if (optimizedText) {
+        const result = await TextEditPopup.show({
+          text: optimizedText,
+          modalProps: {
+            title: t('chat.input.optimize_prompt_result')
+          },
+          showTranslate: false,
+          children: ({ onOk, onCancel }) => (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <Button onClick={onCancel}>{t('common.cancel')}</Button>
+              <Button type="primary" onClick={onOk}>{t('common.replace')}</Button>
+            </div>
+          )
+        })
+        if (result !== null) {
+          setText(result)
+          setTimeout(() => resizeTextArea(), 0)
+        }
+      } else {
+        window.message.error({
+          content: t('chat.input.optimize_prompt_failed'),
+          key: 'optimize-prompt-message'
+        })
+      }
+    } catch (error) {
+      logger.error('Error optimizing prompt:', error as Error)
+      window.message.error({
+        content: t('chat.input.optimize_prompt_failed'),
+        key: 'optimize-prompt-message'
+      })
+    } finally {
+      setIsOptimizingPrompt(false)
+    }
+  }, [assistant, isOptimizingPrompt, resizeTextArea, t, text])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -938,6 +985,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 onClick={onNewContext}
               />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
+                <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
+                  {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
+                </ToolbarButton>
+              </Tooltip>
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>

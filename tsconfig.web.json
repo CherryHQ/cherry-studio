@@ -12,6 +12,8 @@
     "composite": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
+    "module": "esnext",
+    "target": "es2022",
     "moduleResolution": "bundler",
     "paths": {
       "@logger": ["src/renderer/src/services/LoggerService"],
@@ -20,6 +22,7 @@
       "@types": ["src/renderer/src/types/index.ts"],
       "@mcp-trace/*": ["packages/mcp-trace/*"]
     },
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "useDefineForClassFields": true
