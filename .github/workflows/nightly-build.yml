@@ -93,6 +93,7 @@ jobs:
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
+          sudo apt-get install -y rpm
           yarn build:npm linux
           yarn build:linux
         env:

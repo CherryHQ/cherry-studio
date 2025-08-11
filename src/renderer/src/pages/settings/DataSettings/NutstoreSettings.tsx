@@ -17,6 +17,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setNutstoreAutoSync,
+  setNutstoreMaxBackups,
   setNutstorePath,
   setNutstoreSkipBackupFile,
   setNutstoreSyncInterval,
@@ -41,7 +42,8 @@ const NutstoreSettings: FC = () => {
     nutstoreSyncInterval,
     nutstoreAutoSync,
     nutstoreSyncState,
-    nutstoreSkipBackupFile
+    nutstoreSkipBackupFile,
+    nutstoreMaxBackups
   } = useAppSelector((state) => state.nutstore)
 
   const dispatch = useAppDispatch()
@@ -141,6 +143,10 @@ const NutstoreSettings: FC = () => {
   const onSkipBackupFilesChange = (value: boolean) => {
     setNutSkipBackupFile(value)
     dispatch(setNutstoreSkipBackupFile(value))
+  }
+
+  const onMaxBackupsChange = (value: number) => {
+    dispatch(setNutstoreMaxBackups(value))
   }
 
   const handleClickPathChange = async () => {
@@ -307,6 +313,25 @@ const NutstoreSettings: FC = () => {
               </SettingRow>
             </>
           )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+            <Selector
+              size={14}
+              value={nutstoreMaxBackups}
+              onChange={onMaxBackupsChange}
+              disabled={!nutstoreToken}
+              options={[
+                { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+                { label: '1', value: 1 },
+                { label: '3', value: 3 },
+                { label: '5', value: 5 },
+                { label: '10', value: 10 },
+                { label: '20', value: 20 },
+                { label: '50', value: 50 }
+              ]}
+            />
+          </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
