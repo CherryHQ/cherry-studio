@@ -1,42 +1,21 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { isVisionModel } from '@renderer/config/models'
-import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useExportActions } from '@renderer/hooks/useExportsActions'
+import { useMessageActions } from '@renderer/hooks/useMessageActions'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { useTranslationActions } from '@renderer/hooks/useTranslationActions'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
-import { translateText } from '@renderer/services/TranslateService'
-import store, { RootState, useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
-import { copyMessageAsPlainText } from '@renderer/utils/copy'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageAsMarkdown,
-  exportMessageToNotion,
-  messageToMarkdown
-} from '@renderer/utils/export'
+import type { Assistant, Model, Topic } from '@renderer/types'
+import { type Message } from '@renderer/types/newMessage'
+import { classNames } from '@renderer/utils'
 // import { withMessageThought } from '@renderer/utils/formats'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import {
-  findMainTextBlocks,
-  findTranslationBlocks,
-  findTranslationBlocksById,
-  getMainTextContent
-} from '@renderer/utils/messageUtils/find'
+import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
@@ -61,8 +40,6 @@ interface Props {
   onUpdateUseful?: (msgId: string) => void
 }
 
-const logger = loggerService.withContext('MessageMenubar')
-
 const MessageMenubar: FC<Props> = (props) => {
   const {
     message,
@@ -78,20 +55,22 @@ const MessageMenubar: FC<Props> = (props) => {
   } = props
   const { t } = useTranslation()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
-  const [copied, setCopied] = useState(false)
-  const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
-  // const assistantModel = assistant?.model
+  const { removeMessageBlock } = useMessageOperations(topic)
   const {
-    deleteMessage,
-    resendMessage,
-    regenerateAssistantMessage,
-    getTranslationUpdater,
-    appendAssistantResponse,
-    removeMessageBlock
-  } = useMessageOperations(topic)
+    copied,
+    handleCopy,
+    handleEdit,
+    handleRegenerate,
+    handleAssistantRegenerate,
+    handleTraceUserMessage,
+    handleDeleteMessage,
+    handleMentionModel
+  } = useMessageActions(message, topic, assistant)
+  const { hasTranslationBlocks, mainTextContent, handleTranslate } = useTranslationActions(message, topic)
+  const { exportMenuItems } = useExportActions(message, topic, messageContainerRef)
 
   const { isBubbleStyle } = useMessageStyle()
   const { enableDeveloperMode } = useEnableDeveloperMode()
@@ -100,9 +79,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const isUserMessage = message.role === 'user'
 
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
-  const dispatch = useAppDispatch()
-
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
   //     return withMessageThought(message)
@@ -110,103 +86,11 @@ const MessageMenubar: FC<Props> = (props) => {
   //   return message
   // }, [message])
 
-  const mainTextContent = useMemo(() => {
-    // 只处理助手消息和来自推理模型的消息
-    // if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
-    // return getMainTextContent(withMessageThought(message))
-    // }
-    return getMainTextContent(message)
-  }, [message])
-
-  const onCopy = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-
-      const currentMessageId = message.id // from props
-      const latestMessageEntity = store.getState().messages.entities[currentMessageId]
-
-      let contentToCopy = ''
-      if (latestMessageEntity) {
-        contentToCopy = getMainTextContent(latestMessageEntity as Message)
-      } else {
-        contentToCopy = getMainTextContent(message)
-      }
-
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
-
-      window.message.success({ content: t('message.copied'), key: 'copy-message' })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    },
-    [message, t] // message is needed for message.id and as a fallback. t is for translation.
-  )
-
   const onNewBranch = useCallback(async () => {
     if (loading) return
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
   }, [index, t, loading])
-
-  const handleResendUserMessage = useCallback(
-    async (messageUpdate?: Message) => {
-      if (!loading) {
-        const assistantWithTopicPrompt = topic.prompt
-          ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-          : assistant
-        await resendMessage(messageUpdate ?? message, assistantWithTopicPrompt)
-      }
-    },
-    [assistant, loading, message, resendMessage, topic.prompt]
-  )
-
-  const { startEditing } = useMessageEditing()
-
-  const onEdit = useCallback(async () => {
-    startEditing(message.id)
-  }, [message.id, startEditing])
-
-  const handleTranslate = useCallback(
-    async (language: TranslateLanguage) => {
-      if (isTranslating) return
-
-      setIsTranslating(true)
-      const messageId = message.id
-      const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
-      if (!translationUpdater) return
-      try {
-        await translateText(mainTextContent, language, translationUpdater)
-      } catch (error) {
-        // console.error('Translation failed:', error)
-        window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        // 理应只有一个
-        const translationBlocks = findTranslationBlocksById(message.id)
-        logger.silly(`there are ${translationBlocks.length} translation blocks`)
-        if (translationBlocks.length > 0) {
-          const block = translationBlocks[0]
-          logger.silly(`block`, block)
-          if (!block.content) {
-            dispatch(removeOneBlock(block.id))
-          }
-        }
-
-        // clearStreamMessage(message.id)
-      } finally {
-        setIsTranslating(false)
-      }
-    },
-    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
-  )
-
-  const handleTraceUserMessage = useCallback(async () => {
-    if (message.traceId) {
-      window.api.trace.openWindow(
-        message.topicId,
-        message.traceId,
-        true,
-        message.role === 'user' ? undefined : message.model?.name
-      )
-    }
-  }, [message])
 
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
@@ -220,7 +104,7 @@ const MessageMenubar: FC<Props> = (props) => {
               label: t('common.edit'),
               key: 'edit',
               icon: <FilePenLine size={15} />,
-              onClick: onEdit
+              onClick: handleEdit
             }
           ]
         : []),
@@ -264,169 +148,21 @@ const MessageMenubar: FC<Props> = (props) => {
         label: t('chat.topics.export.title'),
         key: 'export',
         icon: <Upload size={15} />,
-        children: [
-          exportMenuOptions.plain_text && {
-            label: t('chat.topics.copy.plain_text'),
-            key: 'copy_message_plain_text',
-            onClick: () => copyMessageAsPlainText(message)
-          },
-          exportMenuOptions.image && {
-            label: t('chat.topics.copy.image'),
-            key: 'img',
-            onClick: async () => {
-              await captureScrollableDivAsBlob(messageContainerRef, async (blob) => {
-                if (blob) {
-                  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-                }
-              })
-            }
-          },
-          exportMenuOptions.image && {
-            label: t('chat.topics.export.image'),
-            key: 'image',
-            onClick: async () => {
-              const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
-              const title = await getMessageTitle(message)
-              if (title && imageData) {
-                window.api.file.saveImage(title, imageData)
-              }
-            }
-          },
-          exportMenuOptions.markdown && {
-            label: t('chat.topics.export.md.label'),
-            key: 'markdown',
-            onClick: () => exportMessageAsMarkdown(message)
-          },
-          exportMenuOptions.markdown_reason && {
-            label: t('chat.topics.export.md.reason'),
-            key: 'markdown_reason',
-            onClick: () => exportMessageAsMarkdown(message, true)
-          },
-          exportMenuOptions.docx && {
-            label: t('chat.topics.export.word'),
-            key: 'word',
-            onClick: async () => {
-              const markdown = messageToMarkdown(message)
-              const title = await getMessageTitle(message)
-              window.api.export.toWord(markdown, title)
-            }
-          },
-          exportMenuOptions.notion && {
-            label: t('chat.topics.export.notion'),
-            key: 'notion',
-            onClick: async () => {
-              const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMessageToNotion(title, markdown, message)
-            }
-          },
-          exportMenuOptions.yuque && {
-            label: t('chat.topics.export.yuque'),
-            key: 'yuque',
-            onClick: async () => {
-              const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToYuque(title, markdown)
-            }
-          },
-          exportMenuOptions.obsidian && {
-            label: t('chat.topics.export.obsidian'),
-            key: 'obsidian',
-            onClick: async () => {
-              const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
-            }
-          },
-          exportMenuOptions.joplin && {
-            label: t('chat.topics.export.joplin'),
-            key: 'joplin',
-            onClick: async () => {
-              const title = await getMessageTitle(message)
-              exportMarkdownToJoplin(title, message)
-            }
-          },
-          exportMenuOptions.siyuan && {
-            label: t('chat.topics.export.siyuan'),
-            key: 'siyuan',
-            onClick: async () => {
-              const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToSiyuan(title, markdown)
-            }
-          }
-        ].filter(Boolean)
+        children: exportMenuItems
       }
     ],
     [
       t,
       isEditable,
-      onEdit,
+      handleEdit,
       onNewBranch,
-      exportMenuOptions,
+      exportMenuItems,
       message,
       mainTextContent,
       toggleMultiSelectMode,
       messageContainerRef,
       topic.name
     ]
-  )
-
-  const onRegenerate = async (e: React.MouseEvent | undefined) => {
-    e?.stopPropagation?.()
-    if (loading) return
-    // No need to reset or edit the message anymore
-    // const selectedModel = isGrouped ? model : assistantModel
-    // const _message = resetAssistantMessage(message, selectedModel)
-    // editMessage(message.id, { ..._message }) // REMOVED
-
-    const assistantWithTopicPrompt = topic.prompt
-      ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-      : assistant
-
-    // Call the function from the hook
-    regenerateAssistantMessage(message, assistantWithTopicPrompt)
-  }
-
-  // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
-  const mentionModelFilter = useMemo(() => {
-    if (!isAssistantMessage) {
-      return () => true
-    }
-    const state = store.getState()
-    const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
-    // 理论上助手消息只会关联一条用户消息
-    const relatedUserMessage = topicMessages.find((msg) => {
-      return msg.role === 'user' && message.askId === msg.id
-    })
-    // 无关联用户消息时，默认返回所有模型
-    if (!relatedUserMessage) {
-      return () => true
-    }
-
-    const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
-      messageBlocksSelectors.selectById(store.getState(), msgBlockId)
-    )
-
-    if (!relatedUserMessageBlocks) {
-      return () => true
-    }
-
-    if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
-      return (m: Model) => isVisionModel(m)
-    } else {
-      return () => true
-    }
-  }, [isAssistantMessage, message.askId, topic.id])
-
-  const onMentionModel = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (loading) return
-      const selectedModel = await SelectModelPopup.show({ model, modelFilter: mentionModelFilter })
-      if (!selectedModel) return
-      appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
-    },
-    [appendAssistantResponse, assistant, loading, mentionModelFilter, message, model]
   )
 
   const onUseful = useCallback(
@@ -438,10 +174,6 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
-  const hasTranslationBlocks = useMemo(() => {
-    const translationBlocks = findTranslationBlocks(message)
-    return translationBlocks.length > 0
-  }, [message])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = !isBubbleStyle
@@ -456,7 +188,7 @@ const MessageMenubar: FC<Props> = (props) => {
           <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
             <ActionButton
               className="message-action-button"
-              onClick={() => handleResendUserMessage()}
+              onClick={() => handleRegenerate()}
               $softHoverBg={isBubbleStyle}>
               <RefreshIcon size={15} />
             </ActionButton>
@@ -464,13 +196,13 @@ const MessageMenubar: FC<Props> = (props) => {
         )}
         {message.role === 'user' && (
           <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
-            <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
+            <ActionButton className="message-action-button" onClick={handleEdit} $softHoverBg={softHoverBg}>
               <EditIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
+          <ActionButton className="message-action-button" onClick={handleCopy} $softHoverBg={softHoverBg}>
             {!copied && <CopyIcon size={15} />}
             {copied && <Check size={15} color="var(--color-primary)" />}
           </ActionButton>
@@ -480,7 +212,7 @@ const MessageMenubar: FC<Props> = (props) => {
             title={t('message.regenerate.confirm')}
             okButtonProps={{ danger: true }}
             icon={<InfoCircleOutlined style={{ color: 'red' }} />}
-            onConfirm={onRegenerate}
+            onConfirm={handleAssistantRegenerate}
             onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
             <Tooltip
               title={t('common.regenerate')}
@@ -495,7 +227,10 @@ const MessageMenubar: FC<Props> = (props) => {
         )}
         {isAssistantMessage && (
           <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
-            <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
+            <ActionButton
+              className="message-action-button"
+              onClick={(e) => handleMentionModel(e, model)}
+              $softHoverBg={softHoverBg}>
               <AtSign size={15} />
             </ActionButton>
           </Tooltip>
@@ -591,7 +326,7 @@ const MessageMenubar: FC<Props> = (props) => {
           okButtonProps={{ danger: true }}
           icon={<InfoCircleOutlined style={{ color: 'red' }} />}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
+          onConfirm={handleDeleteMessage}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
