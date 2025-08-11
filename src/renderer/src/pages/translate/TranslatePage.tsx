@@ -224,6 +224,7 @@ const TranslatePage: FC = () => {
   }
 
   // 控制语言切换按钮
+  /** 与自动检测相关的交换条件检查 */
   const couldExchangeAuto = useMemo(
     () =>
       (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
