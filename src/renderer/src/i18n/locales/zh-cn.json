@@ -3607,6 +3607,25 @@
     "custom": {
       "label": "自定义语言"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "算法",
+          "tip": "使用franc算法进行语言检测"
+        },
+        "auto": {
+          "label": "自动",
+          "tip": "自动选择合适的检测方法"
+        },
+
+        "label": "自动检测方法",
+        "llm": {
+          "tip": "使用翻译模型进行语言检测。消耗少量token。"
+        },
+        "placeholder": "选择自动检测方法",
+        "tip": "自动检测输入语言时使用的方法"
+      }
+    },
     "detected": {
       "language": "自动检测"
     },
