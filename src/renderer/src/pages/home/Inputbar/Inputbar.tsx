@@ -298,19 +298,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         const result = await TextEditPopup.show({
           text: optimizedText,
           modalProps: {
-            title: t('chat.input.optimize_prompt_result')
+            title: t('chat.input.optimize_prompt_result'),
+            okText: t('common.replace'),
+            cancelText: t('common.cancel')
           },
-          showTranslate: false,
-          children: ({ onOk, onCancel }) => (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <Button onClick={onCancel}>{t('common.cancel')}</Button>
-              <Button type="primary" onClick={onOk}>{t('common.replace')}</Button>
-            </div>
-          )
+          showTranslate: false
         })
+        
         if (result !== null) {
-          setText(result)
-          setTimeout(() => resizeTextArea(), 0)
+          setText(result);
+          focusTextarea(); // 聚焦输入框
+          setTimeout(() => resizeTextArea(), 0);
         }
       } else {
         window.message.error({
@@ -319,10 +317,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         })
       }
     } catch (error) {
-      logger.error('Error optimizing prompt:', error as Error)
+      let errorMessage = t('chat.input.optimize_prompt_error')
+      
+      if (error instanceof Error) {
+        switch (error.name) {
+          case 'API_ERROR':
+            errorMessage = t('errors.prompt_optimization.api_error')
+            break
+          case 'MODEL_UNSUPPORTED':
+            errorMessage = t('errors.prompt_optimization.model_unsupported')
+            break
+        }
+      }
+      
       window.message.error({
-        content: t('chat.input.optimize_prompt_failed'),
-        key: 'optimize-prompt-message'
+        content: errorMessage,
+        key: 'optimize-prompt-error'
       })
     } finally {
       setIsOptimizingPrompt(false)
@@ -977,27 +987,30 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               cleanTopicShortcut={cleanTopicShortcut}
             />
             <ToolbarMenu>
-              <TokenCount
-                estimateTokenCount={estimateTokenCount}
-                inputTokenCount={inputTokenCount}
-                contextCount={contextCount}
-                ToolbarButton={ToolbarButton}
-                onClick={onNewContext}
-              />
-              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-              <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
-                <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
-                  {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
+            <TokenCount
+              estimateTokenCount={estimateTokenCount}
+              inputTokenCount={inputTokenCount}
+              contextCount={contextCount}
+              ToolbarButton={ToolbarButton}
+              onClick={onNewContext}
+            />
+            <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating || isOptimizingPrompt} />
+            <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
+              <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
+                {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
+              </ToolbarButton>
+            </Tooltip>
+            {loading && (
+              <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
+                <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
+                  <CirclePause size={20} color="var(--color-error)" />
                 </ToolbarButton>
               </Tooltip>
-              {loading && (
-                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
-              {!loading && <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty} />}
+            )}
+            <SendMessageButton 
+              sendMessage={sendMessage} 
+              disabled={loading || inputEmpty || isOptimizingPrompt} 
+            />
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>

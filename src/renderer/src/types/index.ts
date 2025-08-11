@@ -33,6 +33,7 @@ export type Assistant = {
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
   enableMemory?: boolean
+  language?: LanguageCode // 添加语言属性
 }
 
 export type TranslateAssistant = Assistant & {
