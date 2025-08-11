@@ -541,7 +541,6 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
-  border-right: 0.5px solid var(--color-border);
 `
 
 const ProviderListItem = styled.div`
