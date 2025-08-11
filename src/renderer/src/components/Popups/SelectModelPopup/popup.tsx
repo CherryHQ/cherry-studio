@@ -23,8 +23,9 @@ import {
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelType, Provider } from '@renderer/types'
-import { classNames, filterModelsByKeywords, getFancyProviderName, isFreeModel } from '@renderer/utils'
+import { Model, ModelTag, ModelType, Provider } from '@renderer/types'
+import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
+import { getModelTags, isFreeModel } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Flex, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import React, {
@@ -49,18 +50,25 @@ const ITEM_HEIGHT = 36
 interface PopupParams {
   model?: Model
   modelFilter?: (model: Model) => boolean
-  filterTypes?: FilterType[]
+  onClickTag?: (tag: ModelTag) => void
+  userFilterDisabled?: boolean
 }
 
 interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
-  modelFilter?: (model: Model) => boolean
-  filterTypes?: FilterType[]
 }
 
 export type FilterType = Exclude<ModelType, 'text'> | 'free'
 
-const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTypes: _filterTypes }) => {
+// const logger = loggerService.withContext('SelectModelPopup')
+
+const PopupContainer: React.FC<Props> = ({
+  model,
+  resolve,
+  modelFilter,
+  onClickTag: _onClickTag,
+  userFilterDisabled
+}) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -68,6 +76,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
+  const allModels: Model[] = providers.flatMap((p) => p.models).filter(modelFilter ?? (() => true))
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -77,57 +86,60 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
   const [isMouseOver, setIsMouseOver] = useState(false)
   const preventScrollToIndex = useRef(false)
 
-  // 管理筛选状态
-  const [filterTypes, setFilterTypes] = useState<Record<FilterType, boolean>>({
-    vision: false,
-    web_search: false,
-    reasoning: false,
-    function_calling: false,
-    embedding: false,
-    rerank: false,
-    free: false
-  })
-
-  const filterVision = useMemo(() => _filterTypes?.some((item) => item === 'vision'), [_filterTypes])
-  const filterWeb = useMemo(() => _filterTypes?.some((item) => item === 'web_search'), [_filterTypes])
-  const filterReasoning = useMemo(() => _filterTypes?.some((item) => item === 'reasoning'), [_filterTypes])
-  const filterTool = useMemo(() => _filterTypes?.some((item) => item === 'function_calling'), [_filterTypes])
-  const filterEmbed = useMemo(() => _filterTypes?.some((item) => item === 'embedding'), [_filterTypes])
-  const filterRerank = useMemo(() => _filterTypes?.some((item) => item === 'rerank'), [_filterTypes])
-  const filterFree = useMemo(() => _filterTypes?.some((item) => item === 'free'), [_filterTypes])
-  const userFilterDisabled = !_filterTypes || _filterTypes.length === 0
-
-  const typeFilter = useCallback(
-    (model: Model) => {
-      return (
-        (!filterVision || !filterTypes.vision || (filterTypes.vision && isVisionModel(model))) &&
-        (!filterWeb || !filterTypes.web_search || (filterTypes.web_search && isWebSearchModel(model))) &&
-        (!filterReasoning || !filterTypes.reasoning || (filterTypes.reasoning && isReasoningModel(model))) &&
-        (!filterTool ||
-          !filterTypes.function_calling ||
-          (filterTypes.function_calling && isFunctionCallingModel(model))) &&
-        (!filterEmbed || !filterTypes.embedding || (filterTypes.embedding && isEmbeddingModel(model))) &&
-        (!filterRerank || !filterTypes.rerank || (filterTypes.rerank && isRerankModel(model))) &&
-        (!filterFree || !filterTypes.free || (filterTypes.free && isFreeModel(model)))
-      )
-    },
-    [filterEmbed, filterFree, filterReasoning, filterRerank, filterTool, filterTypes, filterVision, filterWeb]
-  )
-
-  const onUpdateFilter = (t: FilterType) => {
-    setFilterTypes((prev) => ({ ...prev, [t]: !prev[t] }))
-  }
-
   const setFocusedItemKey = useCallback((key: string) => {
     startTransition(() => {
       _setFocusedItemKey(key)
     })
   }, [])
 
+  // 管理用户筛选状态
+  /** 从模型列表获取的需要显示的标签 */
+  const tags = useMemo(() => getModelTags(allModels), [allModels])
+
+  /** 当前选择的标签，表示是否启用特定tag的筛选 */
+  const [filterTags, setFilterTags] = useState<Record<ModelTag, boolean>>({
+    vision: false,
+    embedding: false,
+    reasoning: false,
+    function_calling: false,
+    web_search: false,
+    rerank: false,
+    free: false
+  })
+  const userFilter = useCallback(
+    (model: Model) => {
+      return (
+        (!(filterTags.vision && tags.vision) || isVisionModel(model)) &&
+        (!(filterTags.web_search && tags.web_search) || isWebSearchModel(model)) &&
+        (!(filterTags.reasoning && tags.reasoning) || isReasoningModel(model)) &&
+        (!(filterTags.function_calling && tags.function_calling) || isFunctionCallingModel(model)) &&
+        (!(filterTags.embedding && tags.embedding) || isEmbeddingModel(model)) &&
+        (!(filterTags.rerank && tags.rerank) || isRerankModel(model)) &&
+        (!(filterTags.free && tags.free) || isFreeModel(model))
+      )
+    },
+    [
+      filterTags.embedding,
+      filterTags.free,
+      filterTags.function_calling,
+      filterTags.reasoning,
+      filterTags.rerank,
+      filterTags.vision,
+      filterTags.web_search,
+      tags.embedding,
+      tags.free,
+      tags.function_calling,
+      tags.reasoning,
+      tags.rerank,
+      tags.vision,
+      tags.web_search
+    ]
+  )
+
   // 根据输入的文本筛选模型
-  const getFilteredModels = useCallback(
+  const searchFilter = useCallback(
     (provider: Provider) => {
-      let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
+      let models = provider.models
 
       if (searchText.trim()) {
         models = filterModelsByKeywords(searchText, models, provider)
@@ -136,6 +148,14 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
       return sortBy(models, ['group', 'name'])
     },
     [searchText]
+  )
+
+  const onClickTag = useCallback(
+    (type: ModelTag) => {
+      setFilterTags((prev) => ({ ...prev, [type]: !prev[type] }))
+      _onClickTag?.(type)
+    },
+    [_onClickTag]
   )
 
   // 创建模型列表项
@@ -176,12 +196,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
     const finalModelFilter = (model: Model) => {
-      const customResult = typeFilter(model)
-      if (modelFilter) {
-        return customResult && modelFilter(model)
-      } else {
-        return customResult
-      }
+      const _userFilter = userFilterDisabled || userFilter(model)
+      const _modelFilter = modelFilter === undefined || modelFilter(model)
+      return _userFilter && _modelFilter
     }
 
     // 添加置顶模型分组（仅在无搜索文本时）
@@ -208,7 +225,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      const filteredModels = getFilteredModels(p)
+      const filteredModels = searchFilter(p)
         .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
         .filter(finalModelFilter)
 
@@ -228,7 +245,17 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
     // 获取可选择的模型项（过滤掉分组标题）
     const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
-  }, [pinnedModels, searchText.length, providers, typeFilter, modelFilter, createModelItem, t, getFilteredModels])
+  }, [
+    pinnedModels,
+    searchText.length,
+    providers,
+    userFilterDisabled,
+    userFilter,
+    modelFilter,
+    createModelItem,
+    t,
+    searchFilter
+  ])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
@@ -439,31 +466,27 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, filterTy
           <FilterContainer>
             <FilterText>{t('models.filter.by_tag')}</FilterText>
             <Flex wrap="wrap" gap={4}>
-              {filterVision && (
-                <VisionTag showLabel inactive={!filterTypes.vision} onClick={() => onUpdateFilter('vision')} />
+              {tags.vision && (
+                <VisionTag showLabel inactive={!filterTags.vision} onClick={() => onClickTag('vision')} />
               )}
-              {filterWeb && (
-                <WebSearchTag
-                  showLabel
-                  inactive={!filterTypes.web_search}
-                  onClick={() => onUpdateFilter('web_search')}
-                />
+              {tags.web_search && (
+                <WebSearchTag showLabel inactive={!filterTags.web_search} onClick={() => onClickTag('web_search')} />
               )}
-              {filterReasoning && (
-                <ReasoningTag showLabel inactive={!filterTypes.reasoning} onClick={() => onUpdateFilter('reasoning')} />
+              {tags.reasoning && (
+                <ReasoningTag showLabel inactive={!filterTags.reasoning} onClick={() => onClickTag('reasoning')} />
               )}
-              {filterTool && (
+              {tags.function_calling && (
                 <ToolsCallingTag
                   showLabel
-                  inactive={!filterTypes.function_calling}
-                  onClick={() => onUpdateFilter('function_calling')}
+                  inactive={!filterTags.function_calling}
+                  onClick={() => onClickTag('function_calling')}
                 />
               )}
-              {filterFree && <FreeTag inactive={!filterTypes.free} onClick={() => onUpdateFilter('free')} />}
-              {filterEmbed && (
-                <EmbeddingTag inactive={!filterTypes.embedding} onClick={() => onUpdateFilter('embedding')} />
+              {tags.free && <FreeTag inactive={!filterTags.free} onClick={() => onClickTag('free')} />}
+              {tags.embedding && (
+                <EmbeddingTag inactive={!filterTags.embedding} onClick={() => onClickTag('embedding')} />
               )}
-              {filterRerank && <RerankerTag inactive={!filterTypes.rerank} onClick={() => onUpdateFilter('rerank')} />}
+              {tags.rerank && <RerankerTag inactive={!filterTags.rerank} onClick={() => onClickTag('rerank')} />}
             </Flex>
           </FilterContainer>
           <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
