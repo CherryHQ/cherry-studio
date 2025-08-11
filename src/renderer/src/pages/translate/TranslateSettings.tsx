@@ -2,10 +2,10 @@ import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { Model, TranslateLanguage } from '@renderer/types'
-import { Button, Flex, Modal, Space, Switch, Tooltip } from 'antd'
+import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
+import { Button, Flex, Modal, Radio, Space, Switch, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
-import { FC, memo, useEffect, useState } from 'react'
+import { Dispatch, FC, memo, SetStateAction, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
@@ -22,6 +22,8 @@ const TranslateSettings: FC<{
   bidirectionalPair: [TranslateLanguage, TranslateLanguage]
   setBidirectionalPair: (value: [TranslateLanguage, TranslateLanguage]) => void
   translateModel: Model | undefined
+  autoDetectionMethod: AutoDetectionMethod
+  setAutoDetectionMethod: Dispatch<SetStateAction<AutoDetectionMethod>>
 }> = ({
   visible,
   onClose,
@@ -32,7 +34,9 @@ const TranslateSettings: FC<{
   enableMarkdown,
   setEnableMarkdown,
   bidirectionalPair,
-  setBidirectionalPair
+  setBidirectionalPair,
+  autoDetectionMethod,
+  setAutoDetectionMethod
 }) => {
   const { t } = useTranslation()
   const [localPair, setLocalPair] = useState<[TranslateLanguage, TranslateLanguage]>(bidirectionalPair)
@@ -82,6 +86,37 @@ const TranslateSettings: FC<{
             />
           </Flex>
         </div>
+
+        <HStack style={{ justifyContent: 'space-between' }}>
+          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+            {t('translate.detect.method.label')}
+            <Tooltip title={t('translate.detect.method.tip')}>
+              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
+                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
+              </span>
+            </Tooltip>
+          </div>
+          <HStack alignItems="center" gap={5}>
+            <Radio.Group
+              defaultValue={'auto'}
+              value={autoDetectionMethod}
+              optionType="button"
+              buttonStyle="solid"
+              onChange={(e) => {
+                setAutoDetectionMethod(e.target.value)
+              }}>
+              <Tooltip title={t('translate.detect.method.auto.tip')}>
+                <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.algo.tip')}>
+                <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.llm.tip')}>
+                <Radio.Button value="llm">LLM</Radio.Button>
+              </Tooltip>
+            </Radio.Group>
+          </HStack>
+        </HStack>
 
         <div>
           <Flex align="center" justify="space-between">

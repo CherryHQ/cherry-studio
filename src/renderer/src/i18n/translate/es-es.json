@@ -795,7 +795,8 @@
     },
     "missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
     "model": {
-      "exists": "El modelo ya existe"
+      "exists": "El modelo ya existe",
+      "not_exists": "El modelo no existe"
     },
     "no_api_key": "La clave API no está configurada",
     "pause_placeholder": "Interrumpido",
@@ -3607,11 +3608,32 @@
     "custom": {
       "label": "Idioma personalizado"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algoritmo",
+          "tip": "Detección de idioma utilizando el algoritmo franc"
+        },
+        "auto": {
+          "label": "automático",
+          "tip": "Seleccionar automáticamente el método de detección adecuado"
+        },
+        "label": "Método de detección automática",
+        "llm": {
+          "tip": "Utiliza el modelo de traducción para la detección de idioma, lo que consume una pequeña cantidad de tokens. (QwenMT no admite la detección de idioma y automáticamente retrocede al modelo de asistente predeterminado)"
+        },
+        "placeholder": "Seleccionar método de detección automática",
+        "tip": "Método utilizado para detectar automáticamente el idioma de entrada"
+      }
+    },
     "detected": {
       "language": "Detección automática"
     },
     "empty": "El contenido de traducción está vacío",
     "error": {
+      "detect": {
+        "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas"
+      },
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
       "not_configured": "El modelo de traducción no está configurado",

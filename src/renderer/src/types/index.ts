@@ -665,6 +665,18 @@ export type CustomTranslateLanguage = {
   emoji: string
 }
 
+export const AutoDetectionMethods = {
+  franc: 'franc',
+  llm: 'llm',
+  auto: 'auto'
+} as const
+
+export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
+
+export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
+  return Object.hasOwn(AutoDetectionMethods, method)
+}
+
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
 
 export type ExternalToolResult = {

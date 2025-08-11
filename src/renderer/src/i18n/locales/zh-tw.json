@@ -795,7 +795,8 @@
     },
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
     "no_api_key": "API 金鑰未設定",
     "pause_placeholder": "回應已暫停",
@@ -3607,11 +3608,32 @@
     "custom": {
       "label": "自定義語言"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "演算法",
+          "tip": "使用franc進行語言檢測"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "自動選擇合適的檢測方法"
+        },
+        "label": "自動檢測方法",
+        "llm": {
+          "tip": "使用翻譯模型進行語言檢測，消耗少量token。（QwenMT不支持進行語言檢測，會自動回退到預設助手模型）"
+        },
+        "placeholder": "選擇自動偵測方法",
+        "tip": "自動檢測輸入語言時使用的方法"
+      }
+    },
     "detected": {
       "language": "自動檢測"
     },
     "empty": "翻譯內容為空",
     "error": {
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用於語言檢測"
+      },
       "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
       "not_configured": "翻譯模型未設定",

@@ -209,7 +209,7 @@ class KnowledgeQueue {
         type: 'error',
         title: t('common.knowledge_base'),
         message: t('notification.knowledge.error', {
-          error: error instanceof Error ? error.message : 'Unkown error'
+          error: error instanceof Error ? error.message : 'Unknown error'
         }),
         silent: false,
         timestamp: Date.now(),

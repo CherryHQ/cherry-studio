@@ -795,7 +795,8 @@
     },
     "missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
     "model": {
-      "exists": "Le modèle existe déjà"
+      "exists": "Le modèle existe déjà",
+      "not_exists": "Le modèle n'existe pas"
     },
     "no_api_key": "La clé API n'est pas configurée",
     "pause_placeholder": "Прервано",
@@ -3607,11 +3608,32 @@
     "custom": {
       "label": "Langue personnalisée"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algorithme",
+          "tip": "Utilisation de l'algorithme franc pour la détection de la langue"
+        },
+        "auto": {
+          "label": "automatique",
+          "tip": "Sélection automatique de la méthode de détection appropriée"
+        },
+        "label": "Méthode de détection automatique",
+        "llm": {
+          "tip": "Utiliser un modèle de traduction pour la détection de langue, ce qui consomme peu de jetons. (QwenMT ne prend pas en charge la détection de langue et revient automatiquement au modèle assistant par défaut.)"
+        },
+        "placeholder": "Sélectionner la méthode de détection automatique",
+        "tip": "Méthode utilisée pour la détection automatique de la langue d'entrée"
+      }
+    },
     "detected": {
       "language": "Détection automatique"
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "detect": {
+        "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues"
+      },
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "not_configured": "le modèle de traduction n'est pas configuré",
