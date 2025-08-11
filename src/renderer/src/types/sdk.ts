@@ -86,11 +86,13 @@ export type ReasoningEffortOptionalParams = {
 }
 
 export type OpenAISdkParams = OpenAIParamsWithoutReasoningEffort & ReasoningEffortOptionalParams
+
+// OpenRouter may include additional fields like cost
 export type OpenAISdkRawChunk =
-  | OpenAI.Chat.Completions.ChatCompletionChunk
+  | (OpenAI.Chat.Completions.ChatCompletionChunk & { usage?: OpenAI.CompletionUsage & { cost?: number } })
   | ({
       _request_id?: string | null | undefined
-    } & OpenAI.ChatCompletion)
+    } & OpenAI.ChatCompletion & { usage?: OpenAI.CompletionUsage & { cost?: number } })
 
 export type OpenAISdkRawOutput = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> | OpenAI.ChatCompletion
 export type OpenAISdkRawContentSource =

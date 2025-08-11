@@ -1,7 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -19,6 +18,7 @@ import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
+import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
@@ -52,21 +52,6 @@ const ModelSettings: FC = () => {
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
   )
-
-  const onUpdateTranslateModel = async () => {
-    const prompt = await PromptPopup.show({
-      title: t('settings.models.translate_model_prompt_title'),
-      message: t('settings.models.translate_model_prompt_message'),
-      defaultValue: translateModelPrompt,
-      inputProps: {
-        rows: 10,
-        onPressEnter: () => {}
-      }
-    })
-    if (prompt) {
-      dispatch(setTranslateModelPrompt(prompt))
-    }
-  }
 
   const onResetTranslatePrompt = () => {
     dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
@@ -133,7 +118,11 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
+          <Button
+            icon={<Settings2 size={16} />}
+            style={{ marginLeft: 8 }}
+            onClick={() => TranslateSettingsPopup.show()}
+          />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>
               <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>

@@ -116,4 +116,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
+    支持 GPT-5 模型
+    翻译页面改版，支持更多设置
+    支持保存整个话题到知识库
+    坚果云备份支持设置最大备份数量
     稳定性改进和错误修复

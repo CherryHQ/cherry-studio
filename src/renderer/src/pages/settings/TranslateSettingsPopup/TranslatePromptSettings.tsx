@@ -45,7 +45,8 @@ const TranslatePromptSettings = () => {
         onChange={(e) => setLocalPrompt(e.target.value)}
         onBlur={(e) => dispatch(setTranslateModelPrompt(e.target.value))}
         autoSize={{ minRows: 4, maxRows: 10 }}
-        placeholder={t('settings.models.translate_model_prompt_message')}></Input.TextArea>
+        placeholder={t('settings.models.translate_model_prompt_message')}
+      />
     </SettingGroup>
   )
 }
