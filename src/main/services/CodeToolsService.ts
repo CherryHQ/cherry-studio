@@ -303,8 +303,6 @@ class CodeToolsService {
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${executablePath}"`
     }
 
-    let winBatFilePath = ''
-
     switch (platform) {
       case 'darwin': {
         // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
@@ -372,7 +370,6 @@ end tell`
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
-          winBatFilePath = batFilePath
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -382,6 +379,15 @@ end tell`
         // Launch bat file - Use safest start syntax, no title parameter
         terminalCommand = 'cmd'
         terminalArgs = ['/c', 'start', batFilePath]
+
+        // Set cleanup task (delete temp file after 5 minutes)
+        setTimeout(() => {
+          try {
+            fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
+          } catch (error) {
+            logger.warn(`Failed to cleanup temp bat file: ${error}`)
+          }
+        }, 10 * 1000) // Delete temp file after 10 seconds
 
         break
       }
@@ -442,7 +448,6 @@ end tell`
         env: { ...process.env, ...env }
       })
 
-      winBatFilePath && fs.unlinkSync(winBatFilePath)
       const successMessage = `Launched ${cliTool} in new terminal window`
       logger.info(successMessage)
 
