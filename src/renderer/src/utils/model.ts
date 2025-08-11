@@ -8,6 +8,11 @@ import {
 } from '@renderer/config/models'
 import { Model, ModelTag, objectKeys } from '@renderer/types'
 
+/**
+ * 获取模型标签的状态
+ * @param models - 模型列表
+ * @returns 包含各个标签布尔值的对象，表示是否存在具有该标签的模型
+ */
 export const getModelTags = (models: Model[]): Record<ModelTag, boolean> => {
   const result: Record<ModelTag, boolean> = {
     vision: false,
