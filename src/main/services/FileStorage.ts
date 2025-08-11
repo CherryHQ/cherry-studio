@@ -627,20 +627,7 @@ class FileStorage {
   }
 
   public getFilePathById(file: FileMetadata): string {
-    if (file.id && file.ext) {
-      const filePath = path.join(this.storageDir, file.id + file.ext)
-      logger.debug(`getFilePathById: ${filePath}`)
-      if (fs.existsSync(filePath)) {
-        return filePath
-      }
-    }
-
-    if (fs.existsSync(file.path)) {
-      return file.path
-    }
-
-    logger.error(`Cannot determine file path for file: ${JSON.stringify(file)}`)
-    throw new Error(`Cannot determine file path for file: ${JSON.stringify(file)}`)
+    return path.join(this.storageDir, file.id + file.ext)
   }
 }
 
