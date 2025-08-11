@@ -1,5 +1,6 @@
 import AiProvider from '@renderer/aiCore'
 import ModelSelector from '@renderer/components/ModelSelector'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getProviderByModel } from '@renderer/services/AssistantService'
@@ -7,6 +8,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
+import { Model } from '@renderer/types'
 import { Alert, Button, Checkbox, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -54,6 +56,11 @@ const CodePage: FC = () => {
   const openAiProviders = providers.filter((p) => p.type.includes('openai'))
   const geminiProviders = providers.filter((p) => p.type === 'gemini')
   const claudeProviders = providers.filter((p) => p.type === 'anthropic')
+
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
 
   const availableProviders =
     selectedCliTool === 'claude-code'
@@ -265,6 +272,7 @@ const CodePage: FC = () => {
           <div className="settings-label">{t('code.model')}</div>
           <ModelSelector
             providers={availableProviders}
+            predicate={modelPredicate}
             style={{ width: '100%' }}
             placeholder={t('code.model_placeholder')}
             value={selectedModel ? getModelUniqId(selectedModel) : undefined}
