@@ -20,6 +20,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -43,7 +44,6 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -96,6 +96,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { pauseMessages } = useMessageOperations(topic)
@@ -280,7 +281,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, targetLanguage, resizeTextArea])
+  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, resizeTextArea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
