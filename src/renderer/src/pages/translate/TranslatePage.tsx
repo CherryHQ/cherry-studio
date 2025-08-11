@@ -12,7 +12,7 @@ import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
@@ -117,8 +117,9 @@ const TranslatePage: FC = () => {
 
       setTranslating(true)
 
+      let translated
       try {
-        await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
+        translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
         logger.error('Failed to translate text', e as Error)
         window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
@@ -129,13 +130,7 @@ const TranslatePage: FC = () => {
       window.message.success(t('translate.complete'))
 
       try {
-        const translatedContent = store.getState().translate.translatedContent
-        await saveTranslateHistory(
-          text,
-          translatedContent,
-          actualSourceLanguage.langCode,
-          actualTargetLanguage.langCode
-        )
+        await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
       } catch (e) {
         logger.error('Failed to save translate history', e as Error)
         window.message.error(t('translate.history.error.save') + ': ' + (e as Error).message)
