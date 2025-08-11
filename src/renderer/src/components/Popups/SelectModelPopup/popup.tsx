@@ -76,7 +76,11 @@ const PopupContainer: React.FC<Props> = ({
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
-  const allModels: Model[] = providers.flatMap((p) => p.models).filter(modelFilter ?? (() => true))
+
+  const allModels: Model[] = useMemo(
+    () => providers.flatMap((p) => p.models).filter(modelFilter ?? (() => true)),
+    [modelFilter, providers]
+  )
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
