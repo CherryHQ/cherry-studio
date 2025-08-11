@@ -91,8 +91,7 @@ const TranslateSettings: FC<{
         <Button key="save" type="primary" onClick={handleSave}>
           {t('common.save')}
         </Button>
-      ]}
-      width={420}>
+      ]}>
       <Flex vertical gap={16} style={{ marginTop: 16 }}>
         <div>
           <Flex align="center" justify="space-between">
@@ -107,37 +106,6 @@ const TranslateSettings: FC<{
             <Switch checked={isScrollSyncEnabled} onChange={setIsScrollSyncEnabled} />
           </Flex>
         </div>
-
-        <HStack style={{ justifyContent: 'space-between' }}>
-          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-            {t('translate.detect.method')}
-            <Tooltip title={t('translate.detect.method.tip')}>
-              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
-                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-              </span>
-            </Tooltip>
-          </div>
-          <HStack alignItems="center" gap={5}>
-            <Radio.Group
-              defaultValue={'auto'}
-              value={autoDetectionMethod}
-              optionType="button"
-              buttonStyle="solid"
-              onChange={(e) => {
-                setAutoDetectionMethod(e.target.value)
-              }}>
-              <Tooltip title={t('translate.detect.method.auto.tip')}>
-                <Radio.Button value="auto">{t('translate.detect.method.auto')}</Radio.Button>
-              </Tooltip>
-              <Tooltip title={t('translate.detect.method.algo.tip')}>
-                <Radio.Button value="franc">{t('translate.detect.method.algo')}</Radio.Button>
-              </Tooltip>
-              <Tooltip title={t('translate.detect.method.llm.tip')}>
-                <Radio.Button value="llm">{t('translate.detect.method.llm')}</Radio.Button>
-              </Tooltip>
-            </Radio.Group>
-          </HStack>
-        </HStack>
 
         <div>
           <Flex align="center" justify="space-between">
@@ -171,6 +139,37 @@ const TranslateSettings: FC<{
             </Space>
           )}
         </div>
+
+        <HStack style={{ justifyContent: 'space-between' }}>
+          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+            {t('translate.detect.method.label')}
+            <Tooltip title={t('translate.detect.method.tip')}>
+              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
+                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
+              </span>
+            </Tooltip>
+          </div>
+          <HStack alignItems="center" gap={5}>
+            <Radio.Group
+              defaultValue={'auto'}
+              value={autoDetectionMethod}
+              optionType="button"
+              buttonStyle="solid"
+              onChange={(e) => {
+                setAutoDetectionMethod(e.target.value)
+              }}>
+              <Tooltip title={t('translate.detect.method.auto.tip')}>
+                <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.algo.tip')}>
+                <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
+              </Tooltip>
+              <Tooltip title={t('translate.detect.method.llm.tip')}>
+                <Radio.Button value="llm">LLM</Radio.Button>
+              </Tooltip>
+            </Radio.Group>
+          </HStack>
+        </HStack>
 
         <div>
           <Flex align="center" justify="space-between">
