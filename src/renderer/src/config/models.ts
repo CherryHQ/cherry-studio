@@ -395,7 +395,7 @@ export function getModelLogo(modelId: string) {
     'gpt-5-mini': GPT5MiniModelLogo,
     'gpt-5-nano': GPT5NanoModelLogo,
     'gpt-5-chat': GPT5ChatModelLogo,
-    'gpt-5(?:-[0-9]+(?:-[0-9]+)*)?': GPT5ModelLogo,
+    'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
