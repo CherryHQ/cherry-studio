@@ -156,8 +156,8 @@ class FileStorage {
   }
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
-    const filePath = this.getFilePathById(file)
-    const duplicateFile = await this.findDuplicateFile(file.path)
+    const filePath = file.path
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
       return duplicateFile
