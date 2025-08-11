@@ -117,7 +117,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     const sourceLanguage = await detectLanguage(action.selectedText)
 
     let translateLang: TranslateLanguage
-    if (sourceLanguage.langCode === targetLanguage.langCode) {
+    if (sourceLanguage === targetLanguage.langCode) {
       translateLang = alterLanguage
     } else {
       translateLang = targetLanguage
