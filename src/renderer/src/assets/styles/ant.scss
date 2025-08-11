@@ -185,6 +185,10 @@
   }
 }
 
+.ant-splitter .ant-splitter-panel {
+  scrollbar-width: auto;
+}
+
 .ant-splitter-bar {
   .ant-splitter-bar-dragger {
     &::before {
