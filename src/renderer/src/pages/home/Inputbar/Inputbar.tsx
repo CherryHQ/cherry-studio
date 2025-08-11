@@ -1,5 +1,6 @@
 import { HolderOutlined, LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
@@ -26,6 +27,7 @@ import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
+import { PromptOptimizationService } from '@renderer/services/PromptOptimizationService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -51,6 +53,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
 import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -62,9 +65,6 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
-import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
-import { PromptOptimizationService } from '@renderer/services/PromptOptimizationService'
-import { Sparkles } from 'lucide-react'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -304,11 +304,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           },
           showTranslate: false
         })
-        
+
         if (result !== null) {
-          setText(result);
-          focusTextarea(); // 聚焦输入框
-          setTimeout(() => resizeTextArea(), 0);
+          setText(result)
+          focusTextarea() // 聚焦输入框
+          setTimeout(() => resizeTextArea(), 0)
         }
       } else {
         window.message.error({
@@ -318,7 +318,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     } catch (error) {
       let errorMessage = t('chat.input.optimize_prompt_error')
-      
+
       if (error instanceof Error) {
         switch (error.name) {
           case 'API_ERROR':
@@ -329,7 +329,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             break
         }
       }
-      
+
       window.message.error({
         content: errorMessage,
         key: 'optimize-prompt-error'
@@ -337,7 +337,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsOptimizingPrompt(false)
     }
-  }, [assistant, isOptimizingPrompt, resizeTextArea, t, text])
+  }, [assistant, isOptimizingPrompt, resizeTextArea, t, text, focusTextarea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -987,30 +987,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               cleanTopicShortcut={cleanTopicShortcut}
             />
             <ToolbarMenu>
-            <TokenCount
-              estimateTokenCount={estimateTokenCount}
-              inputTokenCount={inputTokenCount}
-              contextCount={contextCount}
-              ToolbarButton={ToolbarButton}
-              onClick={onNewContext}
-            />
-            <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating || isOptimizingPrompt} />
-            <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
-              <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
-                {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
-              </ToolbarButton>
-            </Tooltip>
-            {loading && (
-              <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
-                  <CirclePause size={20} color="var(--color-error)" />
+              <TokenCount
+                estimateTokenCount={estimateTokenCount}
+                inputTokenCount={inputTokenCount}
+                contextCount={contextCount}
+                ToolbarButton={ToolbarButton}
+                onClick={onNewContext}
+              />
+              <TranslateButton
+                text={text}
+                onTranslated={onTranslated}
+                isLoading={isTranslating || isOptimizingPrompt}
+              />
+              <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
+                <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
+                  {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
                 </ToolbarButton>
               </Tooltip>
-            )}
-            <SendMessageButton 
-              sendMessage={sendMessage} 
-              disabled={loading || inputEmpty || isOptimizingPrompt} 
-            />
+              {loading && (
+                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
+                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
+                    <CirclePause size={20} color="var(--color-error)" />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
+              <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty || isOptimizingPrompt} />
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>

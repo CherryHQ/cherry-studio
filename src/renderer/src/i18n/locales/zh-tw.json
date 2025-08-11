@@ -329,6 +329,9 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新話題 {{Command}}",
+      "optimize_prompt": "[to be translated]:优化提示词",
+      "optimize_prompt_failed": "[to be translated]:提示词优化失败",
+      "optimize_prompt_result": "[to be translated]:优化结果",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "send": "傳送",
@@ -740,6 +743,7 @@
     "refresh": "重新整理",
     "regenerate": "重新生成",
     "rename": "重新命名",
+    "replace": "[to be translated]:替换",
     "reset": "重設",
     "save": "儲存",
     "saved": "已儲存",

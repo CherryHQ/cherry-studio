@@ -65,14 +65,14 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     })
 
     return Array.from(map.values()).filter((span) => {
-        if (span.parentId && map.has(span.parentId)) {
-          const parent = map.get(span.parentId)
-          if (parent) {
-            parent.children.push(span)
-          }
-          return false
+      if (span.parentId && map.has(span.parentId)) {
+        const parent = map.get(span.parentId)
+        if (parent) {
+          parent.children.push(span)
         }
-        return true
+        return false
+      }
+      return true
     })
   }
 

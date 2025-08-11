@@ -329,6 +329,9 @@
         "context": "コンテキストをクリア {{Command}}"
       },
       "new_topic": "新しいトピック {{Command}}",
+      "optimize_prompt": "[to be translated]:优化提示词",
+      "optimize_prompt_failed": "[to be translated]:提示词优化失败",
+      "optimize_prompt_result": "[to be translated]:优化结果",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "send": "送信",
@@ -740,6 +743,7 @@
     "refresh": "更新",
     "regenerate": "再生成",
     "rename": "名前を変更",
+    "replace": "[to be translated]:替换",
     "reset": "リセット",
     "save": "保存",
     "saved": "保存されました",
