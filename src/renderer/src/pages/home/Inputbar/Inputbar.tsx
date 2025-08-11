@@ -949,7 +949,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             }}
             onBlur={() => setInputFocus(false)}
             onInput={onInput}
-            disabled={searching}
+            disabled={searching || isOptimizingPrompt}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => {
               searching && dispatch(setSearching(false))
