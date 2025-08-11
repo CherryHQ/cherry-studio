@@ -15,10 +15,9 @@ import { saveTranslateHistory, translateText } from '@renderer/services/Translat
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
-import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import type { AutoDetectionMethod, Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import {
-  AutoDetectionMethod,
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
@@ -97,9 +96,12 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  const setTranslating = (translating: boolean) => {
-    dispatch(setTranslatingAction(translating))
-  }
+  const setTranslating = useCallback(
+    (translating: boolean) => {
+      dispatch(setTranslatingAction(translating))
+    },
+    [dispatch]
+  )
 
   /**
    * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
