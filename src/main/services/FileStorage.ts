@@ -627,12 +627,7 @@ class FileStorage {
   }
 
   public getFilePathById(file: FileMetadata): string {
-    const filePath = path.join(this.storageDir, file.id + file.ext)
-
-    if (path.resolve(filePath) !== path.resolve(file.path)) {
-      file.path = filePath
-    }
-    return filePath
+    return path.join(this.storageDir, file.id + file.ext)
   }
 }
 
