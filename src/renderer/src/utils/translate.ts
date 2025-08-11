@@ -8,8 +8,6 @@ import React, { RefObject } from 'react'
 
 // const logger = loggerService.withContext('Utils:translate')
 
-export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
-
 /**
  * 检测输入文本的语言
  * @param inputText 需要检测语言的文本
