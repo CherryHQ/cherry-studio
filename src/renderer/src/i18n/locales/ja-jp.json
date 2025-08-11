@@ -3612,8 +3612,10 @@
     },
     "empty": "翻訳内容が空です",
     "error": {
+      "detected_unknown": "未知の言語は交換できません",
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
+      "invalid_source": "無効なソース言語",
       "not_configured": "翻訳モデルが設定されていません",
       "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"

@@ -3612,8 +3612,10 @@
     },
     "empty": "翻譯內容為空",
     "error": {
+      "detected_unknown": "未知語言不可交換",
       "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
+      "invalid_source": "無效的源語言",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"

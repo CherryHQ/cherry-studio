@@ -3612,8 +3612,10 @@
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "detected_unknown": "Idioma desconhecido não pode ser trocado",
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
+      "invalid_source": "Idioma de origem inválido",
       "not_configured": "Modelo de tradução não configurado",
       "not_supported": "Idioma não suportado {{language}}",
       "unknown": "Ocorreu um erro desconhecido durante a tradução"

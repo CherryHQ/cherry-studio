@@ -3612,8 +3612,10 @@
     },
     "empty": "Translation content is empty",
     "error": {
+      "detected_unknown": "Unknown language cannot be exchanged",
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
+      "invalid_source": "Invalid source language",
       "not_configured": "Translation model is not configured",
       "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"

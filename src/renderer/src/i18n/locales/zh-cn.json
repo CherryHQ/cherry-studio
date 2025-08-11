@@ -3615,7 +3615,6 @@
       "detected_unknown": "未知语言不可交换",
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
-      "invalid_detected": "启用了自动检测，但是没有检测到的语言",
       "invalid_source": "无效的源语言",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",

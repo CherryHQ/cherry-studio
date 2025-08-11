@@ -3612,8 +3612,10 @@
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
+      "detected_unknown": "Langue inconnue non échangeable",
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
+      "invalid_source": "Langue source invalide",
       "not_configured": "le modèle de traduction n'est pas configuré",
       "not_supported": "Langue non prise en charge {{language}}",
       "unknown": "Une erreur inconnue s'est produite lors de la traduction"
