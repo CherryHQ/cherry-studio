@@ -540,7 +540,8 @@ const Container = styled.div`
 const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
+  height: 100%;
+  overflow: auto;
 `
 
 const ProviderListItem = styled.div`
