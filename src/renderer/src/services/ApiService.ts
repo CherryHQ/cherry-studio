@@ -5,6 +5,7 @@ import {
   isEmbeddingModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
+  isQwenMTModel,
   isReasoningModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
@@ -622,9 +623,17 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
-  const model = getTranslateModel() || getDefaultModel()
+  let model = getTranslateModel()
   if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
+    throw new Error(i18n.t('error.model.not_exists'))
+  }
+
+  if (isQwenMTModel(model)) {
+    logger.info('QwenMT cannot be used for language detection. Fallback to default model.')
+    model = getDefaultModel()
+    if (isQwenMTModel(model)) {
+      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
+    }
   }
 
   const provider = getProviderByModel(model)

@@ -795,7 +795,8 @@
     },
     "missing_user_message": "无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
@@ -3617,10 +3618,9 @@
           "label": "自动",
           "tip": "自动选择合适的检测方法"
         },
-
         "label": "自动检测方法",
         "llm": {
-          "tip": "使用翻译模型进行语言检测。消耗少量token。"
+          "tip": "使用翻译模型进行语言检测，消耗少量token。（QwenMT不支持进行语言检测，会自动回退到默认助手模型）"
         },
         "placeholder": "选择自动检测方法",
         "tip": "自动检测输入语言时使用的方法"
@@ -3631,6 +3631,9 @@
     },
     "empty": "翻译内容为空",
     "error": {
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用于语言检测"
+      },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "not_configured": "翻译模型未配置",
