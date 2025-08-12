@@ -2960,6 +2960,7 @@
         "none": "不顯示"
       },
       "prompt": "提示詞顯示",
+      "show_message_outline": "顯示消息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },

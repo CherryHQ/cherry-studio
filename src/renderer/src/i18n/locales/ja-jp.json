@@ -2960,6 +2960,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },

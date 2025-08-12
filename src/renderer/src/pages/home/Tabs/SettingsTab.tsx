@@ -38,6 +38,7 @@ import {
   setPasteLongTextThreshold,
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
+  setShowMessageOutline,
   setShowPrompt,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
@@ -103,7 +104,8 @@ const SettingsTab: FC<Props> = (props) => {
     messageNavigation,
     enableQuickPanelTriggers,
     enableBackspaceDeleteModel,
-    showTranslateConfirm
+    showTranslateConfirm,
+    showMessageOutline
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -329,6 +331,15 @@ const SettingsTab: FC<Props> = (props) => {
               size="small"
               checked={thoughtAutoCollapse}
               onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={showMessageOutline}
+              onChange={(checked) => dispatch(setShowMessageOutline(checked))}
             />
           </SettingRow>
           <SettingDivider />
