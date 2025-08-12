@@ -252,7 +252,7 @@ export async function addImageLoader(
     const imageVector = await embeddings.embedDocuments([{ image: base64 }])
     const imageDocument: Document = {
       pageContent: base64, // 传入base64用于后续多模态reranker
-      metadata: { source: file.path, type: 'image', mimeType: mime }
+      metadata: { source: file.path, type: 'image', mimeType: mime, name: file.origin_name, ext: file.ext, id: file.id }
     }
     await vectorStore.addVectors(imageVector, [imageDocument], { ids: [file.id] })
     return {

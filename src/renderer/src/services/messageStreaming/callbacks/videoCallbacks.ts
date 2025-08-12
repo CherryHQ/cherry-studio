@@ -15,7 +15,7 @@ export const createVideoCallbacks = (deps: VideoCallbacksDependencies) => {
   const { blockManager, assistantMsgId } = deps
 
   // 内部维护的状态
-  let videoBlockId: string | null = null
+  const videoBlockId: string | null = null
 
   return {
     onVideoSearched: async (video?: { type: 'url' | 'path'; content: string }, metadata?: Record<string, any>) => {
@@ -32,7 +32,6 @@ export const createVideoCallbacks = (deps: VideoCallbacksDependencies) => {
           filePath: video.type === 'path' ? video.content : undefined,
           metadata: metadata || {}
         })
-        videoBlockId = videoBlock.id
         await blockManager.handleBlockTransition(videoBlock, MessageBlockType.VIDEO)
       }
     }

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { ImageMessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createImageBlock } from '@renderer/utils/messageUtils/create'
 
@@ -66,6 +67,28 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         imageBlockId = null
       } else {
         logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
+      }
+    },
+
+    onImageSearched: async (metadata: Record<string, any>) => {
+      if (!imageBlockId) {
+        const file: FileMetadata = {
+          id: metadata.id,
+          name: metadata.name,
+          origin_name: metadata.name,
+          path: metadata.source,
+          size: metadata.size || 0,
+          ext: metadata.ext,
+          type: FileTypes.IMAGE,
+          created_at: new Date().toISOString(),
+          count: 1
+        }
+
+        const imageBlock = createImageBlock(assistantMsgId, {
+          status: MessageBlockStatus.SUCCESS,
+          file: file
+        })
+        await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
       }
     }
   }

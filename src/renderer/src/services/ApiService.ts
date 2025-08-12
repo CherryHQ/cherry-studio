@@ -431,6 +431,7 @@ function processKnowledgeReferences(
   references: KnowledgeReference[] | undefined,
   onChunkReceived: (chunk: Chunk) => void
 ) {
+  console.log('references', references)
   if (!references) {
     return
   }
@@ -441,18 +442,36 @@ function processKnowledgeReferences(
       continue
     }
 
-    const isYoutube = metadata.type === 'youtube'
-    const isVideoFile = metadata.type === 'video'
-
-    if (isYoutube || isVideoFile) {
-      onChunkReceived({
-        type: ChunkType.VIDEO_SEARCHED,
-        video: {
-          type: isYoutube ? 'url' : 'path',
-          content: metadata.source
-        },
-        metadata
-      })
+    switch (metadata.type) {
+      case 'image': {
+        onChunkReceived({
+          type: ChunkType.IMAGE_SEARCHED,
+          metadata
+        })
+        break
+      }
+      case 'youtube': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'url',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+      case 'video': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'path',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
     }
   }
 }
