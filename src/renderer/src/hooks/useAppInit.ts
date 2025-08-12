@@ -18,6 +18,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
+import { checkDataLimit } from './useDataLimit'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
@@ -158,4 +159,8 @@ export function useAppInit() {
       logger.error('Failed to update memory config:', error)
     })
   }, [memoryConfig])
+
+  useEffect(() => {
+    checkDataLimit()
+  }, [])
 }
