@@ -28,6 +28,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
 
+  // FIXME: 内存泄露风险
   const updateSelectedWebSearchProvider = useCallback(
     (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
@@ -41,6 +42,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     [assistant, updateAssistant]
   )
 
+  // FIXME: 内存泄露风险
   const updateSelectedWebSearchBuiltin = useCallback(() => {
     // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
     setTimeout(() => {
