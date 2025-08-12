@@ -119,7 +119,7 @@ const MessageOutlineItemText = styled.div<{ $level: number; $miniLevel: number }
 `
 
 const MessageOutlineItem = styled.div`
-  height: 20px;
+  height: 26px;
   display: flex;
   align-items: center;
   gap: 8px;
