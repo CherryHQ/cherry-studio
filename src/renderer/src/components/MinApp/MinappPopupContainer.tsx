@@ -499,7 +499,7 @@ const MinappPopupContainer: React.FC = () => {
       placement="bottom"
       onClose={handlePopupMinimize}
       open={isPopupShow}
-      destroyOnClose={false}
+      destroyOnHidden={false}
       mask={false}
       rootClassName="minapp-drawer"
       maskClassName="minapp-mask"
