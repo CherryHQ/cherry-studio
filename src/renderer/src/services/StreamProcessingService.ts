@@ -44,7 +44,7 @@ export interface StreamProcessorCallbacks {
   // Called when the entire stream processing is signaled as complete (success or failure)
   onComplete?: (status: AssistantMessageStatus, response?: Response) => void
   onVideoSearched?: (video?: { type: 'url' | 'path'; content: string }, metadata?: Record<string, any>) => void
-  onImageSearched?: (metadata?: Record<string, any>) => void
+  onImageSearched?: (metadata: Record<string, any>) => void
 }
 
 // Function to create a stream processor instance

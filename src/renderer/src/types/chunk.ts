@@ -401,7 +401,7 @@ export interface ImageSearchedChunk {
    */
   type: ChunkType.IMAGE_SEARCHED
 
-  metadata?: Record<string, any>
+  metadata: Record<string, any>
 }
 
 export type Chunk =

@@ -431,7 +431,6 @@ function processKnowledgeReferences(
   references: KnowledgeReference[] | undefined,
   onChunkReceived: (chunk: Chunk) => void
 ) {
-  console.log('references', references)
   if (!references) {
     return
   }
