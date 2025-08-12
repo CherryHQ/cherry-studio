@@ -877,6 +877,7 @@
     },
     "add_directory": "Add Directory",
     "add_file": "Add File",
+    "add_image": "Add Image",
     "add_note": "Add Note",
     "add_sitemap": "Website Map",
     "add_url": "Add URL",
@@ -907,6 +908,7 @@
     "document_count_default": "Default",
     "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
     "drag_file": "Drag file here",
+    "drag_image": "Drag image here",
     "edit_remark": "Edit Remark",
     "edit_remark_placeholder": "Please enter remark content",
     "embedding_model": "Embedding Model",
@@ -915,9 +917,15 @@
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
-      "model_invalid": "No model selected"
+      "model_invalid": "No model selected",
+      "video": {
+        "local_file_missing": "Video file not found",
+        "youtube_url_missing": "YouTube video URL not found"
+      }
     },
     "file_hint": "Support {{file_types}}",
+    "image_hint": "Support {{image_types}}",
+    "images": "Images",
     "index_all": "Index All",
     "index_cancelled": "Indexing cancelled",
     "index_started": "Indexing started",

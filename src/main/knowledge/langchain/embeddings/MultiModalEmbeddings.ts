@@ -1,27 +1,33 @@
-import type { Embeddings as BaseEmbeddings } from '@langchain/core/embeddings'
+import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { ApiClient } from '@types'
 
 import EmbeddingsFactory from './EmbeddingsFactory'
 
-export default class Embeddings {
-  private sdk: BaseEmbeddings
+export type MultiModalEmbeddingInput =
+  | {
+      text: string
+      image?: never
+    }
+  | {
+      image: string
+      text?: never
+    }
+
+export default class MultiModalEmbeddings {
+  private sdk: JinaEmbeddings
+  public provider: string
   constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
     this.sdk = EmbeddingsFactory.create({
       embedApiClient,
       dimensions
-    })
+    }) as JinaEmbeddings
+    this.provider = embedApiClient.provider
   }
-  // public async init(): Promise<void> {
-  //   return this.sdk.init()
-  // }
-  // public async getDimensions(): Promise<number> {
-  //   return this.sdk.getDimensions()
-  // }
 
   @TraceMethod({ spanName: 'embedDocuments', tag: 'Embeddings' })
-  public async embedDocuments(texts: string[]): Promise<number[][]> {
-    return this.sdk.embedDocuments(texts)
+  public async embedDocuments(inputs: MultiModalEmbeddingInput[]): Promise<number[][]> {
+    return this.sdk.embedDocuments(inputs)
   }
 
   @TraceMethod({ spanName: 'embedQuery', tag: 'Embeddings' })

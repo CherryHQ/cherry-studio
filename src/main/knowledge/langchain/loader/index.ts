@@ -4,11 +4,9 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf'
 import { PPTXLoader } from '@langchain/community/document_loaders/fs/pptx'
 import { CheerioWebBaseLoader } from '@langchain/community/document_loaders/web/cheerio'
 import { SitemapLoader } from '@langchain/community/document_loaders/web/sitemap'
-import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { FaissStore } from '@langchain/community/vectorstores/faiss'
 import { Document } from '@langchain/core/documents'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/langchain/embeddings/Embeddings'
 import { base64Image } from '@main/utils/file'
 import { UrlSource } from '@main/utils/knowledge'
 import { LoaderReturn } from '@shared/config/types'
@@ -17,6 +15,7 @@ import { randomUUID } from 'crypto'
 import { JSONLoader } from 'langchain/document_loaders/fs/json'
 import { TextLoader } from 'langchain/document_loaders/fs/text'
 
+import MultiModalEmbeddings from '../embeddings/MultiModalEmbeddings'
 import { SplitterFactory } from '../splitter'
 import { NoteLoader } from './NoteLoader'
 import { YoutubeLoader } from './YoutubeLoader'
@@ -237,7 +236,7 @@ export async function addVideoLoader(
 }
 
 export async function addImageLoader(
-  embeddings: Embeddings,
+  embeddings: MultiModalEmbeddings,
   vectorStore: FaissStore,
   file: FileMetadata
 ): Promise<LoaderReturn> {
@@ -249,24 +248,19 @@ export async function addImageLoader(
   }
 
   try {
-    if (embeddings instanceof JinaEmbeddings) {
-      console.log('addImageLoader', file)
-      const { base64 } = await base64Image(file.id)
-      console.log('addImageLoader', base64.length)
-      const imageVector = await embeddings.embedDocuments([{ image: base64 }])
-      const imageDocument: Document = {
-        pageContent: `Image: ${file.id}`,
-        metadata: { source: file.path }
-      }
-      await vectorStore.addVectors(imageVector, [imageDocument])
-      return {
-        entriesAdded: 1,
-        uniqueId: file.id || '',
-        uniqueIds: [file.id],
-        loaderType: 'image'
-      }
+    const { mime, base64 } = await base64Image(file)
+    const imageVector = await embeddings.embedDocuments([{ image: base64 }])
+    const imageDocument: Document = {
+      pageContent: base64, // 传入base64用于后续多模态reranker
+      metadata: { source: file.path, type: 'image', mimeType: mime }
     }
-    return emptyResult
+    await vectorStore.addVectors(imageVector, [imageDocument], { ids: [file.id] })
+    return {
+      entriesAdded: 1,
+      uniqueId: file.id || '',
+      uniqueIds: [file.id],
+      loaderType: 'image'
+    }
   } catch (error) {
     logger.error(`Error loading or processing file ${file.path} with loader video: ${error}`)
     return emptyResult

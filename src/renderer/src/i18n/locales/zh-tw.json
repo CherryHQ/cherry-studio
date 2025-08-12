@@ -915,7 +915,11 @@
     "error": {
       "failed_to_create": "知識庫創建失敗",
       "failed_to_edit": "知識庫編輯失敗",
-      "model_invalid": "未選擇模型"
+      "model_invalid": "未選擇模型",
+      "video": {
+        "local_file_missing": "影片檔案不存在",
+        "youtube_url_missing": "YouTube 影片連結不存在"
+      }
     },
     "file_hint": "支援 {{file_types}} 格式",
     "index_all": "索引全部",

@@ -15,7 +15,13 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { addFilesThunk, addItemThunk, addNoteThunk, addVedioThunk } from '@renderer/store/thunk/knowledgeThunk'
+import {
+  addFilesThunk,
+  addImagesThunk,
+  addItemThunk,
+  addNoteThunk,
+  addVedioThunk
+} from '@renderer/store/thunk/knowledgeThunk'
 import { FileMetadata, KnowledgeBase, KnowledgeItem, MigrationModeEnum, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -73,6 +79,11 @@ export const useKnowledge = (baseId: string) => {
   // add video support
   const addVideo = (files: FileMetadata[]) => {
     dispatch(addVedioThunk(baseId, 'video', files))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
+  const addImages = (files: FileMetadata[]) => {
+    dispatch(addImagesThunk(baseId, files))
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
@@ -265,6 +276,7 @@ export const useKnowledge = (baseId: string) => {
   const sitemapItems = base?.items.filter((item) => item.type === 'sitemap') || []
   const [noteItems, setNoteItems] = useState<KnowledgeItem[]>([])
   const videoItems = base?.items.filter((item) => item.type === 'video') || []
+  const imageItems = base?.items.filter((item) => item.type === 'image') || []
 
   useEffect(() => {
     const notes = base?.items.filter((item) => item.type === 'note') || []
@@ -286,6 +298,7 @@ export const useKnowledge = (baseId: string) => {
     sitemapItems,
     noteItems,
     videoItems,
+    imageItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
     migrateBase,
@@ -294,6 +307,7 @@ export const useKnowledge = (baseId: string) => {
     addSitemap,
     addNote,
     addVideo,
+    addImages,
     updateNoteContent,
     getNoteContent,
     updateItem,

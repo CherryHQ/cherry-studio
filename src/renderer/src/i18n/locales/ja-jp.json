@@ -915,7 +915,11 @@
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
-      "model_invalid": "モデルが選択されていません"
+      "model_invalid": "モデルが選択されていません",
+      "video": {
+        "local_file_missing": "動画ファイルが見つかりません",
+        "youtube_url_missing": "YouTube動画のURLが見つかりません"
+      }
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "index_all": "すべてをインデックス",

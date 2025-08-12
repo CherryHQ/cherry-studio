@@ -877,6 +877,7 @@
     },
     "add_directory": "添加目录",
     "add_file": "添加文件",
+    "add_image": "添加图片",
     "add_note": "添加笔记",
     "add_sitemap": "站点地图",
     "add_url": "添加网址",
@@ -907,6 +908,7 @@
     "document_count_default": "默认",
     "document_count_help": "请求文档片段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
     "drag_file": "拖拽文件到这里",
+    "drag_image": "拖拽图片到这里",
     "edit_remark": "修改备注",
     "edit_remark_placeholder": "请输入备注内容",
     "embedding_model": "嵌入模型",
@@ -915,9 +917,15 @@
     "error": {
       "failed_to_create": "知识库创建失败",
       "failed_to_edit": "知识库编辑失败",
-      "model_invalid": "未选择模型"
+      "model_invalid": "未选择模型",
+      "video": {
+        "local_file_missing": "视频文件不存在",
+        "youtube_url_missing": "YouTube 视频链接不存在"
+      }
     },
     "file_hint": "支持 {{file_types}} 格式",
+    "image_hint": "支持 {{image_types}} 格式",
+    "images": "图片",
     "index_all": "索引全部",
     "index_cancelled": "索引已取消",
     "index_started": "索引开始",

@@ -4,7 +4,8 @@ import path from 'node:path'
 import { FaissStore } from '@langchain/community/vectorstores/faiss'
 import type { Document } from '@langchain/core/documents'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/langchain/embeddings/Embeddings'
+import MultiModalEmbeddings from '@main/knowledge/langchain/embeddings/MultiModalEmbeddings'
+import TextEmbeddings from '@main/knowledge/langchain/embeddings/TextEmbeddings'
 import {
   addFileLoader,
   addImageLoader,
@@ -60,7 +61,7 @@ export class LangChainFramework implements IKnowledgeFramework {
     // 在base.id目录下创建一个新的数据库 包含docstore.json 和 faiss.index
     const dbPath = path.join(this.storageDir, base.id)
     // Create empty FAISS vector store
-    const embeddings = this.getEmbeddings(base)
+    const embeddings = this.getEmbeddings(base) as TextEmbeddings
     const vectorStore = new FaissStore(embeddings, {})
 
     const mockDocument: Document = {
@@ -74,8 +75,15 @@ export class LangChainFramework implements IKnowledgeFramework {
     await vectorStore.save(dbPath)
   }
 
-  private getEmbeddings(base: KnowledgeBaseParams): Embeddings {
-    return new Embeddings({
+  private getEmbeddings(base: KnowledgeBaseParams): TextEmbeddings | MultiModalEmbeddings {
+    if (base.embedApiClient.provider === 'jina') {
+      return new MultiModalEmbeddings({
+        embedApiClient: base.embedApiClient,
+        dimensions: base.dimensions
+      })
+    }
+
+    return new TextEmbeddings({
       embedApiClient: base.embedApiClient,
       dimensions: base.dimensions
     })
@@ -83,7 +91,7 @@ export class LangChainFramework implements IKnowledgeFramework {
 
   private async getVectorStore(base: KnowledgeBaseParams): Promise<FaissStore> {
     const embeddings = this.getEmbeddings(base)
-    const vectorStore = await FaissStore.load(path.join(this.storageDir, base.id), embeddings)
+    const vectorStore = await FaissStore.load(path.join(this.storageDir, base.id), embeddings as TextEmbeddings)
 
     return vectorStore
   }
@@ -120,6 +128,8 @@ export class LangChainFramework implements IKnowledgeFramework {
         return this.noteTask(getStore, options)
       case 'video':
         return this.videoTask(getStore, options)
+      case 'image':
+        return this.imageTask(getStore, options)
       default:
         return {
           loaderTasks: [],
@@ -143,10 +153,7 @@ export class LangChainFramework implements IKnowledgeFramework {
       const vectorStore = await this.getVectorStore(base)
 
       // 如果是 bm25 或 hybrid 模式，则从数据库获取所有文档
-      let documents: Document[] = []
-      if (base.retriever?.mode === 'bm25' || base.retriever?.mode === 'hybrid') {
-        documents = await this.getAllDocuments(base)
-      }
+      const documents: Document[] = await this.getAllDocuments(base)
       if (documents.length === 0) return []
 
       const retrieverFactory = new RetrieverFactory()
@@ -468,7 +475,7 @@ export class LangChainFramework implements IKnowledgeFramework {
           state: LoaderTaskItemState.PENDING,
           task: async () => {
             const vectorStore = await getVectorStore()
-            return addImageLoader(this.getEmbeddings(base), vectorStore, file)
+            return addImageLoader(this.getEmbeddings(base) as MultiModalEmbeddings, vectorStore, file)
               .then((result) => {
                 loaderTask.loaderDoneReturn = result
                 return result

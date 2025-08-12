@@ -915,7 +915,11 @@
     "error": {
       "failed_to_create": "Создание базы знаний завершено с ошибками",
       "failed_to_edit": "Редактирование базы знаний завершено с ошибками",
-      "model_invalid": "Модель не выбрана"
+      "model_invalid": "Модель не выбрана",
+      "video": {
+        "local_file_missing": "Видеофайл не найден",
+        "youtube_url_missing": "URL видео YouTube не найден"
+      }
     },
     "file_hint": "Поддерживаются {{file_types}}",
     "index_all": "Индексировать все",
