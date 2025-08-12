@@ -5,7 +5,7 @@ import { SrtSplitter } from './SrtSplitter'
 export type SplitterConfig = {
   chunkSize?: number
   chunkOverlap?: number
-  type?: 'recursive' | 'srt'
+  type?: 'recursive' | 'srt' | string
 }
 export class SplitterFactory {
   /**

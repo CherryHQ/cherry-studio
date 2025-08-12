@@ -1,3 +1,4 @@
+import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
 import type { Embeddings } from '@langchain/core/embeddings'
 import { OllamaEmbeddings } from '@langchain/ollama'
@@ -19,6 +20,12 @@ export default class EmbeddingsFactory {
         apiKey,
         outputDimension: dimensions,
         batchSize: 8
+      })
+    } else if (provider === 'jina') {
+      return new JinaEmbeddings({
+        model: model,
+        apiKey,
+        batchSize: batchSize
       })
     }
     if (apiVersion !== undefined) {

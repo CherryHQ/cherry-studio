@@ -4,9 +4,12 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf'
 import { PPTXLoader } from '@langchain/community/document_loaders/fs/pptx'
 import { CheerioWebBaseLoader } from '@langchain/community/document_loaders/web/cheerio'
 import { SitemapLoader } from '@langchain/community/document_loaders/web/sitemap'
+import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { FaissStore } from '@langchain/community/vectorstores/faiss'
-import { Document } from '@langchain/core/documents' // <-- 引入 Document 类型
+import { Document } from '@langchain/core/documents'
 import { loggerService } from '@logger'
+import Embeddings from '@main/knowledge/langchain/embeddings/Embeddings'
+import { base64Image } from '@main/utils/file'
 import { UrlSource } from '@main/utils/knowledge'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, FileTypes, KnowledgeBaseParams } from '@types'
@@ -20,22 +23,100 @@ import { YoutubeLoader } from './YoutubeLoader'
 
 const logger = loggerService.withContext('KnowledgeService File Loader')
 
+type LoaderInstance =
+  | TextLoader
+  | PDFLoader
+  | PPTXLoader
+  | DocxLoader
+  | JSONLoader
+  | EPubLoader
+  | CheerioWebBaseLoader
+  | YoutubeLoader
+  | SitemapLoader
+  | NoteLoader
+
 /**
  * 为文档数组中的每个文档的 metadata 添加类型信息。
- * @param docs - 要格式化的 Document 数组。
- * @param type - 要添加到 metadata 中的类型字符串。
- * @returns 带有更新后 metadata 的新 Document 数组。
  */
 function formatDocument(docs: Document[], type: string): Document[] {
-  return docs.map((doc) => {
-    return {
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        type: type
-      }
+  return docs.map((doc) => ({
+    ...doc,
+    metadata: {
+      ...doc.metadata,
+      type: type
     }
+  }))
+}
+
+/**
+ * 通用文档处理管道
+ */
+async function processDocuments(
+  base: KnowledgeBaseParams,
+  vectorStore: FaissStore,
+  docs: Document[],
+  loaderType: string,
+  splitterType?: string
+): Promise<LoaderReturn> {
+  const formattedDocs = formatDocument(docs, loaderType)
+  const splitter = SplitterFactory.create({
+    chunkSize: base.chunkSize,
+    chunkOverlap: base.chunkOverlap,
+    ...(splitterType && { type: splitterType })
   })
+
+  const splitterResults = await splitter.splitDocuments(formattedDocs)
+  const ids = splitterResults.map(() => randomUUID())
+
+  await vectorStore.addDocuments(splitterResults, { ids })
+
+  return {
+    entriesAdded: splitterResults.length,
+    uniqueId: ids[0] || '',
+    uniqueIds: ids,
+    loaderType
+  }
+}
+
+/**
+ * 通用加载器执行函数
+ */
+async function executeLoader(
+  base: KnowledgeBaseParams,
+  vectorStore: FaissStore,
+  loaderInstance: LoaderInstance,
+  loaderType: string,
+  identifier: string,
+  splitterType?: string
+): Promise<LoaderReturn> {
+  const emptyResult: LoaderReturn = {
+    entriesAdded: 0,
+    uniqueId: '',
+    uniqueIds: [],
+    loaderType
+  }
+
+  try {
+    const docs = await loaderInstance.load()
+    return await processDocuments(base, vectorStore, docs, loaderType, splitterType)
+  } catch (error) {
+    logger.error(`Error loading or processing ${identifier} with loader ${loaderType}: ${error}`)
+    return emptyResult
+  }
+}
+
+/**
+ * 文件扩展名到加载器的映射
+ */
+const FILE_LOADER_MAP: Record<string, { loader: new (path: string) => LoaderInstance; type: string }> = {
+  '.pdf': { loader: PDFLoader, type: 'pdf' },
+  '.txt': { loader: TextLoader, type: 'text' },
+  '.pptx': { loader: PPTXLoader, type: 'pptx' },
+  '.docx': { loader: DocxLoader, type: 'docx' },
+  '.doc': { loader: DocxLoader, type: 'doc' },
+  '.json': { loader: JSONLoader, type: 'json' },
+  '.epub': { loader: EPubLoader, type: 'epub' },
+  '.md': { loader: TextLoader, type: 'markdown' }
 }
 
 export async function addFileLoader(
@@ -44,79 +125,17 @@ export async function addFileLoader(
   file: FileMetadata
 ): Promise<LoaderReturn> {
   const fileExt = file.ext.toLowerCase()
-  let loaderInstance: TextLoader | PDFLoader | PPTXLoader | DocxLoader | JSONLoader | EPubLoader | undefined
-  let specificLoaderType: string = 'unknown'
+  const loaderConfig = FILE_LOADER_MAP[fileExt]
 
-  switch (fileExt) {
-    case '.pdf':
-      loaderInstance = new PDFLoader(file.path)
-      specificLoaderType = 'pdf'
-      break
-    case '.txt':
-      loaderInstance = new TextLoader(file.path)
-      specificLoaderType = 'text'
-      break
-    case '.pptx':
-      loaderInstance = new PPTXLoader(file.path)
-      specificLoaderType = 'pptx'
-      break
-    case '.docx':
-      loaderInstance = new DocxLoader(file.path)
-      specificLoaderType = 'docx'
-      break
-    case '.doc':
-      // .doc support might be limited and relies on external tools.
-      // Assuming DocxLoader handles it or a specific setup exists.
-      loaderInstance = new DocxLoader(file.path)
-      specificLoaderType = 'doc'
-      break
-    case '.json':
-      loaderInstance = new JSONLoader(file.path)
-      specificLoaderType = 'json'
-      break
-    case '.epub':
-      loaderInstance = new EPubLoader(file.path)
-      specificLoaderType = 'epub'
-      break
-    case '.md':
-      loaderInstance = new TextLoader(file.path)
-      specificLoaderType = 'markdown'
-      break
-    default:
-      loaderInstance = new TextLoader(file.path)
-      specificLoaderType = fileExt.replace('.', '') || 'unknown'
-      break
+  if (!loaderConfig) {
+    // 默认使用文本加载器
+    const loaderInstance = new TextLoader(file.path)
+    const type = fileExt.replace('.', '') || 'unknown'
+    return executeLoader(base, vectorStore, loaderInstance, type, file.path)
   }
 
-  if (loaderInstance) {
-    try {
-      let docs = await loaderInstance.load()
-
-      docs = formatDocument(docs, specificLoaderType)
-      const splitter = SplitterFactory.create({
-        chunkSize: base.chunkSize,
-        chunkOverlap: base.chunkOverlap
-      })
-      const splitterResults = await splitter.splitDocuments(docs)
-      const ids = splitterResults.map(() => randomUUID())
-      await vectorStore.addDocuments(splitterResults, { ids: ids })
-      return {
-        entriesAdded: docs.length,
-        uniqueId: ids[0],
-        uniqueIds: ids,
-        loaderType: specificLoaderType
-      }
-    } catch (error) {
-      logger.error(`Error loading or processing file ${file.path} with loader ${specificLoaderType}: ${error}`)
-    }
-  }
-
-  return {
-    entriesAdded: 0,
-    uniqueId: '',
-    uniqueIds: [],
-    loaderType: specificLoaderType
-  }
+  const loaderInstance = new loaderConfig.loader(file.path)
+  return executeLoader(base, vectorStore, loaderInstance, loaderConfig.type, file.path)
 }
 
 export async function addWebLoader(
@@ -126,6 +145,8 @@ export async function addWebLoader(
   source: UrlSource
 ): Promise<LoaderReturn> {
   let loaderInstance: CheerioWebBaseLoader | YoutubeLoader | undefined
+  let splitterType: string | undefined
+
   switch (source) {
     case 'normal':
       loaderInstance = new CheerioWebBaseLoader(url)
@@ -136,40 +157,20 @@ export async function addWebLoader(
         transcriptFormat: 'srt',
         language: 'zh'
       })
-      break
-    default:
+      splitterType = 'srt'
       break
   }
-  if (loaderInstance) {
-    try {
-      let docs = await loaderInstance.load()
 
-      docs = formatDocument(docs, source)
-      const splitter = SplitterFactory.create({
-        chunkSize: base.chunkSize,
-        chunkOverlap: base.chunkOverlap,
-        type: source === 'youtube' ? 'srt' : 'recursive'
-      })
-      const splitterResults = await splitter.splitDocuments(docs)
-      const ids = splitterResults.map(() => randomUUID())
-      await vectorStore.addDocuments(splitterResults, { ids: ids })
-      return {
-        entriesAdded: docs.length,
-        uniqueId: ids[0],
-        uniqueIds: ids,
-        loaderType: source
-      }
-    } catch (error) {
-      logger.error(`Error loading or processing website ${url} with loader ${source}: ${error}`)
+  if (!loaderInstance) {
+    return {
+      entriesAdded: 0,
+      uniqueId: '',
+      uniqueIds: [],
+      loaderType: source
     }
   }
 
-  return {
-    entriesAdded: 0,
-    uniqueId: '',
-    uniqueIds: [],
-    loaderType: source
-  }
+  return executeLoader(base, vectorStore, loaderInstance, source, url, splitterType)
 }
 
 export async function addSitemapLoader(
@@ -178,29 +179,7 @@ export async function addSitemapLoader(
   url: string
 ): Promise<LoaderReturn> {
   const loaderInstance = new SitemapLoader(url)
-  try {
-    let docs = await loaderInstance.load()
-
-    docs = formatDocument(docs, 'sitemap')
-    const splitter = SplitterFactory.create({ chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap })
-    const splitterResults = await splitter.splitDocuments(docs)
-    const ids = splitterResults.map(() => randomUUID())
-    await vectorStore.addDocuments(splitterResults, { ids: ids })
-    return {
-      entriesAdded: docs.length,
-      uniqueId: ids[0],
-      uniqueIds: ids,
-      loaderType: 'sitemap'
-    }
-  } catch (error) {
-    logger.error(`Error loading or processing website ${url} with loader sitemap: ${error}`)
-  }
-  return {
-    entriesAdded: 0,
-    uniqueId: '',
-    uniqueIds: [],
-    loaderType: 'sitemap'
-  }
+  return executeLoader(base, vectorStore, loaderInstance, 'sitemap', url)
 }
 
 export async function addNoteLoader(
@@ -210,29 +189,7 @@ export async function addNoteLoader(
   sourceUrl: string
 ): Promise<LoaderReturn> {
   const loaderInstance = new NoteLoader(content, sourceUrl)
-  try {
-    let docs = await loaderInstance.load()
-
-    docs = formatDocument(docs, 'note')
-    const splitter = SplitterFactory.create({ chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap })
-    const splitterResults = await splitter.splitDocuments(docs)
-    const ids = splitterResults.map(() => randomUUID())
-    await vectorStore.addDocuments(splitterResults, { ids: ids })
-    return {
-      entriesAdded: docs.length,
-      uniqueId: ids[0],
-      uniqueIds: ids,
-      loaderType: 'note'
-    }
-  } catch (error) {
-    logger.error(`Error loading or processing note ${sourceUrl} with loader note: ${error}`)
-  }
-  return {
-    entriesAdded: 0,
-    uniqueId: '',
-    uniqueIds: [],
-    loaderType: 'note'
-  }
+  return executeLoader(base, vectorStore, loaderInstance, 'note', sourceUrl)
 }
 
 export async function addVideoLoader(
@@ -242,52 +199,76 @@ export async function addVideoLoader(
 ): Promise<LoaderReturn> {
   const srtFile = files.find((f) => f.type === FileTypes.TEXT)
   const videoFile = files.find((f) => f.type === FileTypes.VIDEO)
-  if (!srtFile || !videoFile) {
-    return {
-      entriesAdded: 0,
-      uniqueId: '',
-      uniqueIds: [],
-      loaderType: 'unknown'
-    }
-  }
 
-  const loaderInstance = new TextLoader(srtFile.path)
-  try {
-    const originalDocs: Document[] = await loaderInstance.load()
-    const docsWithVideoMeta = originalDocs.map((doc) => {
-      return new Document({
-        ...doc,
-        metadata: {
-          ...doc.metadata,
-          video: {
-            path: videoFile.path,
-            name: videoFile.origin_name
-          }
-        }
-      })
-    })
-    const docs = formatDocument(docsWithVideoMeta, 'video')
-    const splitter = SplitterFactory.create({
-      chunkSize: base.chunkSize,
-      chunkOverlap: base.chunkOverlap,
-      type: 'srt'
-    })
-    const splitterResults = await splitter.splitDocuments(docs)
-    const ids = splitterResults.map(() => randomUUID())
-    await vectorStore.addDocuments(splitterResults, { ids: ids })
-    return {
-      entriesAdded: splitterResults.length,
-      uniqueId: ids[0],
-      uniqueIds: ids,
-      loaderType: 'video'
-    }
-  } catch (error) {
-    logger.error(`Error loading or processing file ${srtFile.path} with loader video: ${error}`)
-  }
-  return {
+  const emptyResult: LoaderReturn = {
     entriesAdded: 0,
     uniqueId: '',
     uniqueIds: [],
-    loaderType: 'unknown'
+    loaderType: 'video'
+  }
+
+  if (!srtFile || !videoFile) {
+    return emptyResult
+  }
+
+  try {
+    const loaderInstance = new TextLoader(srtFile.path)
+    const originalDocs = await loaderInstance.load()
+
+    const docsWithVideoMeta = originalDocs.map(
+      (doc) =>
+        new Document({
+          ...doc,
+          metadata: {
+            ...doc.metadata,
+            video: {
+              path: videoFile.path,
+              name: videoFile.origin_name
+            }
+          }
+        })
+    )
+
+    return await processDocuments(base, vectorStore, docsWithVideoMeta, 'video', 'srt')
+  } catch (error) {
+    logger.error(`Error loading or processing file ${srtFile.path} with loader video: ${error}`)
+    return emptyResult
+  }
+}
+
+export async function addImageLoader(
+  embeddings: Embeddings,
+  vectorStore: FaissStore,
+  file: FileMetadata
+): Promise<LoaderReturn> {
+  const emptyResult: LoaderReturn = {
+    entriesAdded: 0,
+    uniqueId: '',
+    uniqueIds: [],
+    loaderType: 'image'
+  }
+
+  try {
+    if (embeddings instanceof JinaEmbeddings) {
+      console.log('addImageLoader', file)
+      const { base64 } = await base64Image(file.id)
+      console.log('addImageLoader', base64.length)
+      const imageVector = await embeddings.embedDocuments([{ image: base64 }])
+      const imageDocument: Document = {
+        pageContent: `Image: ${file.id}`,
+        metadata: { source: file.path }
+      }
+      await vectorStore.addVectors(imageVector, [imageDocument])
+      return {
+        entriesAdded: 1,
+        uniqueId: file.id || '',
+        uniqueIds: [file.id],
+        loaderType: 'image'
+      }
+    }
+    return emptyResult
+  } catch (error) {
+    logger.error(`Error loading or processing file ${file.path} with loader video: ${error}`)
+    return emptyResult
   }
 }

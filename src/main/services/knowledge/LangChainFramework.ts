@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import Embeddings from '@main/knowledge/langchain/embeddings/Embeddings'
 import {
   addFileLoader,
+  addImageLoader,
   addNoteLoader,
   addSitemapLoader,
   addVideoLoader,
@@ -454,6 +455,45 @@ export class LangChainFramework implements IKnowledgeFramework {
     return loaderTask
   }
 
+  private imageTask(
+    getVectorStore: () => Promise<FaissStore>,
+    options: KnowledgeBaseAddItemOptionsNonNullableAttribute
+  ): LoaderTask {
+    const { base, item } = options
+    const file = item.content as FileMetadata
+
+    const loaderTask: LoaderTask = {
+      loaderTasks: [
+        {
+          state: LoaderTaskItemState.PENDING,
+          task: async () => {
+            const vectorStore = await getVectorStore()
+            return addImageLoader(this.getEmbeddings(base), vectorStore, file)
+              .then((result) => {
+                loaderTask.loaderDoneReturn = result
+                return result
+              })
+              .then(async () => {
+                await vectorStore.save(path.join(this.storageDir, base.id))
+              })
+              .catch((e) => {
+                logger.error(`Preprocessing failed for ${file.name}: ${e}`)
+                const errorResult: LoaderReturn = {
+                  ...LangChainFramework.ERROR_LOADER_RETURN,
+                  message: e.message,
+                  messageSource: 'preprocess'
+                }
+                loaderTask.loaderDoneReturn = errorResult
+                return errorResult
+              })
+          },
+          evaluateTaskWorkload: { workload: file.size }
+        }
+      ],
+      loaderDoneReturn: null
+    }
+    return loaderTask
+  }
   private async getAllDocuments(base: KnowledgeBaseParams): Promise<Document[]> {
     logger.info(`Fetching all documents from database for knowledge base: ${base.id}`)
 
