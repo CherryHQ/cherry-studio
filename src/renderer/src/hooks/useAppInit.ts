@@ -86,11 +86,12 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system', proxyBypassRules)
+      window.api.setProxy('system', undefined)
     } else if (proxyMode === 'custom') {
       proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
     } else {
-      window.api.setProxy('')
+      // set proxy to none for direct mode
+      window.api.setProxy('', undefined)
     }
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
