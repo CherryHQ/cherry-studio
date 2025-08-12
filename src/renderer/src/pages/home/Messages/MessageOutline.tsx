@@ -145,11 +145,12 @@ const MessageOutlineBody = styled(Scrollbar)`
   overflow-y: hidden;
   display: inline-flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 10px 0 10px 10px;
   gap: 4px;
   border-radius: 10px;
   pointer-events: auto;
   &:hover {
+    padding: 10px 10px 10px 10px;
     overflow-y: auto;
     background: var(--color-background);
     box-shadow: 0 0 10px 0 rgba(128, 128, 128, 0.2);
