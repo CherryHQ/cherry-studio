@@ -10,9 +10,23 @@ export default class EmbeddingsFactory {
     const batchSize = 10
     const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
     if (provider === 'ollama') {
+      if (baseURL.includes('v1/')) {
+        return new OllamaEmbeddings({
+          model: model,
+          baseUrl: baseURL.replace('v1/', ''),
+          requestOptions: {
+            // @ts-ignore expected
+            'encoding-format': 'float'
+          }
+        })
+      }
       return new OllamaEmbeddings({
-        model,
-        baseUrl: baseURL
+        model: model,
+        baseUrl: baseURL,
+        requestOptions: {
+          // @ts-ignore expected
+          'encoding-format': 'float'
+        }
       })
     } else if (provider === 'voyageai') {
       return new VoyageEmbeddings({
