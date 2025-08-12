@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
 import { spawn } from 'child_process'
+import { omit } from 'lodash'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -434,18 +435,24 @@ end tell`
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
+    const removeProxy = (env: Record<string, string>) => {
+      return omit(env, ['http_proxy', 'https_proxy', 'all_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY'])
+    }
+
+    const envWithoutProxy = removeProxy({ ...process.env, ...env } as Record<string, string>)
+
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
       logger.debug(`Terminal arguments:`, terminalArgs)
       logger.debug(`Working directory: ${directory}`)
-      logger.debug(`Process environment keys: ${Object.keys({ ...process.env, ...env }).length}`)
+      logger.debug(`Process environment keys: ${Object.keys(env)}`)
 
       spawn(terminalCommand, terminalArgs, {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
-        env: { ...process.env, ...env }
+        env: envWithoutProxy
       })
 
       const successMessage = `Launched ${cliTool} in new terminal window`
