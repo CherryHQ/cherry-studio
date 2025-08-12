@@ -501,7 +501,7 @@ const InputbarTools = ({
     return hiddenTools.filter((tool) => tool.condition ?? true).length > 0
   }, [hiddenTools])
 
-  const menuItems = useMemo(() => {
+  const getMenuItems = useMemo(() => {
     const baseItems: ItemType[] = [...visibleTools, ...hiddenTools].map((tool) => ({
       label: tool.label,
       key: tool.key,
@@ -533,7 +533,7 @@ const InputbarTools = ({
   }, [hiddenTools, t, targetTool, toggleToolVisibility, visibleTools])
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
+    <Dropdown menu={{ items: getMenuItems }} trigger={['contextMenu']}>
       <ToolsContainer
         onContextMenu={(e) => {
           const target = e.target as HTMLElement
