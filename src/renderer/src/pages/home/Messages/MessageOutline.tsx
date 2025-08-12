@@ -155,7 +155,7 @@ const MessageOutlineBody = styled(Scrollbar)<{ $count: number }>`
   max-width: 50%;
   max-height: min(100%, 70vh);
   position: sticky;
-  top: calc(50% - ${({ $count }) => ($count * 24) / 2 + 10}px);
+  top: max(calc(50% - ${({ $count }) => ($count * 24) / 2 + 10}px), 20px);
   bottom: 0;
   overflow-x: hidden;
   overflow-y: hidden;
