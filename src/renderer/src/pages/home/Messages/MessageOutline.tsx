@@ -83,7 +83,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
 
   return (
     <MessageOutlineContainer ref={messageOutlineContainerRef}>
-      <MessageOutlineBody>
+      <MessageOutlineBody $count={headings.length}>
         {headings.map((heading, index) => (
           <MessageOutlineItem key={index} onClick={() => scrollToHeading(heading.id)}>
             <MessageOutlineItemDot $level={heading.level} />
@@ -151,11 +151,11 @@ const MessageOutlineItem = styled.div`
   }
 `
 
-const MessageOutlineBody = styled(Scrollbar)`
+const MessageOutlineBody = styled(Scrollbar)<{ $count: number }>`
   max-width: 50%;
   max-height: min(100%, 70vh);
   position: sticky;
-  top: 20px;
+  top: calc(50% - ${({ $count }) => ($count * 24) / 2 + 10}px);
   bottom: 0;
   overflow-x: hidden;
   overflow-y: hidden;
