@@ -1,7 +1,7 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { MainTextMessageBlock, Message, MessageBlockType } from '@renderer/types/newMessage'
+import { Message, MessageBlockType } from '@renderer/types/newMessage'
 import React, { FC, useMemo, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import remarkParse from 'remark-parse'
@@ -23,27 +23,43 @@ interface HeadingItem {
 
 const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  const mainTextBlock = message.blocks
-    .map((blockId) => blockEntities[blockId])
-    .filter(Boolean)
-    .find((b) => b.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock
 
   const headings: HeadingItem[] = useMemo(() => {
-    if (!mainTextBlock?.content) return []
+    const mainTextBlocks = message.blocks
+      .map((blockId) => blockEntities[blockId])
+      .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
+
+    if (!mainTextBlocks?.length) return []
 
     const result: HeadingItem[] = []
-    const tree = unified().use(remarkParse).parse(mainTextBlock.content)
-    const slugger = createSlugger()
-    visit(tree, 'heading', (node) => {
-      const level = node.depth ?? 0
-      if (!level || level < 1 || level > 6) return
-      const text = extractTextFromNode(node)
-      if (!text) return
-      const id = `heading-${mainTextBlock.id}--` + slugger.slug(text || '')
-      result.push({ id, level, text: text })
+    mainTextBlocks.forEach((mainTextBlock) => {
+      const tree = unified().use(remarkParse).parse(mainTextBlock?.content)
+      const slugger = createSlugger()
+      visit(tree, ['heading', 'html'], (node) => {
+        if (node.type === 'heading') {
+          const level = node.depth ?? 0
+          if (!level || level < 1 || level > 6) return
+          const text = extractTextFromNode(node)
+          if (!text) return
+          const id = `heading-${mainTextBlock.id}--` + slugger.slug(text || '')
+          result.push({ id, level, text: text })
+        } else if (node.type === 'html') {
+          // 匹配 <h1>...</h1> 到 <h6>...</h6>
+          const match = node.value.match(/<h([1-6])[^>]*>(.*?)<\/h\1>/i)
+          if (match) {
+            const level = parseInt(match[1], 10)
+            const text = match[2].replace(/<[^>]*>/g, '').trim() // 移除内部的HTML标签
+            if (text) {
+              const id = `heading-${mainTextBlock.id}--${slugger.slug(text || '')}`
+              result.push({ id, level, text })
+            }
+          }
+        }
+      })
     })
+
     return result
-  }, [mainTextBlock?.content, mainTextBlock?.id])
+  }, [message.blocks, blockEntities])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1
@@ -63,7 +79,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   }
 
   // 暂时不支持 grid，因为在锚点滚动时会导致渲染错位
-  if (message.multiModelMessageStyle === 'grid' || !mainTextBlock || headings.length === 0) return null
+  if (message.multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
     <MessageOutlineContainer ref={messageOutlineContainerRef}>
@@ -119,7 +135,7 @@ const MessageOutlineItemText = styled.div<{ $level: number; $miniLevel: number }
 `
 
 const MessageOutlineItem = styled.div`
-  height: 26px;
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 8px;
