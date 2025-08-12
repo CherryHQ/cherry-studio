@@ -70,7 +70,7 @@ const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater(mainWindow)
+  const appUpdater = new AppUpdater()
   const notificationService = new NotificationService(mainWindow)
 
   // Initialize Python service with main window

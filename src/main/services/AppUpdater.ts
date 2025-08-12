@@ -9,6 +9,7 @@ import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
+import { windowService } from './WindowService'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -21,7 +22,7 @@ export default class AppUpdater {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
 
-  constructor(mainWindow: BrowserWindow) {
+  constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
@@ -33,12 +34,12 @@ export default class AppUpdater {
 
     autoUpdater.on('error', (error) => {
       logger.error('update error', error as Error)
-      mainWindow.webContents.send(IpcChannel.UpdateError, error)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
     })
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
-      mainWindow.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
     })
 
     // 检测到不需要更新时
@@ -49,17 +50,17 @@ export default class AppUpdater {
         return
       }
 
-      mainWindow.webContents.send(IpcChannel.UpdateNotAvailable)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
     })
 
     // 更新下载进度
     autoUpdater.on('download-progress', (progress) => {
-      mainWindow.webContents.send(IpcChannel.DownloadProgress, progress)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
     })
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
-      mainWindow.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
       this.releaseInfo = releaseInfo
       logger.info('update downloaded', releaseInfo)
     })
