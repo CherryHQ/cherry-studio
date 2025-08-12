@@ -128,9 +128,6 @@ const PopupContainer: React.FC<Props> = ({
     <Modal
       {...modalProps}
       title={modalProps?.title || t('common.edit')}
-      width="60vw"
-      style={{ maxHeight: '70vh' }}
-      transitionName="animation-move-down"
       okText={modalProps?.okText || t('common.save')}
       cancelText={modalProps?.cancelText || t('common.cancel')}
       open={open}
@@ -138,7 +135,10 @@ const PopupContainer: React.FC<Props> = ({
       onCancel={onCancel}
       afterClose={onClose}
       afterOpenChange={handleAfterOpenChange}
-      centered>
+      centered
+      width="60vw"
+      style={{ maxHeight: '70vh' }}
+      transitionName="animation-move-down">
       <TextAreaContainer>
         <TextArea
           ref={textareaRef}

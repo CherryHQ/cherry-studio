@@ -63,7 +63,17 @@
       "no_results": "Nenhum agente inteligente encontrado"
     },
     "settings": {
-      "title": "Configuração do Agente"
+      "title": "Configuração do Agente",
+      "tool": {
+        "promptOptimization": {
+          "description": "[to be translated]:自定义提示词优化的模板。使用{content}作为用户输入的占位符",
+          "placeholder": "[to be translated]:在此输入您的提示词优化模板...",
+          "reset": "[to be translated]:重置为默认模板",
+          "tip1": "[to be translated]:提示：使用{content}表示原始提示词",
+          "tip2": "[to be translated]:提示：优化后的结果应该只返回优化后的提示词，不要包含其他内容",
+          "title": "[to be translated]:提示词优化"
+        }
+      }
     },
     "sorting": {
       "title": "Ordenação"

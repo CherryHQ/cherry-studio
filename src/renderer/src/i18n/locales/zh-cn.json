@@ -63,7 +63,17 @@
       "no_results": "没有找到相关智能体"
     },
     "settings": {
-      "title": "智能体配置"
+      "title": "智能体配置",
+      "tool": {
+        "promptOptimization": {
+          "description": "自定义提示词优化的模板。使用{content}作为用户输入的占位符",
+          "placeholder": "在此输入您的提示词优化模板...",
+          "reset": "重置为默认模板",
+          "tip1": "提示：使用{content}表示原始提示词",
+          "tip2": "提示：优化后的结果应该只返回优化后的提示词，不要包含其他内容",
+          "title": "提示词优化"
+        }
+      }
     },
     "sorting": {
       "title": "排序"

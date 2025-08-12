@@ -994,13 +994,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
+
               <TranslateButton
                 text={text}
                 onTranslated={onTranslated}
-                isLoading={isTranslating || isOptimizingPrompt}
+                isLoading={isTranslating}
+                disabled={isOptimizingPrompt}
               />
               <Tooltip placement="top" title={t('chat.input.optimize_prompt')} mouseLeaveDelay={0} arrow>
-                <ToolbarButton type="text" onClick={handleOptimizePrompt} disabled={isOptimizingPrompt || inputEmpty}>
+                <ToolbarButton
+                  type="text"
+                  onClick={handleOptimizePrompt}
+                  disabled={isOptimizingPrompt || inputEmpty || isTranslating}>
                   {isOptimizingPrompt ? <LoadingOutlined spin /> : <Sparkles size={20} />}
                 </ToolbarButton>
               </Tooltip>

@@ -63,7 +63,17 @@
       "no_results": "No results found"
     },
     "settings": {
-      "title": "Agent Setting"
+      "title": "Agent Setting",
+      "tool": {
+        "promptOptimization": {
+          "description": "Customize the template for prompt optimization. Use {content} as a placeholder for user input",
+          "placeholder": "Enter your prompt optimization template here...",
+          "reset": "Reset to default",
+          "tip1": "Tip: Use {content} to represent the original prompt",
+          "tip2": "Tip: The optimized result should only return the optimized prompt without any additional content",
+          "title": "Prompt Optimization"
+        }
+      }
     },
     "sorting": {
       "title": "Sorting"
@@ -743,7 +753,7 @@
     "refresh": "Refresh",
     "regenerate": "Regenerate",
     "rename": "Rename",
-    "replace": "[to be translated]:替换",
+    "replace": "Replace",
     "reset": "Reset",
     "save": "Save",
     "saved": "Saved",
@@ -784,7 +794,7 @@
       "chunk": {
         "non_json": "Returned an invalid data format"
       },
-      "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
+      "response": "There has been an error. Please check your network connection or try again later. If the problem persists, please go to Settings > Model Provider to check the configuration."
     },
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
