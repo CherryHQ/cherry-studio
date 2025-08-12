@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { getIpCountry } from '@main/utils/ipService'
 import { locales } from '@main/utils/locales'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
@@ -98,30 +99,6 @@ export default class AppUpdater {
     }
   }
 
-  private async _getIpCountry() {
-    try {
-      // add timeout using AbortController
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-      const ipinfo = await fetch('https://ipinfo.io/json', {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9'
-        }
-      })
-
-      clearTimeout(timeoutId)
-      const data = await ipinfo.json()
-      return data.country || 'CN'
-    } catch (error) {
-      logger.error('Failed to get ipinfo:', error as Error)
-      return 'CN'
-    }
-  }
-
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
     autoUpdater.autoInstallOnAppQuit = isActive
@@ -186,7 +163,7 @@ export default class AppUpdater {
     }
 
     this._setChannel(UpgradeChannel.LATEST, FeedUrl.PRODUCTION)
-    const ipCountry = await this._getIpCountry()
+    const ipCountry = await getIpCountry()
     logger.info(`ipCountry is ${ipCountry}, set channel to ${UpgradeChannel.LATEST}`)
     if (ipCountry.toLowerCase() !== 'cn') {
       this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)

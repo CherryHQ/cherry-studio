@@ -137,7 +137,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         <Globe
           size={18}
           style={{
-            color: enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)'
+            color: enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>

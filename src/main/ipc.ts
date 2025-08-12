@@ -16,11 +16,12 @@ import { Notification } from 'src/renderer/src/types/notification'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import { codeToolsService } from './services/CodeToolsService'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
-import FileStorage from './services/FileStorage'
+import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
@@ -61,9 +62,8 @@ import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const fileManager = new FileStorage()
 const backupManager = new BackupManager()
-const exportService = new ExportService(fileManager)
+const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
@@ -701,4 +701,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  // CodeTools
+  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
 }
