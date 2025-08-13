@@ -1,8 +1,9 @@
 import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { SettingsRoutes } from '@renderer/types'
+import { SettingsRoute, SettingsRoutes } from '@renderer/types'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
@@ -41,8 +42,12 @@ import WebSearchSettings from './WebSearchSettings'
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+  const { isTopNavbar } = useNavbarPosition()
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
+
+  const noRadiusPaths = ['/settings/provider', '/settings/data'] satisfies SettingsRoute[]
+  const shouldRadius = isTopNavbar && !noRadiusPaths.some((path) => pathname.startsWith(path))
 
   return (
     <Container>
@@ -50,96 +55,99 @@ const SettingsPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <SettingMenus>
-          <MenuItemLink to={SettingsRoutes.PROVIDER}>
-            <MenuItem className={isRoute(SettingsRoutes.PROVIDER)}>
-              <Cloud size={18} />
-              {t('settings.provider.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.MODEL}>
-            <MenuItem className={isRoute(SettingsRoutes.MODEL)}>
-              <Package size={18} />
-              {t('settings.model')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to={SettingsRoutes.GENERAL}>
-            <MenuItem className={isRoute(SettingsRoutes.GENERAL)}>
-              <Settings2 size={18} />
-              {t('settings.general.label')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.DISPLAY}>
-            <MenuItem className={isRoute(SettingsRoutes.DISPLAY)}>
-              <MonitorCog size={18} />
-              {t('settings.display.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.DATA}>
-            <MenuItem className={isRoute(SettingsRoutes.DATA)}>
-              <HardDrive size={18} />
-              {t('settings.data.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to={SettingsRoutes.MCP}>
-            <MenuItem className={isRoute(SettingsRoutes.MCP)}>
-              <SquareTerminal size={18} />
-              {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.WEBSEARCH}>
-            <MenuItem className={isRoute(SettingsRoutes.WEBSEARCH)}>
-              <GlobalOutlined style={{ fontSize: 18 }} />
-              {t('settings.tool.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.MEMORY}>
-            <MenuItem className={isRoute(SettingsRoutes.MEMORY)}>
-              <Brain size={18} />
-              {t('memory.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.PREPROCESS}>
-            <MenuItem className={isRoute(SettingsRoutes.PREPROCESS)}>
-              <FileCode size={18} />
-              {t('settings.tool.preprocess.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.QUICK_PHRASE}>
-            <MenuItem className={isRoute(SettingsRoutes.QUICK_PHRASE)}>
-              <Zap size={18} />
-              {t('settings.quickPhrase.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.SHORTCUT}>
-            <MenuItem className={isRoute(SettingsRoutes.SHORTCUT)}>
-              <Command size={18} />
-              {t('settings.shortcuts.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to={SettingsRoutes.QUICK_ASSISTANT}>
-            <MenuItem className={isRoute(SettingsRoutes.QUICK_ASSISTANT)}>
-              <PictureInPicture2 size={18} />
-              {t('settings.quickAssistant.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to={SettingsRoutes.SELECTION_ASSISTANT}>
-            <MenuItem className={isRoute(SettingsRoutes.SELECTION_ASSISTANT)}>
-              <TextCursorInput size={18} />
-              {t('selection.name')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to={SettingsRoutes.ABOUT}>
-            <MenuItem className={isRoute(SettingsRoutes.ABOUT)}>
-              <Info size={18} />
-              {t('settings.about.label')}
-            </MenuItem>
-          </MenuItemLink>
-        </SettingMenus>
+        <SettingMenusContainer>
+          <SettingMenus style={{ borderRadius: shouldRadius ? 8 : 0 }}>
+            <MenuItemLink to={SettingsRoutes.PROVIDER}>
+              <MenuItem className={isRoute(SettingsRoutes.PROVIDER)}>
+                <Cloud size={18} />
+                {t('settings.provider.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.MODEL}>
+              <MenuItem className={isRoute(SettingsRoutes.MODEL)}>
+                <Package size={18} />
+                {t('settings.model')}
+              </MenuItem>
+            </MenuItemLink>
+            <Divider />
+            <MenuItemLink to={SettingsRoutes.GENERAL}>
+              <MenuItem className={isRoute(SettingsRoutes.GENERAL)}>
+                <Settings2 size={18} />
+                {t('settings.general.label')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.DISPLAY}>
+              <MenuItem className={isRoute(SettingsRoutes.DISPLAY)}>
+                <MonitorCog size={18} />
+                {t('settings.display.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.DATA}>
+              <MenuItem className={isRoute(SettingsRoutes.DATA)}>
+                <HardDrive size={18} />
+                {t('settings.data.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <Divider />
+            <MenuItemLink to={SettingsRoutes.MCP}>
+              <MenuItem className={isRoute(SettingsRoutes.MCP)}>
+                <SquareTerminal size={18} />
+                {t('settings.mcp.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.WEBSEARCH}>
+              <MenuItem className={isRoute(SettingsRoutes.WEBSEARCH)}>
+                <GlobalOutlined style={{ fontSize: 18 }} />
+                {t('settings.tool.websearch.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.MEMORY}>
+              <MenuItem className={isRoute(SettingsRoutes.MEMORY)}>
+                <Brain size={18} />
+                {t('memory.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.PREPROCESS}>
+              <MenuItem className={isRoute(SettingsRoutes.PREPROCESS)}>
+                <FileCode size={18} />
+                {t('settings.tool.preprocess.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.QUICK_PHRASE}>
+              <MenuItem className={isRoute(SettingsRoutes.QUICK_PHRASE)}>
+                <Zap size={18} />
+                {t('settings.quickPhrase.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.SHORTCUT}>
+              <MenuItem className={isRoute(SettingsRoutes.SHORTCUT)}>
+                <Command size={18} />
+                {t('settings.shortcuts.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <Divider />
+            <MenuItemLink to={SettingsRoutes.QUICK_ASSISTANT}>
+              <MenuItem className={isRoute(SettingsRoutes.QUICK_ASSISTANT)}>
+                <PictureInPicture2 size={18} />
+                {t('settings.quickAssistant.title')}
+              </MenuItem>
+            </MenuItemLink>
+            <MenuItemLink to={SettingsRoutes.SELECTION_ASSISTANT}>
+              <MenuItem className={isRoute(SettingsRoutes.SELECTION_ASSISTANT)}>
+                <TextCursorInput size={18} />
+                {t('selection.name')}
+              </MenuItem>
+            </MenuItemLink>
+            <Divider />
+            <MenuItemLink to={SettingsRoutes.ABOUT}>
+              <MenuItem className={isRoute(SettingsRoutes.ABOUT)}>
+                <Info size={18} />
+                {t('settings.about.label')}
+              </MenuItem>
+            </MenuItemLink>
+          </SettingMenus>
+        </SettingMenusContainer>
+
         <SettingContent>
           <Routes>
             <Route path={SettingsRoutes.PROVIDER.slice(10)} element={<ProvidersList />} />
@@ -174,15 +182,24 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
-  height: calc(100vh - var(--navbar-height));
+  background-color: var(--color-background-soft);
+  height: 100%;
+`
+
+const SettingMenusContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: var(--settings-width);
+  background-color: var(--color-background-soft);
 `
 
 const SettingMenus = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  min-width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
+  flex: 1;
   padding: 10px;
+  border-right: 0.5px solid var(--color-border);
+  background-color: var(--color-background);
   user-select: none;
   gap: 5px;
 `
