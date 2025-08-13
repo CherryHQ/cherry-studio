@@ -2917,7 +2917,7 @@
       "tagsPlaceholder": "タグを入力",
       "timeout": "タイムアウト",
       "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動承認",
@@ -2988,6 +2988,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },

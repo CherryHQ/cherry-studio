@@ -2917,7 +2917,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP Settings",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -2988,6 +2988,7 @@
         "none": "None"
       },
       "prompt": "Show prompt",
+      "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
@@ -3460,10 +3461,10 @@
     "title": "Settings",
     "tool": {
       "preprocess": {
-        "provider": "Pre Process Provider",
-        "provider_placeholder": "Choose a Pre Process provider",
-        "title": "Pre Process",
-        "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
+        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
       "websearch": {

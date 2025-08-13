@@ -7,7 +7,7 @@ import { Assistant, WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, startTransition, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface WebSearchButtonRef {
@@ -29,23 +29,22 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
 
   const updateSelectedWebSearchProvider = useCallback(
-    (providerId?: WebSearchProvider['id']) => {
+    async (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-      // NOTE: 也许可以用startTransition优化卡顿问题
-      setTimeout(() => {
-        const currentWebSearchProviderId = assistant.webSearchProviderId
-        const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
+      const currentWebSearchProviderId = assistant.webSearchProviderId
+      const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
+      startTransition(() => {
         updateAssistant({ ...assistant, webSearchProviderId: newWebSearchProviderId, enableWebSearch: false })
-      }, 200)
+      })
     },
     [assistant, updateAssistant]
   )
 
-  const updateSelectedWebSearchBuiltin = useCallback(() => {
+  const updateSelectedWebSearchBuiltin = useCallback(async () => {
     // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-    setTimeout(() => {
+    startTransition(() => {
       updateAssistant({ ...assistant, webSearchProviderId: undefined, enableWebSearch: !assistant.enableWebSearch })
-    }, 200)
+    })
   }, [assistant, updateAssistant])
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
@@ -92,11 +91,13 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   const openQuickPanel = useCallback(() => {
     if (assistant.webSearchProviderId) {
-      return updateSelectedWebSearchProvider(undefined)
+      updateSelectedWebSearchProvider(undefined)
+      return
     }
 
     if (assistant.enableWebSearch) {
-      return updateSelectedWebSearchBuiltin()
+      updateSelectedWebSearchBuiltin()
+      return
     }
 
     quickPanel.open({

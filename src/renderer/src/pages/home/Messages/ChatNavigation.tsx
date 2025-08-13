@@ -403,7 +403,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         onClose={handleDrawerClose}
         open={showChatHistory}
         width={680}
-        destroyOnClose
+        destroyOnHidden
         styles={{
           header: { border: 'none' },
           body: {

@@ -21,7 +21,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
 
   return (
     <StyledModal
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       centered
       transitionName="animation-move-down"

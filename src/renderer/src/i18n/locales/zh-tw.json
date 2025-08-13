@@ -2917,7 +2917,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "超時",
       "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為 60 秒",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動批准",
@@ -2988,6 +2988,7 @@
         "none": "不顯示"
       },
       "prompt": "提示詞顯示",
+      "show_message_outline": "顯示消息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
@@ -3460,10 +3461,10 @@
     "title": "設定",
     "tool": {
       "preprocess": {
-        "provider": "前置處理供應商",
-        "provider_placeholder": "選擇一個預處理供應商",
-        "title": "前置處理",
-        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
+        "provider": "文件處理供應商",
+        "provider_placeholder": "選擇一個文件處理供應商",
+        "title": "文件處理",
+        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
       "title": "其他設定",
       "websearch": {

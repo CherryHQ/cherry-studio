@@ -217,6 +217,7 @@ export interface SettingsState {
   navbarPosition: 'left' | 'top'
   // API Server
   apiServer: ApiServerConfig
+  showMessageOutline?: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -404,7 +405,8 @@ export const initialState: SettingsState = {
     host: 'localhost',
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
-  }
+  },
+  showMessageOutline: undefined
 }
 
 const settingsSlice = createSlice({
@@ -833,6 +835,9 @@ const settingsSlice = createSlice({
         ...state.apiServer,
         apiKey: action.payload
       }
+    },
+    setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
+      state.showMessageOutline = action.payload
     }
   }
 })
@@ -958,6 +963,7 @@ export const {
   setS3Partial,
   setEnableDeveloperMode,
   setNavbarPosition,
+  setShowMessageOutline,
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
