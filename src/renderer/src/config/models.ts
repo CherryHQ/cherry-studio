@@ -2469,7 +2469,7 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1') || modelId.includes('gpt-5-chat')
+  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
