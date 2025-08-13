@@ -292,7 +292,9 @@ export function isWebSearchProvider(provider: ApiProvider): provider is WebSearc
 }
 
 export function isPreprocessProvider(provider: ApiProvider): provider is PreprocessProvider {
-  return isPreprocessProviderId(provider.id)
+  // NOTE: mistral 同时提供预处理和llm服务，所以其llm provier可能被误判为预处理provider
+  // 后面需要使用更严格的判断方式
+  return isPreprocessProviderId(provider.id) && !isLlmProvider(provider)
 }
 
 // 获取模型用于检查
