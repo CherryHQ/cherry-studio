@@ -1,9 +1,11 @@
+import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, WebSearchProvider } from '@renderer/types'
+import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
@@ -27,6 +29,32 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { updateAssistant } = useAssistant(assistant.id)
 
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
+
+  const WebSearchIcon = useCallback(
+    ({ pid, size = 18 }: { pid?: WebSearchProviderId; size?: number }) => {
+      const iconColor = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
+
+      switch (pid) {
+        case 'bocha':
+          return <BochaLogo width={size} height={size} color={iconColor} />
+        case 'exa':
+          return <ExaLogo width={size} height={size} color={iconColor} />
+        case 'tavily':
+          return <TavilyLogo width={size} height={size} color={iconColor} />
+        case 'searxng':
+          return <SearXNGLogo width={size} height={size} color={iconColor} />
+        case 'local-baidu':
+          return <BaiduOutlined size={size} style={{ color: iconColor }} />
+        case 'local-bing':
+          return <BingLogo width={size} height={size} color={iconColor} />
+        case 'local-google':
+          return <GoogleOutlined size={size} style={{ color: iconColor }} />
+        default:
+          return <Globe size={size} style={{ color: iconColor }} />
+      }
+    },
+    [enableWebSearch]
+  )
 
   const updateSelectedWebSearchProvider = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
@@ -58,7 +86,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <Globe />,
+        icon: <WebSearchIcon pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
         action: () => updateSelectedWebSearchProvider(p.id)
@@ -80,6 +108,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
     return items
   }, [
+    WebSearchIcon,
     assistant.enableWebSearch,
     assistant.model,
     assistant?.webSearchProviderId,
@@ -135,12 +164,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       mouseLeaveDelay={0}
       arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <Globe
-          size={18}
-          style={{
-            color: enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
-          }}
-        />
+        <WebSearchIcon pid={assistant.webSearchProviderId} />
       </ToolbarButton>
     </Tooltip>
   )
