@@ -99,11 +99,6 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           },
           Divider: {
             colorSplit: 'rgba(128,128,128,0.15)'
-          },
-          Splitter: {
-            splitBarDraggableSize: 0,
-            splitBarSize: 0.5,
-            splitTriggerSize: 10
           }
         },
         token: {

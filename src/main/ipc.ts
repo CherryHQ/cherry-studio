@@ -16,6 +16,7 @@ import { Notification } from 'src/renderer/src/types/notification'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import { codeToolsService } from './services/CodeToolsService'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
@@ -69,7 +70,7 @@ const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const appUpdater = new AppUpdater(mainWindow)
+  const appUpdater = new AppUpdater()
   const notificationService = new NotificationService(mainWindow)
 
   // Initialize Python service with main window
@@ -700,4 +701,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  // CodeTools
+  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
 }

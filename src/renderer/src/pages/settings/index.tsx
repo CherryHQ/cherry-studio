@@ -7,7 +7,7 @@ export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 10px;
+  padding: 15px 18px;
   overflow-y: scroll;
   background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
 

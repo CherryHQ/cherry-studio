@@ -113,12 +113,6 @@ const GeneralSettings: FC = () => {
 
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
     dispatch(setProxyMode(mode))
-    if (mode === 'system') {
-      dispatch(_setProxyUrl(undefined))
-    } else if (mode === 'none') {
-      dispatch(_setProxyUrl(undefined))
-      dispatch(_setProxyBypassRules(undefined))
-    }
   }
 
   const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [

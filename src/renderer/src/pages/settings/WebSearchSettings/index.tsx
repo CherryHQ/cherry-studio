@@ -6,7 +6,7 @@ import { hasObjectKey } from '@renderer/utils'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
 import CompressionSettings from './CompressionSettings'
