@@ -3,7 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { SettingsRoute, SettingsRoutes } from '@renderer/types'
+import { AppRoutes, SettingsRoute, SettingsRoutes } from '@renderer/types'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
@@ -40,7 +40,7 @@ import ShortcutSettings from './ShortcutSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 // remove "/settings/"
-const PATH_START_INDEX = 10
+const PATH_START_INDEX = AppRoutes.SETTINGS.length + 1
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
