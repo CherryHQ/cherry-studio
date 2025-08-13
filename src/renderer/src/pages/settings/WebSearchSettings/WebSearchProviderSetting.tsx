@@ -21,7 +21,7 @@ import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, S
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
-  providerId: string
+  providerId: WebSearchProviderId
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
