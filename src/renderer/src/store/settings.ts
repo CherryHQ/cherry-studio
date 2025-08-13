@@ -215,6 +215,8 @@ export interface SettingsState {
   enableDeveloperMode: boolean
   // UI
   navbarPosition: 'left' | 'top'
+  // Prompt Optimization
+  promptOptimizationTemplate: string
   // API Server
   apiServer: ApiServerConfig
 }
@@ -399,6 +401,7 @@ export const initialState: SettingsState = {
   // UI
   navbarPosition: 'top',
   // API Server
+  promptOptimizationTemplate: '',
   apiServer: {
     enabled: false,
     host: 'localhost',
@@ -833,6 +836,9 @@ const settingsSlice = createSlice({
         ...state.apiServer,
         apiKey: action.payload
       }
+    },
+    setPromptOptimizationTemplate: (state, action: PayloadAction<string>) => {
+      state.promptOptimizationTemplate = action.payload
     }
   }
 })

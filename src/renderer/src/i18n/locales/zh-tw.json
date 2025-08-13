@@ -63,7 +63,17 @@
       "no_results": "沒有找到相關智慧代理人"
     },
     "settings": {
-      "title": "智慧代理人設定"
+      "title": "智慧代理人設定",
+      "tool": {
+        "promptOptimization": {
+          "description": "自定義提示詞優化模板。使用 {content} 作為用戶輸入的佔位符",
+          "placeholder": "在此輸入提示詞優化模板...",
+          "reset": "恢復默認設置",
+          "tip1": "提示：使用 {content} 代表原始提示詞",
+          "tip2": "提示：優化結果應只返回優化後的提示詞，不含任何額外內容",
+          "title": "提示詞優化"
+        }
+      }
     },
     "sorting": {
       "title": "排序"
@@ -329,6 +339,9 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新話題 {{Command}}",
+      "optimize_prompt": "優化提示詞",
+      "optimize_prompt_failed": "提示詞優化失敗",
+      "optimize_prompt_result": "優化結果",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "send": "傳送",
@@ -765,6 +778,7 @@
     "refresh": "重新整理",
     "regenerate": "重新生成",
     "rename": "重新命名",
+    "replace": "替換",
     "reset": "重設",
     "save": "儲存",
     "saved": "已儲存",
@@ -805,7 +819,7 @@
       "chunk": {
         "non_json": "返回了無效的資料格式"
       },
-      "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
+      "response": "出錯了，請檢查網絡連接或稍後重試。如果問題持續，請前往設置 > 模型提供商中檢查配置"
     },
     "http": {
       "400": "請求錯誤，請檢查請求參數是否正確。如果修改了模型設定，請重設到預設設定",

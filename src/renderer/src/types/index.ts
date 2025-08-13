@@ -9,6 +9,29 @@ export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
+export type LanguageCode =
+  | 'unknown'
+  | 'en-us'
+  | 'zh-cn'
+  | 'zh-tw'
+  | 'ja-jp'
+  | 'ko-kr'
+  | 'fr-fr'
+  | 'de-de'
+  | 'it-it'
+  | 'es-es'
+  | 'pt-pt'
+  | 'ru-ru'
+  | 'pl-pl'
+  | 'ar-ar'
+  | 'tr-tr'
+  | 'th-th'
+  | 'vi-vn'
+  | 'id-id'
+  | 'ur-pk'
+  | 'ms-my'
+  | 'uk-ua'
+
 export type Assistant = {
   id: string
   name: string
@@ -33,6 +56,7 @@ export type Assistant = {
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
   enableMemory?: boolean
+  language?: LanguageCode // 添加语言属性
 }
 
 export type TranslateAssistant = Assistant & {

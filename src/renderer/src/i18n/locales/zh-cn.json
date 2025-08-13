@@ -63,7 +63,17 @@
       "no_results": "没有找到相关智能体"
     },
     "settings": {
-      "title": "智能体配置"
+      "title": "智能体配置",
+      "tool": {
+        "promptOptimization": {
+          "description": "自定义提示词优化的模板。使用{content}作为用户输入的占位符",
+          "placeholder": "在此输入您的提示词优化模板...",
+          "reset": "重置为默认模板",
+          "tip1": "提示：使用{content}表示原始提示词",
+          "tip2": "提示：优化后的结果应该只返回优化后的提示词，不要包含其他内容",
+          "title": "提示词优化"
+        }
+      }
     },
     "sorting": {
       "title": "排序"
@@ -329,6 +339,9 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新话题 {{Command}}",
+      "optimize_prompt": "优化提示词",
+      "optimize_prompt_failed": "提示词优化失败",
+      "optimize_prompt_result": "优化结果",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送...",
       "send": "发送",
@@ -765,6 +778,7 @@
     "refresh": "刷新",
     "regenerate": "重新生成",
     "rename": "重命名",
+    "replace": "替换",
     "reset": "重置",
     "save": "保存",
     "saved": "已保存",
@@ -805,7 +819,7 @@
       "chunk": {
         "non_json": "返回了无效的数据格式"
       },
-      "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
+      "response": "出错了，请检查网络连接或稍后重试。如果问题持续，请前往设置 > 模型提供商中检查配置"
     },
     "http": {
       "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",

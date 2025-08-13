@@ -1,13 +1,14 @@
 import { GlobalOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
-import { FileCode, Zap } from 'lucide-react'
+import { FileCode, Sparkles, Zap } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import PreprocessSettings from './PreprocessSettings'
+import PromptOptimizationSettings from './PromptOptimizationSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import WebSearchSettings from './WebSearchSettings'
 
@@ -17,7 +18,8 @@ const ToolSettings: FC = () => {
   const menuItems = [
     { key: 'web-search', title: 'settings.tool.websearch.title', icon: <GlobalOutlined style={{ fontSize: 16 }} /> },
     { key: 'preprocess', title: 'settings.tool.preprocess.title', icon: <FileCode size={16} /> },
-    { key: 'quick-phrase', title: 'settings.quickPhrase.title', icon: <Zap size={16} /> }
+    { key: 'quick-phrase', title: 'settings.quickPhrase.title', icon: <Zap size={16} /> },
+    { key: 'prompt-optimization', title: 'agents.settings.tool.promptOptimization.title', icon: <Sparkles size={16} /> }
   ]
 
   const isActive = (key: string): boolean => {
@@ -48,6 +50,7 @@ const ToolSettings: FC = () => {
           <Route path="/web-search" element={<WebSearchSettings />} />
           <Route path="/preprocess" element={<PreprocessSettings />} />
           <Route path="/quick-phrase" element={<QuickPhraseSettings />} />
+          <Route path="/prompt-optimization" element={<PromptOptimizationSettings />} />
         </Routes>
       </ContentArea>
     </Container>

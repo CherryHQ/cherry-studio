@@ -64,18 +64,16 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
       map.set(span.id, { ...span, children: [], percent: 100, start: 0 })
     })
 
-    return Array.from(
-      map.values().filter((span) => {
-        if (span.parentId && map.has(span.parentId)) {
-          const parent = map.get(span.parentId)
-          if (parent) {
-            parent.children.push(span)
-          }
-          return false
+    return Array.from(map.values()).filter((span) => {
+      if (span.parentId && map.has(span.parentId)) {
+        const parent = map.get(span.parentId)
+        if (parent) {
+          parent.children.push(span)
         }
-        return true
-      })
-    )
+        return false
+      }
+      return true
+    })
   }
 
   const findNodeById = useCallback((nodes: TraceModal[], id: string): TraceModal | null => {

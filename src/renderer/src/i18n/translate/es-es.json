@@ -63,7 +63,17 @@
       "no_results": "No se encontraron agentes relacionados"
     },
     "settings": {
-      "title": "Configuración del Agente"
+      "title": "Configuración del Agente",
+      "tool": {
+        "promptOptimization": {
+          "description": "[to be translated]:自定义提示词优化的模板。使用{content}作为用户输入的占位符",
+          "placeholder": "[to be translated]:在此输入您的提示词优化模板...",
+          "reset": "[to be translated]:重置为默认模板",
+          "tip1": "[to be translated]:提示：使用{content}表示原始提示词",
+          "tip2": "[to be translated]:提示：优化后的结果应该只返回优化后的提示词，不要包含其他内容",
+          "title": "[to be translated]:提示词优化"
+        }
+      }
     },
     "sorting": {
       "title": "Ordenar"
@@ -329,6 +339,9 @@
         "context": "Limpiar contexto {{Command}}"
       },
       "new_topic": "Nuevo tema {{Command}}",
+      "optimize_prompt": "[to be translated]:优化提示词",
+      "optimize_prompt_failed": "[to be translated]:提示词优化失败",
+      "optimize_prompt_result": "[to be translated]:优化结果",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "send": "Enviar",
@@ -740,6 +753,7 @@
     "refresh": "Actualizar",
     "regenerate": "Regenerar",
     "rename": "Renombrar",
+    "replace": "[to be translated]:替换",
     "reset": "Restablecer",
     "save": "Guardar",
     "saved": "Guardado",
