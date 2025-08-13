@@ -1089,6 +1089,34 @@ export function objectKeys<T extends object>(obj: T): (keyof T)[] {
 }
 
 /**
+ * 将对象转换为键值对数组，保持类型安全
+ * @template T - 对象类型
+ * @param obj - 要转换的对象
+ * @returns 键值对数组，每个元素是一个包含键和值的元组
+ * @example
+ * const obj = { name: 'John', age: 30 };
+ * const entries = objectEntries(obj); // [['name', 'John'], ['age', 30]]
+ */
+export function objectEntries<T extends object>(obj: T): [keyof T, T[keyof T]][] {
+  return Object.entries(obj) as [keyof T, T[keyof T]][]
+}
+
+/**
+ * 将对象转换为键值对数组，提供更严格的类型检查
+ * @template T - 对象类型，键必须是string、number或symbol，值可以是任意类型
+ * @param obj - 要转换的对象
+ * @returns 键值对数组，每个元素是一个包含键和值的元组，类型完全对应原对象的键值类型
+ * @example
+ * const obj = { name: 'John', age: 30 };
+ * const entries = objectEntriesStrict(obj); // [['name', string], ['age', number]]
+ */
+export function objectEntriesStrict<T extends Record<string | number | symbol, unknown>>(
+  obj: T
+): { [K in keyof T]: [K, T[K]] }[keyof T][] {
+  return Object.entries(obj) as { [K in keyof T]: [K, T[K]] }[keyof T][]
+}
+
+/**
  * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
  * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
  * @template T - 必需包含的键的字面量字符串联合类型
