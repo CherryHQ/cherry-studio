@@ -2,7 +2,7 @@ import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPan
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
-import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { Assistant, MCPPrompt, MCPResource, MCPServer, SettingsRoutes } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Plus, SquareTerminal } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -176,7 +176,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     newList.push({
       label: t('settings.mcp.addServer.label') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/mcp')
+      action: () => navigate(SettingsRoutes.MCP)
     })
 
     newList.unshift({

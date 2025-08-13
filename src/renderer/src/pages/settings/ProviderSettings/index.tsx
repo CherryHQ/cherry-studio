@@ -6,7 +6,7 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
+import { isSystemProvider, Provider, ProviderType, SettingsRoutes } from '@renderer/types'
 import {
   generateColorFromChar,
   getFancyProviderName,
@@ -214,10 +214,10 @@ const ProvidersList: FC = () => {
           cancelText: t('common.cancel'),
           centered: true,
           onCancel() {
-            window.navigate(`/settings/provider?id=${id}`)
+            window.navigate(`${SettingsRoutes.PROVIDER}?id=${id}`)
           },
           onOk() {
-            window.navigate(`/settings/provider?id=${id}`)
+            window.navigate(`${SettingsRoutes.PROVIDER}?id=${id}`)
             if (keyAlreadyExists) {
               // 如果 key 已经存在，只显示消息，不做任何更改
               window.message.info(t('settings.models.provider_key_no_change', { provider: providerDisplayName }))
@@ -260,14 +260,14 @@ const ProvidersList: FC = () => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        window.navigate('/settings/provider')
+        window.navigate(SettingsRoutes.PROVIDER)
         return
       }
 
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      window.navigate('/settings/provider')
+      window.navigate(SettingsRoutes.PROVIDER)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])

@@ -5,7 +5,7 @@ import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@r
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { FileType, Model } from '@renderer/types'
+import { FileType, Model, SettingsRoutes } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -119,7 +119,7 @@ const MentionModelsButton: FC<Props> = ({
     items.push({
       label: t('settings.models.add.add_model') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/provider'),
+      action: () => navigate(SettingsRoutes.PROVIDER),
       isSelected: false
     })
 

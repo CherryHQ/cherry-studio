@@ -2,7 +2,7 @@ import { createSelector } from '@reduxjs/toolkit'
 import NavigationService from '@renderer/services/NavigationService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
+import { MCPServer, SettingsRoutes } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 // Listen for server changes from main process
@@ -12,8 +12,8 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) 
 
 window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
   store.dispatch(addMCPServer(server))
-  NavigationService.navigate?.('/settings/mcp')
-  NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
+  NavigationService.navigate?.(SettingsRoutes.MCP)
+  NavigationService.navigate?.(`${SettingsRoutes.MCP}/settings/${encodeURIComponent(server.id)}`)
 })
 
 const selectMcpServers = (state) => state.mcp.servers

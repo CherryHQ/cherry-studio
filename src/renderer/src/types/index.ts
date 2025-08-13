@@ -1106,7 +1106,7 @@ export function objectValues<T extends Record<string, string>>(obj: T): Readonly
 }
 
 export const AppRoutes = {
-  HOME: '/',
+  ROOT: '/',
   AGENTS: '/agents',
   PAINTINGS: '/paintings',
   PAINTINGS_ROOT: '/paintings/*', // 用于路由匹配

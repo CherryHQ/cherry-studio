@@ -1,4 +1,5 @@
 import { useAppSelector } from '@renderer/store'
+import { SettingsRoutes } from '@renderer/types'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -15,7 +16,7 @@ const NavigationHandler: React.FC = () => {
       if (location.pathname.startsWith('/settings')) {
         return
       }
-      navigate('/settings/provider')
+      navigate(SettingsRoutes.PROVIDER)
     },
     {
       splitKey: '!',

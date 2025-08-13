@@ -8,7 +8,7 @@ import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, FileMetadata, Model, Topic, Usage } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { AppRoutes, FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -82,7 +82,7 @@ export async function locateToMessage(navigate: NavigateFunction, message: Messa
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)
 
-  navigate('/', { state: { assistant, topic } })
+  navigate(AppRoutes.ROOT, { state: { assistant, topic } })
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)

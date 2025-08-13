@@ -25,7 +25,7 @@ const Router: FC = () => {
   const routes = useMemo(() => {
     return (
       <Routes>
-        <Route path={AppRoutes.HOME} element={<HomePage />} />
+        <Route path={AppRoutes.ROOT} element={<HomePage />} />
         <Route path={AppRoutes.AGENTS} element={<AgentsPage />} />
         <Route path={AppRoutes.PAINTINGS_ROOT} element={<PaintingsRoutePage />} />
         <Route path={AppRoutes.TRANSLATE} element={<TranslatePage />} />
