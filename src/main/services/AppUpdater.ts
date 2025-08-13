@@ -9,10 +9,10 @@ import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
-import { windowService } from './WindowService'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
+import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
 

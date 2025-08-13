@@ -648,6 +648,31 @@
     },
     "translate": "Traducir"
   },
+  "code": {
+    "auto_update_to_latest": "Comprobar actualizaciones e instalar la última versión",
+    "bun_required_message": "Para ejecutar la herramienta CLI es necesario instalar el entorno Bun.",
+    "cli_tool": "Herramienta CLI",
+    "cli_tool_placeholder": "Seleccionar la herramienta CLI a utilizar",
+    "description": "Inicio rápido de múltiples herramientas CLI de código para mejorar la eficiencia en el desarrollo.",
+    "folder_placeholder": "Seleccionar directorio de trabajo",
+    "install_bun": "Instalar Bun",
+    "installing_bun": "Instalando...",
+    "launch": {
+      "bun_required": "Por favor, instala primero el entorno Bun antes de iniciar la herramienta CLI.",
+      "error": "Inicio fallido, por favor inténtalo de nuevo.",
+      "label": "arrancar",
+      "success": "Inicio exitoso",
+      "validation_error": "Por favor, complete todos los campos obligatorios: herramienta CLI, modelo y directorio de trabajo."
+    },
+    "launching": "Iniciando...",
+    "model": "Modelo",
+    "model_placeholder": "Selecciona el modelo a utilizar",
+    "model_required": "Por favor, selecciona el modelo.",
+    "select_folder": "Seleccionar carpeta",
+    "title": "Herramientas de código",
+    "update_options": "Actualizar opciones",
+    "working_directory": "directorio de trabajo"
+  },
   "code_block": {
     "collapse": "Replegar",
     "copy": {
@@ -877,10 +902,11 @@
     },
     "add_directory": "Agregar directorio",
     "add_file": "Agregar archivo",
+    "add_image": "Añadir imagen",
     "add_note": "Agregar nota",
     "add_sitemap": "Mapa del sitio",
     "add_url": "Agregar URL",
-    "add_video": "[to be translated]:添加视频",
+    "add_video": "Añadir video",
     "cancel_index": "Cancelar índice",
     "chunk_overlap": "Superposición de fragmentos",
     "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
@@ -907,6 +933,7 @@
     "document_count_default": "Predeterminado",
     "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
     "drag_file": "Arrastre archivos aquí",
+    "drag_image": "Arrastra la imagen aquí",
     "edit_remark": "Editar observación",
     "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "Modelo de incrustación",
@@ -915,9 +942,15 @@
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
+      "video": {
+        "local_file_missing": "El archivo de video no existe.",
+        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
+      }
     },
     "file_hint": "Formatos soportados: {{file_types}}",
+    "image_hint": "Soporta formatos {{image_types}}",
+    "images": "Imagen",
     "index_all": "Indexar todo",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
@@ -935,8 +968,8 @@
         "failed": "Error en la migración"
       },
       "migrate_to_langchain": {
-        "content": "[to be translated]:知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "info": "[to be translated]:知识库架构已更新，点击迁移到新架构"
+        "content": "La migración de la base de conocimiento no elimina la base antigua, sino que crea una copia y luego reprocesa todas las entradas, lo que puede consumir una gran cantidad de tokens. Proceda con precaución.",
+        "info": "La estructura de la base de conocimiento ha sido actualizada. Haz clic para migrar a la nueva estructura."
       },
       "source_dimensions": "Dimensiones de origen",
       "source_model": "Modelo de origen",
@@ -956,20 +989,20 @@
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
-    "retriever": "[to be translated]:检索模式",
-    "retriever_bm25": "[to be translated]:全文搜索",
-    "retriever_bm25_desc": "[to be translated]:根据关键字的相关性和频率查找文档。",
-    "retriever_hybrid": "[to be translated]:混合搜索 (推荐)",
-    "retriever_hybrid_desc": "[to be translated]:结合关键词搜索和语义搜索，以实现最佳检索准确性。",
+    "retriever": "modo de recuperación",
+    "retriever_bm25": "búsqueda de texto completo",
+    "retriever_bm25_desc": "Encontrar documentos basados en la relevancia y frecuencia de las palabras clave.",
+    "retriever_hybrid": "Búsqueda híbrida (recomendada)",
+    "retriever_hybrid_desc": "Combinar la búsqueda por palabras clave con la búsqueda semántica para lograr la máxima precisión en la recuperación.",
     "retriever_hybrid_weight": {
-      "bm25": "[to be translated]:全文",
-      "recommended": "[to be translated]:推荐",
-      "title": "[to be translated]:混合搜索权重调整 (全文/向量)",
-      "vector": "[to be translated]:向量"
+      "bm25": "texto completo",
+      "recommended": "Recomendado",
+      "title": "Ajuste de ponderación en búsqueda híbrida (texto completo/vectorial)",
+      "vector": "vector"
     },
-    "retriever_tooltip": "[to be translated]:使用不同的检索方式检索知识库",
-    "retriever_vector": "[to be translated]:向量搜索",
-    "retriever_vector_desc": "[to be translated]:根据语义相似性和含义查找文档。",
+    "retriever_tooltip": "Usar diferentes métodos de búsqueda para consultar la base de conocimiento",
+    "retriever_vector": "búsqueda vectorial",
+    "retriever_vector_desc": "Buscar documentos según similitud semántica y significado.",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
     "settings": {
@@ -1003,7 +1036,7 @@
     "url_added": "URL agregada",
     "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
     "urls": "URLs",
-    "videos": "[to be translated]:视频"
+    "videos": "vídeo"
   },
   "languages": {
     "arabic": "Árabe",
@@ -3581,6 +3614,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Aplicaciones",
+    "code": "Código",
     "files": "Archivos",
     "home": "Inicio",
     "knowledge": "Base de conocimiento",

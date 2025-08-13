@@ -479,8 +479,6 @@ export class GeminiAPIClient extends BaseApiClient<
             parts: [{ text: messages }]
           }
         } else {
-          console.log('convertMessageToSdkParam here', messages)
-
           const userLastMessage = messages.pop()
           if (userLastMessage) {
             messageContents = await this.convertMessageToSdkParam(userLastMessage)
@@ -489,8 +487,6 @@ export class GeminiAPIClient extends BaseApiClient<
             }
             messages.push(userLastMessage)
           }
-
-          console.log('convertMessageToSdkParam', messageContents)
         }
 
         if (enableWebSearch) {

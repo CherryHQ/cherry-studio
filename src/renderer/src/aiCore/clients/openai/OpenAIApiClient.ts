@@ -351,8 +351,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
     }
 
-    console.log('convertMessageToSdkParam', parts)
-
     for (const imageBlock of imageBlocks) {
       if (isVision) {
         if (imageBlock.file) {

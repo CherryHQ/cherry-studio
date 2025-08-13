@@ -648,6 +648,31 @@
     },
     "translate": "Traduire"
   },
+  "code": {
+    "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
+    "bun_required_message": "Pour exécuter l'outil CLI, il est nécessaire d'installer l'environnement Bun.",
+    "cli_tool": "Outil en ligne de commande",
+    "cli_tool_placeholder": "Sélectionnez l’outil CLI à utiliser",
+    "description": "Lancez rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement.",
+    "folder_placeholder": "Sélectionner le répertoire de travail",
+    "install_bun": "Installer Bun",
+    "installing_bun": "Installation en cours...",
+    "launch": {
+      "bun_required": "Veuillez d'abord installer l'environnement Bun avant de démarrer l'outil CLI.",
+      "error": "Échec du démarrage, veuillez réessayer.",
+      "label": "Démarrer",
+      "success": "Lancement réussi",
+      "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail."
+    },
+    "launching": "Initialisation en cours...",
+    "model": "modèle",
+    "model_placeholder": "Choisissez le modèle à utiliser",
+    "model_required": "Veuillez sélectionner le modèle",
+    "select_folder": "Sélectionner un dossier",
+    "title": "Outil de code",
+    "update_options": "Mettre à jour les options",
+    "working_directory": "répertoire de travail"
+  },
   "code_block": {
     "collapse": "Réduire",
     "copy": {
@@ -877,10 +902,11 @@
     },
     "add_directory": "Ajouter un répertoire",
     "add_file": "Ajouter un fichier",
+    "add_image": "Ajouter une image",
     "add_note": "Ajouter une note",
     "add_sitemap": "Plan du site",
     "add_url": "Ajouter une URL",
-    "add_video": "[to be translated]:添加视频",
+    "add_video": "Ajouter une vidéo",
     "cancel_index": "Annuler l'indexation",
     "chunk_overlap": "Chevauchement de blocs",
     "chunk_overlap_placeholder": "Valeur par défaut (ne pas modifier)",
@@ -907,6 +933,7 @@
     "document_count_default": "Par défaut",
     "document_count_help": "Plus vous demandez de fragments de documents, plus d'informations sont fournies, mais plus de jetons sont consommés",
     "drag_file": "Glissez-déposez un fichier ici",
+    "drag_image": "Faites glisser l'image ici",
     "edit_remark": "Modifier la remarque",
     "edit_remark_placeholder": "Entrez le contenu de la remarque",
     "embedding_model": "Modèle d'intégration",
@@ -915,9 +942,15 @@
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
       "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
-      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
+      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé",
+      "video": {
+        "local_file_missing": "Le fichier vidéo n'existe pas.",
+        "youtube_url_missing": "Le lien de la vidéo YouTube n'existe pas."
+      }
     },
     "file_hint": "Format supporté : {{file_types}}",
+    "image_hint": "Prise en charge des formats {{image_types}}",
+    "images": "Image",
     "index_all": "Indexer tout",
     "index_cancelled": "L'indexation a été annulée",
     "index_started": "L'indexation a commencé",
@@ -935,8 +968,8 @@
         "failed": "Erreur lors de la migration"
       },
       "migrate_to_langchain": {
-        "content": "[to be translated]:知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "info": "[to be translated]:知识库架构已更新，点击迁移到新架构"
+        "content": "La migration de la base de connaissances ne supprime pas l'ancienne base, mais crée une copie avant de retraiter tous les éléments, ce qui peut consommer un grand nombre de tokens. Veuillez agir avec prudence.",
+        "info": "L'architecture de la base de connaissances a été mise à jour, cliquez pour migrer vers la nouvelle architecture."
       },
       "source_dimensions": "Dimensions source",
       "source_model": "Modèle source",
@@ -956,20 +989,20 @@
     "quota": "Quota restant pour {{name}} : {{quota}}",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
-    "retriever": "[to be translated]:检索模式",
-    "retriever_bm25": "[to be translated]:全文搜索",
-    "retriever_bm25_desc": "[to be translated]:根据关键字的相关性和频率查找文档。",
-    "retriever_hybrid": "[to be translated]:混合搜索 (推荐)",
-    "retriever_hybrid_desc": "[to be translated]:结合关键词搜索和语义搜索，以实现最佳检索准确性。",
+    "retriever": "Mode de recherche",
+    "retriever_bm25": "Recherche plein texte",
+    "retriever_bm25_desc": "Rechercher des documents en fonction de la pertinence et de la fréquence des mots-clés.",
+    "retriever_hybrid": "Recherche hybride (recommandé)",
+    "retriever_hybrid_desc": "Associez la recherche par mots-clés et la recherche sémantique pour une précision de recherche optimale.",
     "retriever_hybrid_weight": {
-      "bm25": "[to be translated]:全文",
-      "recommended": "[to be translated]:推荐",
-      "title": "[to be translated]:混合搜索权重调整 (全文/向量)",
-      "vector": "[to be translated]:向量"
+      "bm25": "texte intégral",
+      "recommended": "Recommandé",
+      "title": "Ajustement des pondérations de recherche hybride (texte intégral/vecteur)",
+      "vector": "vecteur"
     },
-    "retriever_tooltip": "[to be translated]:使用不同的检索方式检索知识库",
-    "retriever_vector": "[to be translated]:向量搜索",
-    "retriever_vector_desc": "[to be translated]:根据语义相似性和含义查找文档。",
+    "retriever_tooltip": "Utiliser différentes méthodes de recherche pour interroger la base de connaissances",
+    "retriever_vector": "Recherche vectorielle",
+    "retriever_vector_desc": "Rechercher des documents selon la similarité sémantique et le sens.",
     "search": "Rechercher dans la base de connaissances",
     "search_placeholder": "Entrez votre requête",
     "settings": {
@@ -1003,7 +1036,7 @@
     "url_added": "URL ajoutée",
     "url_placeholder": "Entrez l'URL, plusieurs URLs séparées par des sauts de ligne",
     "urls": "URLs",
-    "videos": "[to be translated]:视频"
+    "videos": "vidéo"
   },
   "languages": {
     "arabic": "Arabe",
@@ -3581,6 +3614,7 @@
   "title": {
     "agents": "Agent intelligent",
     "apps": "Mini-programmes",
+    "code": "Code",
     "files": "Fichiers",
     "home": "Page d'accueil",
     "knowledge": "Base de connaissances",

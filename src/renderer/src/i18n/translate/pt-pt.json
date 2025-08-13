@@ -648,6 +648,31 @@
     },
     "translate": "Traduzir"
   },
+  "code": {
+    "auto_update_to_latest": "Verificar atualizações e instalar a versão mais recente",
+    "bun_required_message": "Para executar a ferramenta CLI é necessário instalar o ambiente Bun.",
+    "cli_tool": "Ferramenta CLI",
+    "cli_tool_placeholder": "Escolha a ferramenta CLI a utilizar",
+    "description": "Iniciar rapidamente várias ferramentas CLI de código para aumentar a eficiência de desenvolvimento",
+    "folder_placeholder": "Escolher diretório de trabalho",
+    "install_bun": "Instalar o Bun",
+    "installing_bun": "A instalar...",
+    "launch": {
+      "bun_required": "Por favor, instale primeiro o ambiente Bun antes de iniciar a ferramenta CLI.",
+      "error": "Falha ao iniciar, por favor tente novamente.",
+      "label": "Lançar",
+      "success": "Inicialização bem-sucedida",
+      "validation_error": "Por favor, preencha todos os campos obrigatórios: ferramenta CLI, modelo e diretório de trabalho."
+    },
+    "launching": "A iniciar...",
+    "model": "modelo",
+    "model_placeholder": "Escolha o modelo a utilizar.",
+    "model_required": "Por favor, selecione o modelo.",
+    "select_folder": "Selecionar pasta",
+    "title": "ferramenta de código",
+    "update_options": "Atualizar opções",
+    "working_directory": "diretório de trabalho"
+  },
   "code_block": {
     "collapse": "Recolher",
     "copy": {
@@ -877,10 +902,11 @@
     },
     "add_directory": "Adicionar diretório",
     "add_file": "Adicionar arquivo",
+    "add_image": "Adicionar imagens",
     "add_note": "Adicionar nota",
     "add_sitemap": "Adicionar mapa do site",
     "add_url": "Adicionar URL",
-    "add_video": "[to be translated]:添加视频",
+    "add_video": "Adicionar vídeo",
     "cancel_index": "Cancelar índice",
     "chunk_overlap": "Sobreposição de bloco",
     "chunk_overlap_placeholder": "Valor padrão (não recomendado alterar)",
@@ -907,6 +933,7 @@
     "document_count_default": "Padrão",
     "document_count_help": "Quanto mais fragmentos de documentos solicitados, mais informações são incluídas, mas mais tokens são consumidos",
     "drag_file": "Arraste o arquivo aqui",
+    "drag_image": "Arraste a imagem para aqui",
     "edit_remark": "Editar observação",
     "edit_remark_placeholder": "Digite o conteúdo da observação",
     "embedding_model": "Modelo de incorporação",
@@ -915,9 +942,15 @@
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
       "failed_to_edit": "Falha ao editar o repositório de conhecimento",
-      "model_invalid": "Modelo não selecionado ou eliminado"
+      "model_invalid": "Modelo não selecionado ou eliminado",
+      "video": {
+        "local_file_missing": "O ficheiro de vídeo não existe.",
+        "youtube_url_missing": "O link do vídeo do YouTube não existe."
+      }
     },
     "file_hint": "Formatos suportados: {{file_types}}",
+    "image_hint": "Suporta formatos {{image_types}}",
+    "images": "imagem",
     "index_all": "Índice total",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
@@ -935,8 +968,8 @@
         "failed": "Falha na migração"
       },
       "migrate_to_langchain": {
-        "content": "[to be translated]:知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "info": "[to be translated]:知识库架构已更新，点击迁移到新架构"
+        "content": "A migração da base de conhecimento não elimina a base antiga, mas sim cria uma cópia e reprocessa todas as entradas, o que pode consumir muitos tokens. Por favor, proceda com cautela.",
+        "info": "A arquitetura da base de conhecimento foi atualizada, clique para migrar para a nova arquitetura."
       },
       "source_dimensions": "Dimensões de origem",
       "source_model": "Modelo de origem",
@@ -956,20 +989,20 @@
     "quota": "Cota restante de {{name}}: {{quota}}",
     "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
-    "retriever": "[to be translated]:检索模式",
-    "retriever_bm25": "[to be translated]:全文搜索",
-    "retriever_bm25_desc": "[to be translated]:根据关键字的相关性和频率查找文档。",
-    "retriever_hybrid": "[to be translated]:混合搜索 (推荐)",
-    "retriever_hybrid_desc": "[to be translated]:结合关键词搜索和语义搜索，以实现最佳检索准确性。",
+    "retriever": "Modo de pesquisa",
+    "retriever_bm25": "pesquisa de texto completo",
+    "retriever_bm25_desc": "Pesquisar documentos com base na relevância e frequência das palavras-chave.",
+    "retriever_hybrid": "Pesquisa híbrida (recomendada)",
+    "retriever_hybrid_desc": "Combine a pesquisa por palavras-chave com a pesquisa semântica para alcançar a melhor precisão de recuperação.",
     "retriever_hybrid_weight": {
-      "bm25": "[to be translated]:全文",
-      "recommended": "[to be translated]:推荐",
-      "title": "[to be translated]:混合搜索权重调整 (全文/向量)",
-      "vector": "[to be translated]:向量"
+      "bm25": "texto integral",
+      "recommended": "Recomendar",
+      "title": "Ajuste de ponderação de pesquisa híbrida (texto completo/vetorial)",
+      "vector": "vetor"
     },
-    "retriever_tooltip": "[to be translated]:使用不同的检索方式检索知识库",
-    "retriever_vector": "[to be translated]:向量搜索",
-    "retriever_vector_desc": "[to be translated]:根据语义相似性和含义查找文档。",
+    "retriever_tooltip": "Utilize diferentes métodos de pesquisa para consultar a base de conhecimento.",
+    "retriever_vector": "pesquisa vetorial",
+    "retriever_vector_desc": "Encontrar documentos com base na similaridade semântica e significado.",
     "search": "Pesquisar repositório de conhecimento",
     "search_placeholder": "Digite o conteúdo da consulta",
     "settings": {
@@ -1003,7 +1036,7 @@
     "url_added": "URL adicionada",
     "url_placeholder": "Digite a URL, várias URLs separadas por enter",
     "urls": "URLs",
-    "videos": "[to be translated]:视频"
+    "videos": "vídeo"
   },
   "languages": {
     "arabic": "Árabe",
@@ -3581,6 +3614,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Miniaplicativos",
+    "code": "Código",
     "files": "Arquivos",
     "home": "Página Inicial",
     "knowledge": "Base de Conhecimento",
