@@ -436,7 +436,7 @@ function processKnowledgeReferences(
   }
 
   for (const ref of references) {
-    const { metadata } = ref
+    const { content, metadata } = ref
     if (!metadata?.source) {
       continue
     }
@@ -445,6 +445,7 @@ function processKnowledgeReferences(
       case 'image': {
         onChunkReceived({
           type: ChunkType.IMAGE_SEARCHED,
+          content,
           metadata
         })
         break

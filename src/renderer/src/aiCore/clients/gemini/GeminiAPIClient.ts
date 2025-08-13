@@ -235,7 +235,20 @@ export class GeminiAPIClient extends BaseApiClient<
    */
   private async convertMessageToSdkParam(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
-    const parts: Part[] = [{ text: await this.getMessageContent(message) }]
+    const { textContent, imageContents } = await this.getMessageContent(message)
+    const parts: Part[] = [{ text: textContent }]
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        const image = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+        parts.push({
+          inlineData: {
+            data: image.base64,
+            mimeType: image.mime
+          } as Part['inlineData']
+        })
+      }
+    }
 
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
@@ -466,6 +479,8 @@ export class GeminiAPIClient extends BaseApiClient<
             parts: [{ text: messages }]
           }
         } else {
+          console.log('convertMessageToSdkParam here', messages)
+
           const userLastMessage = messages.pop()
           if (userLastMessage) {
             messageContents = await this.convertMessageToSdkParam(userLastMessage)
@@ -474,6 +489,8 @@ export class GeminiAPIClient extends BaseApiClient<
             }
             messages.push(userLastMessage)
           }
+
+          console.log('convertMessageToSdkParam', messageContents)
         }
 
         if (enableWebSearch) {
