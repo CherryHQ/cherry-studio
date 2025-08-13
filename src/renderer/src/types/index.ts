@@ -1146,10 +1146,10 @@ const settingsRouteValues = objectValues(SettingsRoutes)
 export type AppRoute = (typeof AppRoutes)[keyof typeof AppRoutes]
 
 export function isAppRoute(path: string): path is AppRoute {
-  return appRouteValues.includes(path as AppRoute)
+  return appRouteValues.some((route) => path.startsWith(route))
 }
 export type SettingsRoute = (typeof SettingsRoutes)[keyof typeof SettingsRoutes]
 
 export function isSettingsRoute(path: string): path is SettingsRoute {
-  return settingsRouteValues.includes(path as SettingsRoute)
+  return settingsRouteValues.some((route) => path.startsWith(route))
 }
