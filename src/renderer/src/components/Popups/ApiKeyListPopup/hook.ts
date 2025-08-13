@@ -284,7 +284,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
 }
 
 export function isLlmProvider(provider: ApiProvider): provider is Provider {
-  return !isWebSearchProvider(provider) && !isPreprocessProvider(provider)
+  return 'models' in provider
 }
 
 export function isWebSearchProvider(provider: ApiProvider): provider is WebSearchProvider {
