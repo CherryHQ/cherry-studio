@@ -2,6 +2,7 @@ import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import { SettingsRoutes } from '@renderer/types'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
@@ -50,90 +51,90 @@ const SettingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
+          <MenuItemLink to={SettingsRoutes.PROVIDER}>
+            <MenuItem className={isRoute(SettingsRoutes.PROVIDER)}>
               <Cloud size={18} />
               {t('settings.provider.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
+          <MenuItemLink to={SettingsRoutes.MODEL}>
+            <MenuItem className={isRoute(SettingsRoutes.MODEL)}>
               <Package size={18} />
               {t('settings.model')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
-          <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
+          <MenuItemLink to={SettingsRoutes.GENERAL}>
+            <MenuItem className={isRoute(SettingsRoutes.GENERAL)}>
               <Settings2 size={18} />
               {t('settings.general.label')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
+          <MenuItemLink to={SettingsRoutes.DISPLAY}>
+            <MenuItem className={isRoute(SettingsRoutes.DISPLAY)}>
               <MonitorCog size={18} />
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
+          <MenuItemLink to={SettingsRoutes.DATA}>
+            <MenuItem className={isRoute(SettingsRoutes.DATA)}>
               <HardDrive size={18} />
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
+          <MenuItemLink to={SettingsRoutes.MCP}>
+            <MenuItem className={isRoute(SettingsRoutes.MCP)}>
               <SquareTerminal size={18} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/websearch">
-            <MenuItem className={isRoute('/settings/websearch')}>
+          <MenuItemLink to={SettingsRoutes.WEBSEARCH}>
+            <MenuItem className={isRoute(SettingsRoutes.WEBSEARCH)}>
               <GlobalOutlined style={{ fontSize: 18 }} />
               {t('settings.tool.websearch.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
+          <MenuItemLink to={SettingsRoutes.MEMORY}>
+            <MenuItem className={isRoute(SettingsRoutes.MEMORY)}>
               <Brain size={18} />
               {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/preprocess">
-            <MenuItem className={isRoute('/settings/preprocess')}>
+          <MenuItemLink to={SettingsRoutes.PREPROCESS}>
+            <MenuItem className={isRoute(SettingsRoutes.PREPROCESS)}>
               <FileCode size={18} />
               {t('settings.tool.preprocess.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/quickphrase">
-            <MenuItem className={isRoute('/settings/quickphrase')}>
+          <MenuItemLink to={SettingsRoutes.QUICK_PHRASE}>
+            <MenuItem className={isRoute(SettingsRoutes.QUICK_PHRASE)}>
               <Zap size={18} />
               {t('settings.quickPhrase.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
+          <MenuItemLink to={SettingsRoutes.SHORTCUT}>
+            <MenuItem className={isRoute(SettingsRoutes.SHORTCUT)}>
               <Command size={18} />
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
-          <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
+          <MenuItemLink to={SettingsRoutes.QUICK_ASSISTANT}>
+            <MenuItem className={isRoute(SettingsRoutes.QUICK_ASSISTANT)}>
               <PictureInPicture2 size={18} />
               {t('settings.quickAssistant.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/selectionAssistant">
-            <MenuItem className={isRoute('/settings/selectionAssistant')}>
+          <MenuItemLink to={SettingsRoutes.SELECTION_ASSISTANT}>
+            <MenuItem className={isRoute(SettingsRoutes.SELECTION_ASSISTANT)}>
               <TextCursorInput size={18} />
               {t('selection.name')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
-          <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
+          <MenuItemLink to={SettingsRoutes.ABOUT}>
+            <MenuItem className={isRoute(SettingsRoutes.ABOUT)}>
               <Info size={18} />
               {t('settings.about.label')}
             </MenuItem>
@@ -141,20 +142,20 @@ const SettingsPage: FC = () => {
         </SettingMenus>
         <SettingContent>
           <Routes>
-            <Route path="provider" element={<ProvidersList />} />
-            <Route path="model" element={<ModelSettings />} />
-            <Route path="websearch" element={<WebSearchSettings />} />
-            <Route path="preprocess" element={<PreprocessSettings />} />
-            <Route path="quickphrase" element={<QuickPhraseSettings />} />
-            <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="memory" element={<MemorySettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
-            <Route path="display" element={<DisplaySettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
-            <Route path="data" element={<DataSettings />} />
-            <Route path="about" element={<AboutSettings />} />
+            <Route path={SettingsRoutes.PROVIDER.slice(10)} element={<ProvidersList />} />
+            <Route path={SettingsRoutes.MODEL.slice(10)} element={<ModelSettings />} />
+            <Route path={SettingsRoutes.WEBSEARCH.slice(10)} element={<WebSearchSettings />} />
+            <Route path={SettingsRoutes.PREPROCESS.slice(10)} element={<PreprocessSettings />} />
+            <Route path={SettingsRoutes.QUICK_PHRASE.slice(10)} element={<QuickPhraseSettings />} />
+            <Route path={SettingsRoutes.MCP_ROOT.slice(10)} element={<MCPSettings />} />
+            <Route path={SettingsRoutes.MEMORY.slice(10)} element={<MemorySettings />} />
+            <Route path={SettingsRoutes.GENERAL_ROOT.slice(10)} element={<GeneralSettings />} />
+            <Route path={SettingsRoutes.DISPLAY.slice(10)} element={<DisplaySettings />} />
+            <Route path={SettingsRoutes.SHORTCUT.slice(10)} element={<ShortcutSettings />} />
+            <Route path={SettingsRoutes.QUICK_ASSISTANT.slice(10)} element={<QuickAssistantSettings />} />
+            <Route path={SettingsRoutes.SELECTION_ASSISTANT.slice(10)} element={<SelectionAssistantSettings />} />
+            <Route path={SettingsRoutes.DATA.slice(10)} element={<DataSettings />} />
+            <Route path={SettingsRoutes.ABOUT.slice(10)} element={<AboutSettings />} />
           </Routes>
         </SettingContent>
       </ContentContainer>

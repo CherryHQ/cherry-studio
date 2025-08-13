@@ -1088,3 +1088,68 @@ export type AtLeast<T extends string, U> = {
 } & {
   [key: string]: U
 }
+
+/**
+ * 获取对象所有值的数组
+ * @description 获取一个字符串记录对象的所有值,并返回只读数组
+ * @template T - 字符串记录类型
+ * @param obj - 要获取值的对象
+ * @returns 包含对象所有值的只读数组
+ * @example
+ * ```ts
+ * const obj = { a: '1', b: '2' };
+ * const values = objectValues(obj); // ['1', '2']
+ * ```
+ */
+export function objectValues<T extends Record<string, string>>(obj: T): Readonly<Array<T[keyof T]>> {
+  return Object.values(obj) as Array<T[keyof T]>
+}
+
+export const AppRoutes = {
+  HOME: '/',
+  AGENTS: '/agents',
+  PAINTINGS: '/paintings',
+  PAINTINGS_ROOT: '/paintings/*', // 用于路由匹配
+  TRANSLATE: '/translate',
+  FILES: '/files',
+  KNOWLEDGE: '/knowledge',
+  APPS: '/apps',
+  CODE: '/code',
+  SETTINGS: '/settings',
+  SETTINGS_ROOT: '/settings/*', // 匹配所有 settings 下的子路由
+  LAUNCHPAD: '/launchpad'
+} as const
+
+const appRouteValues = objectValues(AppRoutes)
+
+export const SettingsRoutes = {
+  PROVIDER: '/settings/provider',
+  MODEL: '/settings/model',
+  WEBSEARCH: '/settings/websearch',
+  PREPROCESS: '/settings/preprocess',
+  QUICK_PHRASE: '/settings/quickphrase',
+  MCP: '/settings/mcp', // 根路径
+  MCP_ROOT: '/settings/mcp/*', // 用于路由匹配
+  MEMORY: '/settings/memory',
+  GENERAL: '/settings/general', // 叶子路径
+  GENERAL_ROOT: '/settings/general/*', // 用于路由匹配
+  DISPLAY: '/settings/display',
+  SHORTCUT: '/settings/shortcut',
+  QUICK_ASSISTANT: '/settings/quickAssistant',
+  SELECTION_ASSISTANT: '/settings/selectionAssistant',
+  DATA: '/settings/data',
+  ABOUT: '/settings/about'
+} as const
+
+const settingsRouteValues = objectValues(SettingsRoutes)
+
+export type AppRoute = (typeof AppRoutes)[keyof typeof AppRoutes]
+
+export function isAppRoute(path: string): path is AppRoute {
+  return appRouteValues.includes(path as AppRoute)
+}
+export type SettingsRoute = (typeof SettingsRoutes)[keyof typeof SettingsRoutes]
+
+export function isSettingsRoute(path: string): path is SettingsRoute {
+  return settingsRouteValues.includes(path as SettingsRoute)
+}

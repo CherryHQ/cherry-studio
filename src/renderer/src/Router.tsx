@@ -17,6 +17,7 @@ import MinAppsPage from './pages/minapps/MinAppsPage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
+import { AppRoutes } from './types'
 
 const Router: FC = () => {
   const { navbarPosition } = useNavbarPosition()
@@ -24,16 +25,16 @@ const Router: FC = () => {
   const routes = useMemo(() => {
     return (
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/agents" element={<AgentsPage />} />
-        <Route path="/paintings/*" element={<PaintingsRoutePage />} />
-        <Route path="/translate" element={<TranslatePage />} />
-        <Route path="/files" element={<FilesPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/apps" element={<MinAppsPage />} />
-        <Route path="/code" element={<CodeToolsPage />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
-        <Route path="/launchpad" element={<LaunchpadPage />} />
+        <Route path={AppRoutes.HOME} element={<HomePage />} />
+        <Route path={AppRoutes.AGENTS} element={<AgentsPage />} />
+        <Route path={AppRoutes.PAINTINGS_ROOT} element={<PaintingsRoutePage />} />
+        <Route path={AppRoutes.TRANSLATE} element={<TranslatePage />} />
+        <Route path={AppRoutes.FILES} element={<FilesPage />} />
+        <Route path={AppRoutes.KNOWLEDGE} element={<KnowledgePage />} />
+        <Route path={AppRoutes.APPS} element={<MinAppsPage />} />
+        <Route path={AppRoutes.CODE} element={<CodeToolsPage />} />
+        <Route path={AppRoutes.SETTINGS_ROOT} element={<SettingsPage />} />
+        <Route path={AppRoutes.LAUNCHPAD} element={<LaunchpadPage />} />
       </Routes>
     )
   }, [])
