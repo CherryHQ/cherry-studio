@@ -39,6 +39,9 @@ import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAs
 import ShortcutSettings from './ShortcutSettings'
 import WebSearchSettings from './WebSearchSettings'
 
+// remove "/settings/"
+const PATH_START_INDEX = 10
+
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
@@ -150,20 +153,23 @@ const SettingsPage: FC = () => {
 
         <SettingContent>
           <Routes>
-            <Route path={SettingsRoutes.PROVIDER.slice(10)} element={<ProvidersList />} />
-            <Route path={SettingsRoutes.MODEL.slice(10)} element={<ModelSettings />} />
-            <Route path={SettingsRoutes.WEBSEARCH.slice(10)} element={<WebSearchSettings />} />
-            <Route path={SettingsRoutes.PREPROCESS.slice(10)} element={<PreprocessSettings />} />
-            <Route path={SettingsRoutes.QUICK_PHRASE.slice(10)} element={<QuickPhraseSettings />} />
-            <Route path={SettingsRoutes.MCP_ROOT.slice(10)} element={<MCPSettings />} />
-            <Route path={SettingsRoutes.MEMORY.slice(10)} element={<MemorySettings />} />
-            <Route path={SettingsRoutes.GENERAL_ROOT.slice(10)} element={<GeneralSettings />} />
-            <Route path={SettingsRoutes.DISPLAY.slice(10)} element={<DisplaySettings />} />
-            <Route path={SettingsRoutes.SHORTCUT.slice(10)} element={<ShortcutSettings />} />
-            <Route path={SettingsRoutes.QUICK_ASSISTANT.slice(10)} element={<QuickAssistantSettings />} />
-            <Route path={SettingsRoutes.SELECTION_ASSISTANT.slice(10)} element={<SelectionAssistantSettings />} />
-            <Route path={SettingsRoutes.DATA.slice(10)} element={<DataSettings />} />
-            <Route path={SettingsRoutes.ABOUT.slice(10)} element={<AboutSettings />} />
+            <Route path={SettingsRoutes.PROVIDER.slice(PATH_START_INDEX)} element={<ProvidersList />} />
+            <Route path={SettingsRoutes.MODEL.slice(PATH_START_INDEX)} element={<ModelSettings />} />
+            <Route path={SettingsRoutes.WEBSEARCH.slice(PATH_START_INDEX)} element={<WebSearchSettings />} />
+            <Route path={SettingsRoutes.PREPROCESS.slice(PATH_START_INDEX)} element={<PreprocessSettings />} />
+            <Route path={SettingsRoutes.QUICK_PHRASE.slice(PATH_START_INDEX)} element={<QuickPhraseSettings />} />
+            <Route path={SettingsRoutes.MCP_ROOT.slice(PATH_START_INDEX)} element={<MCPSettings />} />
+            <Route path={SettingsRoutes.MEMORY.slice(PATH_START_INDEX)} element={<MemorySettings />} />
+            <Route path={SettingsRoutes.GENERAL_ROOT.slice(PATH_START_INDEX)} element={<GeneralSettings />} />
+            <Route path={SettingsRoutes.DISPLAY.slice(PATH_START_INDEX)} element={<DisplaySettings />} />
+            <Route path={SettingsRoutes.SHORTCUT.slice(PATH_START_INDEX)} element={<ShortcutSettings />} />
+            <Route path={SettingsRoutes.QUICK_ASSISTANT.slice(PATH_START_INDEX)} element={<QuickAssistantSettings />} />
+            <Route
+              path={SettingsRoutes.SELECTION_ASSISTANT.slice(PATH_START_INDEX)}
+              element={<SelectionAssistantSettings />}
+            />
+            <Route path={SettingsRoutes.DATA.slice(PATH_START_INDEX)} element={<DataSettings />} />
+            <Route path={SettingsRoutes.ABOUT.slice(PATH_START_INDEX)} element={<AboutSettings />} />
           </Routes>
         </SettingContent>
       </ContentContainer>
