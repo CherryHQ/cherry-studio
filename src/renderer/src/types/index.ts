@@ -675,8 +675,20 @@ export type ExternalToolResult = {
   memories?: MemoryItem[]
 }
 
+export const WebSearchProviderIds = {
+  tavily: 'tavily',
+  searxng: 'searxng',
+  exa: 'exa',
+  bocha: 'bocha',
+  'local-google': 'local-google',
+  'local-bing': 'local-bing',
+  'local-baidu': 'local-baidu'
+} as const
+
+export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
 export type WebSearchProvider = {
-  id: string
+  id: WebSearchProviderId
   name: string
   apiKey?: string
   apiHost?: string
