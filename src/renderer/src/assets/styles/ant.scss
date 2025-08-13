@@ -1,5 +1,20 @@
 @use './container.scss';
 
+/* Ensure all overlays are not in draggable regions */
+.ant-modal-root,
+.ant-modal-wrap,
+.ant-modal,
+.ant-modal-mask,
+.ant-drawer,
+.ant-drawer-mask,
+.ant-dropdown,
+.ant-dropdown-menu,
+.ant-popover,
+.ant-tooltip,
+.ant-popconfirm {
+  -webkit-app-region: no-drag;
+}
+
 #inputbar {
   resize: none;
 }
@@ -148,7 +163,8 @@
       border-radius: 10px;
     }
     .ant-modal-body {
-      max-height: 80vh;
+      /* Keep body within viewport while reserving a safe gap for titlebar */
+      max-height: min(80vh, calc(100vh - var(--overlay-safe-gap)));
       overflow-y: auto;
       padding: 0 16px 0 16px;
     }
