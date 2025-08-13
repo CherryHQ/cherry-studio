@@ -1,6 +1,7 @@
-import { CheckOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -25,7 +26,7 @@ import {
 import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { CopyIcon, FolderClock, Settings2 } from 'lucide-react'
+import { Check, FolderClock, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -473,7 +474,7 @@ const TranslatePage: FC = () => {
               className="copy-button"
               onClick={onCopy}
               disabled={!translatedContent}
-              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon size={16} />}
+              icon={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
             />
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
