@@ -2715,6 +2715,17 @@
       "title": "起動",
       "totray": "起動時にトレイに最小化"
     },
+    "math": {
+      "engine": {
+        "label": "数式エンジン",
+        "none": "なし"
+      },
+      "single_dollar": {
+        "label": "$...$ を有効にする",
+        "tip": "単一のドル記号 $...$ で囲まれた数式をレンダリングします。デフォルトで有効です。"
+      },
+      "title": "数式設定"
+    },
     "mcp": {
       "actions": "操作",
       "active": "有効",
@@ -2945,10 +2956,6 @@
         "title": "入力設定"
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
-      "math_engine": {
-        "label": "数式エンジン",
-        "none": "なし"
-      },
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "model": {
         "title": "モデル設定"

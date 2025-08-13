@@ -105,6 +105,7 @@ export interface SettingsState {
   codeWrappable: boolean
   codeImageTools: boolean
   mathEngine: MathEngine
+  mathEnableSingleDollar: boolean
   messageStyle: 'plain' | 'bubble'
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
@@ -287,6 +288,7 @@ export const initialState: SettingsState = {
   codeWrappable: false,
   codeImageTools: false,
   mathEngine: 'KaTeX',
+  mathEnableSingleDollar: true,
   messageStyle: 'plain',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
@@ -616,6 +618,9 @@ const settingsSlice = createSlice({
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
     },
+    setMathEnableSingleDollar: (state, action: PayloadAction<boolean>) => {
+      state.mathEnableSingleDollar = action.payload
+    },
     setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
       state.foldDisplayMode = action.payload
     },
@@ -898,6 +903,7 @@ export const {
   setCodeWrappable,
   setCodeImageTools,
   setMathEngine,
+  setMathEnableSingleDollar,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,

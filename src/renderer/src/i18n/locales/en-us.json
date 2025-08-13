@@ -2715,6 +2715,17 @@
       "title": "Launch",
       "totray": "Minimize to Tray on Launch"
     },
+    "math": {
+      "engine": {
+        "label": "Math engine",
+        "none": "None"
+      },
+      "single_dollar": {
+        "label": "Enable $...$",
+        "tip": "Render math equations quoted by single dollar signs $...$. Default is enabled."
+      },
+      "title": "Math Settings"
+    },
     "mcp": {
       "actions": "Actions",
       "active": "Active",
@@ -2945,10 +2956,6 @@
         "title": "Input Settings"
       },
       "markdown_rendering_input_message": "Markdown render input message",
-      "math_engine": {
-        "label": "Math engine",
-        "none": "None"
-      },
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "model": {
         "title": "Model Settings"

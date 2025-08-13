@@ -2715,6 +2715,17 @@
       "title": "啟動",
       "totray": "啟動時最小化到系统匣"
     },
+    "math": {
+      "engine": {
+        "label": "數學公式引擎",
+        "none": "無"
+      },
+      "single_dollar": {
+        "label": "啟用 $...$",
+        "tip": "渲染單個美元符號 $...$ 包裹的數學公式，默認啟用。"
+      },
+      "title": "數學公式設定"
+    },
     "mcp": {
       "actions": "操作",
       "active": "啟用",
@@ -2945,10 +2956,6 @@
         "title": "輸入設定"
       },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
-      "math_engine": {
-        "label": "數學公式引擎",
-        "none": "無"
-      },
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
         "title": "模型設定"

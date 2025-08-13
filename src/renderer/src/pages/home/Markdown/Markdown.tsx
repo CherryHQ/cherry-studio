@@ -46,7 +46,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine } = useSettings()
+  const { mathEngine, mathEnableSingleDollar } = useSettings()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
@@ -98,10 +98,10 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       remarkDisableConstructs(['codeIndented'])
     ]
     if (mathEngine !== 'none') {
-      plugins.push(remarkMath)
+      plugins.push([remarkMath, { singleDollarTextMath: mathEnableSingleDollar }])
     }
     return plugins
-  }, [mathEngine])
+  }, [mathEngine, mathEnableSingleDollar])
 
   const messageContent = useMemo(() => {
     if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
