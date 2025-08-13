@@ -802,6 +802,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           const exists = prev.some((m) => getModelUniqId(m) === modelId)
           return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
         })
+        setText((prev) => {
+          if (prev.endsWith('@')) {
+            return prev.slice(0, -1)
+          }
+          return prev
+        })
       } else {
         logger.error('Cannot add non-vision model when images are uploaded')
       }
