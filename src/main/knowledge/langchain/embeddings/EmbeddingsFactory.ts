@@ -35,11 +35,14 @@ export default class EmbeddingsFactory {
         outputDimension: dimensions,
         batchSize: 8
       })
-    } else if (provider === 'jina') {
+    }
+    if (model.includes('jina')) {
       return new JinaEmbeddings({
         model: model,
         apiKey,
-        batchSize: batchSize
+        batchSize: batchSize,
+        dimensions,
+        baseUrl: baseURL
       })
     }
     if (apiVersion !== undefined) {

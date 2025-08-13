@@ -77,14 +77,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
       show: true
     },
-    {
-      key: 'images',
-      title: t('knowledge.images'),
-      icon: activeKey === 'images' ? <Image size={16} color="var(--color-primary)" /> : <Image size={16} />,
-      items: imageItems,
-      content: <KnowledgeImages selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
-      show: true
-    },
+
     {
       key: 'notes',
       title: t('knowledge.notes'),
@@ -116,6 +109,15 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       items: sitemapItems,
       content: <KnowledgeSitemaps selectedBase={selectedBase} />,
       show: true
+    },
+    {
+      key: 'images',
+      title: t('knowledge.images'),
+      icon: activeKey === 'images' ? <Image size={16} color="var(--color-primary)" /> : <Image size={16} />,
+      items: imageItems,
+      content: <KnowledgeImages selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
+      // 目前仅支持jina-clip-v2多模态嵌入模型
+      show: base?.framework === 'langchain' && base.model.id === 'jina-clip-v2'
     },
     {
       key: 'videos',

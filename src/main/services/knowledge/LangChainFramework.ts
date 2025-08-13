@@ -76,7 +76,7 @@ export class LangChainFramework implements IKnowledgeFramework {
   }
 
   private getEmbeddings(base: KnowledgeBaseParams): TextEmbeddings | MultiModalEmbeddings {
-    if (base.embedApiClient.provider === 'jina') {
+    if (base.embedApiClient.model.includes('jina')) {
       return new MultiModalEmbeddings({
         embedApiClient: base.embedApiClient,
         dimensions: base.dimensions
@@ -468,6 +468,7 @@ export class LangChainFramework implements IKnowledgeFramework {
   ): LoaderTask {
     const { base, item } = options
     const file = item.content as FileMetadata
+    const embeddings = this.getEmbeddings(base)
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
@@ -475,7 +476,7 @@ export class LangChainFramework implements IKnowledgeFramework {
           state: LoaderTaskItemState.PENDING,
           task: async () => {
             const vectorStore = await getVectorStore()
-            return addImageLoader(this.getEmbeddings(base) as MultiModalEmbeddings, vectorStore, file)
+            return addImageLoader(embeddings as MultiModalEmbeddings, vectorStore, file)
               .then((result) => {
                 loaderTask.loaderDoneReturn = result
                 return result
