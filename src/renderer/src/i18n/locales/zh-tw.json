@@ -1482,7 +1482,8 @@
     "embedding_model_tooltip": "在設定 -> 模型服務中點選管理按鈕新增",
     "enable_tool_use": "工具調用",
     "filter": {
-      "by_tag": "按標籤篩選"
+      "by_tag": "按標籤篩選",
+      "selected": "已選標籤"
     },
     "function_calling": "函數調用",
     "no_matches": "無可用模型",

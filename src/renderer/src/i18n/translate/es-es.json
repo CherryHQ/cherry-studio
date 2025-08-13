@@ -648,6 +648,31 @@
     },
     "translate": "Traducir"
   },
+  "code": {
+    "auto_update_to_latest": "Comprobar actualizaciones e instalar la última versión",
+    "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta CLI",
+    "cli_tool": "Herramienta CLI",
+    "cli_tool_placeholder": "Selecciona la herramienta CLI que deseas utilizar",
+    "description": "Iniciar rápidamente múltiples herramientas CLI de código para mejorar la eficiencia del desarrollo",
+    "folder_placeholder": "Seleccionar directorio de trabajo",
+    "install_bun": "Instalar Bun",
+    "installing_bun": "Instalando...",
+    "launch": {
+      "bun_required": "Por favor, instale primero el entorno Bun antes de iniciar la herramienta CLI",
+      "error": "Inicio fallido, inténtalo de nuevo",
+      "label": "Iniciar",
+      "success": "Inicio exitoso",
+      "validation_error": "Complete todos los campos obligatorios: herramienta CLI, modelo y directorio de trabajo"
+    },
+    "launching": "Iniciando...",
+    "model": "modelo",
+    "model_placeholder": "Selecciona el modelo que deseas utilizar",
+    "model_required": "Por favor, seleccione el modelo",
+    "select_folder": "Seleccionar carpeta",
+    "title": "Herramientas de código",
+    "update_options": "Opciones de actualización",
+    "working_directory": "Directorio de trabajo"
+  },
   "code_block": {
     "collapse": "Replegar",
     "copy": {
@@ -1457,7 +1482,8 @@
     "embedding_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
     "enable_tool_use": "Habilitar uso de herramientas",
     "filter": {
-      "by_tag": "Filtrar por etiqueta"
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiquetas seleccionadas"
     },
     "function_calling": "Llamada a función",
     "no_matches": "No hay modelos disponibles",
@@ -3564,6 +3590,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Aplicaciones",
+    "code": "Código",
     "files": "Archivos",
     "home": "Inicio",
     "knowledge": "Base de conocimiento",

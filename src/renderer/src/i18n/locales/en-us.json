@@ -1482,7 +1482,8 @@
     "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
     "enable_tool_use": "Enable Tool Use",
     "filter": {
-      "by_tag": "Filter by tag"
+      "by_tag": "Filter by tag",
+      "selected": "Selected tags"
     },
     "function_calling": "Function Calling",
     "no_matches": "No models available",

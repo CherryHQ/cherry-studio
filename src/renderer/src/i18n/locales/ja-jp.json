@@ -1482,7 +1482,8 @@
     "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
     "enable_tool_use": "ツール呼び出し",
     "filter": {
-      "by_tag": "タグでフィルター"
+      "by_tag": "タグでフィルター",
+      "selected": "選択済みのタグ"
     },
     "function_calling": "関数呼び出し",
     "no_matches": "利用可能なモデルがありません",

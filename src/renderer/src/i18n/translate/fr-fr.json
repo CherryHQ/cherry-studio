@@ -648,6 +648,31 @@
     },
     "translate": "Traduire"
   },
+  "code": {
+    "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
+    "bun_required_message": "L'installation de l'environnement Bun est requise pour exécuter l'outil CLI",
+    "cli_tool": "Outils CLI",
+    "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
+    "description": "Lancez rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "folder_placeholder": "Sélectionnez le répertoire de travail",
+    "install_bun": "Installer Bun",
+    "installing_bun": "Installation en cours...",
+    "launch": {
+      "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil CLI",
+      "error": "Échec du démarrage, veuillez réessayer",
+      "label": "Démarrer",
+      "success": "Démarrage réussi",
+      "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
+    },
+    "launching": "Démarrage en cours...",
+    "model": "modèle",
+    "model_placeholder": "Sélectionnez le modèle à utiliser",
+    "model_required": "Veuillez choisir le modèle",
+    "select_folder": "Sélectionner un dossier",
+    "title": "Outils de code",
+    "update_options": "Options de mise à jour",
+    "working_directory": "Répertoire de travail"
+  },
   "code_block": {
     "collapse": "Réduire",
     "copy": {
@@ -1457,7 +1482,8 @@
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
     "filter": {
-      "by_tag": "Filtrer par étiquette"
+      "by_tag": "Filtrer par étiquette",
+      "selected": "Étiquette sélectionnée"
     },
     "function_calling": "Appel de fonction",
     "no_matches": "Aucun modèle disponible",
@@ -3564,6 +3590,7 @@
   "title": {
     "agents": "Agent intelligent",
     "apps": "Mini-programmes",
+    "code": "Code",
     "files": "Fichiers",
     "home": "Page d'accueil",
     "knowledge": "Base de connaissances",

@@ -648,6 +648,31 @@
     },
     "translate": "Traduzir"
   },
+  "code": {
+    "auto_update_to_latest": "Verifique atualizações e instale a versão mais recente",
+    "bun_required_message": "A execução da ferramenta CLI requer a instalação do ambiente Bun",
+    "cli_tool": "Ferramentas CLI",
+    "cli_tool_placeholder": "Escolha a ferramenta CLI a ser usada",
+    "description": "Inicie rapidamente várias ferramentas CLI de código para aumentar a eficiência no desenvolvimento",
+    "folder_placeholder": "Selecione o diretório de trabalho",
+    "install_bun": "Instalar o Bun",
+    "installing_bun": "Instalando...",
+    "launch": {
+      "bun_required": "Por favor, instale o ambiente Bun antes de iniciar a ferramenta CLI",
+      "error": "Falha ao iniciar, tente novamente",
+      "label": "Iniciar",
+      "success": "Iniciado com sucesso",
+      "validation_error": "Por favor, preencha todos os campos obrigatórios: ferramenta CLI, modelo e diretório de trabalho"
+    },
+    "launching": "Iniciando...",
+    "model": "modelo",
+    "model_placeholder": "Escolha o modelo a ser usado",
+    "model_required": "Por favor, selecione o modelo",
+    "select_folder": "Selecionar pasta",
+    "title": "Ferramentas de código",
+    "update_options": "Opções de atualização",
+    "working_directory": "Diretório de trabalho"
+  },
   "code_block": {
     "collapse": "Recolher",
     "copy": {
@@ -1457,7 +1482,8 @@
     "embedding_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "enable_tool_use": "Chamada de ferramentas",
     "filter": {
-      "by_tag": "Filtrar por etiqueta"
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiqueta selecionada"
     },
     "function_calling": "Chamada de função",
     "no_matches": "Nenhum modelo disponível",
@@ -3564,6 +3590,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Miniaplicativos",
+    "code": "Código",
     "files": "Arquivos",
     "home": "Página Inicial",
     "knowledge": "Base de Conhecimento",
