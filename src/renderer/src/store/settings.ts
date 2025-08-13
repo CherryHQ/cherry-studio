@@ -217,7 +217,7 @@ export interface SettingsState {
   navbarPosition: 'left' | 'top'
   // API Server
   apiServer: ApiServerConfig
-  showMessageOutline: boolean
+  showMessageOutline?: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -406,7 +406,7 @@ export const initialState: SettingsState = {
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: true
+  showMessageOutline: undefined
 }
 
 const settingsSlice = createSlice({

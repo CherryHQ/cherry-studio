@@ -1,4 +1,4 @@
-import type { Root } from 'hast'
+import type { Root, Node, Element, Text } from 'hast'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -12,7 +12,7 @@ import { visit } from 'unist-util-visit'
 export function createSlugger() {
   const seen = new Map<string, number>()
   const normalize = (text: string): string => {
-    let slug = (text || '')
+    const slug = (text || 'section')
       .toLowerCase()
       .trim()
       // 移除常见分隔符和标点
@@ -25,7 +25,6 @@ export function createSlugger() {
       // 去除首尾 '-'
       .replace(/^-|-$/g, '')
 
-    if (!slug) slug = 'section'
     return slug
   }
 
@@ -33,16 +32,23 @@ export function createSlugger() {
     const base = normalize(text)
     const count = seen.get(base) || 0
     seen.set(base, count + 1)
-    return count === 0 ? base : `${base}-${count}`
+    return `${base}-${count}`
   }
 
   return { slug }
 }
 
-export function extractTextFromNode(node: any): string {
+export function extractTextFromNode(node: Node | Text | Element | null | undefined): string {
   if (!node) return ''
-  if (typeof node.value === 'string') return node.value
-  if (node.children?.length) return node.children.map(extractTextFromNode).join('')
+
+  if (typeof (node as Text).value === 'string') {
+    return (node as Text).value
+  }
+
+  if ((node as Element).children?.length) {
+    return (node as Element).children.map(extractTextFromNode).join('')
+  }
+
   return ''
 }
 

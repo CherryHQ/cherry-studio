@@ -2094,15 +2094,6 @@ const migrateConfig = {
       logger.error('migrate 130 error', error as Error)
       return state
     }
-  },
-  '131': (state: RootState) => {
-    try {
-      state.settings.showMessageOutline = true
-      return state
-    } catch (error) {
-      logger.error('migrate 131 error', error as Error)
-      return state
-    }
   }
 }
 
