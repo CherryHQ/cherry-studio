@@ -38,19 +38,20 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         case 'bocha':
           return <BochaLogo width={size} height={size} color={iconColor} />
         case 'exa':
-          return <ExaLogo width={size} height={size} color={iconColor} />
+          // size微调，视觉上和其他图标平衡一些
+          return <ExaLogo width={size - 2} height={size} color={iconColor} />
         case 'tavily':
           return <TavilyLogo width={size} height={size} color={iconColor} />
         case 'searxng':
           return <SearXNGLogo width={size} height={size} color={iconColor} />
         case 'local-baidu':
-          return <BaiduOutlined size={size} style={{ color: iconColor }} />
+          return <BaiduOutlined size={size} style={{ color: iconColor, fontSize: size }} />
         case 'local-bing':
           return <BingLogo width={size} height={size} color={iconColor} />
         case 'local-google':
-          return <GoogleOutlined size={size} style={{ color: iconColor }} />
+          return <GoogleOutlined size={size} style={{ color: iconColor, fontSize: size }} />
         default:
-          return <Globe size={size} style={{ color: iconColor }} />
+          return <Globe size={size} style={{ color: iconColor, fontSize: size }} />
       }
     },
     [enableWebSearch]
@@ -86,7 +87,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <WebSearchIcon pid={p.id} />,
+        icon: <WebSearchIcon size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
         action: () => updateSelectedWebSearchProvider(p.id)
