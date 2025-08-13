@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearchProviders'
 import type { Model, WebSearchProvider } from '@renderer/types'
 export interface SubscribeSource {
   key: number
@@ -42,48 +43,7 @@ export interface WebSearchState {
 
 export const initialState: WebSearchState = {
   defaultProvider: 'local-bing',
-  providers: [
-    {
-      id: 'tavily',
-      name: 'Tavily',
-      apiHost: 'https://api.tavily.com',
-      apiKey: ''
-    },
-    {
-      id: 'searxng',
-      name: 'Searxng',
-      apiHost: '',
-      basicAuthUsername: '',
-      basicAuthPassword: ''
-    },
-    {
-      id: 'exa',
-      name: 'Exa',
-      apiHost: 'https://api.exa.ai',
-      apiKey: ''
-    },
-    {
-      id: 'bocha',
-      name: 'Bocha',
-      apiHost: 'https://api.bochaai.com',
-      apiKey: ''
-    },
-    {
-      id: 'local-google',
-      name: 'Google',
-      url: 'https://www.google.com/search?q=%s'
-    },
-    {
-      id: 'local-bing',
-      name: 'Bing',
-      url: 'https://cn.bing.com/search?q=%s&ensearch=1'
-    },
-    {
-      id: 'local-baidu',
-      name: 'Baidu',
-      url: 'https://www.baidu.com/s?wd=%s'
-    }
-  ],
+  providers: WEB_SEARCH_PROVIDERS,
   searchWithTime: true,
   maxResults: 5,
   excludeDomains: [],

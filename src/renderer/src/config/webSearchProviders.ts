@@ -1,4 +1,4 @@
-import { WebSearchProviderId } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 type WebSearchProviderConfig = {
   websites: {
@@ -47,3 +47,46 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
     }
   }
 }
+
+export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
+  {
+    id: 'tavily',
+    name: 'Tavily',
+    apiHost: 'https://api.tavily.com',
+    apiKey: ''
+  },
+  {
+    id: 'searxng',
+    name: 'Searxng',
+    apiHost: '',
+    basicAuthUsername: '',
+    basicAuthPassword: ''
+  },
+  {
+    id: 'exa',
+    name: 'Exa',
+    apiHost: 'https://api.exa.ai',
+    apiKey: ''
+  },
+  {
+    id: 'bocha',
+    name: 'Bocha',
+    apiHost: 'https://api.bochaai.com',
+    apiKey: ''
+  },
+  {
+    id: 'local-google',
+    name: 'Google',
+    url: 'https://www.google.com/search?q=%s'
+  },
+  {
+    id: 'local-bing',
+    name: 'Bing',
+    url: 'https://cn.bing.com/search?q=%s&ensearch=1'
+  },
+  {
+    id: 'local-baidu',
+    name: 'Baidu',
+    url: 'https://www.baidu.com/s?wd=%s'
+  }
+] as const
