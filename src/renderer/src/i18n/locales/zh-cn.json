@@ -648,6 +648,31 @@
     },
     "translate": "翻译"
   },
+  "code": {
+    "auto_update_to_latest": "检查更新并安装最新版本",
+    "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
+    "cli_tool": "CLI 工具",
+    "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "folder_placeholder": "选择工作目录",
+    "install_bun": "安装 Bun",
+    "installing_bun": "安装中...",
+    "launch": {
+      "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
+      "error": "启动失败，请重试",
+      "label": "启动",
+      "success": "启动成功",
+      "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
+    },
+    "launching": "启动中...",
+    "model": "模型",
+    "model_placeholder": "选择要使用的模型",
+    "model_required": "请选择模型",
+    "select_folder": "选择文件夹",
+    "title": "代码工具",
+    "update_options": "更新选项",
+    "working_directory": "工作目录"
+  },
   "code_block": {
     "collapse": "收起",
     "copy": {
@@ -3589,6 +3614,7 @@
   "title": {
     "agents": "智能体",
     "apps": "小程序",
+    "code": "Code",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",
@@ -3640,8 +3666,10 @@
     },
     "empty": "翻译内容为空",
     "error": {
+      "detected_unknown": "未知语言不可交换",
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
+      "invalid_source": "无效的源语言",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"

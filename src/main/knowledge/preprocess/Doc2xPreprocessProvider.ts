@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios, { AxiosRequestConfig } from 'axios'
@@ -54,20 +55,21 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
 
   public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
-      logger.info(`Preprocess processing started: ${file.path}`)
+      const filePath = fileStorage.getFilePathById(file)
+      logger.info(`Preprocess processing started: ${filePath}`)
 
       // 步骤1: 准备上传
       const { uid, url } = await this.preupload()
       logger.info(`Preprocess preupload completed: uid=${uid}`)
 
-      await this.validateFile(file.path)
+      await this.validateFile(filePath)
 
       // 步骤2: 上传文件
-      await this.putFile(file.path, url)
+      await this.putFile(filePath, url)
 
       // 步骤3: 等待处理完成
       await this.waitForProcessing(sourceId, uid)
-      logger.info(`Preprocess parsing completed successfully for: ${file.path}`)
+      logger.info(`Preprocess parsing completed successfully for: ${filePath}`)
 
       // 步骤4: 导出文件
       const { path: outputPath } = await this.exportFile(file, uid)
@@ -77,9 +79,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         processedFile: this.createProcessedFileInfo(file, outputPath)
       }
     } catch (error) {
-      logger.error(
-        `Preprocess processing failed for ${file.path}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      logger.error(`Preprocess processing failed for:`, error as Error)
       throw error
     }
   }
@@ -102,11 +102,12 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @returns 导出文件的路径
    */
   public async exportFile(file: FileMetadata, uid: string): Promise<{ path: string }> {
-    logger.info(`Exporting file: ${file.path}`)
+    const filePath = fileStorage.getFilePathById(file)
+    logger.info(`Exporting file: ${filePath}`)
 
     // 步骤1: 转换文件
-    await this.convertFile(uid, file.path)
-    logger.info(`File conversion completed for: ${file.path}`)
+    await this.convertFile(uid, filePath)
+    logger.info(`File conversion completed for: ${filePath}`)
 
     // 步骤2: 等待导出并获取URL
     const exportUrl = await this.waitForExport(uid)

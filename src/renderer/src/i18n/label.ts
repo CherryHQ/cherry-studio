@@ -111,6 +111,7 @@ export const getProgressLabel = (key: string): string => {
 const titleKeyMap = {
   agents: 'title.agents',
   apps: 'title.apps',
+  code: 'title.code',
   files: 'title.files',
   home: 'title.home',
   knowledge: 'title.knowledge',

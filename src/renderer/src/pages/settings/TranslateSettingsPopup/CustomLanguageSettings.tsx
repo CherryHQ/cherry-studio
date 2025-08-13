@@ -1,20 +1,19 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
-import { deleteCustomLanguage } from '@renderer/services/TranslateService'
+import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Popconfirm, Space, Table, TableProps } from 'antd'
-import { memo, startTransition, use, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingRowTitle } from '..'
 import CustomLanguageModal from './CustomLanguageModal'
 
-type Props = {
-  dataPromise: Promise<CustomTranslateLanguage[]>
-}
+const logger = loggerService.withContext('CustomLanguageSettings')
 
-const CustomLanguageSettings = ({ dataPromise }: Props) => {
+const CustomLanguageSettings = () => {
   const { t } = useTranslation()
   const [displayedItems, setDisplayedItems] = useState<CustomTranslateLanguage[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -104,18 +103,28 @@ const CustomLanguageSettings = ({ dataPromise }: Props) => {
     [onDelete, t]
   )
 
-  const data = use(dataPromise)
-
   useEffect(() => {
-    setDisplayedItems(data)
-  }, [data])
+    const loadData = async () => {
+      try {
+        const data = await getAllCustomLanguages()
+        setDisplayedItems(data)
+      } catch (error) {
+        logger.error('Failed to load custom languages:', error as Error)
+      }
+    }
+    loadData()
+  }, [])
 
   return (
     <>
       <CustomLanguageSettingsContainer>
         <HStack justifyContent="space-between" style={{ padding: '4px 0' }}>
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
-          <Button type="primary" icon={<PlusOutlined size={16} />} onClick={onClickAdd}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined size={16} />}
+            onClick={onClickAdd}
+            style={{ marginBottom: 5, marginTop: -5 }}>
             {t('common.add')}
           </Button>
         </HStack>

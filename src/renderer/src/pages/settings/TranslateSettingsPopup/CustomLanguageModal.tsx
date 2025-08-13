@@ -98,7 +98,9 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       footer={footer}
       onCancel={onCancel}
       maskClosable={false}
+      transitionName="animation-move-down"
       forceRender
+      centered
       styles={{
         body: {
           padding: '20px'

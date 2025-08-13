@@ -10,13 +10,14 @@ import i18n from '@renderer/i18n'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip, Typography } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,7 +30,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiOptionsSettings from './ApiOptionsSettings'
+import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -229,12 +230,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={5} flex={1} style={{ overflow: 'hidden' }}>
-          <ProviderName ellipsis>{fancyProviderName}</ProviderName>
+        <Flex align="center" gap={8}>
+          <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
+          )}
+          {!isSystemProvider(provider) && (
+            <Button
+              type="text"
+              icon={<Bolt size={14} />}
+              size="small"
+              onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+            />
           )}
         </Flex>
         <Switch
@@ -366,13 +375,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
-      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )
 }
 
-const ProviderName = styled(Typography.Text)`
+const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;

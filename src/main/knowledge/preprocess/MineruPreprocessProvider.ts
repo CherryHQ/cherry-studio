@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import axios from 'axios'
@@ -63,8 +64,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
     try {
-      logger.info(`MinerU preprocess processing started: ${file.path}`)
-      await this.validateFile(file.path)
+      const filePath = fileStorage.getFilePathById(file)
+      logger.info(`MinerU preprocess processing started: ${filePath}`)
+      await this.validateFile(filePath)
 
       // 1. 获取上传URL并上传文件
       const batchId = await this.uploadFile(file)
@@ -86,7 +88,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         quota
       }
     } catch (error: any) {
-      logger.error(`MinerU preprocess processing failed for ${file.path}: ${error.message}`)
+      logger.error(`MinerU preprocess processing failed for:`, error as Error)
       throw new Error(error.message)
     }
   }
@@ -205,16 +207,14 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       // 步骤1: 获取上传URL
       const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
-      logger.debug(`Got upload URLs for batch: ${batchId}`)
-
-      logger.debug(`batchId: ${batchId}, fileurls: ${fileUrls}`)
       // 步骤2: 上传文件到获取的URL
-      await this.putFileToUrl(file.path, fileUrls[0])
-      logger.info(`File uploaded successfully: ${file.path}`)
+      const filePath = fileStorage.getFilePathById(file)
+      await this.putFileToUrl(filePath, fileUrls[0])
+      logger.info(`File uploaded successfully: ${filePath}`, { batchId, fileUrls })
 
       return batchId
     } catch (error: any) {
-      logger.error(`Failed to upload file ${file.path}: ${error.message}`)
+      logger.error(`Failed to upload file:`, error as Error)
       throw new Error(error.message)
     }
   }

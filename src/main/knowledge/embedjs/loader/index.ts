@@ -73,17 +73,19 @@ export async function addFileLoader(
   // 获取文件类型，如果没有匹配则默认为文本类型
   const loaderType = FILE_LOADER_MAP[file.ext.toLowerCase()] || 'text'
   let loaderReturn: AddLoaderReturn
+  // 使用文件的实际路径
+  const filePath = file.path
 
   // JSON类型处理
   let jsonObject = {}
   let jsonParsed = true
-  logger.info(`[KnowledgeBase] processing file ${file.path} as ${loaderType} type`)
+  logger.info(`[KnowledgeBase] processing file ${filePath} as ${loaderType} type`)
   switch (loaderType) {
     case 'common':
       // 内置类型处理
       loaderReturn = await ragApplication.addLoader(
         new LocalPathLoader({
-          path: file.path,
+          path: filePath,
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,
@@ -99,7 +101,7 @@ export async function addFileLoader(
       // epub类型处理
       loaderReturn = await ragApplication.addLoader(
         new EpubLoader({
-          filePath: file.path,
+          filePath: filePath,
           chunkSize: base.chunkSize ?? 1000,
           chunkOverlap: base.chunkOverlap ?? 200
         }) as any,
@@ -109,14 +111,14 @@ export async function addFileLoader(
 
     case 'drafts':
       // Drafts类型处理
-      loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(file.path) as any, forceReload)
+      loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(filePath), forceReload)
       break
 
     case 'html':
       // HTML类型处理
       loaderReturn = await ragApplication.addLoader(
         new WebLoader({
-          urlOrContent: await readTextFileWithAutoEncoding(file.path),
+          urlOrContent: await readTextFileWithAutoEncoding(filePath),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,
@@ -126,11 +128,11 @@ export async function addFileLoader(
 
     case 'json':
       try {
-        jsonObject = JSON.parse(await readTextFileWithAutoEncoding(file.path))
+        jsonObject = JSON.parse(await readTextFileWithAutoEncoding(filePath))
       } catch (error) {
         jsonParsed = false
         logger.warn(
-          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${file.path}`,
+          `[KnowledgeBase] failed parsing json file, falling back to text processing: ${filePath}`,
           error as Error
         )
       }
@@ -145,7 +147,7 @@ export async function addFileLoader(
       // 如果是其他文本类型且尚未读取文件，则读取文件
       loaderReturn = await ragApplication.addLoader(
         new TextLoader({
-          text: await readTextFileWithAutoEncoding(file.path),
+          text: await readTextFileWithAutoEncoding(filePath),
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap
         }) as any,

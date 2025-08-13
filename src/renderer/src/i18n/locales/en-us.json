@@ -648,6 +648,31 @@
     },
     "translate": "Translate"
   },
+  "code": {
+    "auto_update_to_latest": "Automatically update to latest version",
+    "bun_required_message": "Bun environment is required to run CLI tools",
+    "cli_tool": "CLI Tool",
+    "cli_tool_placeholder": "Select the CLI tool to use",
+    "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "folder_placeholder": "Select working directory",
+    "install_bun": "Install Bun",
+    "installing_bun": "Installing...",
+    "launch": {
+      "bun_required": "Please install Bun environment first before launching CLI tools",
+      "error": "Launch failed, please try again",
+      "label": "Launch",
+      "success": "Launch successful",
+      "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
+    },
+    "launching": "Launching...",
+    "model": "Model",
+    "model_placeholder": "Select the model to use",
+    "model_required": "Please select a model",
+    "select_folder": "Select Folder",
+    "title": "Code Tools",
+    "update_options": "Update Options",
+    "working_directory": "Working Directory"
+  },
   "code_block": {
     "collapse": "Collapse",
     "copy": {
@@ -3589,6 +3614,7 @@
   "title": {
     "agents": "Agents",
     "apps": "Apps",
+    "code": "Code",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",
@@ -3640,8 +3666,10 @@
     },
     "empty": "Translation content is empty",
     "error": {
+      "detected_unknown": "Unknown language cannot be exchanged",
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
+      "invalid_source": "Invalid source language",
       "not_configured": "Translation model is not configured",
       "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"

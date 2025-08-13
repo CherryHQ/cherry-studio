@@ -1,7 +1,6 @@
-import { CheckOutlined, HistoryOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { CheckOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -26,7 +25,7 @@ import {
 import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Settings2 } from 'lucide-react'
+import { CopyIcon, FolderClock, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -117,7 +116,7 @@ const TranslatePage: FC = () => {
 
       setTranslating(true)
 
-      let translated
+      let translated: string
       try {
         translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
@@ -225,17 +224,33 @@ const TranslatePage: FC = () => {
   }
 
   // 控制语言切换按钮
-  const couldExchange = useMemo(() => sourceLanguage !== 'auto' && !isBidirectional, [isBidirectional, sourceLanguage])
+  /** 与自动检测相关的交换条件检查 */
+  const couldExchangeAuto = useMemo(
+    () =>
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
+      sourceLanguage !== 'auto',
+    [detectedLanguage, sourceLanguage]
+  )
+
+  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
 
   const handleExchange = useCallback(() => {
-    if (sourceLanguage === 'auto') {
+    if (sourceLanguage === 'auto' && !couldExchangeAuto) {
       return
     }
-    const source = sourceLanguage
+    const source = sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage
+    if (!source) {
+      window.message.error(t('translate.error.invalid_source'))
+      return
+    }
+    if (source.langCode === UNKNOWN.langCode) {
+      window.message.error(t('translate.error.detected_unknown'))
+      return
+    }
     const target = targetLanguage
     setSourceLanguage(target)
     setTargetLanguage(source)
-  }, [sourceLanguage, targetLanguage])
+  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -364,9 +379,7 @@ const TranslatePage: FC = () => {
   }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
 
   // 控制token估计
-  const tokenCount = useMemo(() => {
-    return estimateTextTokens(text + prompt)
-  }, [prompt, text])
+  const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
 
   return (
     <Container id="translate-page">
@@ -381,29 +394,14 @@ const TranslatePage: FC = () => {
         />
         <OperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
-            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
-            <ModelSelectButton
-              model={translateModel}
-              onSelectModel={handleModelChange}
-              modelFilter={modelPredicate}
-              tooltipProps={{ placement: 'bottom' }}
-            />
-            <Button
-              type="text"
-              icon={<Settings2 size={18} />}
-              onClick={() => setSettingsVisible(true)}
-              style={{ color: 'var(--color-text-2)', display: 'flex' }}
-            />
             <Button
               className="nodrag"
               color="default"
               variant={historyDrawerVisible ? 'filled' : 'text'}
               type="text"
-              icon={<HistoryOutlined />}
+              icon={<FolderClock size={18} />}
               onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
             />
-          </InnerOperationBar>
-          <InnerOperationBar style={{ justifyContent: 'center' }}>
             <LanguageSelect
               showSearch
               style={{ width: 200 }}
@@ -425,61 +423,69 @@ const TranslatePage: FC = () => {
             />
             <Tooltip title={t('translate.exchange.label')} placement="bottom">
               <Button
+                type="text"
                 icon={<SwapOutlined />}
-                style={{ aspectRatio: '1/1' }}
+                style={{ margin: '0 -2px' }}
                 onClick={handleExchange}
-                disabled={!couldExchange}></Button>
+                disabled={!couldExchange}
+              />
             </Tooltip>
             {getLanguageDisplay()}
+            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
-            <Button
-              type="text"
-              onClick={onCopy}
-              disabled={!translatedContent}
-              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
+            <ModelSelectButton
+              model={translateModel}
+              onSelectModel={handleModelChange}
+              modelFilter={modelPredicate}
+              tooltipProps={{ placement: 'bottom' }}
             />
+            <Button type="text" icon={<Settings2 size={18} />} onClick={() => setSettingsVisible(true)} />
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
           <InputContainer>
-            <InputAreaContainer>
-              <Textarea
-                ref={textAreaRef}
-                variant="borderless"
-                placeholder={t('translate.input.placeholder')}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={onKeyDown}
-                onScroll={handleInputScroll}
-                disabled={translating}
-                spellCheck={false}
-                allowClear
-              />
-              <Footer>
-                <Popover content={t('chat.input.estimated_tokens.tip')}>
-                  <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
-                    {tokenCount}
-                  </Typography.Text>
-                </Popover>
-              </Footer>
-            </InputAreaContainer>
+            <Textarea
+              ref={textAreaRef}
+              variant="borderless"
+              placeholder={t('translate.input.placeholder')}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+              onScroll={handleInputScroll}
+              disabled={translating}
+              spellCheck={false}
+              allowClear
+            />
+            <Footer>
+              <Popover content={t('chat.input.estimated_tokens.tip')}>
+                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
+                  {tokenCount}
+                </Typography.Text>
+              </Popover>
+            </Footer>
           </InputContainer>
 
           <OutputContainer>
-            <OutputAreaContainer>
-              <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-                {!translatedContent ? (
-                  <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
-                    {t('translate.output.placeholder')}
-                  </div>
-                ) : enableMarkdown ? (
-                  <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-                ) : (
-                  <div className="plain">{translatedContent}</div>
-                )}
-              </OutputText>
-            </OutputAreaContainer>
+            <CopyButton
+              type="text"
+              size="small"
+              className="copy-button"
+              onClick={onCopy}
+              disabled={!translatedContent}
+              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon size={16} />}
+            />
+            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
+              {!translatedContent ? (
+                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
+                  {t('translate.output.placeholder')}
+                </div>
+              ) : enableMarkdown ? (
+                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              ) : (
+                <div className="plain">{translatedContent}</div>
+              )}
+            </OutputText>
           </OutputContainer>
         </AreaContainer>
       </ContentContainer>
@@ -510,10 +516,13 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
-  padding: 15px;
+  padding: 12px;
   position: relative;
+  [navbar-position='left'] & {
+    padding: 12px 16px;
+  }
 `
 
 const AreaContainer = styled.div`
@@ -527,19 +536,11 @@ const InputContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding-bottom: 5px;
-  padding-right: 2px;
-`
-
-const InputAreaContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  padding: 10px 5px;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
+  height: calc(100vh - var(--navbar-height) - 70px);
+  overflow: hidden;
 `
 
 const Textarea = styled(TextArea)`
@@ -564,26 +565,32 @@ const Footer = styled.div`
 `
 
 const OutputContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-height: 0;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
-`
-
-const OutputAreaContainer = styled.div`
-  min-height: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
   background-color: var(--color-background-soft);
   border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
+  padding: 10px 5px;
+  height: calc(100vh - var(--navbar-height) - 70px);
+
+  &:hover .copy-button {
+    opacity: 1;
+    visibility: visible;
+  }
+`
+
+const CopyButton = styled(Button)`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease-in-out,
+    visibility 0.2s ease-in-out;
 `
 
 const OutputText = styled.div`
@@ -651,10 +658,10 @@ const BidirectionalLanguageDisplay = styled.div`
 `
 
 const OperationBar = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 4px;
   padding-bottom: 4px;
 `
@@ -663,7 +670,7 @@ const InnerOperationBar = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   overflow: hidden;
 `
 

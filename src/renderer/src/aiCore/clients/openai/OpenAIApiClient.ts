@@ -758,12 +758,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     let accumulatingText = false
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        const isOpenRouter = context.provider?.id === 'openrouter'
-
         // 持续更新usage信息
         logger.silly('chunk', chunk)
         if (chunk.usage) {
-          const usage = chunk.usage as any // OpenRouter may include additional fields like cost
+          const usage = chunk.usage
           lastUsageInfo = {
             prompt_tokens: usage.prompt_tokens || 0,
             completion_tokens: usage.completion_tokens || 0,
@@ -771,19 +769,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // Handle OpenRouter specific cost fields
             ...(usage.cost !== undefined ? { cost: usage.cost } : {})
           }
-
-          // For OpenRouter, if we've seen finish_reason and now have usage, emit completion signals
-          if (isOpenRouter && hasFinishReason && !isFinished) {
-            emitCompletionSignals(controller)
-            return
-          }
         }
 
-        // For OpenRouter, if this chunk only contains usage without choices, emit completion signals
-        if (isOpenRouter && chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
-          if (!isFinished) {
-            emitCompletionSignals(controller)
-          }
+        // if we've already seen finish_reason, emit completion signals. No matter whether we get usage or not.
+        if (hasFinishReason && !isFinished) {
+          emitCompletionSignals(controller)
           return
         }
 
@@ -832,16 +822,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             if (!contentSource) {
               if ('finish_reason' in choice && choice.finish_reason) {
-                // For OpenRouter, don't emit completion signals immediately after finish_reason
-                // Wait for the usage chunk that comes after
-                if (isOpenRouter) {
-                  hasFinishReason = true
-                  // If we already have usage info, emit completion signals now
-                  if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
-                    emitCompletionSignals(controller)
-                  }
-                } else {
-                  // For other providers, emit completion signals immediately
+                // OpenAI Chat Completions API 在启用 stream_options: { include_usage: true } 以后
+                // 包含 usage 的 chunk 会在包含 finish_reason: stop 的 chunk 之后
+                // 所以试图等到拿到 usage 之后再发出结束信号
+                hasFinishReason = true
+                // If we already have usage info, emit completion signals now
+                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
                   emitCompletionSignals(controller)
                 }
               }
@@ -947,16 +933,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 })
               }
 
-              // For OpenRouter, don't emit completion signals immediately after finish_reason
+              // Don't emit completion signals immediately after finish_reason
               // Wait for the usage chunk that comes after
-              if (isOpenRouter) {
-                hasFinishReason = true
-                // If we already have usage info, emit completion signals now
-                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
-                  emitCompletionSignals(controller)
-                }
-              } else {
-                // For other providers, emit completion signals immediately
+              hasFinishReason = true
+              // If we already have usage info, emit completion signals now
+              if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
                 emitCompletionSignals(controller)
               }
             }

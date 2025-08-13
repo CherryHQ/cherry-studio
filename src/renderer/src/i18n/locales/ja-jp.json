@@ -648,6 +648,31 @@
     },
     "translate": "翻訳"
   },
+  "code": {
+    "auto_update_to_latest": "最新バージョンを自動的に更新する",
+    "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
+    "cli_tool": "CLI ツール",
+    "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "folder_placeholder": "作業ディレクトリを選択してください",
+    "install_bun": "Bun をインストール",
+    "installing_bun": "インストール中...",
+    "launch": {
+      "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
+      "error": "起動に失敗しました。もう一度試してください",
+      "label": "起動",
+      "success": "起動成功",
+      "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
+    },
+    "launching": "起動中...",
+    "model": "モデル",
+    "model_placeholder": "使用するモデルを選択してください",
+    "model_required": "モデルを選択してください",
+    "select_folder": "フォルダを選択",
+    "title": "コードツール",
+    "update_options": "更新オプション",
+    "working_directory": "作業ディレクトリ"
+  },
   "code_block": {
     "collapse": "折りたたむ",
     "copy": {
@@ -3585,6 +3610,7 @@
   "title": {
     "agents": "エージェント",
     "apps": "アプリ",
+    "code": "Code",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",
@@ -3636,8 +3662,10 @@
     },
     "empty": "翻訳内容が空です",
     "error": {
+      "detected_unknown": "未知の言語は交換できません",
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
+      "invalid_source": "無効なソース言語",
       "not_configured": "翻訳モデルが設定されていません",
       "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"

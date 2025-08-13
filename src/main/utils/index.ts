@@ -70,3 +70,11 @@ export async function calculateDirectorySize(directoryPath: string): Promise<num
   }
   return totalSize
 }
+
+export const removeEnvProxy = (env: Record<string, string>) => {
+  delete env.HTTPS_PROXY
+  delete env.HTTP_PROXY
+  delete env.grpc_proxy
+  delete env.http_proxy
+  delete env.https_proxy
+}
