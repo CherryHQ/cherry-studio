@@ -17,7 +17,7 @@ export function createSlugger() {
       .trim()
       // 移除常见分隔符和标点
       .replace(/[\u200B-\u200D\uFEFF]/g, '') // 零宽字符
-      .replace(/["'`''""(){}[\]:;!?.,]/g, '')
+      .replace(/["'`(){}[\]:;!?.,]/g, '')
       // 将空白和非字母数字字符转换为 '-'
       .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
       // 合并多余的 '-'
