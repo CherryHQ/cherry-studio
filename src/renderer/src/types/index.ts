@@ -609,8 +609,20 @@ export type KnowledgeBaseParams = {
   }
 }
 
+export const PreprocessProviderIds = {
+  doc2x: 'doc2x',
+  mistral: 'mistral',
+  mineru: 'mineru'
+} as const
+
+export type PreprocessProviderId = keyof typeof PreprocessProviderIds
+
+export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
+  return Object.hasOwn(PreprocessProviderIds, id)
+}
+
 export interface PreprocessProvider {
-  id: string
+  id: PreprocessProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -686,6 +698,10 @@ export const WebSearchProviderIds = {
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
+export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
+  return Object.hasOwn(WebSearchProviderIds, id)
+}
 
 export type WebSearchProvider = {
   id: WebSearchProviderId
