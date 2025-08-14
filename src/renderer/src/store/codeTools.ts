@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { codeTools } from '@shared/config/constant'
 import { Model } from '@renderer/types'
 
 // 常量定义
@@ -6,7 +7,7 @@ const MAX_DIRECTORIES = 10 // 最多保存10个目录
 
 export interface CodeToolsState {
   // 当前选择的 CLI 工具，默认使用 qwen-code
-  selectedCliTool: string
+  selectedCliTool: codeTools
   // 为每个 CLI 工具单独保存选择的模型
   selectedModels: Record<string, Model | null>
   // 记录用户选择过的所有目录，支持增删
@@ -16,11 +17,12 @@ export interface CodeToolsState {
 }
 
 export const initialState: CodeToolsState = {
-  selectedCliTool: 'qwen-code',
+  selectedCliTool: codeTools.qwenCode,
   selectedModels: {
-    'qwen-code': null,
-    'claude-code': null,
-    'gemini-cli': null
+    [codeTools.qwenCode]: null,
+    [codeTools.claudeCode]: null,
+    [codeTools.geminiCli]: null,
+    [codeTools.openaiCodex]: null
   },
   directories: [],
   currentDirectory: ''
@@ -31,7 +33,7 @@ const codeToolsSlice = createSlice({
   initialState,
   reducers: {
     // 设置选择的 CLI 工具
-    setSelectedCliTool: (state, action: PayloadAction<string>) => {
+    setSelectedCliTool: (state, action: PayloadAction<codeTools>) => {
       state.selectedCliTool = action.payload
     },
 
@@ -87,11 +89,12 @@ const codeToolsSlice = createSlice({
 
     // 重置所有设置
     resetCodeTools: (state) => {
-      state.selectedCliTool = 'qwen-code'
+      state.selectedCliTool = codeTools.qwenCode
       state.selectedModels = {
-        'qwen-code': null,
-        'claude-code': null,
-        'gemini-cli': null
+        [codeTools.qwenCode]: null,
+        [codeTools.claudeCode]: null,
+        [codeTools.geminiCli]: null,
+        [codeTools.openaiCodex]: null
       }
       state.directories = []
       state.currentDirectory = ''

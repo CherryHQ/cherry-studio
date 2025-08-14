@@ -14,12 +14,14 @@ import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { codeTools } from '@shared/config/constant'
 
 // CLI 工具选项
 const CLI_TOOLS = [
-  { value: 'qwen-code', label: 'Qwen Code' },
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'gemini-cli', label: 'Gemini CLI' }
+  { value: codeTools.qwenCode, label: 'Qwen Code' },
+  { value: codeTools.claudeCode, label: 'Claude Code' },
+  { value: codeTools.geminiCli, label: 'Gemini CLI' },
+  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
 ]
 
 const logger = loggerService.withContext('CodeToolsPage')
@@ -63,9 +65,9 @@ const CodeToolsPage: FC = () => {
   )
 
   const availableProviders =
-    selectedCliTool === 'claude-code'
+    selectedCliTool === codeTools.claudeCode
       ? claudeProviders
-      : selectedCliTool === 'gemini-cli'
+      : selectedCliTool === codeTools.geminiCli
         ? geminiProviders
         : openAiProviders
 
@@ -173,20 +175,28 @@ const CodeToolsPage: FC = () => {
     const apiKey = await aiProvider.getApiKey()
 
     let env: Record<string, string> = {}
-    if (selectedCliTool === 'claude-code') {
+    if (selectedCliTool === codeTools.claudeCode) {
       env = {
         ANTHROPIC_API_KEY: apiKey,
         ANTHROPIC_MODEL: selectedModel.id
       }
     }
 
-    if (selectedCliTool === 'gemini-cli') {
+    if (selectedCliTool === codeTools.geminiCli) {
       env = {
         GEMINI_API_KEY: apiKey
       }
     }
 
-    if (selectedCliTool === 'qwen-code') {
+    if (selectedCliTool === codeTools.qwenCode) {
+      env = {
+        OPENAI_API_KEY: apiKey,
+        OPENAI_BASE_URL: baseUrl,
+        OPENAI_MODEL: selectedModel.id
+      }
+    }
+
+    if (selectedCliTool === codeTools.openaiCodex) {
       env = {
         OPENAI_API_KEY: apiKey,
         OPENAI_BASE_URL: baseUrl,

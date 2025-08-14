@@ -8,6 +8,7 @@ import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
+import { codeTools } from '@shared/config/constant'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
@@ -40,23 +41,29 @@ class CodeToolsService {
   }
 
   public async getPackageName(cliTool: string) {
-    if (cliTool === 'claude-code') {
-      return '@anthropic-ai/claude-code'
+    switch (cliTool) {
+      case codeTools.claudeCode:
+        return '@anthropic-ai/claude-code'
+      case codeTools.geminiCli:
+        return '@google/gemini-cli'
+      case codeTools.openaiCodex:
+        return '@openai/codex'
+      default:
+        return '@qwen-code/qwen-code'
     }
-    if (cliTool === 'gemini-cli') {
-      return '@google/gemini-cli'
-    }
-    return '@qwen-code/qwen-code'
   }
 
   public async getCliExecutableName(cliTool: string) {
-    if (cliTool === 'claude-code') {
-      return 'claude'
+    switch (cliTool) {
+      case codeTools.claudeCode:
+        return 'claude'
+      case codeTools.geminiCli:
+        return 'gemini'
+      case codeTools.openaiCodex:
+        return 'codex'
+      default:
+        return 'qwen'
     }
-    if (cliTool === 'gemini-cli') {
-      return 'gemini'
-    }
-    return 'qwen'
   }
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
