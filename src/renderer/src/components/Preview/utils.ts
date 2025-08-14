@@ -1,3 +1,7 @@
+type ShadowHostOptions = {
+  hostCss?: string // override :host styles
+}
+
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
  * This function handles creating the shadow root, injecting base styles for the host,
@@ -7,7 +11,7 @@
  * @param hostElement The container element that will host the Shadow DOM.
  * @throws An error if the SVG content is invalid or cannot be parsed.
  */
-export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLElement): void {
+export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLElement, options?: ShadowHostOptions): void {
   if (!hostElement) {
     throw new Error('Host element for SVG rendering is not available.')
   }
@@ -15,14 +19,10 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 
   // Base styles for the host element
-  const style = document.createElement('style')
-  style.textContent = `
+  const base = `
     :host {
       padding: 1em;
-      background-color: white;
       overflow: auto;
-      border: 0.5px solid var(--color-code-background);
-      border-radius: 8px;
       display: block;
       position: relative;
       width: 100%;
@@ -33,6 +33,9 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       height: auto;
     }
   `
+
+  const style = document.createElement('style')
+  style.textContent = base + (options?.hostCss ? `\n${options.hostCss}\n` : '')
 
   // Clear previous content and append new style and SVG
   shadowRoot.innerHTML = ''

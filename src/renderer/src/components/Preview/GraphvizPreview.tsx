@@ -4,6 +4,7 @@ import styled from 'styled-components'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { PreviewHostCssWhite } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -25,7 +26,7 @@ const GraphvizPreview = ({
   const renderGraphviz = useCallback(async (content: string, container: HTMLDivElement) => {
     const viz = await vizInitializer.get()
     const svg = viz.renderString(content, { format: 'svg' })
-    renderSvgInShadowHost(svg, container)
+    renderSvgInShadowHost(svg, container, { hostCss: PreviewHostCssWhite })
   }, [])
 
   // 使用预览渲染器 hook

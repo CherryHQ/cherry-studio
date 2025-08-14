@@ -4,6 +4,7 @@ import React, { memo, useCallback, useEffect } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { PreviewHostCssWhite } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -103,7 +104,7 @@ const PlantUmlPreview = ({
     }
 
     const text = await response.text()
-    renderSvgInShadowHost(text, container)
+    renderSvgInShadowHost(text, container, { hostCss: PreviewHostCssWhite })
   }, [])
 
   // 使用预览渲染器 hook

@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { PreviewHostCssWhite } from './styles'
 import { BasicPreviewHandles } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -18,7 +19,7 @@ interface SvgPreviewProps {
 const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPreviewProps) => {
   // 定义渲染函数
   const renderSvg = useCallback(async (content: string, container: HTMLDivElement) => {
-    renderSvgInShadowHost(content, container)
+    renderSvgInShadowHost(content, container, { hostCss: PreviewHostCssWhite })
   }, [])
 
   // 使用预览渲染器 hook
