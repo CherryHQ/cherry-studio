@@ -58,12 +58,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const { t } = useTranslation()
   const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
 
-  const [viewState, setViewState] = useState(() => {
-    const initialMode = SPECIAL_VIEWS.includes(language) ? 'special' : 'source'
-    return {
-      mode: initialMode as ViewMode,
-      previousMode: initialMode as ViewMode
-    }
+  const [viewState, setViewState] = useState({
+    mode: 'special' as ViewMode,
+    previousMode: 'special' as ViewMode
   })
   const { mode: viewMode } = viewState
 
@@ -99,17 +96,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
 
-  // TODO: 考虑移除
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
-
-  // 不支持特殊视图时回退到 source
-  useEffect(() => {
-    if (!hasSpecialView && viewMode !== 'source') {
-      setViewMode('source')
-    }
-  }, [hasSpecialView, viewMode, setViewMode])
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
@@ -298,11 +287,14 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
   const renderContent = useMemo(() => {
-    const showSpecialView = specialView && ['special', 'split'].includes(viewMode)
+    const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
     const showSourceView = !specialView || viewMode !== 'special'
 
     return (
-      <SplitViewWrapper className="split-view-wrapper" $viewMode={viewMode}>
+      <SplitViewWrapper
+        className="split-view-wrapper"
+        $isSpecialView={showSpecialView && !showSourceView}
+        $isSplitView={showSpecialView && showSourceView}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
       </SplitViewWrapper>
@@ -373,7 +365,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
 `
 
-const SplitViewWrapper = styled.div<{ $viewMode?: ViewMode }>`
+const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
   display: flex;
 
   > * {
@@ -383,13 +375,13 @@ const SplitViewWrapper = styled.div<{ $viewMode?: ViewMode }>`
 
   &:not(:has(+ [class*='Container'])) {
     // 特殊视图的 header 会隐藏，所以全都使用圆角
-    border-radius: ${(props) => (props.$viewMode === 'special' ? '8px' : '0 0 8px 8px')};
+    border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
     overflow: hidden;
   }
 
   // 在 split 模式下添加中间分隔线
   ${(props) =>
-    props.$viewMode === 'split' &&
+    props.$isSplitView &&
     css`
       position: relative;
 

@@ -111,6 +111,7 @@ export const getProgressLabel = (key: string): string => {
 const titleKeyMap = {
   agents: 'title.agents',
   apps: 'title.apps',
+  code: 'title.code',
   files: 'title.files',
   home: 'title.home',
   knowledge: 'title.knowledge',
@@ -292,7 +293,7 @@ export const getFileFieldLabel = (key: string): string => {
 
 const builtInMcpDescriptionKeyMap = {
   '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
-  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.memory',
   '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
   '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
   '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',

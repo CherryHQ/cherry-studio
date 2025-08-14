@@ -133,7 +133,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       open={open}
       afterClose={onClose}
       centered={!isFullscreen}
-      destroyOnClose
+      destroyOnHidden
       mask={!isFullscreen}
       maskClosable={false}
       width={isFullscreen ? '100vw' : '90vw'}

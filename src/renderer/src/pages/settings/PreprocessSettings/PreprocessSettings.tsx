@@ -20,7 +20,7 @@ import {
   SettingRowTitle,
   SettingSubtitle,
   SettingTitle
-} from '../..'
+} from '..'
 
 interface Props {
   provider: PreprocessProvider

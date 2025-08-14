@@ -29,6 +29,7 @@ import { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import rehypeHeadingIds from './plugins/rehypeHeadingIds'
 import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
@@ -45,7 +46,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine } = useSettings()
+  const { mathEngine, mathEnableSingleDollar } = useSettings()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
@@ -97,10 +98,10 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       remarkDisableConstructs(['codeIndented'])
     ]
     if (mathEngine !== 'none') {
-      plugins.push(remarkMath)
+      plugins.push([remarkMath, { singleDollarTextMath: mathEnableSingleDollar }])
     }
     return plugins
-  }, [mathEngine])
+  }, [mathEngine, mathEnableSingleDollar])
 
   const messageContent = useMemo(() => {
     if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
@@ -110,17 +111,18 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [block, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
-    const plugins: any[] = []
+    const plugins: Pluggable[] = []
     if (ALLOWED_ELEMENTS.test(messageContent)) {
       plugins.push(rehypeRaw)
     }
+    plugins.push([rehypeHeadingIds, { prefix: `heading-${block.id}` }])
     if (mathEngine === 'KaTeX') {
-      plugins.push(rehypeKatex as any)
+      plugins.push(rehypeKatex)
     } else if (mathEngine === 'MathJax') {
-      plugins.push(rehypeMathjax as any)
+      plugins.push(rehypeMathjax)
     }
     return plugins
-  }, [mathEngine, messageContent])
+  }, [mathEngine, messageContent, block.id])
 
   const onSaveCodeBlock = useCallback(
     (id: string, newContent: string) => {

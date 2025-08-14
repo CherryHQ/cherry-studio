@@ -7,7 +7,7 @@ import { t } from 'i18next'
 import { Info } from 'lucide-react'
 import { FC } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()

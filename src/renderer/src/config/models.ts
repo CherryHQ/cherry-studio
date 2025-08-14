@@ -394,10 +394,10 @@ export function getModelLogo(modelId: string) {
     'gpt-image': ChatGPTImageModelLogo,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
-    'gpt-5(?:-[0-9]+(?:-[0-9]+)*)?': GPT5ModelLogo,
     'gpt-5-mini': GPT5MiniModelLogo,
     'gpt-5-nano': GPT5NanoModelLogo,
     'gpt-5-chat': GPT5ChatModelLogo,
+    'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
@@ -2498,7 +2498,7 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1') || modelId.includes('gpt-5-chat')
+  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {

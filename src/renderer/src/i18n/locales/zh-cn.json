@@ -176,7 +176,7 @@
         "enableFirst": "请先在 MCP 设置中启用此服务器",
         "label": "MCP 服务器",
         "noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
-        "title": "MCP 设置"
+        "title": "MCP 服务器"
       },
       "model": "模型设置",
       "more": "助手设置",
@@ -647,6 +647,31 @@
       "unpin": "取消固定"
     },
     "translate": "翻译"
+  },
+  "code": {
+    "auto_update_to_latest": "检查更新并安装最新版本",
+    "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
+    "cli_tool": "CLI 工具",
+    "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "folder_placeholder": "选择工作目录",
+    "install_bun": "安装 Bun",
+    "installing_bun": "安装中...",
+    "launch": {
+      "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
+      "error": "启动失败，请重试",
+      "label": "启动",
+      "success": "启动成功",
+      "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
+    },
+    "launching": "启动中...",
+    "model": "模型",
+    "model_placeholder": "选择要使用的模型",
+    "model_required": "请选择模型",
+    "select_folder": "选择文件夹",
+    "title": "代码工具",
+    "update_options": "更新选项",
+    "working_directory": "工作目录"
   },
   "code_block": {
     "collapse": "收起",
@@ -2695,6 +2720,17 @@
       "title": "启动",
       "totray": "启动时最小化到托盘"
     },
+    "math": {
+      "engine": {
+        "label": "数学公式引擎",
+        "none": "无"
+      },
+      "single_dollar": {
+        "label": "启用 $...$",
+        "tip": "渲染单个美元符号 $...$ 包裹的数学公式，默认启用。"
+      },
+      "title": "数学公式设置"
+    },
     "mcp": {
       "actions": "操作",
       "active": "启用",
@@ -2869,7 +2905,7 @@
       "tagsPlaceholder": "输入标签",
       "timeout": "超时",
       "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为 60 秒",
-      "title": "MCP 设置",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自动批准",
@@ -2925,10 +2961,6 @@
         "title": "输入设置"
       },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
-      "math_engine": {
-        "label": "数学公式引擎",
-        "none": "无"
-      },
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
         "title": "模型设置"
@@ -2940,6 +2972,7 @@
         "none": "不显示"
       },
       "prompt": "显示提示词",
+      "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
@@ -3412,10 +3445,10 @@
     "title": "设置",
     "tool": {
       "preprocess": {
-        "provider": "文档预处理服务商",
-        "provider_placeholder": "选择一个文档预处理服务商",
-        "title": "文档预处理",
-        "tooltip": "在设置 -> 工具中设置文档预处理服务商，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果"
+        "provider": "文档处理服务商",
+        "provider_placeholder": "选择一个文档处理服务商",
+        "title": "文档处理",
+        "tooltip": "在设置 -> 工具中设置文档处理服务商，文档处理可以有效提升复杂格式文档与扫描版文档的检索效果"
       },
       "title": "其他设置",
       "websearch": {
@@ -3566,6 +3599,7 @@
   "title": {
     "agents": "智能体",
     "apps": "小程序",
+    "code": "Code",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",
@@ -3617,8 +3651,10 @@
     },
     "empty": "翻译内容为空",
     "error": {
+      "detected_unknown": "未知语言不可交换",
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
+      "invalid_source": "无效的源语言",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"

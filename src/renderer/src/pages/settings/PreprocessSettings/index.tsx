@@ -6,7 +6,7 @@ import { Select } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import PreprocessProviderSettings from './PreprocessSettings'
 
 const PreprocessSettings: FC = () => {

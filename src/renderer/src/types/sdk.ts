@@ -9,6 +9,7 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import {
   Content,
@@ -85,11 +86,13 @@ export type ReasoningEffortOptionalParams = {
 }
 
 export type OpenAISdkParams = OpenAIParamsWithoutReasoningEffort & ReasoningEffortOptionalParams
+
+// OpenRouter may include additional fields like cost
 export type OpenAISdkRawChunk =
-  | OpenAI.Chat.Completions.ChatCompletionChunk
+  | (OpenAI.Chat.Completions.ChatCompletionChunk & { usage?: OpenAI.CompletionUsage & { cost?: number } })
   | ({
       _request_id?: string | null | undefined
-    } & OpenAI.ChatCompletion)
+    } & OpenAI.ChatCompletion & { usage?: OpenAI.CompletionUsage & { cost?: number } })
 
 export type OpenAISdkRawOutput = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> | OpenAI.ChatCompletion
 export type OpenAISdkRawContentSource =
@@ -146,6 +149,7 @@ export interface NewApiModel extends OpenAI.Models.Model {
  */
 export interface AwsBedrockSdkInstance {
   client: BedrockRuntimeClient
+  bedrockClient: BedrockClient
   region: string
 }
 

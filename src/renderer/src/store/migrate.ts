@@ -2142,6 +2142,15 @@ const migrateConfig = {
       logger.error('migrate 131 error', error as Error)
       return state
     }
+  },
+  '131': (state: RootState) => {
+    try {
+      state.settings.mathEnableSingleDollar = true
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
+      return state
+    }
   }
 }
 

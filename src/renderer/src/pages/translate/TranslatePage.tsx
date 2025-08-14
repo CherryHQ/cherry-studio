@@ -1,6 +1,7 @@
-import { CheckOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -25,7 +26,7 @@ import {
 import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { CopyIcon, FolderClock, Settings2 } from 'lucide-react'
+import { Check, FolderClock, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -116,7 +117,7 @@ const TranslatePage: FC = () => {
 
       setTranslating(true)
 
-      let translated
+      let translated: string
       try {
         translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
       } catch (e) {
@@ -224,17 +225,33 @@ const TranslatePage: FC = () => {
   }
 
   // 控制语言切换按钮
-  const couldExchange = useMemo(() => sourceLanguage !== 'auto' && !isBidirectional, [isBidirectional, sourceLanguage])
+  /** 与自动检测相关的交换条件检查 */
+  const couldExchangeAuto = useMemo(
+    () =>
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
+      sourceLanguage !== 'auto',
+    [detectedLanguage, sourceLanguage]
+  )
+
+  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
 
   const handleExchange = useCallback(() => {
-    if (sourceLanguage === 'auto') {
+    if (sourceLanguage === 'auto' && !couldExchangeAuto) {
       return
     }
-    const source = sourceLanguage
+    const source = sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage
+    if (!source) {
+      window.message.error(t('translate.error.invalid_source'))
+      return
+    }
+    if (source.langCode === UNKNOWN.langCode) {
+      window.message.error(t('translate.error.detected_unknown'))
+      return
+    }
     const target = targetLanguage
     setSourceLanguage(target)
     setTargetLanguage(source)
-  }, [sourceLanguage, targetLanguage])
+  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -457,7 +474,7 @@ const TranslatePage: FC = () => {
               className="copy-button"
               onClick={onCopy}
               disabled={!translatedContent}
-              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon size={16} />}
+              icon={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
             />
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (

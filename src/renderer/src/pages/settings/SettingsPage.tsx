@@ -1,19 +1,22 @@
+import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import Scrollbar from '@renderer/components/Scrollbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import { Divider as AntDivider } from 'antd'
 import {
   Brain,
   Cloud,
   Command,
-  FolderCog,
+  FileCode,
   HardDrive,
   Info,
-  Languages,
   MonitorCog,
   Package,
   PictureInPicture2,
   Settings2,
   SquareTerminal,
-  TextCursorInput
+  TextCursorInput,
+  Zap
 } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,12 +29,13 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
+import PreprocessSettings from './PreprocessSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
+import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
-import ToolSettings from './ToolSettings'
-import TranslateSettings from './TranslateSettings/TranslateSettings'
+import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
@@ -58,6 +62,7 @@ const SettingsPage: FC = () => {
               {t('settings.model')}
             </MenuItem>
           </MenuItemLink>
+          <Divider />
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <Settings2 size={18} />
@@ -76,16 +81,17 @@ const SettingsPage: FC = () => {
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
+          <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
               <SquareTerminal size={18} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/translate">
-            <MenuItem className={isRoute('/settings/translate')}>
-              <Languages size={18} />
-              {t('settings.translate.title')}
+          <MenuItemLink to="/settings/websearch">
+            <MenuItem className={isRoute('/settings/websearch')}>
+              <GlobalOutlined style={{ fontSize: 18 }} />
+              {t('settings.tool.websearch.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/memory">
@@ -94,18 +100,25 @@ const SettingsPage: FC = () => {
               {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/preprocess">
+            <MenuItem className={isRoute('/settings/preprocess')}>
+              <FileCode size={18} />
+              {t('settings.tool.preprocess.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/quickphrase">
+            <MenuItem className={isRoute('/settings/quickphrase')}>
+              <Zap size={18} />
+              {t('settings.quickPhrase.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
             <MenuItem className={isRoute('/settings/shortcut')}>
               <Command size={18} />
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/tool">
-            <MenuItem className={isRoute('/settings/tool')}>
-              <FolderCog size={18} />
-              {t('settings.tool.title')}
-            </MenuItem>
-          </MenuItemLink>
+          <Divider />
           <MenuItemLink to="/settings/quickAssistant">
             <MenuItem className={isRoute('/settings/quickAssistant')}>
               <PictureInPicture2 size={18} />
@@ -118,6 +131,7 @@ const SettingsPage: FC = () => {
               {t('selection.name')}
             </MenuItem>
           </MenuItemLink>
+          <Divider />
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
               <Info size={18} />
@@ -129,9 +143,10 @@ const SettingsPage: FC = () => {
           <Routes>
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
-            <Route path="tool/*" element={<ToolSettings />} />
+            <Route path="websearch" element={<WebSearchSettings />} />
+            <Route path="preprocess" element={<PreprocessSettings />} />
+            <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="translate" element={<TranslateSettings />} />
             <Route path="memory" element={<MemorySettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
@@ -158,21 +173,22 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
+  padding: 1px 0;
 `
 
-const SettingMenus = styled.ul`
+const SettingMenus = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   min-width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   padding: 10px;
   user-select: none;
+  gap: 5px;
 `
 
 const MenuItemLink = styled(Link)`
   text-decoration: none;
   color: var(--color-text-1);
-  margin-bottom: 5px;
 `
 
 const MenuItem = styled.li`
@@ -191,12 +207,6 @@ const MenuItem = styled.li`
     font-size: 16px;
     opacity: 0.8;
   }
-  .iconfont {
-    font-size: 18px;
-    line-height: 18px;
-    opacity: 0.7;
-    margin-left: -1px;
-  }
   &:hover {
     background: var(--color-background-soft);
   }
@@ -210,6 +220,10 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
+`
+
+const Divider = styled(AntDivider)`
+  margin: 3px 0;
 `
 
 export default SettingsPage

@@ -1246,7 +1246,7 @@ export const isSupportArrayContentProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe', 'qiniu'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 developer 作为 message role。 Only for OpenAI API.
