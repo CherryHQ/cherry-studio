@@ -2095,7 +2095,7 @@ const migrateConfig = {
       return state
     }
   },
-  '131': (state: RootState) => {
+  '132': (state: RootState) => {
     try {
       // 1. 推荐智谱作为第一位提供商，但只在用户没有自定义过顺序的情况下执行
       const zhipuIndex = state.llm.providers.findIndex(p => p.id === 'zhipu')
