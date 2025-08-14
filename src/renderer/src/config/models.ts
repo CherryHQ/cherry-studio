@@ -322,31 +322,28 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
+  let thinkingModelType: ThinkingModelType = 'default'
   if (isGPT5SeriesModel(model)) {
-    return 'gpt5'
-  }
-  if (isSupportedReasoningEffortOpenAIModel(model) && !isGPT5SeriesModel(model)) {
-    return 'o'
-  }
-  if (isSupportedThinkingTokenGeminiModel(model)) {
+    thinkingModelType = 'gpt5'
+  } else if (isSupportedReasoningEffortOpenAIModel(model)) {
+    thinkingModelType = 'o'
+  } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-      return 'gemini'
+      thinkingModelType = 'gemini'
     } else {
-      return 'gemini_pro'
+      thinkingModelType = 'gemini_pro'
     }
-  }
-  if (isSupportedReasoningEffortGrokModel(model)) return 'grok'
-  if (isSupportedThinkingTokenQwenModel(model)) {
+  } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
+  else if (isSupportedThinkingTokenQwenModel(model)) {
     if (isQwenAlwaysThinkModel(model)) {
-      return 'qwen_thinking'
+      thinkingModelType = 'qwen_thinking'
     }
-    return 'qwen'
-  }
-  if (isSupportedThinkingTokenDoubaoModel(model)) return 'doubao'
-  if (isSupportedThinkingTokenHunyuanModel(model)) return 'hunyuan'
-  if (isSupportedReasoningEffortPerplexityModel(model)) return 'perplexity'
-  if (isSupportedThinkingTokenZhipuModel(model)) return 'zhipu'
-  return 'default'
+    thinkingModelType = 'qwen'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) thinkingModelType = 'doubao'
+  else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
+  else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  return thinkingModelType
 }
 
 export function isFunctionCallingModel(model?: Model): boolean {
