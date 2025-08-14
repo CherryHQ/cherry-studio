@@ -25,9 +25,22 @@ class BackupManager {
   private s3Storage: S3Storage | null = null
   private webdavInstance: WebDav | null = null
 
-  // 缓存配置，用于检测配置是否变更
-  private cachedS3Config: S3Config | null = null
-  private cachedWebdavConfig: WebDavConfig | null = null
+  // 缓存核心连接配置，用于检测连接配置是否变更
+  private cachedS3ConnectionConfig: {
+    endpoint: string
+    region: string
+    bucket: string
+    accessKeyId: string
+    secretAccessKey: string
+    root?: string
+  } | null = null
+
+  private cachedWebdavConnectionConfig: {
+    webdavHost: string
+    webdavUser?: string
+    webdavPass?: string
+    webdavPath?: string
+  } | null = null
 
   constructor() {
     this.checkConnection = this.checkConnection.bind(this)
@@ -98,30 +111,30 @@ class BackupManager {
   /**
    * 比较两个配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
    */
-  private isS3ConfigEqual(config1: S3Config | null, config2: S3Config): boolean {
-    if (!config1) return false
+  private isS3ConfigEqual(cachedConfig: typeof this.cachedS3ConnectionConfig, config: S3Config): boolean {
+    if (!cachedConfig) return false
 
     return (
-      config1.endpoint === config2.endpoint &&
-      config1.region === config2.region &&
-      config1.bucket === config2.bucket &&
-      config1.accessKeyId === config2.accessKeyId &&
-      config1.secretAccessKey === config2.secretAccessKey &&
-      config1.root === config2.root
+      cachedConfig.endpoint === config.endpoint &&
+      cachedConfig.region === config.region &&
+      cachedConfig.bucket === config.bucket &&
+      cachedConfig.accessKeyId === config.accessKeyId &&
+      cachedConfig.secretAccessKey === config.secretAccessKey &&
+      cachedConfig.root === config.root
     )
   }
 
   /**
    * 深度比较两个 WebDAV 配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
    */
-  private isWebDavConfigEqual(config1: WebDavConfig | null, config2: WebDavConfig): boolean {
-    if (!config1) return false
+  private isWebDavConfigEqual(cachedConfig: typeof this.cachedWebdavConnectionConfig, config: WebDavConfig): boolean {
+    if (!cachedConfig) return false
 
     return (
-      config1.webdavHost === config2.webdavHost &&
-      config1.webdavUser === config2.webdavUser &&
-      config1.webdavPass === config2.webdavPass &&
-      config1.webdavPath === config2.webdavPath
+      cachedConfig.webdavHost === config.webdavHost &&
+      cachedConfig.webdavUser === config.webdavUser &&
+      cachedConfig.webdavPass === config.webdavPass &&
+      cachedConfig.webdavPath === config.webdavPath
     )
   }
 
@@ -131,24 +144,18 @@ class BackupManager {
    */
   private getS3Storage(config: S3Config): S3Storage {
     // 检查核心连接配置是否变更
-    const configChanged = !this.isS3ConfigEqual(this.cachedS3Config, config)
+    const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
 
     if (configChanged || !this.s3Storage) {
       this.s3Storage = new S3Storage(config)
       // 只缓存连接相关的配置字段
-      this.cachedS3Config = {
+      this.cachedS3ConnectionConfig = {
         endpoint: config.endpoint,
         region: config.region,
         bucket: config.bucket,
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
-        root: config.root,
-        // 其他字段不参与连接比较，设为默认值
-        fileName: undefined,
-        skipBackupFile: false,
-        autoSync: false,
-        syncInterval: 0,
-        maxBackups: 0
+        root: config.root
       }
       logger.debug('[BackupManager] Created new S3Storage instance')
     } else {
@@ -164,20 +171,16 @@ class BackupManager {
    */
   private getWebDavInstance(config: WebDavConfig): WebDav {
     // 检查核心连接配置是否变更
-    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConfig, config)
+    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConnectionConfig, config)
 
     if (configChanged || !this.webdavInstance) {
       this.webdavInstance = new WebDav(config)
       // 只缓存连接相关的配置字段
-      this.cachedWebdavConfig = {
+      this.cachedWebdavConnectionConfig = {
         webdavHost: config.webdavHost,
         webdavUser: config.webdavUser,
         webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath,
-        // 其他字段不参与连接比较，设为默认值
-        fileName: undefined,
-        skipBackupFile: false,
-        disableStream: false
+        webdavPath: config.webdavPath
       }
       logger.debug('[BackupManager] Created new WebDav instance')
     } else {
