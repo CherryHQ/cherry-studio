@@ -6,6 +6,7 @@ import styled from 'styled-components'
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
+import { renderSvgInShadowHost } from './utils'
 
 /** 预览 Mermaid 图表
  * 使用 usePreviewRenderer hook 重构，同时保留必要的可见性检测逻辑
@@ -30,7 +31,10 @@ const MermaidPreview = ({
 
       // 避免不可见时产生 undefined 和 NaN
       const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
-      container.innerHTML = fixedSvg
+
+      // 使用 shadow dom，如果有问题，可以回退到 innerHTML
+      renderSvgInShadowHost(fixedSvg, container)
+      // container.innerHTML = fixedSvg
     },
     [diagramId, mermaid]
   )
