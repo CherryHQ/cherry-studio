@@ -9,7 +9,7 @@ import { isGenerating, locateToMessage } from '@renderer/services/MessagesServic
 import NavigationService from '@renderer/services/NavigationService'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
+import { AppRoutes, Topic } from '@renderer/types'
 import { Button, Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
@@ -41,7 +41,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
     await isGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
-    navigate('/', { state: { assistant, topic } })
+    navigate(AppRoutes.ROOT, { state: { assistant, topic } })
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 

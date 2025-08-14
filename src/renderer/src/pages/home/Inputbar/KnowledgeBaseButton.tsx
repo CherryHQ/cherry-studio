@@ -1,6 +1,6 @@
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
-import { KnowledgeBase } from '@renderer/types'
+import { AppRoutes, KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FileSearch, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
@@ -54,7 +54,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
     newList.push({
       label: t('knowledge.add.title') + '...',
       icon: <Plus />,
-      action: () => navigate('/knowledge'),
+      action: () => navigate(AppRoutes.KNOWLEDGE),
       isSelected: false
     })
     return newList

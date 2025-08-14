@@ -8,7 +8,7 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
-import { ThemeMode } from '@renderer/types'
+import { AppRoutes, isSettingsRoute, SettingsRoute, SettingsRoutes, ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import {
@@ -65,7 +65,7 @@ const getTabIcon = (tabId: string): React.ReactNode | undefined => {
   }
 }
 
-let lastSettingsPath = '/settings/provider'
+let lastSettingsPath: SettingsRoute = SettingsRoutes.PROVIDER
 const specialTabs = ['launchpad', 'settings']
 
 const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
@@ -110,7 +110,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     }
 
     // 当访问设置页面时，记录路径
-    if (location.pathname.startsWith('/settings/')) {
+    if (isSettingsRoute(location.pathname)) {
       lastSettingsPath = location.pathname
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,7 +126,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate('/launchpad')
+    navigate(AppRoutes.LAUNCHPAD)
   }
 
   const handleSettingsClick = () => {

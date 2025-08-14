@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
+import { SettingsRoutes } from '@types'
 
 import { windowService } from '../WindowService'
 const logger = loggerService.withContext('URLSchema:handleProvidersProtocolUrl')
@@ -54,7 +55,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
       ) {
         mainWindow.webContents.executeJavaScript(
-          `window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data)}')`
+          `window.navigate('${SettingsRoutes.PROVIDER}?addProviderData=${encodeURIComponent(data)}')`
         )
 
         if (isMac) {

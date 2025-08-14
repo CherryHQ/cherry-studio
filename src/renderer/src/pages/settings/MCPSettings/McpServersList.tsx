@@ -4,7 +4,7 @@ import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import { MCPServer } from '@renderer/types'
+import { MCPServer, SettingsRoutes } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
 import { MonitorCheck, Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
@@ -84,7 +84,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
+    navigate(`${SettingsRoutes.MCP}/settings/${encodeURIComponent(newServer.id)}`)
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
 
@@ -185,7 +185,7 @@ const McpServersList: FC = () => {
         {(server: MCPServer) => (
           <ServerCard
             key={server.id}
-            onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
+            onClick={() => navigate(`${SettingsRoutes.MCP}/settings/${encodeURIComponent(server.id)}`)}>
             <ServerHeader>
               <ServerName>
                 {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
@@ -215,7 +215,7 @@ const McpServersList: FC = () => {
                 <Button
                   icon={<Settings2 size={16} />}
                   type="text"
-                  onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
+                  onClick={() => navigate(`${SettingsRoutes.MCP}/settings/${encodeURIComponent(server.id)}`)}
                 />
               </StatusIndicator>
             </ServerHeader>
