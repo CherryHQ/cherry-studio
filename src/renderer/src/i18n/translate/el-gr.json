@@ -805,7 +805,12 @@
       "title": "Σφάλμα Παρασκήνιου"
     },
     "unknown": "Άγνωστο σφάλμα",
-    "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη"
+    "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
+    "zhipu": {
+      "no_api_key": "Δεν έχετε ρυθμίσει ένα κλειδί API. Παρακαλώ μεταβείτε στο BigModel για να λάβετε ένα κλειδί API.",
+      "insufficient_balance": "Παρακαλώ μεταβείτε στο BigModel για επαναφόρτωση.",
+      "quota_exceeded": "Η ημερήσια δωρεάν ποσόστωση 10M tokens σας έχει εξαντληθεί. Παρακαλώ μεταβείτε στο BigModel για να λάβετε ένα κλειδί API και να ρυθμίσετε το κλειδί API για να συνεχίσετε τη χρήση."
+    }
   },
   "export": {
     "assistant": "βοηθός",
@@ -1758,7 +1763,7 @@
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
     "zhinao": "360 Intelligent Brain",
-    "zhipu": "Zhipu AI"
+    "zhipu": "Zhipu Ανοιχτή Πλατφόρμα"
   },
   "restore": {
     "confirm": {

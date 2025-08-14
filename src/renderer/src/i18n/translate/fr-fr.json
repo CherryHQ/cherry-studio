@@ -805,7 +805,12 @@
       "title": "Erreur de rendu"
     },
     "unknown": "Неизвестная ошибка",
-    "user_message_not_found": "Impossible de trouver le message d'utilisateur original"
+    "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
+    "zhipu": {
+      "no_api_key": "Vous n'avez pas configuré de clé API. Veuillez vous rendre sur BigModel pour obtenir une clé API.",
+      "insufficient_balance": "Veuillez vous rendre sur BigModel pour recharger.",
+      "quota_exceeded": "Votre quota gratuit quotidien de 10M tokens a été épuisé. Veuillez vous rendre sur BigModel pour obtenir une clé API et configurer la clé API pour continuer à utiliser."
+    }
   },
   "export": {
     "assistant": "Assistant",
@@ -1758,7 +1763,7 @@
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
     "zhinao": "360 ZhiNao",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "ZhiPu Plateforme Ouverte"
   },
   "restore": {
     "confirm": {

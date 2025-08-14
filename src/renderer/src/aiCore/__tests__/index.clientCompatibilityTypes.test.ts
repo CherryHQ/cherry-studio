@@ -16,6 +16,7 @@ vi.mock('@renderer/config/models', () => ({
       { id: 'gpt-4', name: 'GPT-4' },
       { id: 'gpt-4', name: 'GPT-4' }
     ],
+    zhipu: [],
     silicon: [],
     openai: [],
     anthropic: [],

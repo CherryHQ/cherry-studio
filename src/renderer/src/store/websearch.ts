@@ -44,6 +44,12 @@ export const initialState: WebSearchState = {
   defaultProvider: 'local-bing',
   providers: [
     {
+      id: 'zhipu',
+      name: '智谱',
+      apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
+      apiKey: ''
+    },
+    {
       id: 'tavily',
       name: 'Tavily',
       apiHost: 'https://api.tavily.com',

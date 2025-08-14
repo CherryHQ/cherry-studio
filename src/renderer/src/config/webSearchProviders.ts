@@ -2,9 +2,12 @@ import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
+import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
 
 export function getWebSearchProviderLogo(providerId: string) {
   switch (providerId) {
+    case 'zhipu':
+      return ZhipuLogo
     case 'tavily':
       return TavilyLogo
     case 'searxng':
@@ -19,6 +22,12 @@ export function getWebSearchProviderLogo(providerId: string) {
 }
 
 export const WEB_SEARCH_PROVIDER_CONFIG = {
+  zhipu: {
+    websites: {
+      official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
+      apiKey: 'https://docs.bigmodel.cn/cn/guide/tools/web-search'
+    }
+  },
   tavily: {
     websites: {
       official: 'https://tavily.com',

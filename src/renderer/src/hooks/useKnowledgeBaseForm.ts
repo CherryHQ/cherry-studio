@@ -2,20 +2,30 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import { KnowledgeBase, Model } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const createInitialKnowledgeBase = (): KnowledgeBase => ({
-  id: nanoid(),
-  name: '',
-  model: null as any, // model is required, but will be set by user interaction
-  items: [],
-  created_at: Date.now(),
-  updated_at: Date.now(),
-  version: 1
-})
+const createInitialKnowledgeBase = (): KnowledgeBase => {
+  // 创建默认的智谱 embedding-3 模型
+  const defaultEmbeddingModel: Model = {
+    id: 'embedding-3',
+    provider: 'zhipu',
+    name: 'Embedding-3',
+    group: 'Embedding'
+  }
+
+  return {
+    id: nanoid(),
+    name: '',
+    model: defaultEmbeddingModel,
+    items: [],
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    version: 1
+  }
+}
 
 /**
  * A hook that manages the state and handlers for a knowledge base form.

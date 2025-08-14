@@ -805,7 +805,12 @@
       "title": "Erro de Renderização"
     },
     "unknown": "Erro desconhecido",
-    "user_message_not_found": "Não foi possível encontrar a mensagem original do usuário"
+    "user_message_not_found": "Não foi possível encontrar a mensagem original do usuário",
+    "zhipu": {
+      "no_api_key": "Você não configurou uma chave API. Por favor, vá para BigModel para obter uma chave API.",
+      "insufficient_balance": "Por favor, vá para BigModel para recarregar.",
+      "quota_exceeded": "Sua cota gratuita diária de 10M tokens foi esgotada. Por favor, vá para BigModel para obter uma chave API e configurar a chave API para continuar usando."
+    }
   },
   "export": {
     "assistant": "Assistente",
@@ -1758,7 +1763,7 @@
     "xirang": "XiRang do Nuvem Telecom",
     "yi": "ZeroUmTudo",
     "zhinao": "360 Inteligência Artificial",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "ZhiPu Plataforma Aberta"
   },
   "restore": {
     "confirm": {

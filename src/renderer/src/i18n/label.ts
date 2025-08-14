@@ -304,3 +304,13 @@ const builtInMcpDescriptionKeyMap = {
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
   return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
 }
+
+const zhipuErrorKeyMap = {
+  no_api_key: 'error.zhipu.no_api_key',
+  insufficient_balance: 'error.zhipu.insufficient_balance',
+  quota_exceeded: 'error.zhipu.quota_exceeded'
+} as const
+
+export const getZhipuErrorLabel = (key: string): string => {
+  return getLabel(key, zhipuErrorKeyMap)
+}

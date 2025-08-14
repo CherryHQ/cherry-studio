@@ -805,7 +805,12 @@
       "title": "レンダリングエラー"
     },
     "unknown": "不明なエラー",
-    "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
+    "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
+    "zhipu": {
+      "no_api_key": "APIキーが設定されていません。BigModelでAPIキーを取得してください。",
+      "insufficient_balance": "BigModelでチャージしてください。",
+      "quota_exceeded": "本日の10Mトークン無料クォータが使い果たされました。BigModelでAPIキーを取得し、APIキーを設定して使用を続けてください。"
+    }
   },
   "export": {
     "assistant": "アシスタント",
@@ -1758,7 +1763,7 @@
     "xirang": "天翼クラウド 息壤",
     "yi": "零一万物",
     "zhinao": "360智脳",
-    "zhipu": "智譜AI"
+    "zhipu": "智譜オープンプラットフォーム"
   },
   "restore": {
     "confirm": {

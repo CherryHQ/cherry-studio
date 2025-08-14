@@ -805,7 +805,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[2].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
+          <Select value={providerOptions[3].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>

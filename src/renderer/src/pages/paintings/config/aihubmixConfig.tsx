@@ -64,6 +64,14 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         tooltip: 'paintings.generate.model_tip',
         options: [
           {
+            label: 'zhipu',
+            title: 'zhipu',
+            options: [
+              { label: 'CogView-3-Flash', value: 'cogview-3-flash' },
+              { label: 'CogView-4', value: 'cogview-4' }
+            ]
+          },
+          {
             label: 'OpenAI',
             title: 'OpenAI',
             options: [{ label: 'gpt-image-1', value: 'gpt-image-1' }]
@@ -148,6 +156,30 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.magic_prompt_option',
         tooltip: 'paintings.generate.magic_prompt_option_tip',
         condition: (painting) => Boolean(painting.model?.startsWith('V_'))
+      },
+      {
+        type: 'select',
+        key: 'size',
+        title: 'paintings.aspect_ratio',
+        options: [
+          { label: '1:1', value: '1024x1024' },
+          { label: '3:2', value: '1536x1024' },
+          { label: '2:3', value: '1024x1536' },
+          { label: '16:9', value: '1792x1024' },
+          { label: '9:16', value: '1024x1792' }
+        ],
+        initialValue: '1024x1024',
+        condition: (painting) => Boolean(painting.model?.startsWith('cogview-'))
+      },
+      {
+        type: 'slider',
+        key: 'numImages',
+        title: 'paintings.number_images',
+        tooltip: 'paintings.generate.number_images_tip',
+        min: 1,
+        max: 4,
+        initialValue: 1,
+        condition: (painting) => Boolean(painting.model?.startsWith('cogview-'))
       },
       {
         type: 'select',
@@ -363,7 +395,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
 // 几种默认的绘画配置
 export const DEFAULT_PAINTING: PaintingAction = {
   id: 'aihubmix_1',
-  model: 'gpt-image-1',
+  model: 'cogview-3-flash',
   aspectRatio: 'ASPECT_1_1',
   numImages: 1,
   styleType: 'AUTO',

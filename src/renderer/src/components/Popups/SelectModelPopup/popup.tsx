@@ -1,4 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import ModelLabels from '@renderer/components/ModelLabels'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -88,12 +89,13 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         name: (
           <ModelName>
             {model.name}
+            <ModelLabels model={model} />
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
           </ModelName>
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={true} />
           </TagsContainer>
         ),
         icon: (
@@ -139,9 +141,25 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      const filteredModels = getFilteredModels(p)
+      let filteredModels = getFilteredModels(p)
         .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
         .filter(finalModelFilter)
+
+      // 智谱模型特殊处理
+      if (p.id === 'zhipu') {
+        const hasApiKey = p.apiKey && p.apiKey.trim() !== ''
+        
+        // 如果未配置API Key，只显示四个指定模型
+        if (!hasApiKey) {
+          filteredModels = filteredModels.filter(m => 
+            m.id === 'glm-4.5-flash' || 
+            m.id === 'glm-4.5' || 
+            m.id === 'glm-4.5-air' || 
+            m.id === 'glm-4.5-x'
+          )
+        }
+        // 如果已配置API Key，显示所有智谱模型
+      }
 
       if (filteredModels.length === 0) return
 
@@ -461,11 +479,13 @@ const ModelItemLeft = styled.div`
 
 const ModelName = styled.span`
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
 `
 
 const TagsContainer = styled.div`

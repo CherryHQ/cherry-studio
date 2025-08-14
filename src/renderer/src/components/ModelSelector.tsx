@@ -1,12 +1,14 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import ModelLabels from '@renderer/components/ModelLabels'
+import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
 import { Avatar, Select, SelectProps } from 'antd'
-import { sortBy } from 'lodash'
 import { BaseSelectRef } from 'rc-select'
-import { memo, useCallback, useMemo } from 'react'
+import { sortBy } from 'lodash'
+import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ModelOption {
@@ -57,21 +59,40 @@ const ModelSelector = ({
   const getModelOptions = useCallback(
     (p: Provider, fancyName: string) => {
       const suffix = showSuffix ? <span style={{ opacity: 0.45 }}>{` | ${fancyName}`}</span> : null
-      return sortBy(p.models, 'name')
+      
+      let filteredModels = sortBy(p.models, 'name')
         .filter((model) => predicate?.(model) ?? true)
-        .map((m) => ({
-          label: (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {showAvatar && <ModelAvatar model={m} size={18} />}
-              <span>
-                {m.name}
-                {suffix}
-              </span>
-            </div>
-          ),
-          title: `${m.name} | ${fancyName}`,
-          value: getModelUniqId(m)
-        }))
+      
+      // 智谱模型特殊处理
+      if (p.id === 'zhipu') {
+        const hasApiKey = p.apiKey && p.apiKey.trim() !== ''
+        
+        // 如果未配置API Key，只显示四个指定模型
+        if (!hasApiKey) {
+          filteredModels = filteredModels.filter(m => 
+            m.id === 'glm-4.5-flash' || 
+            m.id === 'glm-4.5' || 
+            m.id === 'glm-4.5-air' || 
+            m.id === 'glm-4.5-x'
+          )
+        }
+        // 如果已配置API Key，显示所有智谱模型
+      }
+      
+      return filteredModels.map((m) => ({
+        label: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {showAvatar && <ModelAvatar model={m} size={18} />}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {m.name}
+              <ModelLabels model={m} />
+              {suffix}
+            </span>
+          </div>
+        ),
+        title: `${m.name} | ${fancyName}`,
+        value: getModelUniqId(m)
+      }))
     },
     [predicate, showAvatar, showSuffix]
   )

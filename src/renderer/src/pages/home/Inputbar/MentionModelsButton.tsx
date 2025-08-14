@@ -1,8 +1,9 @@
-import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
+import ModelLabels from '@renderer/components/ModelLabels'
+import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import db from '@renderer/databases'
+import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
@@ -11,10 +12,12 @@ import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, Plus } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
+
+import { ToolbarButton } from './Inputbar'
 
 export interface MentionModelsButtonRef {
   openQuickPanel: () => void
@@ -29,14 +32,13 @@ interface Props {
   ToolbarButton: any
 }
 
-const MentionModelsButton: FC<Props> = ({
-  ref,
+const MentionModelsButton = forwardRef<MentionModelsButtonRef, Props>(({
   mentionedModels,
   onMentionModel,
   couldMentionNotVisionModel,
   files,
   ToolbarButton
-}) => {
+}, ref) => {
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -67,7 +69,7 @@ const MentionModelsButton: FC<Props> = ({
                 <span style={{ opacity: 0.8 }}> | {m.name}</span>
               </>
             ),
-            description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+            description: <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />,
             icon: (
               <Avatar src={getModelLogo(m.id)} size={20}>
                 {first(m.name)}
@@ -97,10 +99,16 @@ const MentionModelsButton: FC<Props> = ({
         label: (
           <>
             <ProviderName>{getFancyProviderName(p)}</ProviderName>
-            <span style={{ opacity: 0.8 }}> | {m.name}</span>
+            <span style={{ opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4 }}> | {m.name}</span>
+            <ModelLabels model={m} />
           </>
         ),
-        description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+            description: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />
+                <ModelLabels model={m} />
+              </div>
+            ),
         icon: (
           <Avatar src={getModelLogo(m.id)} size={20}>
             {first(m.name)}
@@ -169,10 +177,10 @@ const MentionModelsButton: FC<Props> = ({
       </ToolbarButton>
     </Tooltip>
   )
-}
+})
 
 const ProviderName = styled.span`
   font-weight: 500;
 `
 
-export default memo(MentionModelsButton)
+export default MentionModelsButton

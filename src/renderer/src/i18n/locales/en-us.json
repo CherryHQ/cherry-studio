@@ -805,7 +805,12 @@
       "title": "Render Error"
     },
     "unknown": "Unknown error",
-    "user_message_not_found": "Cannot find original user message to resend"
+    "user_message_not_found": "Cannot find original user message to resend",
+    "zhipu": {
+      "no_api_key": "You have not configured an API key. Please go to the BigModel to obtain an API key.",
+      "insufficient_balance": "Please go to the BigModel to recharge.",
+      "quota_exceeded": "Your daily 10M Tokens free quota has been exhausted. Please go to the BigModel to obtain an API key and configure the API key to continue using."
+    }
   },
   "export": {
     "assistant": "Assistant",
@@ -1758,7 +1763,7 @@
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
     "zhinao": "360AI",
-    "zhipu": "ZHIPU AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {

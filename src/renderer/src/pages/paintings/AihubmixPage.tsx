@@ -820,7 +820,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
+          <Select value={providerOptions[1].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
