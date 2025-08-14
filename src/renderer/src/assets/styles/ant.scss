@@ -1,16 +1,22 @@
 @use './container.scss';
 
-/* Ensure all overlays are not in draggable regions */
-.ant-modal-root,
-.ant-modal-wrap,
-.ant-modal,
-.ant-modal-mask,
-.ant-drawer,
-.ant-drawer-mask,
+/* Modal 内容区域不应该可拖拽，以确保交互正常 */
+.ant-modal-content {
+  -webkit-app-region: no-drag;
+}
+
+/* 普通 Drawer 内容不应该可拖拽 */
+.ant-drawer-content {
+  -webkit-app-region: no-drag;
+}
+
+/* minapp-drawer 有自己的拖拽规则 */
+
+/* 下拉菜单和弹出框内容不应该可拖拽 */
 .ant-dropdown,
 .ant-dropdown-menu,
-.ant-popover,
-.ant-tooltip,
+.ant-popover-content,
+.ant-tooltip-content,
 .ant-popconfirm {
   -webkit-app-region: no-drag;
 }
@@ -81,6 +87,7 @@
 }
 
 .ant-drawer-header {
+  /* 普通 drawer header 不应该可拖拽，除非被 minapp-drawer 覆盖 */
   -webkit-app-region: no-drag;
 }
 
@@ -163,8 +170,8 @@
       border-radius: 10px;
     }
     .ant-modal-body {
-      /* Keep body within viewport while reserving a safe gap for titlebar */
-      max-height: min(80vh, calc(100vh - var(--overlay-safe-gap)));
+      /* 保持 body 在视口内，使用标准的最大高度 */
+      max-height: 80vh;
       overflow-y: auto;
       padding: 0 16px 0 16px;
     }

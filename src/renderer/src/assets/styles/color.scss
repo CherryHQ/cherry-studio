@@ -61,10 +61,6 @@
   --status-bar-height: 40px;
   --input-bar-height: 100px;
 
-  /* Safe gap for overlays (Modal/Drawer/etc.) to avoid custom titlebar)
-     Defaults to a value relative to navbar height; platform overrides below. */
-  --overlay-safe-gap: calc(var(--navbar-height) + 40px);
-
   --assistants-width: 275px;
   --topic-list-width: 275px;
   --settings-width: 250px;
@@ -159,17 +155,4 @@
 [navbar-position='left'][theme-mode='dark'] {
   --color-list-item: #252525;
   --color-list-item-hover: #1e1e1e;
-}
-
-/* Platform-specific overrides for overlay safe gap */
-[data-platform='mac'] {
-  --overlay-safe-gap: 64px;
-}
-
-[data-platform='win'] {
-  --overlay-safe-gap: 96px;
-}
-
-[data-platform='linux'] {
-  --overlay-safe-gap: 72px;
 }

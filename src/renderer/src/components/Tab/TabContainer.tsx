@@ -206,8 +206,16 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   gap: 5px;
   padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
-  -webkit-app-region: drag;
   height: var(--navbar-height);
+  position: relative;
+  -webkit-app-region: drag;
+  
+  /* 确保交互元素在拖拽区域之上 */
+  > * {
+    position: relative;
+    z-index: 1;
+    -webkit-app-region: no-drag;
+  }
 `
 
 const Tab = styled.div<{ active?: boolean }>`
@@ -220,7 +228,6 @@ const Tab = styled.div<{ active?: boolean }>`
   border-radius: var(--list-item-border-radius);
   cursor: pointer;
   user-select: none;
-  -webkit-app-region: none;
   height: 30px;
   min-width: 90px;
   transition: background 0.2s;
@@ -273,7 +280,6 @@ const AddTabButton = styled.div`
   height: 30px;
   cursor: pointer;
   color: var(--color-text-2);
-  -webkit-app-region: none;
   border-radius: var(--list-item-border-radius);
   &.active {
     background: var(--color-list-item);
@@ -298,7 +304,6 @@ const ThemeButton = styled.div`
   height: 30px;
   cursor: pointer;
   color: var(--color-text);
-  -webkit-app-region: none;
 
   &:hover {
     background: var(--color-list-item);
@@ -314,7 +319,6 @@ const SettingsButton = styled.div<{ $active: boolean }>`
   height: 30px;
   cursor: pointer;
   color: var(--color-text);
-  -webkit-app-region: none;
   border-radius: 8px;
   background: ${(props) => (props.$active ? 'var(--color-list-item)' : 'transparent')};
   &:hover {

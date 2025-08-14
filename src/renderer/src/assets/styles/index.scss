@@ -39,11 +39,6 @@ body,
   flex: 1;
 }
 
-/* Any custom full-screen top view should not be draggable */
-.topview-fullscreen-container {
-  -webkit-app-region: no-drag;
-}
-
 body {
   display: flex;
   min-height: 100vh;
