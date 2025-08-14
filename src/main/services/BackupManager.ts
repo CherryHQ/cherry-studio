@@ -96,32 +96,92 @@ class BackupManager {
   }
 
   /**
-   * 获取 S3Storage 实例，如果配置未变且实例已存在则复用，否则创建新实例
+   * 比较两个配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
+   */
+  private isS3ConfigEqual(config1: S3Config | null, config2: S3Config): boolean {
+    if (!config1) return false
+
+    return (
+      config1.endpoint === config2.endpoint &&
+      config1.region === config2.region &&
+      config1.bucket === config2.bucket &&
+      config1.accessKeyId === config2.accessKeyId &&
+      config1.secretAccessKey === config2.secretAccessKey &&
+      config1.root === config2.root
+    )
+  }
+
+  /**
+   * 深度比较两个 WebDAV 配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
+   */
+  private isWebDavConfigEqual(config1: WebDavConfig | null, config2: WebDavConfig): boolean {
+    if (!config1) return false
+
+    return (
+      config1.webdavHost === config2.webdavHost &&
+      config1.webdavUser === config2.webdavUser &&
+      config1.webdavPass === config2.webdavPass &&
+      config1.webdavPath === config2.webdavPath
+    )
+  }
+
+  /**
+   * 获取 S3Storage 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
+   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
    */
   private getS3Storage(config: S3Config): S3Storage {
-    // 检查配置是否变更
-    const configChanged = !this.cachedS3Config || JSON.stringify(this.cachedS3Config) !== JSON.stringify(config)
+    // 检查核心连接配置是否变更
+    const configChanged = !this.isS3ConfigEqual(this.cachedS3Config, config)
 
     if (configChanged || !this.s3Storage) {
       this.s3Storage = new S3Storage(config)
-      this.cachedS3Config = { ...config }
+      // 只缓存连接相关的配置字段
+      this.cachedS3Config = {
+        endpoint: config.endpoint,
+        region: config.region,
+        bucket: config.bucket,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        root: config.root,
+        // 其他字段不参与连接比较，设为默认值
+        fileName: undefined,
+        skipBackupFile: false,
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 0
+      }
       logger.debug('[BackupManager] Created new S3Storage instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing S3Storage instance')
     }
 
     return this.s3Storage
   }
 
   /**
-   * 获取 WebDav 实例，如果配置未变且实例已存在则复用，否则创建新实例
+   * 获取 WebDav 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
+   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
    */
   private getWebDavInstance(config: WebDavConfig): WebDav {
-    // 检查配置是否变更
-    const configChanged = !this.cachedWebdavConfig || JSON.stringify(this.cachedWebdavConfig) !== JSON.stringify(config)
+    // 检查核心连接配置是否变更
+    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConfig, config)
 
     if (configChanged || !this.webdavInstance) {
       this.webdavInstance = new WebDav(config)
-      this.cachedWebdavConfig = { ...config }
+      // 只缓存连接相关的配置字段
+      this.cachedWebdavConfig = {
+        webdavHost: config.webdavHost,
+        webdavUser: config.webdavUser,
+        webdavPass: config.webdavPass,
+        webdavPath: config.webdavPath,
+        // 其他字段不参与连接比较，设为默认值
+        fileName: undefined,
+        skipBackupFile: false,
+        disableStream: false
+      }
       logger.debug('[BackupManager] Created new WebDav instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing WebDav instance')
     }
 
     return this.webdavInstance
