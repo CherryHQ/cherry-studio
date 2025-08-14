@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
@@ -17,6 +18,7 @@ import { FC, useEffect } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
+import { classNames } from '@renderer/utils'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
@@ -26,6 +28,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
   const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
   const dispatch = useAppDispatch()
+  const { messageStyle } = useSettings()
 
   useEffect(() => {
     topic && dispatch(loadTopicMessagesThunk(topic.id))
@@ -48,9 +51,9 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
   return (
     <MessageEditingProvider>
       <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
-        <ContainerWrapper>
+        <ContainerWrapper className={messageStyle}>
           {topic?.messages.map((message) => (
-            <div key={message.id} style={{ position: 'relative' }}>
+            <MessageWrapper key={message.id} className={classNames([messageStyle, message.role])}>
               <MessageItem message={message} topic={topic} hideMenuBar={true} />
               <Button
                 type="text"
@@ -60,7 +63,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
                 icon={<Forward size={16} />}
               />
               <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
-            </div>
+            </MessageWrapper>
           ))}
           {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           {!isEmpty && (
@@ -89,6 +92,13 @@ const ContainerWrapper = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
+`
+
+const MessageWrapper = styled.div`
+  position: relative;
+  &.bubble.user {
+    padding-top: 26px;
+  }
 `
 
 export default TopicMessages
