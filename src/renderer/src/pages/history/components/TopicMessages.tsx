@@ -11,6 +11,7 @@ import NavigationService from '@renderer/services/NavigationService'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
+import { classNames } from '@renderer/utils'
 import { Button, Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
@@ -18,7 +19,6 @@ import { FC, useEffect } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
-import { classNames } from '@renderer/utils'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
