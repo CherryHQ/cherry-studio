@@ -292,6 +292,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 // 模型类型到支持的reasoning_effort的映射表
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
+  o: ['low', 'medium', 'high'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -307,7 +308,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  gpt5: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
+  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
@@ -322,6 +324,9 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 export const getThinkModelType = (model: Model): ThinkingModelType => {
   if (isGPT5SeriesModel(model)) {
     return 'gpt5'
+  }
+  if (isSupportedReasoningEffortOpenAIModel(model) && !isGPT5SeriesModel(model)) {
+    return 'o'
   }
   if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {

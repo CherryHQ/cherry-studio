@@ -9,6 +9,7 @@ import {
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenMTModel,
   isQwenReasoningModel,
@@ -146,7 +147,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           return {}
         }
         // Don't disable reasoning for models that require it
-        if (isGrokReasoningModel(model)) {
+        if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -524,12 +525,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         // 1. 处理系统消息
-        let systemMessage = { role: 'system', content: assistant.prompt || '' }
+        const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
         if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessage = {
-            role: isSupportDeveloperRoleProvider(this.provider) ? 'developer' : 'system',
-            content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+          if (isSupportDeveloperRoleProvider(this.provider)) {
+            systemMessage.role = 'developer'
+          } else {
+            systemMessage.role = 'system'
           }
         }
 
