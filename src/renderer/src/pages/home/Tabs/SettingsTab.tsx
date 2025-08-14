@@ -29,6 +29,7 @@ import {
   setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
   setFontSize,
+  setMathEnableSingleDollar,
   setMathEngine,
   setMessageFont,
   setMessageNavigation,
@@ -97,6 +98,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeImageTools,
     codeExecution,
     mathEngine,
+    mathEnableSingleDollar,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
     multiModelMessageStyle,
@@ -383,19 +385,6 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.math_engine.label')}</SettingRowTitleSmall>
-            <Selector
-              value={mathEngine}
-              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
-              options={[
-                { value: 'KaTeX', label: 'KaTeX' },
-                { value: 'MathJax', label: 'MathJax' },
-                { value: 'none', label: t('settings.messages.math_engine.none') }
-              ]}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
           <Row align="middle" gutter={10}>
@@ -415,6 +404,37 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </Col>
           </Row>
+          <SettingDivider />
+        </SettingGroup>
+      </CollapsibleSettingGroup>
+      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={true}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
+            <Selector
+              value={mathEngine}
+              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
+              options={[
+                { value: 'KaTeX', label: 'KaTeX' },
+                { value: 'MathJax', label: 'MathJax' },
+                { value: 'none', label: t('settings.math.engine.none') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.math.single_dollar.label')}{' '}
+              <Tooltip title={t('settings.math.single_dollar.tip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={mathEnableSingleDollar}
+              onChange={(checked) => dispatch(setMathEnableSingleDollar(checked))}
+            />
+          </SettingRow>
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>

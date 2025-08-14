@@ -2098,6 +2098,15 @@ const migrateConfig = {
   },
   '131': (state: RootState) => {
     try {
+      state.settings.mathEnableSingleDollar = true
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
+      return state
+    }
+  },
+  '132': (state: RootState) => {
+    try {
       state.knowledge.bases.forEach((base) => {
         if (!base.framework) {
           base.framework = 'embedjs'
@@ -2105,7 +2114,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 199 error', error as Error)
+      logger.error('migrate 132 error', error as Error)
       return state
     }
   }
