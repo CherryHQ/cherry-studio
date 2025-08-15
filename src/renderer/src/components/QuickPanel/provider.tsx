@@ -54,9 +54,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const close = useCallback(
-    (action?: QuickPanelCloseAction) => {
+    (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
-      onClose?.({ symbol, action, triggerInfo, item: {} as QuickPanelListItem, multiple: false })
+      onClose?.({ symbol, action, triggerInfo, searchText, item: {} as QuickPanelListItem, multiple: false })
 
       clearTimer.current = setTimeout(() => {
         setList([])

@@ -151,10 +151,10 @@ const MentionModelsButton: FC<Props> = ({
         afterAction({ item }) {
           item.isSelected = !item.isSelected
         },
-        onClose({ action, triggerInfo: closeTriggerInfo }) {
+        onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
           // ESC或Backspace关闭时的特殊处理
           if (action === 'esc' || action === 'delete-symbol') {
-            // 只有在输入触发且有模型选择动作时才删除@字符
+            // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
             if (
               hasModelActionRef.current &&
               closeTriggerInfo?.type === 'input' &&
@@ -168,8 +168,20 @@ const MentionModelsButton: FC<Props> = ({
                   return currentText
                 }
 
-                // 删除指定位置的 @
-                return currentText.slice(0, position) + currentText.slice(position + 1)
+                // 计算删除范围：@ + searchText
+                const deleteLength = 1 + (searchText?.length || 0)
+
+                // 验证要删除的内容是否匹配预期
+                const expectedText = '@' + (searchText || '')
+                const actualText = currentText.slice(position, position + deleteLength)
+
+                if (actualText !== expectedText) {
+                  // 如果实际文本不匹配，只删除 @ 字符
+                  return currentText.slice(0, position) + currentText.slice(position + 1)
+                }
+
+                // 删除 @ 和搜索文本
+                return currentText.slice(0, position) + currentText.slice(position + deleteLength)
               })
             }
           }

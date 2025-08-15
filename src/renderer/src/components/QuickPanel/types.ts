@@ -60,7 +60,7 @@ export type QuickPanelListItem = {
 // 定义上下文类型
 export interface QuickPanelContextType {
   readonly open: (options: QuickPanelOpenOptions) => void
-  readonly close: (action?: QuickPanelCloseAction) => void
+  readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
   readonly isVisible: boolean
   readonly symbol: string
