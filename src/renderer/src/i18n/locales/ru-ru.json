@@ -1338,6 +1338,13 @@
         "bubble": "Пузырь",
         "label": "Стиль сообщения",
         "plain": "Простой"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Путь к локальному видеофайлу не найден",
+          "unsupported_type": "Неподдерживаемый тип видео",
+          "youtube_url_missing": "URL видео YouTube не найден"
+        }
       }
     },
     "processing": "Обрабатывается...",

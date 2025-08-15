@@ -1338,6 +1338,13 @@
         "bubble": "Bulles",
         "label": "Style du message",
         "plain": "Simplifié"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Chemin du fichier vidéo local introuvable",
+          "unsupported_type": "Type de vidéo non supporté",
+          "youtube_url_missing": "URL de la vidéo YouTube introuvable"
+        }
       }
     },
     "processing": "En cours de traitement...",
@@ -2743,6 +2750,17 @@
       "title": "Démarrage",
       "totray": "Minimiser dans la barre d'état système au démarrage"
     },
+    "math": {
+      "engine": {
+        "label": "Moteur de formules mathématiques",
+        "none": "Rien"
+      },
+      "single_dollar": {
+        "label": "Activer $...$",
+        "tip": "Rendu des formules mathématiques encadrées par un seul symbole dollar $...$, activé par défaut."
+      },
+      "title": "Formules mathématiques"
+    },
     "mcp": {
       "actions": "Actions",
       "active": "Activer",
@@ -2973,10 +2991,6 @@
         "title": "Paramètres d'entrée"
       },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
-      "math_engine": {
-        "label": "Moteur de formules mathématiques",
-        "none": "Aucun"
-      },
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
         "title": "Paramètres du modèle"
@@ -2988,6 +3002,7 @@
         "none": "Ne pas afficher"
       },
       "prompt": "Mot-clé d'affichage",
+      "show_message_outline": "Afficher le plan des messages",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },

@@ -1338,6 +1338,13 @@
         "bubble": "Burbuja",
         "label": "Estilo de mensaje",
         "plain": "Simple"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Ruta del archivo de video local no encontrada",
+          "unsupported_type": "Tipo de video no soportado",
+          "youtube_url_missing": "URL del video de YouTube no encontrada"
+        }
       }
     },
     "processing": "Procesando...",
@@ -2743,6 +2750,17 @@
       "title": "Inicio",
       "totray": "Minimizar a la bandeja al iniciar"
     },
+    "math": {
+      "engine": {
+        "label": "motor de fórmulas matemáticas",
+        "none": "Ninguno"
+      },
+      "single_dollar": {
+        "label": "Habilitar $...$",
+        "tip": "Renderizar fórmulas matemáticas envueltas en un único signo de dólar $...$, habilitado por defecto."
+      },
+      "title": "Configuración de fórmulas matemáticas"
+    },
     "mcp": {
       "actions": "Acciones",
       "active": "Activar",
@@ -2973,10 +2991,6 @@
         "title": "Configuración de entrada"
       },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
-      "math_engine": {
-        "label": "Motor de fórmulas matemáticas",
-        "none": "Ninguno"
-      },
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
         "title": "Configuración del modelo"
@@ -2988,6 +3002,7 @@
         "none": "No mostrar"
       },
       "prompt": "Palabra de indicación",
+      "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },

@@ -1338,6 +1338,13 @@
         "bubble": "气泡",
         "label": "消息样式",
         "plain": "简洁"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "本地视频文件路径不存在",
+          "unsupported_type": "不支持的视频类型",
+          "youtube_url_missing": "YouTube 视频链接不存在"
+        }
       }
     },
     "processing": "正在处理...",

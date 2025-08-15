@@ -1,6 +1,7 @@
 import { loggerService } from '@renderer/services/LoggerService'
 import { VideoMessageBlock } from '@renderer/types/newMessage'
 import { FC, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
 import YouTube, { YouTubeProps } from 'react-youtube'
 import styled from 'styled-components'
@@ -12,6 +13,7 @@ interface Props {
 
 const MessageVideo: FC<Props> = ({ block }) => {
   const playerRef = useRef<HTMLVideoElement | null>(null)
+  const { t } = useTranslation()
 
   logger.debug(`MessageVideo: ${JSON.stringify(block)}`)
 
@@ -25,7 +27,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
   const renderYoutube = () => {
     if (!block.url) {
       logger.warn('YouTube video was requested but block.url is missing.')
-      return <div>YouTube 视频链接不存在</div>
+      return <div>{t('message.video.error.youtube_url_missing')}</div>
     }
 
     const onPlayerReady: YouTubeProps['onReady'] = (event) => {
@@ -49,7 +51,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
   const renderLocalVideo = () => {
     if (!block.filePath) {
       logger.warn('Local video was requested but block.filePath is missing.')
-      return <div>本地视频文件路径不存在</div>
+      return <div>{t('message.video.error.local_file_missing')}</div>
     }
 
     const videoSrc = `file://${block.metadata?.video.path}`
@@ -90,7 +92,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
         }
 
         logger.warn(`不支持的视频类型: ${block.metadata?.type} 或缺少必要数据。`)
-        return <div>不支持的视频类型</div>
+        return <div>{t('message.video.error.unsupported_type')}</div>
     }
   }
 

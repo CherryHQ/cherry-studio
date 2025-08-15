@@ -1338,6 +1338,13 @@
         "bubble": "Bubble",
         "label": "Message style",
         "plain": "Plain"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Local video file path not found",
+          "unsupported_type": "Unsupported video type",
+          "youtube_url_missing": "YouTube video URL not found"
+        }
       }
     },
     "processing": "Processing...",

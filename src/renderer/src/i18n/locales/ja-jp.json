@@ -1338,6 +1338,13 @@
         "bubble": "バブル",
         "label": "メッセージスタイル",
         "plain": "プレーン"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "ローカル動画ファイルのパスが見つかりません",
+          "unsupported_type": "サポートされていない動画タイプです",
+          "youtube_url_missing": "YouTube動画のURLが見つかりません"
+        }
       }
     },
     "processing": "処理中...",
