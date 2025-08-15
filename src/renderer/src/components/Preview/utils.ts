@@ -1,5 +1,5 @@
 type ShadowHostOptions = {
-  hostCss?: string // override :host styles
+  customCss?: string // override styles
 }
 
 /**
@@ -35,7 +35,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   `
 
   const style = document.createElement('style')
-  style.textContent = base + (options?.hostCss ? `\n${options.hostCss}\n` : '')
+  style.textContent = base + (options?.customCss ? `\n${options.customCss}\n` : '')
 
   // Clear previous content and append new style and SVG
   shadowRoot.innerHTML = ''

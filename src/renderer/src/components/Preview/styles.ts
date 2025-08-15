@@ -35,7 +35,9 @@ export const PreviewContainer = styled(Flex).attrs({ role: 'alert' })`
 `
 
 export const PreviewHostCssWhite = `
-  background-color: white;
-  border: 0.5px solid var(--color-code-background);
-  border-radius: 8px;
+  :host {
+    background-color: white;
+    border: 0.5px solid var(--color-code-background);
+    border-radius: 8px;
+  }
 `

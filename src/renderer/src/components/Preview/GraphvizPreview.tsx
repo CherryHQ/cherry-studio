@@ -28,7 +28,7 @@ const GraphvizPreview = ({
   const renderGraphviz = useCallback(async (content: string, container: HTMLDivElement) => {
     const viz = await vizInitializer.get()
     const svg = viz.renderString(content, { format: 'svg' })
-    renderSvgInShadowHost(svg, container, { hostCss: PreviewHostCssWhite })
+    renderSvgInShadowHost(svg, container, { customCss: PreviewHostCssWhite })
   }, [])
 
   // 使用预览渲染器 hook

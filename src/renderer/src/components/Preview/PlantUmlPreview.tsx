@@ -104,7 +104,7 @@ const PlantUmlPreview = ({
     }
 
     const text = await response.text()
-    renderSvgInShadowHost(text, container, { hostCss: PreviewHostCssWhite })
+    renderSvgInShadowHost(text, container, { customCss: PreviewHostCssWhite })
   }, [])
 
   // 使用预览渲染器 hook
