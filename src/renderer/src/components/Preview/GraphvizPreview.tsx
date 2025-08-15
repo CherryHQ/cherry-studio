@@ -14,8 +14,10 @@ const vizInitializer = new AsyncInitializer(async () => {
   return await module.instance()
 })
 
-/** 预览 Graphviz 图表
- * 使用 usePreviewRenderer hook 大幅简化组件逻辑
+/**
+ * 预览 Graphviz 图表
+ * - 使用 useDebouncedRender 改善体验
+ * - 使用 shadow dom 渲染 SVG
  */
 const GraphvizPreview = ({
   children,
