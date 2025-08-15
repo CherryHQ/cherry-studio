@@ -499,6 +499,7 @@ export function getModelLogo(modelId: string) {
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
     'nomic-': NomicLogo,
     'pangu-': PanguModelLogo,
+    'embedding-3': isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
     cogview: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
     zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark
   }
@@ -1151,18 +1152,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   zhipu: [
     // GLM-4.5 系列 (置顶)
     {
-      id: 'glm-4.5',
-      provider: 'zhipu',
-      name: 'GLM-4.5',
-      group: 'GLM-4.5',
-      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-    },
-    {
       id: 'glm-4.5-flash',
       provider: 'zhipu',
       name: 'GLM-4.5-Flash',
       group: 'GLM-4.5',
       isFree: true
+    },
+    {
+      id: 'glm-4.5',
+      provider: 'zhipu',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4.5-air',

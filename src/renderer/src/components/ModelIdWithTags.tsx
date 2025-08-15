@@ -4,6 +4,7 @@ import { memo } from 'react'
 import styled from 'styled-components'
 
 import ModelTagsWithLabel from './ModelTagsWithLabel'
+import ModelLabels from './ModelLabels'
 
 interface ModelIdWithTagsProps {
   model: Model
@@ -37,6 +38,7 @@ const ModelIdWithTags = ({
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+      <ModelLabels model={model} parentContainer = 'ModelIdWithTags' />
     </ListItemName>
   )
 }

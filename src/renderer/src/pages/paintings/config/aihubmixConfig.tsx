@@ -64,14 +64,6 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         tooltip: 'paintings.generate.model_tip',
         options: [
           {
-            label: 'zhipu',
-            title: 'zhipu',
-            options: [
-              { label: 'CogView-3-Flash', value: 'cogview-3-flash' },
-              { label: 'CogView-4', value: 'cogview-4' }
-            ]
-          },
-          {
             label: 'OpenAI',
             title: 'OpenAI',
             options: [{ label: 'gpt-image-1', value: 'gpt-image-1' }]

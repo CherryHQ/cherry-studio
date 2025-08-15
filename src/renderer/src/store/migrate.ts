@@ -2094,6 +2094,15 @@ const migrateConfig = {
       logger.error('migrate 130 error', error as Error)
       return state
     }
+  },  
+  '131': (state: RootState) => {
+    try {
+      state.settings.mathEnableSingleDollar = true
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
+      return state
+    }
   },
   '132': (state: RootState) => {
     try {
@@ -2137,15 +2146,28 @@ const migrateConfig = {
       // 这里我们不需要直接修改状态，因为默认模型是在组件中设置的
       // 这个迁移主要用于版本标记，确保用户知道有新的默认嵌入模型
 
-      return state
-    } catch (error) {
-      logger.error('migrate 131 error', error as Error)
-      return state
-    }
-  },
-  '131': (state: RootState) => {
-    try {
-      state.settings.mathEnableSingleDollar = true
+      // 6. 为 codeTools 设置默认模型
+      if (state.codeTools) {
+        // 查找智谱提供商中的 GLM-4.5-Flash 模型
+        const zhipuProviderForCodeTools = state.llm.providers.find(p => p.id === 'zhipu')
+        if (zhipuProviderForCodeTools) {
+          const glm45FlashModelForCodeTools = zhipuProviderForCodeTools.models.find(m => m.id === 'glm-4.5-flash')
+          
+          if (glm45FlashModelForCodeTools) {
+            // 为所有 CLI 工具设置默认模型为 GLM-4.5-Flash
+            if (state.codeTools.selectedModels['qwen-code'] === null) {
+              state.codeTools.selectedModels['qwen-code'] = glm45FlashModelForCodeTools
+            }
+            if (state.codeTools.selectedModels['claude-code'] === null) {
+              state.codeTools.selectedModels['claude-code'] = glm45FlashModelForCodeTools
+            }
+            if (state.codeTools.selectedModels['gemini-cli'] === null) {
+              state.codeTools.selectedModels['gemini-cli'] = glm45FlashModelForCodeTools
+            }
+          }
+        }
+      }
+
       return state
     } catch (error) {
       logger.error('migrate 131 error', error as Error)

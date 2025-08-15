@@ -3,7 +3,7 @@ import ModelLabels from '@renderer/components/ModelLabels'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import db from '@renderer/databases'
-import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
+
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
-import { ToolbarButton } from './Inputbar'
+
 
 interface Props {
   mentionedModels: Model[]
@@ -103,13 +103,13 @@ const MentionModelsButton: FC<Props> = ({
           <>
             <ProviderName>{getFancyProviderName(p)}</ProviderName>
             <span style={{ opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4 }}> | {m.name}</span>
-            <ModelLabels model={m} />
+            <ModelLabels model={m} parentContainer="MentionModelsButton" />
           </>
         ),
         description: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />
-            <ModelLabels model={m} />
+            <ModelLabels model={m} parentContainer="MentionModelsButton" />
           </div>
         ),
         icon: (

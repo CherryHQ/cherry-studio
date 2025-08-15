@@ -1,22 +1,22 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import Scrollbar from '@renderer/components/Scrollbar'
+
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
-import FileManager from '@renderer/services/FileManager'
+
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileMetadata, PaintingsState } from '@renderer/types'
+import type { PaintingsState } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Select, Switch, Tooltip } from 'antd'
+import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
-import React, { FC, useEffect, useRef, useState } from 'react'
+
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -33,7 +33,7 @@ import {
   TOP_UP_URL
 } from './config/ZhipuConfig'
 
-const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
+
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('paintings')
@@ -232,7 +232,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modelOptions = [
     { label: 'CogView-3-Flash', value: 'cogview-3-flash' },
-    { label: 'CogView-4', value: 'cogview-4' },
     { label: 'CogView-4-250304', value: 'cogview-4-250304' }
   ]
 
@@ -464,10 +463,6 @@ const ProviderLogo = styled(Avatar)`
   border-radius: 4px;
 `
 
-const InfoIcon = styled(Info)`
-  margin-left: 4px;
-  color: var(--color-text-3);
-  cursor: help;
-`
+
 
 export default ZhipuPage

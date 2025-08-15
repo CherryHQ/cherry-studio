@@ -72,7 +72,30 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         models = filterModelsByKeywords(searchText, models, provider)
       }
 
-      return sortBy(models, ['group', 'name'])
+      // 智谱模型特殊处理
+      if (provider.id === 'zhipu') {
+        const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
+        
+        // 如果未配置API Key，只显示四个指定模型
+        if (!hasApiKey) {
+          models = models.filter(m => 
+            m.id === 'glm-4.5-flash' || 
+            m.id === 'glm-4.5' || 
+            m.id === 'glm-4.5-air' || 
+            m.id === 'glm-4.5-x'
+          )
+        }
+        
+        // 智谱模型排序：让 GLM-4.5-Flash 排在最前面
+        models = sortBy(models, (model) => {
+          if (model.id === 'glm-4.5-flash') return '0' // 排在最前面
+          return model.name // 其他模型按名称排序
+        })
+      } else {
+        models = sortBy(models, ['group', 'name'])
+      }
+
+      return models
     },
     [searchText]
   )
@@ -89,7 +112,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         name: (
           <ModelName>
             {model.name}
-            <ModelLabels model={model} />
+            <ModelLabels model={model} parentContainer="SelectModelPopup" />
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
           </ModelName>
         ),
@@ -141,25 +164,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      let filteredModels = getFilteredModels(p)
+      const filteredModels = getFilteredModels(p)
         .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
         .filter(finalModelFilter)
-
-      // 智谱模型特殊处理
-      if (p.id === 'zhipu') {
-        const hasApiKey = p.apiKey && p.apiKey.trim() !== ''
-        
-        // 如果未配置API Key，只显示四个指定模型
-        if (!hasApiKey) {
-          filteredModels = filteredModels.filter(m => 
-            m.id === 'glm-4.5-flash' || 
-            m.id === 'glm-4.5' || 
-            m.id === 'glm-4.5-air' || 
-            m.id === 'glm-4.5-x'
-          )
-        }
-        // 如果已配置API Key，显示所有智谱模型
-      }
 
       if (filteredModels.length === 0) return
 

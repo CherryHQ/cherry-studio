@@ -33,7 +33,7 @@ import GenerateImageButton from './GenerateImageButton'
 import { ToolbarButton } from './Inputbar'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
-import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
+import MentionModelsButton from './MentionModelsButton'
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
@@ -124,7 +124,7 @@ const InputbarTools = ({
   const dispatch = useAppDispatch()
 
   const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
-  const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
+  const mentionModelsButtonRef = useRef<any>(null)
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -391,7 +391,7 @@ const InputbarTools = ({
         label: t('agents.edit.model.select.title'),
         component: (
           <MentionModelsButton
-            ref={mentionModelsButtonRef}
+
             mentionedModels={mentionModels}
             onMentionModel={onMentionModel}
             ToolbarButton={ToolbarButton}

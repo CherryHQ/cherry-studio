@@ -1,6 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ModelLabels from '@renderer/components/ModelLabels'
-import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
@@ -76,7 +76,12 @@ const ModelSelector = ({
             m.id === 'glm-4.5-x'
           )
         }
-        // 如果已配置API Key，显示所有智谱模型
+        
+        // 智谱模型排序：让 GLM-4.5-Flash 排在最前面
+        filteredModels = sortBy(filteredModels, (model) => {
+          if (model.id === 'glm-4.5-flash') return '0' // 排在最前面
+          return model.name // 其他模型按名称排序
+        })
       }
       
       return filteredModels.map((m) => ({
@@ -85,7 +90,7 @@ const ModelSelector = ({
             {showAvatar && <ModelAvatar model={m} size={18} />}
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {m.name}
-              <ModelLabels model={m} />
+              <ModelLabels model={m} parentContainer="ModelSelector" />
               {suffix}
             </span>
           </div>

@@ -6,9 +6,10 @@ import { Model } from '../types'
 
 interface ModelLabelsProps {
   model: Model
+  parentContainer?: 'ModelIdWithTags' | 'ModelSelector' | 'SelectModelPopup' | 'MentionModelsButton' | 'default'
 }
 
-const ModelLabels: React.FC<ModelLabelsProps> = ({ model }) => {
+const ModelLabels: React.FC<ModelLabelsProps> = ({ model, parentContainer = 'default' }) => {
   const handleApiKeyClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (model.apiKeyLink) {
@@ -17,13 +18,13 @@ const ModelLabels: React.FC<ModelLabelsProps> = ({ model }) => {
   }, [model.apiKeyLink])
 
   return (
-    <LabelsContainer>
+    <LabelsContainer $parentContainer={parentContainer}>
       {model.isFree && (
         <Tag color="green" style={{ margin: 0, fontSize: '10px', lineHeight: '16px', color: '#00AD74' }}>
           free
         </Tag>
       )}
-      {model.apiKeyLink && (
+      {model.apiKeyLink && parentContainer !== 'ModelIdWithTags' && (
         <Tag 
           color="orange" 
           style={{ margin: 0, fontSize: '10px', lineHeight: '16px', cursor: 'pointer', color: '#FF7E29' }}
@@ -36,11 +37,11 @@ const ModelLabels: React.FC<ModelLabelsProps> = ({ model }) => {
   )
 }
 
-const LabelsContainer = styled.div`
+const LabelsContainer = styled.div<{ $parentContainer: 'ModelIdWithTags' | 'ModelSelector' | 'SelectModelPopup' | 'MentionModelsButton' | 'default' }>`
   display: flex;
   gap: 4px;
   align-items: center;
-  margin-left: 8px;
+  margin-left: ${props => props.$parentContainer === 'ModelIdWithTags' || props.$parentContainer === 'ModelSelector' || props.$parentContainer === 'SelectModelPopup' || props.$parentContainer === 'MentionModelsButton' ? '0px' : '8px'};
 `
 
 export default ModelLabels
