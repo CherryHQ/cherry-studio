@@ -456,6 +456,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           }
           break
         case 'Escape':
+          e.stopPropagation()
           handleClose('esc')
           break
       }

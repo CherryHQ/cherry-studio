@@ -400,6 +400,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     if (expanded) {
       if (event.key === 'Escape') {
+        event.stopPropagation()
         return onToggleExpanded()
       }
     }
