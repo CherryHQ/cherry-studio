@@ -9,6 +9,7 @@ import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
+import semver from 'semver'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -44,12 +45,6 @@ export default class AppUpdater {
 
     // 检测到不需要更新时
     autoUpdater.on('update-not-available', () => {
-      if (configManager.getTestPlan() && this.autoUpdater.channel !== UpgradeChannel.LATEST) {
-        logger.info('test plan is enabled, but update is not available, do not send update not available event')
-        // will not send update not available event, because will check for updates with latest channel
-        return
-      }
-
       windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
     })
 
@@ -72,18 +67,24 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
-  private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
+  private async _getReleaseVersionFromGithub(channel: UpgradeChannel) {
+    const headers = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Accept-Language': 'en-US,en;q=0.9'
+    }
     try {
-      logger.info(`get pre release version from github: ${channel}`)
+      logger.info(`get release version from github: ${channel}`)
       const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
-        headers: {
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Accept-Language': 'en-US,en;q=0.9'
-        }
+        headers
       })
       const data = (await responses.json()) as GithubReleaseInfo[]
+      let mightHaveLatest = false
       const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
+        if (!item.draft && !item.prerelease) {
+          mightHaveLatest = true
+        }
+
         return item.prerelease && item.tag_name.includes(`-${channel}.`)
       })
 
@@ -91,8 +92,29 @@ export default class AppUpdater {
         return null
       }
 
-      logger.info(`prerelease url is ${release.tag_name}, set channel to ${channel}`)
+      // if the release version is the same as the current version, return null
+      if (release.tag_name === app.getVersion()) {
+        return null
+      }
 
+      if (mightHaveLatest) {
+        logger.info(`might have latest release, get latest release`)
+        const latestReleaseResponse = await fetch(
+          'https://api.github.com/repos/CherryHQ/cherry-studio/releases/latest',
+          {
+            headers
+          }
+        )
+        const latestRelease = (await latestReleaseResponse.json()) as GithubReleaseInfo
+        if (semver.gt(latestRelease.tag_name, release.tag_name)) {
+          logger.info(
+            `latest release version is ${latestRelease.tag_name}, prerelease version is ${release.tag_name}, return null`
+          )
+          return null
+        }
+      }
+
+      logger.info(`release url is ${release.tag_name}, set channel to ${channel}`)
       return `https://github.com/CherryHQ/cherry-studio/releases/download/${release.tag_name}`
     } catch (error) {
       logger.error('Failed to get latest not draft version from github:', error as Error)
@@ -151,14 +173,14 @@ export default class AppUpdater {
         return
       }
 
-      const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
-      if (preReleaseUrl) {
-        logger.info(`prerelease url is ${preReleaseUrl}, set channel to ${channel}`)
-        this._setChannel(channel, preReleaseUrl)
+      const releaseUrl = await this._getReleaseVersionFromGithub(channel)
+      if (releaseUrl) {
+        logger.info(`release url is ${releaseUrl}, set channel to ${channel}`)
+        this._setChannel(channel, releaseUrl)
         return
       }
 
-      // if no prerelease url, use github latest to avoid error
+      // if no prerelease url, use github latest to get release
       this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
       return
     }
@@ -194,17 +216,6 @@ export default class AppUpdater {
       logger.info(
         `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${this.autoUpdater.channel}, currentVersion: ${this.autoUpdater.currentVersion}`
       )
-
-      // if the update is not available, and the test plan is enabled, set the feed url to the github latest
-      if (
-        !this.updateCheckResult?.isUpdateAvailable &&
-        configManager.getTestPlan() &&
-        this.autoUpdater.channel !== UpgradeChannel.LATEST
-      ) {
-        logger.info('test plan is enabled, but update is not available, set channel to latest')
-        this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
-        this.updateCheckResult = await this.autoUpdater.checkForUpdates()
-      }
 
       if (this.updateCheckResult?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下

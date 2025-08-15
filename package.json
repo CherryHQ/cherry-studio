@@ -84,7 +84,7 @@
     "pdf-parse": "^1.1.1",
     "react-player": "^3.3.1",
     "react-youtube": "^10.1.0",
-    "selection-hook": "^1.0.8",
+    "selection-hook": "^1.0.9",
     "turndown": "7.2.0",
     "youtubei.js": "^15.0.1"
   },

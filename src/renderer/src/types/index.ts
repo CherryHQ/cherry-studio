@@ -554,16 +554,6 @@ export type ApiClient = {
   baseURL: string
 }
 
-export interface PreprocessProvider {
-  id: string
-  name: string
-  apiKey?: string
-  apiHost?: string
-  model?: string
-  options?: any
-  quota?: number
-}
-
 export type GenerateImageParams = {
   model: string
   prompt: string
@@ -620,8 +610,24 @@ export type ExternalToolResult = {
   memories?: MemoryItem[]
 }
 
+export const WebSearchProviderIds = {
+  tavily: 'tavily',
+  searxng: 'searxng',
+  exa: 'exa',
+  bocha: 'bocha',
+  'local-google': 'local-google',
+  'local-bing': 'local-bing',
+  'local-baidu': 'local-baidu'
+} as const
+
+export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
+export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
+  return Object.hasOwn(WebSearchProviderIds, id)
+}
+
 export type WebSearchProvider = {
-  id: string
+  id: WebSearchProviderId
   name: string
   apiKey?: string
   apiHost?: string

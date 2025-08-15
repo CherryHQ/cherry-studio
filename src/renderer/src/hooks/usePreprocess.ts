@@ -4,10 +4,10 @@ import {
   updatePreprocessProvider as _updatePreprocessProvider,
   updatePreprocessProviders as _updatePreprocessProviders
 } from '@renderer/store/preprocess'
-import { PreprocessProvider } from '@renderer/types'
+import { PreprocessProvider, PreprocessProviderId } from '@renderer/types'
 import { useDispatch, useSelector } from 'react-redux'
 
-export const usePreprocessProvider = (id: string) => {
+export const usePreprocessProvider = (id: PreprocessProviderId) => {
   const dispatch = useDispatch()
   const preprocessProviders = useSelector((state: RootState) => state.preprocess.providers)
   const provider = preprocessProviders.find((provider) => provider.id === id)

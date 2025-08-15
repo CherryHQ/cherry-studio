@@ -52,13 +52,26 @@ export interface KnowledgeBase {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
+export const PreprocessProviderIds = {
+  doc2x: 'doc2x',
+  mistral: 'mistral',
+  mineru: 'mineru'
+} as const
+
+export type PreprocessProviderId = keyof typeof PreprocessProviderIds
+
+export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
+  return Object.hasOwn(PreprocessProviderIds, id)
+}
+
 export interface PreprocessProvider {
-  id: string
+  id: PreprocessProviderId
   name: string
   apiKey?: string
   apiHost?: string
   model?: string
   options?: any
+  quota?: number
 }
 
 export interface OcrProvider {
