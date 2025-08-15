@@ -150,6 +150,7 @@ import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
+import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import {
   Model,
@@ -491,6 +492,7 @@ export function getModelLogo(modelId: string) {
     xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     youdao: YoudaoLogo,
+    'embedding-3': ZhipuProviderLogo,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
@@ -499,7 +501,6 @@ export function getModelLogo(modelId: string) {
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
     'nomic-': NomicLogo,
     'pangu-': PanguModelLogo,
-    'embedding-3': isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
     cogview: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
     zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark
   }
