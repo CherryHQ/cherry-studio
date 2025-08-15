@@ -1,25 +1,21 @@
 import { TopView } from '@renderer/components/TopView'
-import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
-import { Checkbox, Modal } from 'antd'
+import { Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ApiOptionsSettings from './ApiOptionsSettings'
+
 interface ShowParams {
-  provider: Provider
+  providerId: string
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
-  const [open, setOpen] = useState(true)
-  const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(props.provider.isNotSupportArrayContent)
-
-  const { provider, updateProvider } = useProvider(props.provider.id)
-
+const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(true)
 
   const onOk = () => {
     setOpen(false)
@@ -33,35 +29,27 @@ const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
     resolve({})
   }
 
-  ProviderSettingsPopup.hide = onCancel
+  ApiOptionsSettingsPopup.hide = onCancel
 
   return (
     <Modal
-      title={provider.name}
+      title={t('settings.provider.api.options.label')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
       transitionName="animation-move-down"
+      styles={{ body: { padding: '20px 16px' } }}
+      footer={null}
       centered>
-      <Checkbox
-        checked={isNotSupportArrayContent}
-        onChange={(e) => {
-          setIsNotSupportArrayContent(e.target.checked)
-          updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
-        }}>
-        {t('settings.provider.is_not_support_array_content')}
-      </Checkbox>
+      <ApiOptionsSettings providerId={providerId} />
     </Modal>
   )
 }
 
-const TopViewKey = 'ProviderSettingsPopup'
+const TopViewKey = 'ApiOptionsSettingsPopup'
 
-/**
- * @deprecated
- */
-export default class ProviderSettingsPopup {
+export default class ApiOptionsSettingsPopup {
   static topviewId = 0
   static hide() {
     TopView.hide(TopViewKey)

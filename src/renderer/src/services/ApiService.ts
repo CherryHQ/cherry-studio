@@ -30,7 +30,6 @@ import {
   MemoryItem,
   Model,
   Provider,
-  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -46,6 +45,7 @@ import {
 } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
   buildSystemPromptWithThinkTool,
@@ -62,13 +62,12 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getTopNamingModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
 import {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
@@ -96,9 +95,19 @@ async function fetchExternalTool(
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
 
-  // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
+  // 获取 MCP 工具
+  let mcpTools: MCPTool[] = []
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  const showListTools = enabledMCPs && enabledMCPs.length > 0
+
+  // 是否使用工具
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || showListTools
+
+  // 在工具链开始时发送进度通知（不包括记忆搜索）
+  if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
 
@@ -347,28 +356,7 @@ async function fetchExternalTool(
       }
     }
 
-    // 发送工具执行完成通知
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch,
-          memories: memorySearchReferences
-        }
-      })
-    }
-
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = []
-    const allMcpServers = store.getState().mcp.servers || []
-    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-    const assistantMcpServers = assistant.mcpServers || []
-
-    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
+    if (showListTools) {
       try {
         const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
@@ -385,9 +373,6 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
-        // 添加内置工具
-        // const { BUILT_IN_TOOLS } = await import('../tools')
-        // mcpTools.push(...BUILT_IN_TOOLS)
 
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
@@ -401,6 +386,18 @@ async function fetchExternalTool(
       } catch (toolError) {
         logger.error('Error fetching MCP tools:', toolError as Error)
       }
+    }
+
+    // 发送工具执行完成通知
+    if (hasAnyTool) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: webSearchResponseFromSearch,
+          knowledge: knowledgeReferencesFromSearch,
+          memories: memorySearchReferences
+        }
+      })
     }
 
     return { mcpTools }
@@ -437,8 +434,6 @@ export async function fetchChatCompletion({
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
 
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
   }
@@ -447,7 +442,7 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
+  const filteredMessages1 = filterAfterContextClearMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -463,10 +458,14 @@ export async function fetchChatCompletion({
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const filteredMessages2 = filterUsefulMessages(filteredMessages1)
+
+  const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+
+  const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
 
   const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
@@ -487,7 +486,7 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   const completionsParams: CompletionsParams = {
     callType: 'chat',
     messages: _messages,
@@ -605,56 +604,6 @@ async function processConversationMemory(messages: Message[], assistant: Assista
       })
   } catch (error) {
     logger.error('Error in post-conversation memory processing:', error as Error)
-  }
-}
-
-interface FetchTranslateProps {
-  content: string
-  assistant: TranslateAssistant
-  onResponse?: (text: string, isComplete: boolean) => void
-}
-
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    throw new Error(i18n.t('error.no_api_key'))
-  }
-
-  const isSupportedStreamOutput = () => {
-    if (!onResponse) {
-      return false
-    }
-    return true
-  }
-
-  const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-  const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
-    streamOutput: stream,
-    enableReasoning,
-    onResponse
-  }
-
-  const AI = new AiProvider(provider)
-
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
   }
 }
 
@@ -791,7 +740,7 @@ export async function fetchGenerate({
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
   if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)

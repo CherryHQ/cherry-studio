@@ -98,6 +98,7 @@ linux:
   target:
     - target: AppImage
     - target: deb
+    - target: rpm
   maintainer: electronjs.org
   category: Utility
   desktop:

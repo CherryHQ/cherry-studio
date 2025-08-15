@@ -15,10 +15,11 @@ import i18n from '@renderer/i18n'
 import {
   Assistant,
   isSystemProvider,
-  LanguageCode,
   Model,
   Provider,
+  ProviderApiOptions,
   SystemProviderIds,
+  TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
@@ -1437,7 +1438,8 @@ const migrateConfig = {
     try {
       state.settings.openAI = {
         summaryText: 'off',
-        serviceTier: 'auto'
+        serviceTier: 'auto',
+        verbosity: 'medium'
       }
 
       state.settings.codeExecution = {
@@ -1529,7 +1531,8 @@ const migrateConfig = {
       if (!state.settings.openAI) {
         state.settings.openAI = {
           summaryText: 'off',
-          serviceTier: 'auto'
+          serviceTier: 'auto',
+          verbosity: 'medium'
         }
       }
       return state
@@ -1804,7 +1807,7 @@ const migrateConfig = {
         state.settings.s3 = settingsInitialState.s3
       }
 
-      const langMap: Record<string, LanguageCode> = {
+      const langMap: Record<string, TranslateLanguageCode> = {
         english: 'en-us',
         chinese: 'zh-cn',
         'chinese-traditional': 'zh-tw',
@@ -2052,6 +2055,52 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 128 error', error as Error)
+      return state
+    }
+  },
+  '129': (state: RootState) => {
+    try {
+      // 聚合 api options
+      state.llm.providers.forEach((p) => {
+        if (isSystemProvider(p)) {
+          updateProvider(state, p.id, { apiOptions: undefined })
+        } else {
+          const changes: ProviderApiOptions = {
+            isNotSupportArrayContent: p.isNotSupportArrayContent,
+            isNotSupportServiceTier: p.isNotSupportServiceTier,
+            isNotSupportDeveloperRole: p.isNotSupportDeveloperRole,
+            isNotSupportStreamOptions: p.isNotSupportStreamOptions
+          }
+          updateProvider(state, p.id, { apiOptions: changes })
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 129 error', error as Error)
+      return state
+    }
+  },
+  '130': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.openAI && !state.settings.openAI.verbosity) {
+        state.settings.openAI.verbosity = 'medium'
+      }
+      // 为 nutstore 添加备份数量限制的默认值
+      if (state.nutstore && state.nutstore.nutstoreMaxBackups === undefined) {
+        state.nutstore.nutstoreMaxBackups = 0
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 130 error', error as Error)
+      return state
+    }
+  },
+  '131': (state: RootState) => {
+    try {
+      state.settings.mathEnableSingleDollar = true
+      return state
+    } catch (error) {
+      logger.error('migrate 131 error', error as Error)
       return state
     }
   }

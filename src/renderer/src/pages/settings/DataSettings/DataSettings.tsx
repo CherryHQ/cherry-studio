@@ -581,7 +581,7 @@ const DataSettings: FC = () => {
           )
         )}
       </MenuList>
-      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1 }}>
+      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && (
           <>
             <SettingGroup theme={theme}>

@@ -187,6 +187,7 @@
         "label": "Comprimento da Cadeia de Raciocínio",
         "low": "Curto",
         "medium": "Médio",
+        "minimal": "mínimo",
         "off": "Desligado"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Trocar modelo"
       },
-      "useful": "Útil"
+      "useful": {
+        "label": "Definido como contexto",
+        "tip": "Neste conjunto de mensagens, esta mensagem será selecionada para ingressar no contexto"
+      }
     },
     "multiple": {
       "select": {
@@ -2784,7 +2788,7 @@
       "jsonSaveSuccess": "Configuração JSON salva com sucesso",
       "logoUrl": "URL do Logotipo",
       "longRunning": "Modo de execução prolongada",
-      "longRunningTooltip": "Ativado, o servidor suporta tarefas de longa duração, reiniciando o temporizador de tempo limite ao receber notificações de progresso e prolongando o tempo máximo de tempo limite para 10 minutos.",
+      "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",
@@ -3135,7 +3139,14 @@
         "tip": "Resumo do raciocínio executado pelo modelo",
         "title": "Modo de Resumo"
       },
-      "title": "Configurações do OpenAI"
+      "title": "Configurações do OpenAI",
+      "verbosity": {
+        "high": "alto",
+        "low": "baixo",
+        "medium": "médio",
+        "tip": "Controlar o nível de detalhe da saída do modelo",
+        "title": "nível de detalhe"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
@@ -3175,6 +3186,10 @@
           "developer_role": {
             "help": "O fornecedor suporta mensagens com role: \"developer\"?",
             "label": "Mensagem de suporte ao programador"
+          },
+          "enable_thinking": {
+            "help": "O fornecedor suporta o controlo do pensamento de modelos como o Qwen3 através do parâmetro enable_thinking?",
+            "label": "Apoiar enable_thinking"
           },
           "label": "Definições da API",
           "service_tier": {
@@ -3504,6 +3519,51 @@
         "time": "Mostrar tempo do tópico"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Tem a certeza de que deseja eliminar?",
+          "title": "Eliminar idioma personalizado"
+        },
+        "error": {
+          "add": "Falha ao adicionar",
+          "delete": "Falha ao eliminar",
+          "langCode": {
+            "builtin": "O idioma já tem suporte integrado",
+            "empty": "Código de idioma vazio",
+            "exists": "Este idioma já existe",
+            "invalid": "Código de idioma inválido"
+          },
+          "update": "Falha ao atualizar",
+          "value": {
+            "empty": "O nome do idioma não pode estar vazio",
+            "too_long": "O nome do idioma é muito longo"
+          }
+        },
+        "langCode": {
+          "help": "[linguagem+região] no formato, [2~3 letras minúsculas]-[2~3 letras minúsculas]",
+          "label": "código do idioma",
+          "placeholder": "pt-pt"
+        },
+        "success": {
+          "add": "Adicionado com sucesso",
+          "delete": "Eliminação bem-sucedida",
+          "update": "Atualização bem-sucedida"
+        },
+        "table": {
+          "action": {
+            "title": "Operação"
+          }
+        },
+        "value": {
+          "help": "1~32 caracteres",
+          "label": "Nome do idioma",
+          "placeholder": "Português"
+        }
+      },
+      "prompt": "Prompt de tradução",
+      "title": "Definições de tradução"
+    },
     "tray": {
       "onclose": "Minimizar para bandeja ao fechar",
       "show": "Mostrar ícone de bandeja",
@@ -3560,14 +3620,24 @@
       "title": "Confirmação de Tradução"
     },
     "copied": "Conteúdo de tradução copiado",
+    "custom": {
+      "label": "idioma personalizado"
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "detected_unknown": "Idioma desconhecido não pode ser trocado",
+      "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
+      "invalid_source": "Idioma de origem inválido",
       "not_configured": "Modelo de tradução não configurado",
+      "not_supported": "Idioma não suportado {{language}}",
       "unknown": "Ocorreu um erro desconhecido durante a tradução"
+    },
+    "exchange": {
+      "label": "Trocar idioma de origem e idioma de destino"
     },
     "history": {
       "clear": "Limpar Histórico",
@@ -3606,6 +3676,12 @@
       "preview": "Pré-visualização Markdown",
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
+    },
+    "success": {
+      "custom": {
+        "delete": "Eliminação bem-sucedida",
+        "update": "Atualização bem-sucedida"
+      }
     },
     "target_language": "Idioma de destino",
     "title": "Tradução",

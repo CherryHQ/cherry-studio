@@ -2,7 +2,7 @@ import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimensio
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
@@ -30,7 +30,7 @@ const RagSettings = () => {
   }, [providers])
 
   const rerankProviders = useMemo(() => {
-    return providers.filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
+    return providers.filter((p) => !NOT_SUPPORTED_RERANK_PROVIDERS.some((pid) => p.id === pid))
   }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {

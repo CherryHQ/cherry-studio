@@ -87,7 +87,10 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
-        <FileSearch size={18} />
+        <FileSearch
+          size={18}
+          color={selectedBases && selectedBases.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
+        />
       </ToolbarButton>
     </Tooltip>
   )

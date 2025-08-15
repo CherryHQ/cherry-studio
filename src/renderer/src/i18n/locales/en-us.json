@@ -183,10 +183,11 @@
       "prompt": "Prompt Settings",
       "reasoning_effort": {
         "default": "Default",
-        "high": "Think harder",
+        "high": "High",
         "label": "Reasoning effort",
-        "low": "Think less",
-        "medium": "Think normally",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
         "off": "Off"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Switch Model"
       },
-      "useful": "Helpful"
+      "useful": {
+        "label": "Set as context",
+        "tip": "In this group of messages, this message will be selected to join the context"
+      }
     },
     "multiple": {
       "select": {
@@ -643,6 +647,31 @@
       "unpin": "Unpin Topic"
     },
     "translate": "Translate"
+  },
+  "code": {
+    "auto_update_to_latest": "Automatically update to latest version",
+    "bun_required_message": "Bun environment is required to run CLI tools",
+    "cli_tool": "CLI Tool",
+    "cli_tool_placeholder": "Select the CLI tool to use",
+    "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "folder_placeholder": "Select working directory",
+    "install_bun": "Install Bun",
+    "installing_bun": "Installing...",
+    "launch": {
+      "bun_required": "Please install Bun environment first before launching CLI tools",
+      "error": "Launch failed, please try again",
+      "label": "Launch",
+      "success": "Launch successful",
+      "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
+    },
+    "launching": "Launching...",
+    "model": "Model",
+    "model_placeholder": "Select the model to use",
+    "model_required": "Please select a model",
+    "select_folder": "Select Folder",
+    "title": "Code Tools",
+    "update_options": "Update Options",
+    "working_directory": "Working Directory"
   },
   "code_block": {
     "collapse": "Collapse",
@@ -2702,6 +2731,17 @@
       "title": "Launch",
       "totray": "Minimize to Tray on Launch"
     },
+    "math": {
+      "engine": {
+        "label": "Math engine",
+        "none": "None"
+      },
+      "single_dollar": {
+        "label": "Enable $...$",
+        "tip": "Render math equations quoted by single dollar signs $...$. Default is enabled."
+      },
+      "title": "Math Settings"
+    },
     "mcp": {
       "actions": "Actions",
       "active": "Active",
@@ -2876,7 +2916,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP Settings",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -2932,10 +2972,6 @@
         "title": "Input Settings"
       },
       "markdown_rendering_input_message": "Markdown render input message",
-      "math_engine": {
-        "label": "Math engine",
-        "none": "None"
-      },
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "model": {
         "title": "Model Settings"
@@ -2947,6 +2983,7 @@
         "none": "None"
       },
       "prompt": "Show prompt",
+      "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
@@ -3135,7 +3172,14 @@
         "tip": "A summary of the reasoning performed by the model",
         "title": "Summary Mode"
       },
-      "title": "OpenAI Settings"
+      "title": "OpenAI Settings",
+      "verbosity": {
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "tip": "Control the level of detail in the model's output",
+        "title": "Level of detail"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
@@ -3175,6 +3219,10 @@
           "developer_role": {
             "help": "Does the provider support messages with role: \"developer\"?",
             "label": "Support Developer Message"
+          },
+          "enable_thinking": {
+            "help": "Does the provider support controlling the reasoning of models like Qwen3 via the enable_thinking parameter?",
+            "label": "Support enable_thinking"
           },
           "label": "API Settings",
           "service_tier": {
@@ -3408,10 +3456,10 @@
     "title": "Settings",
     "tool": {
       "preprocess": {
-        "provider": "Pre Process Provider",
-        "provider_placeholder": "Choose a Pre Process provider",
-        "title": "Pre Process",
-        "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
+        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
       "websearch": {
@@ -3504,6 +3552,51 @@
         "time": "Show topic time"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Are you sure you want to delete?",
+          "title": "Delete custom language"
+        },
+        "error": {
+          "add": "Failed to add",
+          "delete": "Deletion failed",
+          "langCode": {
+            "builtin": "The language has built-in support",
+            "empty": "Language code is empty",
+            "exists": "The language already exists",
+            "invalid": "Invalid language code"
+          },
+          "update": "Update failed",
+          "value": {
+            "empty": "Language name cannot be empty",
+            "too_long": "Language name is too long"
+          }
+        },
+        "langCode": {
+          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
+          "label": "Language code",
+          "placeholder": "en-us"
+        },
+        "success": {
+          "add": "Added successfully",
+          "delete": "Deleted successfully",
+          "update": "Update successful"
+        },
+        "table": {
+          "action": {
+            "title": "Operation"
+          }
+        },
+        "value": {
+          "help": "1~32 characters",
+          "label": "Language name",
+          "placeholder": "English"
+        }
+      },
+      "prompt": "Translation prompt",
+      "title": "Translation settings"
+    },
     "tray": {
       "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
@@ -3517,6 +3610,7 @@
   "title": {
     "agents": "Agents",
     "apps": "Apps",
+    "code": "Code",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",
@@ -3560,14 +3654,24 @@
       "title": "Translation Confirmation"
     },
     "copied": "Translation content copied",
+    "custom": {
+      "label": "Custom language"
+    },
     "detected": {
       "language": "Auto Detect"
     },
     "empty": "Translation content is empty",
     "error": {
+      "detected_unknown": "Unknown language cannot be exchanged",
+      "empty": "The translation result is empty content",
       "failed": "Translation failed",
+      "invalid_source": "Invalid source language",
       "not_configured": "Translation model is not configured",
+      "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"
+    },
+    "exchange": {
+      "label": "Swap the source and target languages"
     },
     "history": {
       "clear": "Clear History",
@@ -3606,6 +3710,12 @@
       "preview": "Markdown Preview",
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
+    },
+    "success": {
+      "custom": {
+        "delete": "Deleted successfully",
+        "update": "Update successful"
+      }
     },
     "target_language": "Target Language",
     "title": "Translation",

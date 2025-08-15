@@ -187,6 +187,7 @@
         "label": "Longitud de Cadena de Razonamiento",
         "low": "Corto",
         "medium": "Medio",
+        "minimal": "minimal",
         "off": "Apagado"
       },
       "regular_phrases": {
@@ -404,7 +405,10 @@
       "regenerate": {
         "model": "Cambiar modelo"
       },
-      "useful": "Útil"
+      "useful": {
+        "label": "establecer como contexto",
+        "tip": "En este grupo de mensajes, este mensaje se seleccionará para unirse al contexto"
+      }
     },
     "multiple": {
       "select": {
@@ -3135,7 +3139,14 @@
         "tip": "Resumen de la inferencia realizada por el modelo",
         "title": "Modo de resumen"
       },
-      "title": "Configuración de OpenAI"
+      "title": "Configuración de OpenAI",
+      "verbosity": {
+        "high": "alto",
+        "low": "bajo",
+        "medium": "medio",
+        "tip": "Controlar el nivel de detalle de la salida del modelo",
+        "title": "nivel de detalle"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
@@ -3175,6 +3186,10 @@
           "developer_role": {
             "help": "¿Admite el proveedor mensajes con el rol: \"developer\"?",
             "label": "Mensajes para desarrolladores compatibles"
+          },
+          "enable_thinking": {
+            "help": "¿Admite este proveedor el control del pensamiento de modelos como Qwen3 mediante el parámetro enable_thinking?",
+            "label": "Soporta enable_thinking"
           },
           "label": "Configuración de la API",
           "service_tier": {
@@ -3504,6 +3519,51 @@
         "time": "Mostrar tiempo del tema"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "¿Está seguro de que desea eliminarlo?",
+          "title": "Eliminar idioma personalizado"
+        },
+        "error": {
+          "add": "Error al agregar",
+          "delete": "Error al eliminar",
+          "langCode": {
+            "builtin": "El idioma ya tiene soporte integrado",
+            "empty": "El código de idioma está vacío",
+            "exists": "El idioma ya existe",
+            "invalid": "Código de idioma no válido"
+          },
+          "update": "Actualización fallida",
+          "value": {
+            "empty": "El nombre del idioma no puede estar vacío",
+            "too_long": "El nombre del idioma es demasiado largo"
+          }
+        },
+        "langCode": {
+          "help": "[idioma+región] en formato [2-3 letras minúsculas]-[2-3 letras minúsculas]",
+          "label": "código de idioma",
+          "placeholder": "es-es"
+        },
+        "success": {
+          "add": "Agregado correctamente",
+          "delete": "Eliminado correctamente",
+          "update": "Actualización exitosa"
+        },
+        "table": {
+          "action": {
+            "title": "operación"
+          }
+        },
+        "value": {
+          "help": "1~32 caracteres",
+          "label": "nombre del idioma",
+          "placeholder": "español"
+        }
+      },
+      "prompt": "Seguir el mensaje del sistema",
+      "title": "Configuración de traducción"
+    },
     "tray": {
       "onclose": "Minimizar a la bandeja al cerrar",
       "show": "Mostrar bandera del sistema",
@@ -3560,14 +3620,24 @@
       "title": "Confirmación de traducción"
     },
     "copied": "El contenido traducido ha sido copiado",
+    "custom": {
+      "label": "Idioma personalizado"
+    },
     "detected": {
       "language": "Detección automática"
     },
     "empty": "El contenido de traducción está vacío",
     "error": {
+      "detected_unknown": "Idioma desconocido no intercambiable",
+      "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
+      "invalid_source": "Invalid source language",
       "not_configured": "El modelo de traducción no está configurado",
+      "not_supported": "Idioma no compatible {{language}}",
       "unknown": "Se produjo un error desconocido durante la traducción"
+    },
+    "exchange": {
+      "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
     "history": {
       "clear": "Borrar historial",
@@ -3606,6 +3676,12 @@
       "preview": "Vista previa de Markdown",
       "scroll_sync": "Configuración de sincronización de desplazamiento",
       "title": "Configuración de traducción"
+    },
+    "success": {
+      "custom": {
+        "delete": "Eliminado correctamente",
+        "update": "Actualización exitosa"
+      }
     },
     "target_language": "Idioma de destino",
     "title": "Traducción",

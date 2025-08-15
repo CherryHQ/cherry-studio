@@ -707,6 +707,10 @@ export class SelectionService {
     //use original point to get the display
     const display = screen.getDisplayNearestPoint(refPoint)
 
+    //check if the toolbar exceeds the top or bottom of the screen
+    const exceedsTop = posPoint.y < display.workArea.y
+    const exceedsBottom = posPoint.y > display.workArea.y + display.workArea.height - toolbarHeight
+
     // Ensure toolbar stays within screen boundaries
     posPoint.x = Math.round(
       Math.max(display.workArea.x, Math.min(posPoint.x, display.workArea.x + display.workArea.width - toolbarWidth))
@@ -714,6 +718,14 @@ export class SelectionService {
     posPoint.y = Math.round(
       Math.max(display.workArea.y, Math.min(posPoint.y, display.workArea.y + display.workArea.height - toolbarHeight))
     )
+
+    //adjust the toolbar position if it exceeds the top or bottom of the screen
+    if (exceedsTop) {
+      posPoint.y = posPoint.y + 32
+    }
+    if (exceedsBottom) {
+      posPoint.y = posPoint.y - 32
+    }
 
     return posPoint
   }

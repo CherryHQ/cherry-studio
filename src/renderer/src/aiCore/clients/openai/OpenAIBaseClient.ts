@@ -99,18 +99,23 @@ export abstract class OpenAIBaseClient<
   override async listModels(): Promise<OpenAI.Models.Model[]> {
     try {
       const sdk = await this.getSdkInstance()
-      const response = await sdk.models.list()
       if (this.provider.id === 'github') {
+        // GitHub Models 其 models 和 chat completions 两个接口的 baseUrl 不一样
+        const baseUrl = 'https://models.github.ai/catalog/'
+        const newSdk = sdk.withOptions({ baseURL: baseUrl })
+        const response = await newSdk.models.list()
+
         // @ts-ignore key is not typed
         return response?.body
           .map((model) => ({
-            id: model.name,
+            id: model.id,
             description: model.summary,
             object: 'model',
             owned_by: model.publisher
           }))
           .filter(isSupportedModel)
       }
+      const response = await sdk.models.list()
       if (this.provider.id === 'together') {
         // @ts-ignore key is not typed
         return response?.body.map((model) => ({

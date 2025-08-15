@@ -23,6 +23,7 @@ import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
+import MessageOutline from './MessageOutline'
 
 interface Props {
   message: Message
@@ -35,6 +36,8 @@ interface Props {
   isGrouped?: boolean
   isStreaming?: boolean
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
+  onUpdateUseful?: (msgId: string) => void
+  isGroupContextMessage?: boolean
 }
 
 const logger = loggerService.withContext('MessageItem')
@@ -56,13 +59,15 @@ const MessageItem: FC<Props> = ({
   index,
   hideMenuBar = false,
   isGrouped,
-  isStreaming = false
+  isStreaming = false,
+  onUpdateUseful,
+  isGroupContextMessage
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const { isMultiSelectMode } = useChatContext(topic)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
-  const { messageFont, fontSize, messageStyle } = useSettings()
+  const { messageFont, fontSize, messageStyle, showMessageOutline } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -166,6 +171,7 @@ const MessageItem: FC<Props> = ({
           model={model}
           key={getModelUniqId(model)}
           topic={topic}
+          isGroupContextMessage={isGroupContextMessage}
         />
         {isEditing && (
           <MessageEditor
@@ -178,6 +184,9 @@ const MessageItem: FC<Props> = ({
         )}
         {!isEditing && (
           <>
+            {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
+              <MessageOutline message={message} />
+            )}
             <MessageContentContainer
               className="message-content-container"
               style={{
@@ -202,6 +211,7 @@ const MessageItem: FC<Props> = ({
                   isGrouped={isGrouped}
                   messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
                   setModel={setModel}
+                  onUpdateUseful={onUpdateUseful}
                 />
               </MessageFooter>
             )}

@@ -1,5 +1,5 @@
+import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
-import { loggerService } from '@renderer/services/LoggerService'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -8,6 +8,7 @@ import storeSyncService from '../services/StoreSyncService'
 import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
+import codeTools from './codeTools'
 import copilot from './copilot'
 import inputToolsReducer from './inputTools'
 import knowledge from './knowledge'
@@ -35,6 +36,7 @@ const rootReducer = combineReducers({
   assistants,
   agents,
   backup,
+  codeTools,
   nutstore,
   paintings,
   llm,
@@ -60,7 +62,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 128,
+    version: 131,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },

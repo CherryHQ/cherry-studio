@@ -36,7 +36,7 @@ export type Assistant = {
 }
 
 export type TranslateAssistant = Assistant & {
-  targetLanguage?: Language
+  targetLanguage?: TranslateLanguage
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -52,10 +52,11 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOption = 'low' | 'medium' | 'high' | 'auto'
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
 export type ThinkingOption = ReasoningEffortOption | 'off'
 export type ThinkingModelType =
   | 'default'
+  | 'gpt5'
   | 'grok'
   | 'gemini'
   | 'gemini_pro'
@@ -87,6 +88,7 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  minimal: 0.05,
   low: 0.05,
   medium: 0.5,
   high: 0.8,
@@ -192,6 +194,20 @@ export type User = {
   email: string
 }
 
+// undefined 视为支持，默认支持
+export type ProviderApiOptions = {
+  /** 是否不支持 message 的 content 为数组类型 */
+  isNotSupportArrayContent?: boolean
+  /** 是否不支持 stream_options 参数 */
+  isNotSupportStreamOptions?: boolean
+  /** 是否不支持 message 的 role 为 developer */
+  isNotSupportDeveloperRole?: boolean
+  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  isNotSupportServiceTier?: boolean
+  /** 是否不支持 enable_thinking 参数 */
+  isNotSupportEnableThinking?: boolean
+}
+
 export type Provider = {
   id: string
   type: ProviderType
@@ -206,16 +222,17 @@ export type Provider = {
   rateLimit?: number
 
   // API options
-  // undefined 视为支持，默认支持
-  /** 是否不支持 message 的 content 为数组类型 */
-  isNotSupportArrayContent?: boolean
-  /** 是否不支持 stream_options 参数 */
-  isNotSupportStreamOptions?: boolean
-  /** 是否不支持 message 的 role 为 developer */
-  isNotSupportDeveloperRole?: boolean
-  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
-  isNotSupportServiceTier?: boolean
+  apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
+
+  /** @deprecated */
+  isNotSupportArrayContent?: boolean
+  /** @deprecated */
+  isNotSupportStreamOptions?: boolean
+  /** @deprecated */
+  isNotSupportDeveloperRole?: boolean
+  /** @deprecated */
+  isNotSupportServiceTier?: boolean
 
   isVertex?: boolean
   notes?: string
@@ -286,6 +303,7 @@ export const isSystemProviderId = (id: string): id is SystemProviderId => {
 export type SystemProvider = Provider & {
   id: SystemProviderId
   isSystem: true
+  apiOptions?: never
 }
 
 /**
@@ -487,9 +505,8 @@ export enum ThemeMode {
   system = 'system'
 }
 
+/** 有限的UI语言 */
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
-
-export type TranslateLanguageVarious = LanguageCode
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -592,8 +609,20 @@ export type KnowledgeBaseParams = {
   }
 }
 
+export const PreprocessProviderIds = {
+  doc2x: 'doc2x',
+  mistral: 'mistral',
+  mineru: 'mineru'
+} as const
+
+export type PreprocessProviderId = keyof typeof PreprocessProviderIds
+
+export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
+  return Object.hasOwn(PreprocessProviderIds, id)
+}
+
 export interface PreprocessProvider {
-  id: string
+  id: PreprocessProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -621,33 +650,13 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type LanguageCode =
-  | 'unknown'
-  | 'en-us'
-  | 'zh-cn'
-  | 'zh-tw'
-  | 'ja-jp'
-  | 'ko-kr'
-  | 'fr-fr'
-  | 'de-de'
-  | 'it-it'
-  | 'es-es'
-  | 'pt-pt'
-  | 'ru-ru'
-  | 'pl-pl'
-  | 'ar-ar'
-  | 'tr-tr'
-  | 'th-th'
-  | 'vi-vn'
-  | 'id-id'
-  | 'ur-pk'
-  | 'ms-my'
-  | 'uk-ua'
+// 为了支持自定义语言，设置为string别名
+export type TranslateLanguageCode = string
 
 // langCode应当能够唯一确认一种语言
-export type Language = {
+export type TranslateLanguage = {
   value: string
-  langCode: LanguageCode
+  langCode: TranslateLanguageCode
   label: () => string
   emoji: string
 }
@@ -656,9 +665,16 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: LanguageCode
-  targetLanguage: LanguageCode
+  sourceLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLanguageCode
   createdAt: string
+}
+
+export type CustomTranslateLanguage = {
+  id: string
+  langCode: TranslateLanguageCode
+  value: string
+  emoji: string
 }
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
@@ -671,8 +687,24 @@ export type ExternalToolResult = {
   memories?: MemoryItem[]
 }
 
+export const WebSearchProviderIds = {
+  tavily: 'tavily',
+  searxng: 'searxng',
+  exa: 'exa',
+  bocha: 'bocha',
+  'local-google': 'local-google',
+  'local-bing': 'local-bing',
+  'local-baidu': 'local-baidu'
+} as const
+
+export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
+export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
+  return Object.hasOwn(WebSearchProviderIds, id)
+}
+
 export type WebSearchProvider = {
-  id: string
+  id: WebSearchProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -930,6 +962,8 @@ export interface StoreSyncAction {
   }
 }
 
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
+
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 
 export const OpenAIServiceTiers = {
@@ -1065,3 +1099,20 @@ export interface MemoryListOptions extends MemoryEntity {
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
 // ========================================================================
+
+/**
+ * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
+ * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
+ * @template T - 必需包含的键的字面量字符串联合类型
+ * @template U - 所有键对应值的类型
+ * @example
+ * type Example = AtLeast<'a' | 'b', number>;
+ * // 结果类型允许:
+ * const obj1: Example = { a: 1, b: 2 };           // 只包含必需的键
+ * const obj2: Example = { a: 1, b: 2, c: 3 };     // 包含额外的键
+ */
+export type AtLeast<T extends string, U> = {
+  [K in T]: U
+} & {
+  [key: string]: U
+}
