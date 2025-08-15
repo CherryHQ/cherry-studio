@@ -1,8 +1,8 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
-import { net } from 'electron'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import { z } from 'zod'

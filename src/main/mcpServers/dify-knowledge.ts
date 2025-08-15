@@ -1,8 +1,8 @@
 // inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
 import { loggerService } from '@logger'
-import { net } from 'electron'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
 import * as z from 'zod/v4'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')

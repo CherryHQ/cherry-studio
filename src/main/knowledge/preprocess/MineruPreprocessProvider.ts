@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
-
 import { net } from 'electron'
 
 import BasePreprocessProvider from './BasePreprocessProvider'

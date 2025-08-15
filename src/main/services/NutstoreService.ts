@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { net } from 'electron'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import { net } from 'electron'
 import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
