@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { net } from 'electron'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
@@ -62,7 +63,7 @@ export async function getDirectoryContents(token: string, target: string): Promi
   let currentUrl = `${NUTSTORE_HOST}${target}`
 
   while (true) {
-    const response = await fetch(currentUrl, {
+    const response = await net.fetch(currentUrl, {
       method: 'PROPFIND',
       headers: {
         Authorization: `Basic ${token}`,
