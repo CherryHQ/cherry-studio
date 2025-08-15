@@ -38,18 +38,23 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   }
 
   private async validateFile(filePath: string): Promise<void> {
-    const pdfBuffer = await fs.promises.readFile(filePath)
+    // 首先检查文件大小，避免读取大文件到内存
+    const stats = await fs.promises.stat(filePath)
+    const fileSizeBytes = stats.size
 
+    // 文件大小小于300MB
+    if (fileSizeBytes >= 300 * 1024 * 1024) {
+      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
+      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 300MB`)
+    }
+
+    // 只有在文件大小合理的情况下才读取文件内容检查页数
+    const pdfBuffer = await fs.promises.readFile(filePath)
     const doc = await this.readPdf(pdfBuffer)
 
     // 文件页数小于1000页
     if (doc.numPages >= 1000) {
       throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 1000 pages`)
-    }
-    // 文件大小小于300MB
-    if (pdfBuffer.length >= 300 * 1024 * 1024) {
-      const fileSizeMB = Math.round(pdfBuffer.length / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 300MB`)
     }
   }
 
@@ -190,16 +195,25 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   }
 
   /**
-   * 上传文件
+   * 上传文件（使用流式上传）
    * @param filePath 文件路径
    * @param url 预上传响应的url
    */
   private async putFile(filePath: string, url: string): Promise<void> {
     try {
-      const fileBuffer = await fs.promises.readFile(filePath)
+      // 获取文件大小用于设置 Content-Length
+      const stats = await fs.promises.stat(filePath)
+      const fileSize = stats.size
+
+      // 创建可读流
+      const fileStream = fs.createReadStream(filePath)
+
       const response = await net.fetch(url, {
         method: 'PUT',
-        body: fileBuffer
+        body: fileStream as any, // TypeScript 类型转换，net.fetch 支持 ReadableStream
+        headers: {
+          'Content-Length': fileSize.toString()
+        }
       })
 
       if (!response.ok) {
