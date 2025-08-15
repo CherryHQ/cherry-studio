@@ -1,10 +1,9 @@
 import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
 import React, { memo, useCallback } from 'react'
-import styled from 'styled-components'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
-import { PreviewHostCssWhite } from './styles'
+import { ShadowWhiteContainer } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -28,7 +27,7 @@ const GraphvizPreview = ({
   const renderGraphviz = useCallback(async (content: string, container: HTMLDivElement) => {
     const viz = await vizInitializer.get()
     const svg = viz.renderString(content, { format: 'svg' })
-    renderSvgInShadowHost(svg, container, { customCss: PreviewHostCssWhite })
+    renderSvgInShadowHost(svg, container)
   }, [])
 
   // 使用预览渲染器 hook
@@ -44,16 +43,9 @@ const GraphvizPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="graphviz">
-      <StyledGraphviz ref={containerRef} className="graphviz special-preview" />
+      <ShadowWhiteContainer ref={containerRef} className="graphviz special-preview" />
     </ImagePreviewLayout>
   )
 }
-
-const StyledGraphviz = styled.div`
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
-`
 
 export default memo(GraphvizPreview)

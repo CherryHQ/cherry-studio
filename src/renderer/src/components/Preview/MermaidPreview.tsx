@@ -1,10 +1,10 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { ShadowTransparentContainer } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -129,16 +129,9 @@ const MermaidPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="mermaid">
-      <StyledMermaid ref={containerRef} className="mermaid special-preview" />
+      <ShadowTransparentContainer ref={containerRef} className="mermaid special-preview" />
     </ImagePreviewLayout>
   )
 }
-
-const StyledMermaid = styled.div`
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
-`
 
 export default memo(MermaidPreview)
