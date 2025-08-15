@@ -78,20 +78,23 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
     )
   }, [])
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       logger.debug('keydown', e)
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         window.api.setFullScreen(false)
       }
-    },
-    [enableQuitFullScreen]
-  )
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  })
 
   return (
-    <div onKeyDown={handleKeyDown}>
+    <>
       {children}
       {messageContextHolder}
       {modalContextHolder}
@@ -101,7 +104,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
           {typeof Element === 'function' ? <Element /> : Element}
         </FullScreenContainer>
       ))}
-    </div>
+    </>
   )
 }
 
