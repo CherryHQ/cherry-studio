@@ -1,7 +1,13 @@
 import { loggerService } from '@logger'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type {
+  ImageMessageBlock,
+  MainTextMessageBlock,
+  Message,
+  MessageBlock,
+  VideoMessageBlock
+} from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -61,12 +67,28 @@ interface Props {
   message: Message
 }
 
-const filterImageBlockGroups = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
+const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
   return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
     if (currentBlock.type === MessageBlockType.IMAGE) {
+      // 对于IMAGE类型，按连续分组
       const prevGroup = acc[acc.length - 1]
       if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.IMAGE) {
         prevGroup.push(currentBlock)
+      } else {
+        acc.push([currentBlock])
+      }
+    } else if (currentBlock.type === MessageBlockType.VIDEO) {
+      // 对于VIDEO类型，按相同filePath分组
+      const videoBlock = currentBlock as VideoMessageBlock
+      const existingGroup = acc.find(
+        (group) =>
+          Array.isArray(group) &&
+          group[0].type === MessageBlockType.VIDEO &&
+          (group[0] as VideoMessageBlock).filePath === videoBlock.filePath
+      ) as MessageBlock[] | undefined
+
+      if (existingGroup) {
+        existingGroup.push(currentBlock)
       } else {
         acc.push([currentBlock])
       }
@@ -82,21 +104,34 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
-  const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
+  const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
+
   return (
     <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
         if (Array.isArray(block)) {
-          const groupKey = block.map((imageBlock) => imageBlock.id).join('-')
-          return (
-            <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-              <ImageBlockGroup count={block.length}>
-                {block.map((imageBlock) => (
-                  <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
-                ))}
-              </ImageBlockGroup>
-            </AnimatedBlockWrapper>
-          )
+          const groupKey = block.map((b) => b.id).join('-')
+
+          if (block[0].type === MessageBlockType.IMAGE) {
+            return (
+              <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                <ImageBlockGroup count={block.length}>
+                  {block.map((imageBlock) => (
+                    <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
+                  ))}
+                </ImageBlockGroup>
+              </AnimatedBlockWrapper>
+            )
+          } else if (block[0].type === MessageBlockType.VIDEO) {
+            // 对于相同路径的video，只渲染第一个
+            const firstVideoBlock = block[0] as VideoMessageBlock
+            return (
+              <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                <VideoBlock key={firstVideoBlock.id} block={firstVideoBlock} />
+              </AnimatedBlockWrapper>
+            )
+          }
+          return null
         }
 
         let blockComponent: React.ReactNode = null
@@ -112,8 +147,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             const mainTextBlock = block as MainTextMessageBlock
             // Find the associated citation block ID from the references
             const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
-            // No longer need to retrieve the full citation block here
-            // const citationBlock = citationBlockId ? (blockEntities[citationBlockId] as CitationMessageBlock) : undefined
 
             blockComponent = (
               <MainTextBlock

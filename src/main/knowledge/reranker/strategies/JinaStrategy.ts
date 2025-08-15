@@ -28,7 +28,6 @@ export class JinaStrategy implements RerankStrategy {
     }
   }
   extractResults(data: any) {
-    console.log('data', data)
     return data.results
   }
 }
