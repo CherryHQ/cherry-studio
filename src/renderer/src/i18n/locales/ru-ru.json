@@ -1257,7 +1257,8 @@
       },
       "notion": {
         "export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
-        "no_api_key": "Notion ApiKey или Notion DatabaseID не настроен"
+        "no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
+        "no_content": "Нет содержимого для экспорта в Notion"
       },
       "siyuan": {
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
@@ -1383,6 +1384,9 @@
       }
     },
     "warn": {
+      "joplin": {
+        "exporting": "Экспорт в Joplin"
+      },
       "notion": {
         "exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
       },

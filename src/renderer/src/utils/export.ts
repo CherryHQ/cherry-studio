@@ -371,43 +371,72 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
     return []
   }
 
-  const thinkingBlocks = [
-    {
-      object: 'block',
-      type: 'toggle',
-      toggle: {
-        rich_text: [
-          {
-            type: 'text',
-            text: {
-              content: '🤔 ' + i18n.t('common.reasoning_content')
-            },
-            annotations: {
-              bold: true
-            }
-          }
-        ],
-        children: [
-          {
-            object: 'block',
-            type: 'paragraph',
-            paragraph: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: thinkingContent
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      }
-    }
-  ]
+  try {
+    // 直接使用 markdownToBlocks 处理思维链内容
+    const childrenBlocks = markdownToBlocks(thinkingContent)
 
-  return thinkingBlocks
+    return [
+      {
+        object: 'block',
+        type: 'toggle',
+        toggle: {
+          rich_text: [
+            {
+              type: 'text',
+              text: {
+                content: '🤔 ' + i18n.t('common.reasoning_content')
+              },
+              annotations: {
+                bold: true
+              }
+            }
+          ],
+          children: childrenBlocks
+        }
+      }
+    ]
+  } catch (error) {
+    logger.error('处理思维链内容时发生错误:', error as Error)
+    // 发生错误时，回退到简单的段落处理
+    return [
+      {
+        object: 'block',
+        type: 'toggle',
+        toggle: {
+          rich_text: [
+            {
+              type: 'text',
+              text: {
+                content: '🤔 ' + i18n.t('common.reasoning_content')
+              },
+              annotations: {
+                bold: true
+              }
+            }
+          ],
+          children: [
+            {
+              object: 'block',
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [
+                  {
+                    type: 'text',
+                    text: {
+                      content:
+                        thinkingContent.length > 1800
+                          ? thinkingContent.substring(0, 1800) + '...\n\n[内容过长，已截断]'
+                          : thinkingContent
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }
 
 const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any> => {
@@ -417,31 +446,32 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
     return null
   }
 
-  setExportState({ isExporting: true })
-
-  title = title.slice(0, 29) + '...'
-
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
     window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
-    setExportState({ isExporting: false })
     return null
+  }
+
+  if (allBlocks.length === 0) {
+    window.message.error({ content: i18n.t('message.error.notion.no_content'), key: 'notion-no-content-error' })
+    return null
+  }
+
+  setExportState({ isExporting: true })
+
+  // 限制标题长度
+  if (title.length > 32) {
+    title = title.slice(0, 29) + '...'
   }
 
   try {
     const notion = new Client({ auth: notionApiKey })
-
-    if (allBlocks.length === 0) {
-      throw new Error('No content to export')
-    }
 
     window.message.loading({
       content: i18n.t('message.loading.notion.preparing'),
       key: 'notion-preparing',
       duration: 0
     })
-    let mainPageResponse: any = null
-    let parentBlockId: string | null = null
 
     const response = await notion.pages.create({
       parent: { database_id: notionDatabaseID },
@@ -451,27 +481,33 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
         }
       }
     })
-    mainPageResponse = response
-    parentBlockId = response.id
+
+    const mainPageResponse = response
+    const parentBlockId = response.id
+
     window.message.destroy('notion-preparing')
     window.message.loading({
       content: i18n.t('message.loading.notion.exporting_progress'),
       key: 'notion-exporting',
       duration: 0
     })
-    if (allBlocks.length > 0) {
-      await appendBlocks({
-        block_id: parentBlockId,
-        children: allBlocks,
-        client: notion
-      })
-    }
+
+    await appendBlocks({
+      block_id: parentBlockId,
+      children: allBlocks,
+      client: notion
+    })
+
     window.message.destroy('notion-exporting')
     window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
     return mainPageResponse
   } catch (error: any) {
-    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
-    logger.debug(error)
+    // 清理可能存在的loading消息
+    window.message.destroy('notion-preparing')
+    window.message.destroy('notion-exporting')
+
+    logger.error('Notion export failed:', error)
+    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-error' })
     return null
   } finally {
     setExportState({ isExporting: false })
@@ -720,12 +756,20 @@ function transformObsidianFileName(fileName: string): string {
 }
 
 export const exportMarkdownToJoplin = async (title: string, contentOrMessages: string | Message | Message[]) => {
+  const { isExporting } = store.getState().runtime.export
   const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.joplin.exporting'), key: 'joplin-exporting' })
+    return
+  }
 
   if (!joplinUrl || !joplinToken) {
     window.message.error(i18n.t('message.error.joplin.no_config'))
     return
   }
+
+  setExportState({ isExporting: true })
 
   let content: string
   if (typeof contentOrMessages === 'string') {
@@ -763,11 +807,13 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
     }
 
     window.message.success(i18n.t('message.success.joplin.export'))
-    return
+    return data
   } catch (error: any) {
+    logger.error('导出到Joplin失败:', error)
     window.message.error(i18n.t('message.error.joplin.export'))
-    logger.debug(error)
-    return
+    return null
+  } finally {
+    setExportState({ isExporting: false })
   }
 }
 

@@ -1257,7 +1257,8 @@
       },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
-        "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
+        "no_content": "沒有可匯出至 Notion 的內容"
       },
       "siyuan": {
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
@@ -1383,6 +1384,9 @@
       }
     },
     "warn": {
+      "joplin": {
+        "exporting": "正在匯出至 Joplin"
+      },
       "notion": {
         "exporting": "正在匯出到 Notion，請勿重複請求匯出！"
       },
