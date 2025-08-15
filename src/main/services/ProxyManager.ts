@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
@@ -74,6 +75,8 @@ export class ProxyManager {
   private originalHttpsGet: typeof https.get
   private originalHttpsRequest: typeof https.request
 
+  private originalAxiosAdapter
+
   constructor() {
     this.originalGlobalDispatcher = getGlobalDispatcher()
     this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
@@ -81,6 +84,7 @@ export class ProxyManager {
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
+    this.originalAxiosAdapter = axios.defaults.adapter
   }
 
   private async monitorSystemProxy(): Promise<void> {
@@ -250,8 +254,12 @@ export class ProxyManager {
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
       this.proxyDispatcher?.close()
       this.proxyDispatcher = null
+      axios.defaults.adapter = this.originalAxiosAdapter
       return
     }
+
+    // axios 使用 fetch 代理
+    axios.defaults.adapter = 'fetch'
 
     const url = new URL(proxyUrl)
     if (url.protocol === 'http:' || url.protocol === 'https:') {
