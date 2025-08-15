@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { Chunk } from '@renderer/types/chunk'
 import { isZhipuModel } from '@renderer/config/models'
+import { Chunk } from '@renderer/types/chunk'
 
 import { CompletionsResult } from '../schemas'
 import { CompletionsContext } from '../types'
@@ -26,9 +26,10 @@ export const ErrorHandlerMiddleware =
     const { shouldThrow } = params
 
     try {
-      // 智谱错误测试模式 - 可以通过URL参数或localStorage控制
+      // 智谱错误测试模式 - 仅在开发环境或明确设置时启用
       const testZhipuError = localStorage.getItem('test_zhipu_error')
       if (testZhipuError && isZhipuModel(params.assistant.model)) {
+        logger.debug('🔧 智谱错误测试模式已激活:', { testError: testZhipuError })
         const testError = createTestZhipuError(testZhipuError)
         throw testError
       }
@@ -37,7 +38,7 @@ export const ErrorHandlerMiddleware =
       return await next(ctx, params)
     } catch (error: any) {
       logger.error('ErrorHandlerMiddleware_error', error)
-      
+
       // 智谱特定错误处理
       let processedError = error
       logger.debug('🔧 检查是否为智谱模型:', {
@@ -45,7 +46,7 @@ export const ErrorHandlerMiddleware =
         isZhipuModel: isZhipuModel(params.assistant.model),
         errorStatus: error.status
       })
-      
+
       if (isZhipuModel(params.assistant.model) && error.status) {
         logger.debug('🔧 开始处理智谱错误:', {
           originalError: error,
@@ -54,7 +55,7 @@ export const ErrorHandlerMiddleware =
         processedError = handleZhipuError(error, params.assistant.provider || {})
         logger.debug('🔧 智谱错误处理完成:', processedError)
       }
-      
+
       // 1. 使用通用的工具函数将错误解析为标准格式
       const errorChunk = createErrorChunk(processedError)
       // 2. 调用从外部传入的 onError 回调
@@ -89,7 +90,7 @@ export const ErrorHandlerMiddleware =
  */
 function handleZhipuError(error: any, provider: any): any {
   const logger = loggerService.withContext('handleZhipuError')
-  
+
   logger.debug('🔧 开始处理智谱错误:', {
     error,
     provider,
@@ -97,49 +98,50 @@ function handleZhipuError(error: any, provider: any): any {
     hasApiKey: !!(provider && provider.apiKey),
     apiKeyLength: provider?.apiKey?.length
   })
-  
+
   // 检查401错误（令牌过期或验证不正确）
-  if (error.status === 401 || 
-      (error.message && (
-        error.message.includes('令牌已过期') || 
+  if (
+    error.status === 401 ||
+    (error.message &&
+      (error.message.includes('令牌已过期') ||
         error.message.includes('验证不正确') ||
         error.message.includes('AuthenticationError') ||
-        error.message.includes('Unauthorized')
-      ))) {
+        error.message.includes('Unauthorized')))
+  ) {
     logger.debug('🔧 检测到401错误，返回zhipu.no_api_key')
     return {
       ...error,
       message: 'zhipu.no_api_key'
     }
   }
-  
+
   // 检查免费配额用尽错误（优先级更高，先检查）
-  if (error.status === 429 || 
-      (error.message && (
-        error.message.includes('免费配额') || 
+  if (
+    error.status === 429 ||
+    (error.message &&
+      (error.message.includes('免费配额') ||
         error.message.includes('free quota') ||
-        error.message.includes('rate limit')
-      ))) {
+        error.message.includes('rate limit')))
+  ) {
     logger.debug('🔧 检测到配额用尽错误，返回zhipu.quota_exceeded')
     return {
       ...error,
       message: 'zhipu.quota_exceeded'
     }
   }
-  
+
   // 检查余额不足错误 (通常状态码为402或特定错误消息)
-  if (error.status === 402 || 
-      (error.message && (
-        error.message.includes('余额不足') || 
-        error.message.includes('insufficient balance')
-      ))) {
+  if (
+    error.status === 402 ||
+    (error.message && (error.message.includes('余额不足') || error.message.includes('insufficient balance')))
+  ) {
     logger.debug('🔧 检测到余额不足错误，返回zhipu.insufficient_balance')
     return {
       ...error,
       message: 'zhipu.insufficient_balance'
     }
   }
-  
+
   // 检查API Key是否配置（放在最后，避免覆盖其他错误类型）
   if (!provider || !provider.apiKey || provider.apiKey.trim() === '') {
     logger.debug('🔧 API Key未配置，返回zhipu.no_api_key')
@@ -148,7 +150,7 @@ function handleZhipuError(error: any, provider: any): any {
       message: 'zhipu.no_api_key'
     }
   }
-  
+
   // 如果不是智谱特定错误，返回原始错误
   logger.debug('🔧 不是智谱特定错误，返回原始错误')
   return error
