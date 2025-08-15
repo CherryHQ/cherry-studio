@@ -648,6 +648,31 @@
     },
     "translate": "Traducir"
   },
+  "code": {
+    "auto_update_to_latest": "Comprobar actualizaciones e instalar la última versión",
+    "bun_required_message": "Para ejecutar la herramienta CLI es necesario instalar el entorno Bun.",
+    "cli_tool": "Herramienta CLI",
+    "cli_tool_placeholder": "Seleccionar la herramienta CLI a utilizar",
+    "description": "Inicio rápido de múltiples herramientas CLI de código para mejorar la eficiencia en el desarrollo.",
+    "folder_placeholder": "Seleccionar directorio de trabajo",
+    "install_bun": "Instalar Bun",
+    "installing_bun": "Instalando...",
+    "launch": {
+      "bun_required": "Por favor, instala primero el entorno Bun antes de iniciar la herramienta CLI.",
+      "error": "Inicio fallido, por favor inténtalo de nuevo.",
+      "label": "arrancar",
+      "success": "Inicio exitoso",
+      "validation_error": "Por favor, complete todos los campos obligatorios: herramienta CLI, modelo y directorio de trabajo."
+    },
+    "launching": "Iniciando...",
+    "model": "Modelo",
+    "model_placeholder": "Selecciona el modelo a utilizar",
+    "model_required": "Por favor, selecciona el modelo.",
+    "select_folder": "Seleccionar carpeta",
+    "title": "Herramientas de código",
+    "update_options": "Actualizar opciones",
+    "working_directory": "directorio de trabajo"
+  },
   "code_block": {
     "collapse": "Replegar",
     "copy": {
@@ -877,9 +902,11 @@
     },
     "add_directory": "Agregar directorio",
     "add_file": "Agregar archivo",
+    "add_image": "Añadir imagen",
     "add_note": "Agregar nota",
     "add_sitemap": "Mapa del sitio",
     "add_url": "Agregar URL",
+    "add_video": "Añadir video",
     "cancel_index": "Cancelar índice",
     "chunk_overlap": "Superposición de fragmentos",
     "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
@@ -906,6 +933,7 @@
     "document_count_default": "Predeterminado",
     "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
     "drag_file": "Arrastre archivos aquí",
+    "drag_image": "Arrastra la imagen aquí",
     "edit_remark": "Editar observación",
     "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "Modelo de incrustación",
@@ -914,9 +942,15 @@
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
+      "video": {
+        "local_file_missing": "El archivo de video no existe.",
+        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
+      }
     },
     "file_hint": "Formatos soportados: {{file_types}}",
+    "image_hint": "Soporta formatos {{image_types}}",
+    "images": "Imagen",
     "index_all": "Indexar todo",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
@@ -932,6 +966,10 @@
       },
       "error": {
         "failed": "Error en la migración"
+      },
+      "migrate_to_langchain": {
+        "content": "La migración de la base de conocimiento no elimina la base antigua, sino que crea una copia y luego reprocesa todas las entradas, lo que puede consumir una gran cantidad de tokens. Proceda con precaución.",
+        "info": "La estructura de la base de conocimiento ha sido actualizada. Haz clic para migrar a la nueva estructura."
       },
       "source_dimensions": "Dimensiones de origen",
       "source_model": "Modelo de origen",
@@ -951,6 +989,20 @@
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
+    "retriever": "modo de recuperación",
+    "retriever_bm25": "búsqueda de texto completo",
+    "retriever_bm25_desc": "Encontrar documentos basados en la relevancia y frecuencia de las palabras clave.",
+    "retriever_hybrid": "Búsqueda híbrida (recomendada)",
+    "retriever_hybrid_desc": "Combinar la búsqueda por palabras clave con la búsqueda semántica para lograr la máxima precisión en la recuperación.",
+    "retriever_hybrid_weight": {
+      "bm25": "texto completo",
+      "recommended": "Recomendado",
+      "title": "Ajuste de ponderación en búsqueda híbrida (texto completo/vectorial)",
+      "vector": "vector"
+    },
+    "retriever_tooltip": "Usar diferentes métodos de búsqueda para consultar la base de conocimiento",
+    "retriever_vector": "búsqueda vectorial",
+    "retriever_vector_desc": "Buscar documentos según similitud semántica y significado.",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
     "settings": {
@@ -983,7 +1035,8 @@
     "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
     "url_added": "URL agregada",
     "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-    "urls": "URLs"
+    "urls": "URLs",
+    "videos": "vídeo"
   },
   "languages": {
     "arabic": "Árabe",
@@ -1285,6 +1338,13 @@
         "bubble": "Burbuja",
         "label": "Estilo de mensaje",
         "plain": "Simple"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Ruta del archivo de video local no encontrada",
+          "unsupported_type": "Tipo de video no soportado",
+          "youtube_url_missing": "URL del video de YouTube no encontrada"
+        }
       }
     },
     "processing": "Procesando...",
@@ -2690,6 +2750,17 @@
       "title": "Inicio",
       "totray": "Minimizar a la bandeja al iniciar"
     },
+    "math": {
+      "engine": {
+        "label": "motor de fórmulas matemáticas",
+        "none": "Ninguno"
+      },
+      "single_dollar": {
+        "label": "Habilitar $...$",
+        "tip": "Renderizar fórmulas matemáticas envueltas en un único signo de dólar $...$, habilitado por defecto."
+      },
+      "title": "Configuración de fórmulas matemáticas"
+    },
     "mcp": {
       "actions": "Acciones",
       "active": "Activar",
@@ -2920,10 +2991,6 @@
         "title": "Configuración de entrada"
       },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
-      "math_engine": {
-        "label": "Motor de fórmulas matemáticas",
-        "none": "Ninguno"
-      },
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
         "title": "Configuración del modelo"
@@ -2935,6 +3002,7 @@
         "none": "No mostrar"
       },
       "prompt": "Palabra de indicación",
+      "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
@@ -3561,6 +3629,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Aplicaciones",
+    "code": "Código",
     "files": "Archivos",
     "home": "Inicio",
     "knowledge": "Base de conocimiento",

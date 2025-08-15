@@ -1,17 +1,15 @@
-import { CopyOutlined } from '@ant-design/icons'
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileMetadata, KnowledgeBase } from '@renderer/types'
-import { Divider, Input, InputRef, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
+import { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
+import { Divider, Input, InputRef, List, Modal, Spin } from 'antd'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const { Text, Paragraph } = Typography
+import SearchItemRenderer from './KnowledgeSearchItem'
 
 interface ShowParams {
   base: KnowledgeBase
@@ -26,7 +24,7 @@ const logger = loggerService.withContext('KnowledgeSearchPopup')
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileMetadata | null }>>([])
+  const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<InputRef>(null)
@@ -42,6 +40,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     setLoading(true)
     try {
       const searchResults = await searchKnowledgeBase(value, base)
+      logger.debug(`KnowledgeSearchPopup Search Results: ${searchResults}`)
       setResults(searchResults)
     } catch (error) {
       logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
@@ -64,28 +63,6 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   }
 
   KnowledgeSearchPopup.hide = onCancel
-
-  const highlightText = (text: string) => {
-    if (!searchKeyword) return text
-
-    // Escape special characters in the search keyword
-    const escapedKeyword = searchKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const parts = text.split(new RegExp(`(${escapedKeyword})`, 'gi'))
-
-    return parts.map((part, i) =>
-      part.toLowerCase() === searchKeyword.toLowerCase() ? <mark key={i}>{part}</mark> : part
-    )
-  }
-
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      message.success(t('message.copied'))
-    } catch (error) {
-      logger.error('Failed to copy text:', error as Error)
-      window.message.error(t('message.error.copy') || 'Failed to copy text')
-    }
-  }
 
   useEffect(() => {
     if (searchInputRef.current) {
@@ -150,34 +127,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
             dataSource={results}
             renderItem={(item) => (
               <List.Item>
-                <ResultItem>
-                  <MetadataContainer>
-                    <Text type="secondary">
-                      {t('knowledge.source')}:{' '}
-                      {item.file ? (
-                        <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
-                          {item.file.origin_name}
-                        </a>
-                      ) : (
-                        // item.metadata.source
-                        <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
-                          {item.metadata.source.split('/').pop() || item.metadata.source}
-                        </a>
-                      )}
-                    </Text>
-                    <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
-                  </MetadataContainer>
-                  <TagContainer>
-                    <Tooltip title={t('common.copy')}>
-                      <CopyButton onClick={() => handleCopy(item.pageContent)}>
-                        <CopyOutlined />
-                      </CopyButton>
-                    </Tooltip>
-                  </TagContainer>
-                  <Paragraph style={{ userSelect: 'text', marginBottom: 0 }}>
-                    {highlightText(item.pageContent)}
-                  </Paragraph>
-                </ResultItem>
+                <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
               </List.Item>
             )}
           />
@@ -198,69 +148,6 @@ const LoadingContainer = styled.div`
   justify-content: center;
   align-items: center;
   height: 200px;
-`
-
-const TagContainer = styled.div`
-  position: absolute;
-  top: 58px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-`
-
-const ResultItem = styled.div`
-  width: 100%;
-  position: relative;
-  padding: 16px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-
-  &:hover {
-    ${TagContainer} {
-      opacity: 1 !important;
-    }
-  }
-`
-
-const ScoreTag = styled.div`
-  padding: 2px 8px;
-  background: var(--color-primary);
-  color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  flex-shrink: 0;
-`
-
-const CopyButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: var(--color-background-mute);
-  color: var(--color-text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary);
-    color: white;
-  }
-`
-
-const MetadataContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border);
-  user-select: text;
 `
 
 const SearchIcon = styled.div`

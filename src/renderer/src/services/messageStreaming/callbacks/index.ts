@@ -7,6 +7,7 @@ import { createImageCallbacks } from './imageCallbacks'
 import { createTextCallbacks } from './textCallbacks'
 import { createThinkingCallbacks } from './thinkingCallbacks'
 import { createToolCallbacks } from './toolCallbacks'
+import { createVideoCallbacks } from './videoCallbacks'
 
 interface CallbacksDependencies {
   blockManager: BlockManager
@@ -62,6 +63,8 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     getCitationBlockId: citationCallbacks.getCitationBlockId
   })
 
+  const videoCallbacks = createVideoCallbacks({ blockManager, assistantMsgId })
+
   // 组合所有回调
   return {
     ...baseCallbacks,
@@ -70,6 +73,7 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     ...toolCallbacks,
     ...imageCallbacks,
     ...citationCallbacks,
+    ...videoCallbacks,
     // 清理资源的方法
     cleanup: () => {
       // 清理由 messageThunk 中的节流函数管理，这里不需要特别处理

@@ -1,22 +1,16 @@
-import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { KnowledgeBaseParams } from '@types'
+import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 import axios from 'axios'
 
 import BaseReranker from './BaseReranker'
-
 export default class GeneralReranker extends BaseReranker {
   constructor(base: KnowledgeBaseParams) {
     super(base)
   }
-
-  public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
+  public rerank = async (query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]> => {
     const url = this.getRerankUrl()
-
     const requestBody = this.getRerankRequestBody(query, searchResults)
-
     try {
       const { data } = await axios.post(url, requestBody, { headers: this.defaultHeaders() })
-
       const rerankResults = this.extractRerankResult(data)
       return this.getRerankResult(searchResults, rerankResults)
     } catch (error: any) {
