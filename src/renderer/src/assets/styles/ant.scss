@@ -1,7 +1,7 @@
 @use './container.scss';
 
-/* Modal 内容区域不应该可拖拽，以确保交互正常 */
-.ant-modal-content {
+/* Modal 关闭按钮不应该可拖拽，以确保点击正常 */
+.ant-modal-close {
   -webkit-app-region: no-drag;
 }
 
