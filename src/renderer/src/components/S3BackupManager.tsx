@@ -52,6 +52,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         secretAccessKey,
         skipBackupFile: false,
         autoSync: false,
+        skipTlsVerify: false,
         syncInterval: 0,
         maxBackups: 0
       })
@@ -113,6 +114,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
               accessKeyId,
               secretAccessKey,
               skipBackupFile: false,
+              skipTlsVerify: false,
               autoSync: false,
               syncInterval: 0,
               maxBackups: 0
@@ -156,6 +158,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             accessKeyId,
             secretAccessKey,
             skipBackupFile: false,
+            skipTlsVerify: false,
             autoSync: false,
             syncInterval: 0,
             maxBackups: 0
