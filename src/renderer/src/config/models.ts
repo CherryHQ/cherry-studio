@@ -2721,7 +2721,7 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(modelId)
+  return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {

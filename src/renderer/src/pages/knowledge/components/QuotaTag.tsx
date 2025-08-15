@@ -2,14 +2,14 @@ import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { KnowledgeBase } from '@renderer/types'
+import { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
 import { Tag } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('QuotaTag')
 
-const QuotaTag: FC<{ base: KnowledgeBase; providerId: string; quota?: number }> = ({
+const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quota?: number }> = ({
   base,
   providerId,
   quota: _quota

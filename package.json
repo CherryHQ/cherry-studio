@@ -78,7 +78,7 @@
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
-    "selection-hook": "^1.0.8",
+    "selection-hook": "^1.0.9",
     "turndown": "7.2.0"
   },
   "devDependencies": {

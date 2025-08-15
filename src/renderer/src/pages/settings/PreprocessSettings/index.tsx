@@ -1,4 +1,3 @@
-import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { PreprocessProvider } from '@renderer/types'
@@ -40,8 +39,9 @@ const PreprocessSettings: FC = () => {
               placeholder={t('settings.tool.preprocess.provider_placeholder')}
               options={preprocessProviders.map((p) => ({
                 value: p.id,
-                label: p.name,
-                disabled: !isMac && p.id === 'system' // 在非 Mac 系统下禁用 system 选项
+                label: p.name
+                // 由于system字段实际未使用，先注释掉
+                // disabled: !isMac && p.id === 'system' // 在非 Mac 系统下禁用 system 选项
               }))}
             />
           </div>
