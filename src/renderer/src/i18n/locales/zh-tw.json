@@ -844,7 +844,9 @@
     "user": "使用者"
   },
   "exportToPhone": {
-    "confirm.button": "選擇備份檔案",
+    "confirm": {
+      "button": "選擇備份檔案"
+    },
     "content": "匯出一些資料，包括聊天紀錄、設定。請注意備份過程可能需要一些時間，感謝您的耐心等待。",
     "lan": {
       "content": "使用區域網路傳輸，請確保電腦和手機處於同一網路。請開啟Cherry Studio應用程式掃描此QR碼。",
@@ -2134,8 +2136,8 @@
         "yuque": "匯出到語雀"
       },
       "export_to_phone": "匯出到手機",
-      "export_to_phone.button": "備份資料到手機",
-      "export_to_phone_use_lan.button": "區域網路傳輸",
+      "export_to_phone_button": "備份資料到手機",
+      "export_to_phone_use_lan_button": "區域網路傳輸",
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
       "joplin": {

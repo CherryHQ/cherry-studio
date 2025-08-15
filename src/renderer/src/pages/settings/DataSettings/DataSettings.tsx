@@ -611,10 +611,10 @@ const DataSettings: FC = () => {
                 <SettingRowTitle>{t('settings.data.export_to_phone')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
                   <Button onClick={ExportToPhonePopup.show} icon={<SaveOutlined />}>
-                    {t('settings.data.export_to_phone.button')}
+                    {t('settings.data.export_to_phone_button')}
                   </Button>
                   <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined />}>
-                    {t('settings.data.export_to_phone_use_lan.button')}
+                    {t('settings.data.export_to_phone_use_lan_button')}
                   </Button>
                 </HStack>
               </SettingRow>
