@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 export interface MentionModelsButtonRef {
-  openQuickPanel: () => void
+  openQuickPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
 }
 
 interface Props {
@@ -137,42 +137,53 @@ const MentionModelsButton: FC<Props> = ({
     return items
   }, [pinnedModels, providers, t, couldMentionNotVisionModel, mentionedModels, onMentionModel, navigate])
 
-  const openQuickPanel = useCallback(() => {
-    // 重置模型动作标记
-    hasModelActionRef.current = false
+  const openQuickPanel = useCallback(
+    (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {
+      // 重置模型动作标记
+      hasModelActionRef.current = false
 
-    quickPanel.open({
-      title: t('agents.edit.model.select.title'),
-      list: modelItems,
-      symbol: '@',
-      multiple: true,
-      afterAction({ item }) {
-        item.isSelected = !item.isSelected
-      },
-      onClose({ action }) {
-        // ESC或Backspace关闭时的特殊处理
-        if (action === 'esc' || action === 'delete-symbol') {
-          // 如果有模型选择动作发生，删除@字符
-          if (hasModelActionRef.current) {
-            // 使用React的setText来更新状态，而不是直接操作DOM
-            setText((currentText) => {
-              const lastAtIndex = currentText.lastIndexOf('@')
-              if (lastAtIndex !== -1) {
-                return currentText.slice(0, lastAtIndex) + currentText.slice(lastAtIndex + 1)
-              }
-              return currentText
-            })
+      quickPanel.open({
+        title: t('agents.edit.model.select.title'),
+        list: modelItems,
+        symbol: '@',
+        multiple: true,
+        triggerInfo: triggerInfo || { type: 'button' },
+        afterAction({ item }) {
+          item.isSelected = !item.isSelected
+        },
+        onClose({ action, triggerInfo: closeTriggerInfo }) {
+          // ESC或Backspace关闭时的特殊处理
+          if (action === 'esc' || action === 'delete-symbol') {
+            // 只有在输入触发且有模型选择动作时才删除@字符
+            if (
+              hasModelActionRef.current &&
+              closeTriggerInfo?.type === 'input' &&
+              closeTriggerInfo?.position !== undefined
+            ) {
+              // 使用React的setText来更新状态
+              setText((currentText) => {
+                const position = closeTriggerInfo.position!
+                // 验证位置的字符是否仍是 @
+                if (currentText[position] !== '@') {
+                  return currentText
+                }
+
+                // 删除指定位置的 @
+                return currentText.slice(0, position) + currentText.slice(position + 1)
+              })
+            }
           }
         }
-      }
-    })
-  }, [modelItems, quickPanel, t, setText])
+      })
+    },
+    [modelItems, quickPanel, t, setText]
+  )
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '@') {
       quickPanel.close()
     } else {
-      openQuickPanel()
+      openQuickPanel({ type: 'button' })
     }
   }, [openQuickPanel, quickPanel])
 
