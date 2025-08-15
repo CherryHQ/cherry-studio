@@ -152,8 +152,8 @@ const MentionModelsButton: FC<Props> = ({
           item.isSelected = !item.isSelected
         },
         onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
-          // ESC或Backspace关闭时的特殊处理
-          if (action === 'esc' || action === 'delete-symbol') {
+          // ESC关闭时的处理：删除 @ 和搜索文本
+          if (action === 'esc') {
             // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
             if (
               hasModelActionRef.current &&
@@ -185,6 +185,8 @@ const MentionModelsButton: FC<Props> = ({
               })
             }
           }
+          // Backspace删除@的情况（delete-symbol）：
+          // @ 已经被Backspace自然删除，面板关闭，不需要额外操作
         }
       })
     },
