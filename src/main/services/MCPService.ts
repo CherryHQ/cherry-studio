@@ -205,7 +205,7 @@ class McpService {
                       }
                     }
 
-                    return net.fetch(url as string, { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
                   }
                 },
                 requestInit: {
