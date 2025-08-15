@@ -476,9 +476,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
+    window.addEventListener('click', handleClickOutside, true)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
