@@ -481,9 +481,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     window.addEventListener('click', handleClickOutside, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      window.removeEventListener('click', handleClickOutside, true)
     }
   }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
 
