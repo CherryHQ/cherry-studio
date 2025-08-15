@@ -116,8 +116,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       icon: activeKey === 'images' ? <Image size={16} color="var(--color-primary)" /> : <Image size={16} />,
       items: imageItems,
       content: <KnowledgeImages selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
-      // 目前仅支持jina-clip-v2多模态嵌入模型
-      show: base?.framework === 'langchain' && base.model.id === 'jina-clip-v2'
+      // 目前仅支持jina-clip-v2, jina-embeddings-v4多模态嵌入模型
+      show: base?.framework === 'langchain' && ['jina-clip-v2', 'jina-embeddings-v4'].includes(base?.model?.id)
     },
     {
       key: 'videos',
