@@ -262,7 +262,7 @@ export async function addImageLoader(
       loaderType: 'image'
     }
   } catch (error) {
-    logger.error(`Error loading or processing file ${file.path} with loader video: ${error}`)
+    logger.error(`Error loading or processing file ${file.path} with loader : ${error}`)
     return emptyResult
   }
 }

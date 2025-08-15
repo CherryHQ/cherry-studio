@@ -160,6 +160,8 @@ export const searchKnowledgeBase = async (
         currentSpan?.spanContext()
       )
     }
+
+    console.log('rerankResults', rerankResults)
     // 限制文档数量
     const limitedResults = rerankResults.slice(0, documentCount)
 

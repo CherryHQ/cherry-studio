@@ -1,8 +1,8 @@
-import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { ApiClient } from '@types'
 
 import EmbeddingsFactory from './EmbeddingsFactory'
+import { JinaEmbeddings } from './JinaEmbeddings'
 
 export type MultiModalEmbeddingInput =
   | {

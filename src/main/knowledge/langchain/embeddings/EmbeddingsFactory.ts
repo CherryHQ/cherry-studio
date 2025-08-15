@@ -1,9 +1,10 @@
-import { JinaEmbeddings } from '@langchain/community/embeddings/jina'
 import { VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
 import type { Embeddings } from '@langchain/core/embeddings'
 import { OllamaEmbeddings } from '@langchain/ollama'
 import { AzureOpenAIEmbeddings, OpenAIEmbeddings } from '@langchain/openai'
 import { ApiClient } from '@types'
+
+import { JinaEmbeddings } from './JinaEmbeddings'
 
 export default class EmbeddingsFactory {
   static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): Embeddings {
