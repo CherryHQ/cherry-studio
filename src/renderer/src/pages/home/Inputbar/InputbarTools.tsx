@@ -61,6 +61,7 @@ export interface InputbarToolsProps {
   extensions: string[]
   showThinkingButton: boolean
   showKnowledgeIcon: boolean
+  showMcpTools: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
   setText: Dispatch<SetStateAction<string>>
@@ -102,6 +103,7 @@ const InputbarTools = ({
   setFiles,
   showThinkingButton,
   showKnowledgeIcon,
+  showMcpTools,
   selectedKnowledgeBases,
   handleKnowledgeBaseSelect,
   setText,
@@ -371,7 +373,8 @@ const InputbarTools = ({
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
           />
-        )
+        ),
+        condition: showMcpTools
       },
       {
         key: 'generate_image',

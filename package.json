@@ -85,12 +85,16 @@
     "@agentic/exa": "^7.3.3",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
+    "@ai-sdk/amazon-bedrock": "^3.0.0",
+    "@ai-sdk/google-vertex": "^3.0.0",
+    "@ai-sdk/mistral": "^2.0.0",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch",
     "@aws-sdk/client-bedrock": "^3.840.0",
     "@aws-sdk/client-bedrock-runtime": "^3.840.0",
     "@aws-sdk/client-s3": "^3.840.0",
+    "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
     "@cherrystudio/embedjs-loader-csv": "^0.1.31",
@@ -122,6 +126,7 @@
     "@modelcontextprotocol/sdk": "^1.17.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
+    "@openrouter/ai-sdk-provider": "1.0.0-beta.6",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/core": "2.0.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
@@ -131,7 +136,7 @@
     "@playwright/test": "^1.52.0",
     "@reduxjs/toolkit": "^2.2.5",
     "@shikijs/markdown-it": "^3.9.1",
-    "@swc/plugin-styled-components": "^7.1.5",
+    "@swc/plugin-styled-components": "^8.0.4",
     "@tanstack/react-query": "^5.27.0",
     "@tanstack/react-virtual": "^3.13.12",
     "@testing-library/dom": "^10.4.0",
@@ -156,7 +161,7 @@
     "@uiw/codemirror-extensions-langs": "^4.23.14",
     "@uiw/codemirror-themes-all": "^4.23.14",
     "@uiw/react-codemirror": "^4.23.14",
-    "@vitejs/plugin-react-swc": "^3.9.0",
+    "@vitejs/plugin-react-swc": "^3.10.2",
     "@vitest/browser": "^3.2.4",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
@@ -295,7 +300,7 @@
       "prettier --write",
       "eslint --fix"
     ],
-    "*.{json,md,yml,yaml,css,scss,html}": [
+    "*.{json,yml,yaml,css,scss,html}": [
       "prettier --write"
     ]
   }

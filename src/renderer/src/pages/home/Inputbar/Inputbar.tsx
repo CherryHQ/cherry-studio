@@ -43,6 +43,7 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
+import { isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -230,7 +231,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      logger.info('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -834,6 +834,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const isExpended = expended || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
+  const showMcpTools = isSupportedToolUse(assistant)
 
   if (isMultiSelectMode) {
     return null
@@ -912,6 +913,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               setFiles={setFiles}
               showThinkingButton={showThinkingButton}
               showKnowledgeIcon={showKnowledgeIcon}
+              showMcpTools={showMcpTools}
               selectedKnowledgeBases={selectedKnowledgeBases}
               handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
               setText={setText}

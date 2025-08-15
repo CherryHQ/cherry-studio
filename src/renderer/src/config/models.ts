@@ -345,7 +345,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
 }
 
 export function isFunctionCallingModel(model?: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isGenerateImageModel(model)) {
     return false
   }
 
@@ -2508,6 +2508,9 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
   )
 }
+export function isSupportedFlexServiceTier(model: Model): boolean {
+  return isSupportFlexServiceTierModel(model)
+}
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
@@ -2977,6 +2980,16 @@ export function isGenerateImageModel(model: Model): boolean {
   return false
 }
 
+export function isNotSupportedImageSizeModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const baseName = getLowerBaseModelName(model.id, '/')
+
+  return baseName.includes('grok-2-image')
+}
+
 export function isSupportedDisableGenerationModel(model: Model): boolean {
   if (!model) {
     return false
@@ -3030,8 +3043,6 @@ export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boole
   return {
     tools: webSearchTools
   }
-
-  return {}
 }
 
 export function isGemmaModel(model?: Model): boolean {

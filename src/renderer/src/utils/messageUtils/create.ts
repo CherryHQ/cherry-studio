@@ -135,7 +135,7 @@ export function createThinkingBlock(
   return {
     ...baseBlock,
     content,
-    thinking_millsec: overrides.thinking_millsec
+    thinking_millsec: overrides.thinking_millsec || 0
   }
 }
 

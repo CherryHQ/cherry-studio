@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import AiProviderNew from '@renderer/aiCore/index_new'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -190,7 +190,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     try {
       if (mode === 'generate') {
         if (painting.model.startsWith('imagen-')) {
-          const AI = new AiProvider(aihubmixProvider)
+          const AI = new AiProviderNew({
+            id: painting.model,
+            provider: 'aihubmix',
+            name: painting.model,
+            group: 'imagen'
+          })
           const base64s = await AI.generateImage({
             prompt,
             model: painting.model,
