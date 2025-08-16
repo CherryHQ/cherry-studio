@@ -860,7 +860,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             />
           )}
           {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
+            <MentionModelsInput
+              selectedModels={mentionedModels}
+              onRemoveModel={handleRemoveModel}
+              isInputExpanded={isExpended || !!textareaHeight}
+            />
           )}
           <Textarea
             value={text}
