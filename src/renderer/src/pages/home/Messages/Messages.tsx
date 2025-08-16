@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { LOAD_MORE_COUNT } from '@renderer/config/constant'
+import { LOAD_MORE_COUNT, SKELETON_MIN_TIME } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -30,8 +30,9 @@ import {
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { Skeleton, SkeletonProps } from 'antd'
 import { last } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
@@ -52,28 +53,83 @@ interface MessagesProps {
 const logger = loggerService.withContext('Messages')
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
-  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
-    `topic-${topic.id}`
-  )
+  const {
+    containerRef: scrollContainerRef,
+    handleScroll: handleScrollPosition,
+    triggerScroll
+  } = useScrollPosition(`topic-${topic.id}`)
   const { t } = useTranslation()
   const { showPrompt, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
-  const [displayMessages, setDisplayMessages] = useState<Message[]>([])
+  const [displayMessages, setDisplayMessages] = useState<Message[] | undefined>(undefined)
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [skeletonTimerChecked, setSkeletonTimerChecked] = useState(false)
+  const skeletonTimer = useRef<NodeJS.Timeout>(null)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
-  const messages = useTopicMessages(topic.id)
+  const messages: Message[] = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
+  const displayedMessagesRef = useRef(displayMessages)
+  const isLoadedRef = useRef(isLoaded)
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
 
+  // 更新引用
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    displayedMessagesRef.current = displayMessages
+  }, [displayMessages])
+
+  useEffect(() => {
+    isLoadedRef.current = isLoaded
+  }, [isLoaded])
+
+  // 首次挂载时执行
+  useEffect(() => {
+    logger.silly('timer set')
+    // 控制加载状态，至少在一段时间后再setIsLoaded(true)，避免闪烁
+    skeletonTimer.current = setTimeout(() => {
+      setSkeletonTimerChecked(true)
+      if (displayedMessagesRef.current) {
+        logger.silly('since displayedMessagesRef is valid, timer triggerd', {
+          msgs: displayedMessagesRef.current
+        })
+        setIsLoaded(true)
+      } else {
+        logger.silly('since displayedMessagesRef is invalid, timer do nothing')
+      }
+    }, SKELETON_MIN_TIME)
+
+    return () => {
+      if (skeletonTimer.current) {
+        logger.silly('since skeletonTimer is valid, clear triggered')
+        clearTimeout(skeletonTimer.current)
+      }
+    }
+  }, [])
+
+  // 控制加载状态，如果在SKELETON_MIN_TIME时刻未加载完毕，就根据displayMessages的变化判断是否加载完毕
+  useEffect(() => {
+    logger.silly('displayMessages change, effect', {
+      isLoaded: isLoadedRef.current,
+      displayMessages,
+      skeletonTimerChecked: skeletonTimerChecked
+    })
+    if (!isLoadedRef.current && displayMessages && skeletonTimerChecked) {
+      logger.silly('since timer checked and data is loaded, setIsLoaded(true)')
+      setIsLoaded(true)
+    } else {
+      logger.silly('since condition is not satisfied, this effect do nothing')
+    }
+  }, [displayMessages, skeletonTimerChecked])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -84,10 +140,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [])
 
   useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
-  }, [messages, displayCount])
+    startTransition(() => {
+      const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
+      setDisplayMessages(newDisplayMessages)
+      setHasMore(messages.length > displayCount)
+    })
+  }, [displayCount, messages])
+
+  useEffect(() => {
+    if (isLoaded) {
+      triggerScroll()
+    }
+  }, [triggerScroll, isLoaded])
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
@@ -252,19 +316,25 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }).then(() => onFirstUpdate?.())
   }, [assistant, messages, onFirstUpdate])
 
-  const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore) return
+  const loadMoreMessages = useCallback(async () => {
+    if (!hasMore || isLoadingMore || !displayMessages) return
 
     setIsLoadingMore(true)
-    setTimeout(() => {
+    startTransition(() => {
       const currentLength = displayMessages.length
       const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
 
-      setDisplayMessages((prev) => [...prev, ...newMessages])
+      setDisplayMessages((prev) => {
+        if (prev) {
+          return [...prev, ...newMessages]
+        } else {
+          return newMessages
+        }
+      })
       setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
       setIsLoadingMore(false)
-    }, 300)
-  }, [displayMessages.length, hasMore, isLoadingMore, messages])
+    })
+  }, [displayMessages, hasMore, isLoadingMore, messages])
 
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
@@ -280,7 +350,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
   const groupedMessages = useMemo(() => {
-    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const grouped = Object.entries(getGroupedMessages(displayMessages ?? []))
     const newGrouped: {
       [key: string]: (Message & {
         index: number
@@ -299,37 +369,47 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       ref={scrollContainerRef}
       key={assistant.id}
       onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <InfiniteScroll
-          dataLength={displayMessages.length}
-          next={loadMoreMessages}
-          hasMore={hasMore}
-          loader={null}
-          scrollableTarget="messages"
-          inverse
-          style={{ overflow: 'visible' }}>
-          <ContextMenu>
-            <ScrollContainer>
-              {groupedMessages.map(([key, groupMessages]) => (
-                <MessageGroup
-                  key={key}
-                  messages={groupMessages}
-                  topic={topic}
-                  registerMessageElement={registerMessageElement}
-                />
-              ))}
-              {isLoadingMore && (
-                <LoaderContainer>
-                  <LoadingIcon color="var(--color-text-2)" />
-                </LoaderContainer>
-              )}
-            </ScrollContainer>
-          </ContextMenu>
-        </InfiniteScroll>
-
-        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
-      </NarrowLayout>
-      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+      {!isLoaded && (
+        <MessagesSkeletonContainer>
+          <MessageSkeleton />
+          <MessageSkeleton />
+        </MessagesSkeletonContainer>
+      )}
+      {isLoaded && (
+        <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+          <InfiniteScroll
+            dataLength={displayMessages?.length ?? 0}
+            next={loadMoreMessages}
+            hasMore={hasMore}
+            loader={null}
+            scrollableTarget="messages"
+            inverse
+            style={{ overflow: 'visible' }}>
+            <ContextMenu>
+              <ScrollContainer>
+                {groupedMessages.map(([key, groupMessages]) => (
+                  <MessageGroup
+                    key={key}
+                    messages={groupMessages}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                  />
+                ))}
+                {isLoadingMore && (
+                  <LoaderContainer>
+                    <LoadingIcon color="var(--color-text-2)" />
+                  </LoaderContainer>
+                )}
+              </ScrollContainer>
+            </ContextMenu>
+          </InfiniteScroll>
+          {/* NOTE: 不要修改column-reverse并移动Prompt组件到顶端，否则滚动控制将会失效 */}
+          {/* 因为在column-reverse样式下，消息容器底端scrollTop会保持在0，新消息生成时也能保持滚动位置在底部 */}
+          {/* 如果不是column-reverse，那么容器底端的scrollTop就会在新消息生成时产生变动，导致滚动位置停留在新消息生成前的位置，无法跟随滚动 */}
+          {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
+        </NarrowLayout>
+      )}
+      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages ?? []} />}
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}
         scrollContainerRef={scrollContainerRef}
@@ -405,5 +485,70 @@ const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   z-index: 1;
   position: relative;
 `
+
+const MessagesSkeletonContainer = styled.div`
+  width: 100%;
+  height: 100%;
+  padding: 10px 16px 20px;
+  overflow: hidden;
+`
+
+// from MessageHeader.tsx
+const MessageHeaderSkeleton = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  margin-bottom: 10px;
+`
+
+const MessageHeaderInfoSkeleton = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+`
+
+const MessageContentSkeleton = styled.div`
+  max-width: 100%;
+  padding-left: 45px;
+  margin-top: 5px;
+  overflow-y: auto;
+`
+
+const MessageSkeletonContainer = styled.div`
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-bottom: 2rem;
+`
+
+const MessageSkeleton = () => {
+  return (
+    <MessageSkeletonContainer>
+      <MessageHeaderSkeleton>
+        <Skeleton.Avatar style={{ width: 35 }} />
+        <MessageHeaderInfoSkeleton>
+          <Skeleton.Node active style={{ width: '18ch', height: 16 }}></Skeleton.Node>
+          <Skeleton.Node active style={{ width: '6ch', height: 16 }}></Skeleton.Node>
+        </MessageHeaderInfoSkeleton>
+      </MessageHeaderSkeleton>
+      <MessageContentSkeleton>
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '60%' }} />
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '80%' }} />
+        <ParagraphSkeleton paragraph={{ rows: 1, width: '40%' }} />
+      </MessageContentSkeleton>
+    </MessageSkeletonContainer>
+  )
+}
+
+const ParagraphSkeleton = ({ paragraph }: Pick<SkeletonProps, 'paragraph'>) => {
+  return (
+    <div style={{ marginBottom: '1.3em' }}>
+      <Skeleton active title={false} paragraph={paragraph}></Skeleton>
+    </div>
+  )
+}
 
 export default Messages
