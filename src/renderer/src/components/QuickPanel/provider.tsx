@@ -5,7 +5,8 @@ import {
   QuickPanelCloseAction,
   QuickPanelContextType,
   QuickPanelListItem,
-  QuickPanelOpenOptions
+  QuickPanelOpenOptions,
+  QuickPanelTriggerInfo
 } from './types'
 
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
@@ -19,9 +20,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [defaultIndex, setDefaultIndex] = useState<number>(0)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
-  const [onClose, setOnClose] = useState<
-    ((Options: Pick<QuickPanelCallBackOptions, 'symbol' | 'action'>) => void) | undefined
-  >()
+  const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
+  const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
 
@@ -44,6 +44,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)
+    setTriggerInfo(options.triggerInfo)
 
     setOnClose(() => options.onClose)
     setBeforeAction(() => options.beforeAction)
@@ -53,9 +54,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const close = useCallback(
-    (action?: QuickPanelCloseAction) => {
+    (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
-      onClose?.({ symbol, action })
+      onClose?.({ symbol, action, triggerInfo, searchText, item: {} as QuickPanelListItem, multiple: false })
 
       clearTimer.current = setTimeout(() => {
         setList([])
@@ -64,9 +65,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setAfterAction(undefined)
         setTitle(undefined)
         setSymbol('')
+        setTriggerInfo(undefined)
       }, 200)
     },
-    [onClose, symbol]
+    [onClose, symbol, triggerInfo]
   )
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      triggerInfo,
       onClose,
       beforeAction,
       afterAction
@@ -107,6 +110,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      triggerInfo,
       onClose,
       beforeAction,
       afterAction

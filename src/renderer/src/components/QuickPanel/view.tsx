@@ -204,7 +204,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      ctx.close(action)
+      // 传递 searchText 给 close 函数，去掉第一个字符（@ 或 /）
+      const cleanSearchText = searchText.length > 1 ? searchText.slice(1) : ''
+      ctx.close(action, cleanSearchText)
       setHistoryPanel([])
       scrollTriggerRef.current = 'initial'
 
@@ -217,7 +219,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         clearSearchText(true)
       }
     },
-    [ctx, clearSearchText, setInputText]
+    [ctx, clearSearchText, setInputText, searchText]
   )
 
   const handleItemAction = useCallback(

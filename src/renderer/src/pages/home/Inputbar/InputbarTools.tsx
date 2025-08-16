@@ -49,7 +49,7 @@ export interface InputbarToolsRef {
     openSelectFileMenu: () => void
     translate: () => void
   }) => QuickPanelListItem[]
-  openMentionModelsPanel: () => void
+  openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
   openAttachmentQuickPanel: () => void
 }
 
@@ -292,7 +292,7 @@ const InputbarTools = ({
 
   useImperativeHandle(ref, () => ({
     getQuickPanelMenu: getQuickPanelMenuImpl,
-    openMentionModelsPanel: () => mentionModelsButtonRef.current?.openQuickPanel(),
+    openMentionModelsPanel: (triggerInfo) => mentionModelsButtonRef.current?.openQuickPanel(triggerInfo),
     openAttachmentQuickPanel: () => attachmentButtonRef.current?.openQuickPanel()
   }))
 
