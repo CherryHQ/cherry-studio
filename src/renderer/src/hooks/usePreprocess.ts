@@ -22,8 +22,9 @@ export const usePreprocessProvider = (id: PreprocessProviderId) => {
       const payload = { id, ...updates }
       dispatch(_updatePreprocessProvider(payload))
       // 将更新同步到所有知识库中的引用
-      const merged: PreprocessProvider = { ...provider, ...updates }
-      dispatch(_syncPreprocessProvider(merged))
+      if (updates.apiHost || updates.apiKey || updates.model) {
+        dispatch(_syncPreprocessProvider(payload))
+      }
     }
   }
 }

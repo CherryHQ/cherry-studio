@@ -174,16 +174,14 @@ const knowledgeSlice = createSlice({
       }
     },
 
-    // 当预处理 Provider 更新时，同步到所有使用该 Provider 的知识库
-    syncPreprocessProvider(state, action: PayloadAction<PreprocessProvider>) {
+    syncPreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
       const updatedProvider = action.payload
       state.bases.forEach((base) => {
-        if (base.preprocessProvider?.provider.id === updatedProvider.id) {
-          base.preprocessProvider = {
-            type: 'preprocess' as const,
-            provider: updatedProvider
+        if (base.preprocessProvider && base.preprocessProvider.provider.id === updatedProvider.id) {
+          base.preprocessProvider.provider = {
+            ...base.preprocessProvider.provider,
+            ...updatedProvider
           }
-          base.updated_at = Date.now()
         }
       })
     },
