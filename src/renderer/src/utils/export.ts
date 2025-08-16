@@ -12,6 +12,7 @@ import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdow
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
 import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
 
 const logger = loggerService.withContext('Utils:export')
@@ -22,6 +23,99 @@ const getExportState = () => store.getState().runtime.export.isExporting
 // 全局的导出状态设置函数，使用 dispatch 保障 Redux 状态更新正确
 const setExportingState = (isExporting: boolean) => {
   store.dispatch(setExportState({ isExporting }))
+}
+
+/**
+ * 安全地处理思维链内容，保留安全的 HTML 标签如 <br>，移除危险内容
+ *
+ * 支持的标签：
+ * - 结构：br, p, div, span, h1-h6, blockquote
+ * - 格式：strong, b, em, i, u, s, del, mark, small, sup, sub
+ * - 列表：ul, ol, li
+ * - 代码：code, pre, kbd, var, samp
+ * - 表格：table, thead, tbody, tfoot, tr, td, th
+ *
+ * @param content 原始思维链内容
+ * @returns 安全处理后的内容
+ */
+const sanitizeReasoningContent = (content: string): string => {
+  // 先处理换行符转换为 <br>
+  const contentWithBr = content.replace(/\n/g, '<br>')
+
+  // 使用 DOMPurify 清理内容，保留常用的安全标签和属性
+  const cleanContent = DOMPurify.sanitize(contentWithBr, {
+    ALLOWED_TAGS: [
+      // 换行和基础结构
+      'br',
+      'p',
+      'div',
+      'span',
+      // 文本格式化
+      'strong',
+      'b',
+      'em',
+      'i',
+      'u',
+      's',
+      'del',
+      'mark',
+      'small',
+      // 上标下标（数学公式、引用等）
+      'sup',
+      'sub',
+      // 标题
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      // 引用
+      'blockquote',
+      // 列表
+      'ul',
+      'ol',
+      'li',
+      // 代码相关
+      'code',
+      'pre',
+      'kbd',
+      'var',
+      'samp',
+      // 表格（AI输出中可能包含表格）
+      'table',
+      'thead',
+      'tbody',
+      'tfoot',
+      'tr',
+      'td',
+      'th',
+      // 分隔线
+      'hr'
+    ],
+    ALLOWED_ATTR: [
+      // 安全的通用属性
+      'class',
+      'title',
+      'lang',
+      'dir',
+      // code 标签的语言属性
+      'data-language',
+      // 表格属性
+      'colspan',
+      'rowspan',
+      // 列表属性
+      'start',
+      'type'
+    ],
+    KEEP_CONTENT: true, // 保留被移除标签的文本内容
+    RETURN_DOM: false,
+    SANITIZE_DOM: true,
+    // 允许的协议（预留，虽然目前没有允许链接标签）
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
+  })
+
+  return cleanContent
 }
 
 /**
@@ -188,15 +282,8 @@ const createBaseMarkdown = (
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
-      reasoningContent = reasoningContent
-        .replace(/\n/g, '<br>') // 先处理换行符转换为<br>
-        .replace(/<br\s*\/?>/gi, '___BR_PLACEHOLDER___') // 临时保护所有<br>标签
-        .replace(/&/g, '&amp;') // 转义&符号
-        .replace(/</g, '&lt;') // 转义<符号
-        .replace(/>/g, '&gt;') // 转义>符号
-        .replace(/"/g, '&quot;') // 转义"符号
-        .replace(/'/g, '&#39;') // 转义'符号
-        .replace(/___BR_PLACEHOLDER___/g, '<br>') // 恢复<br>标签
+      // 使用 DOMPurify 安全地处理思维链内容
+      reasoningContent = sanitizeReasoningContent(reasoningContent)
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
