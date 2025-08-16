@@ -41,37 +41,40 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   }
 
   const parser = new DOMParser()
-  let doc = parser.parseFromString(svgContent, 'image/svg+xml')
-  let svgElement = doc.documentElement
+  const doc = parser.parseFromString(svgContent, 'image/svg+xml')
+  const parserError = doc.querySelector('parsererror')
+  let svgElement: Element = doc.documentElement
 
-  // Check if the parsed element is in the correct SVG namespace.
-  // This is the most reliable way to detect if `xmlns` is missing or incorrect.
-  if (svgElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+  // If parsing fails or the namespace is incorrect, fall back to the more lenient HTML parser.
+  if (parserError || svgElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = svgContent
-    const svg = tempDiv.querySelector('svg')
-    if (svg && !svg.hasAttribute('xmlns')) {
-      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      const correctedSvgContent = svg.outerHTML
-      doc = parser.parseFromString(correctedSvgContent, 'image/svg+xml')
-      svgElement = doc.documentElement
+    const svgFromHtml = tempDiv.querySelector('svg')
+
+    if (svgFromHtml) {
+      // Directly use the DOM node created by the HTML parser.
+      svgElement = svgFromHtml
+      // Ensure the xmlns attribute is present.
+      svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    } else {
+      // If both parsing methods fail, the SVG content is genuinely invalid.
+      if (parserError) {
+        throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
+      }
+      throw new Error('Invalid SVG content: The provided string does not contain a valid SVG element.')
     }
   }
 
-  const parserError = doc.querySelector('parsererror')
-  if (parserError) {
-    // Throw a specific error that can be caught by the calling component
-    throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
-  }
-
-  if (svgElement && svgElement.nodeName.toLowerCase() === 'svg') {
+  // Type guard
+  if (svgElement instanceof SVGSVGElement) {
     // Standardize the SVG element for proper scaling
     makeSvgScalable(svgElement)
 
     // Append the SVG element to the shadow root
-    shadowRoot.appendChild(svgElement.cloneNode(true))
+    shadowRoot.appendChild(svgElement)
   } else {
-    // Do not throw error for empty content
+    // This path is taken if the content is valid XML but not a valid SVG document
+    // (e.g., root element is not <svg>), or if the fallback parser fails.
     throw new Error('Invalid SVG content: The provided string is not a valid SVG document.')
   }
 }
