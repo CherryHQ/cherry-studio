@@ -772,6 +772,7 @@
     "select": "Select",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
+    "sending": "Sending...",
     "settings": "Settings",
     "sort": {
       "pinyin": {
@@ -841,6 +842,20 @@
     "last_updated": "Last Updated",
     "messages": "Messages",
     "user": "User"
+  },
+  "exportToPhone": {
+    "confirm": {
+      "button": "Select Backup File"
+    },
+    "content": "Export some data, including chat history, settings. Please note that the backup process may take some time, thank you for your patience.",
+    "lan": {
+      "content": "Using LAN transmission, please ensure the computer and phone are on the same network. Please Open Cherry Studio App to Scan this QR Code.",
+      "noZipSelected": "No Zip File Selected",
+      "selectZip": "Select Zip File",
+      "sendZip": "Start Restore Data",
+      "title": "Landrop"
+    },
+    "title": "Export To Phone"
   },
   "files": {
     "actions": "Actions",
@@ -2120,6 +2135,9 @@
         "title": "Export Menu Settings",
         "yuque": "Export to Yuque"
       },
+      "export_to_phone": "Export to phone",
+      "export_to_phone_button": "Back up data to phone",
+      "export_to_phone_use_lan_button": "LAN transmission",
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
       "joplin": {

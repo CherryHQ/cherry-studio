@@ -251,6 +251,12 @@ export enum IpcChannel {
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
 
+  // WebSocket
+  WebSocket_Start = 'webSocket:start',
+  WebSocket_Stop = 'webSocket:stop',
+  WebSocket_Status = 'webSocket:status',
+  WebSocket_SendFile = 'webSocket:send-file',
+
   // Memory
   Memory_Add = 'memory:add',
   Memory_Search = 'memory:search',
