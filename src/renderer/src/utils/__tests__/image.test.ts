@@ -6,7 +6,8 @@ import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   compressImage,
-  convertToBase64
+  convertToBase64,
+  makeSvgScalable
 } from '../image'
 
 // mock 依赖
@@ -123,6 +124,78 @@ describe('utils/image', () => {
       const func = vi.fn()
       await captureScrollableDivAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('makeSvgScalable', () => {
+    const createSvgElement = (svgString: string): SVGElement => {
+      const div = document.createElement('div')
+      div.innerHTML = svgString
+      return div.querySelector('svg') as SVGElement
+    }
+
+    it('should add viewBox and remove width/height when viewBox is missing', () => {
+      const svgElement = createSvgElement('<svg width="800" height="600"></svg>')
+      const result = makeSvgScalable(svgElement)
+
+      expect(result.getAttribute('viewBox')).toBe('0 0 800 600')
+      expect(result.hasAttribute('width')).toBe(false)
+      expect(result.hasAttribute('height')).toBe(false)
+    })
+
+    it('should not overwrite existing viewBox but still remove width/height', () => {
+      const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="800" height="600"></svg>')
+      const result = makeSvgScalable(svgElement)
+
+      expect(result.getAttribute('viewBox')).toBe('0 0 50 50')
+      expect(result.hasAttribute('width')).toBe(false)
+      expect(result.hasAttribute('height')).toBe(false)
+    })
+
+    it('should not add viewBox for non-numeric width/height but still remove them', () => {
+      const svgElement = createSvgElement('<svg width="100%" height="auto"></svg>')
+      const result = makeSvgScalable(svgElement)
+
+      expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.hasAttribute('width')).toBe(false)
+      expect(result.hasAttribute('height')).toBe(false)
+    })
+
+    it('should do nothing if width, height, and viewBox are missing', () => {
+      const svgElement = createSvgElement('<svg><circle cx="50" cy="50" r="40" /></svg>')
+      const originalOuterHTML = svgElement.outerHTML
+      const result = makeSvgScalable(svgElement)
+
+      // Check that no attributes were added
+      expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.hasAttribute('width')).toBe(false)
+      expect(result.hasAttribute('height')).toBe(false)
+      // Check that the content is unchanged
+      expect(result.outerHTML).toBe(originalOuterHTML)
+    })
+
+    it('should not add viewBox if only one dimension is present', () => {
+      const svgElement = createSvgElement('<svg height="600"></svg>')
+      const result = makeSvgScalable(svgElement)
+
+      expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.hasAttribute('height')).toBe(false)
+    })
+
+    it('should return the element unchanged if it is not an SVGElement', () => {
+      const divElement = document.createElement('div')
+      divElement.setAttribute('width', '100')
+      divElement.setAttribute('height', '100')
+
+      const originalOuterHTML = divElement.outerHTML
+      const result = makeSvgScalable(divElement)
+
+      // Check that the element is the same object
+      expect(result).toBe(divElement)
+      // Check that the content is unchanged
+      expect(result.outerHTML).toBe(originalOuterHTML)
+      // Verify no viewBox was added
+      expect(result.hasAttribute('viewBox')).toBe(false)
     })
   })
 })

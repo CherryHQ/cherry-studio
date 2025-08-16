@@ -270,3 +270,33 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   const svgData = new XMLSerializer().serializeToString(svgElement)
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
+
+/**
+ * 确保 SVG 元素有 viewBox 并且移除固定的 width/height 属性。
+ * 用于“预览”功能，让 SVG 在容器内可缩放。
+ */
+export const makeSvgScalable = (element: Element): Element => {
+  // Type Guard: Only proceed if the element is actually an SVGElement.
+  if (!(element instanceof SVGElement)) {
+    return element
+  }
+
+  const hasViewBox = element.hasAttribute('viewBox')
+  const width = element.getAttribute('width')
+  const height = element.getAttribute('height')
+
+  // 缺少 viewBox 但存在 width 和 height 属性时创建 viewBox
+  if (!hasViewBox && width && height) {
+    const numericWidth = parseFloat(width)
+    const numericHeight = parseFloat(height)
+    if (!isNaN(numericWidth) && !isNaN(numericHeight)) {
+      element.setAttribute('viewBox', `0 0 ${numericWidth} ${numericHeight}`)
+    }
+  }
+
+  // 移除固定的 width 和 height 属性，让 CSS 控制元素尺寸
+  element.removeAttribute('width')
+  element.removeAttribute('height')
+
+  return element
+}
