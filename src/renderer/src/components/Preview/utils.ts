@@ -40,9 +40,23 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
     return
   }
 
-  // Parse and append the SVG using DOMParser to prevent script execution and check for errors
   const parser = new DOMParser()
-  const doc = parser.parseFromString(svgContent, 'image/svg+xml')
+  let doc = parser.parseFromString(svgContent, 'image/svg+xml')
+  let svgElement = doc.documentElement
+
+  // Check if the parsed element is in the correct SVG namespace.
+  // This is the most reliable way to detect if `xmlns` is missing or incorrect.
+  if (svgElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = svgContent
+    const svg = tempDiv.querySelector('svg')
+    if (svg && !svg.hasAttribute('xmlns')) {
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+      const correctedSvgContent = svg.outerHTML
+      doc = parser.parseFromString(correctedSvgContent, 'image/svg+xml')
+      svgElement = doc.documentElement
+    }
+  }
 
   const parserError = doc.querySelector('parsererror')
   if (parserError) {
@@ -50,14 +64,13 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
     throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
   }
 
-  const svgElement = doc.documentElement
   if (svgElement && svgElement.nodeName.toLowerCase() === 'svg') {
     // Standardize the SVG element for proper scaling
     makeSvgScalable(svgElement)
 
     // Append the SVG element to the shadow root
     shadowRoot.appendChild(svgElement.cloneNode(true))
-  } else if (svgContent.trim() !== '') {
+  } else {
     // Do not throw error for empty content
     throw new Error('Invalid SVG content: The provided string is not a valid SVG document.')
   }
