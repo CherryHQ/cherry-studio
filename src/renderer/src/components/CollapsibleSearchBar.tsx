@@ -62,6 +62,7 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, i
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
+              e.stopPropagation()
               handleTextChange('')
               if (!searchText) setSearchVisible(false)
             }

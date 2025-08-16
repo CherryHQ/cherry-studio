@@ -63,6 +63,7 @@ const EditableNumber: FC<EditableNumberProps> = ({
     if (e.key === 'Enter') {
       handleBlur()
     } else if (e.key === 'Escape') {
+      e.stopPropagation()
       setInputValue(value)
       setIsEditing(false)
     }

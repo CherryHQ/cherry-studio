@@ -1,5 +1,7 @@
+import { loggerService } from '@logger'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
+import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { message, Modal } from 'antd'
 import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -24,6 +26,8 @@ type ElementItem = {
   element: React.FC | React.ReactNode
 }
 
+const logger = loggerService.withContext('TopView')
+
 const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
@@ -31,6 +35,8 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   const [messageApi, messageContextHolder] = message.useMessage()
   const [modal, modalContextHolder] = Modal.useModal()
+  const { shortcuts } = useShortcuts()
+  const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
 
   useAppInit()
 
@@ -71,6 +77,21 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       </Box>
     )
   }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      logger.debug('keydown', e)
+      if (!enableQuitFullScreen) return
+
+      if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        window.api.setFullScreen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  })
 
   return (
     <>

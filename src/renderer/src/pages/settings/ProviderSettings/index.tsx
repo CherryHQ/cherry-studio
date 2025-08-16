@@ -466,6 +466,7 @@ const ProvidersList: FC = () => {
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                e.stopPropagation()
                 setSearchText('')
               }
             }}
