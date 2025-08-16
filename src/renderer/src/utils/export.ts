@@ -372,8 +372,11 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 
   try {
-    // 直接使用 markdownToBlocks 处理思维链内容
-    const childrenBlocks = markdownToBlocks(thinkingContent)
+    // 预处理思维链内容：将HTML的<br>标签转换为真正的换行符
+    const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
+
+    // 使用 markdownToBlocks 处理思维链内容
+    const childrenBlocks = markdownToBlocks(processedContent)
 
     return [
       {
