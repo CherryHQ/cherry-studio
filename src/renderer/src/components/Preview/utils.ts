@@ -32,10 +32,6 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       width: 100%;
       height: 100%;
     }
-    svg {
-      max-width: 100%;
-      height: auto;
-    }
   `
 
   // Clear previous content and append new style and SVG
