@@ -14,7 +14,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 
-  // Base styles for the host element
+  // Base styles for the host element and the inner SVG
   const style = document.createElement('style')
   style.textContent = `
     :host {
@@ -26,22 +26,30 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       border: var(--shadow-host-border);
       border-radius: var(--shadow-host-border-radius);
       padding: 1em;
-      overflow: auto;
+      overflow: hidden; /* Prevent scrollbars, as scaling is now handled */
       display: block;
       position: relative;
       width: 100%;
       height: 100%;
     }
+
+    svg {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+    }
   `
 
-  // Clear previous content and append new style and SVG
+  // Clear previous content and append new style
   shadowRoot.innerHTML = ''
   shadowRoot.appendChild(style)
 
-  // Parse and append the SVG using DOMParser to prevent script execution and check for errors
   if (svgContent.trim() === '') {
     return
   }
+
+  // Parse and append the SVG using DOMParser to prevent script execution and check for errors
   const parser = new DOMParser()
   const doc = parser.parseFromString(svgContent, 'image/svg+xml')
 
@@ -53,6 +61,25 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
 
   const svgElement = doc.documentElement
   if (svgElement && svgElement.nodeName.toLowerCase() === 'svg') {
+    // Variables for standardizing SVG for proper scaling
+    const hasViewBox = svgElement.hasAttribute('viewBox')
+    const width = svgElement.getAttribute('width')
+    const height = svgElement.getAttribute('height')
+
+    // If viewBox is missing but width and height are present, create a viewBox to make the SVG scalable.
+    if (!hasViewBox && width && height) {
+      const numericWidth = parseFloat(width)
+      const numericHeight = parseFloat(height)
+      if (!isNaN(numericWidth) && !isNaN(numericHeight)) {
+        svgElement.setAttribute('viewBox', `0 0 ${numericWidth} ${numericHeight}`)
+      }
+    }
+
+    // Remove fixed width and height to allow CSS to control the element's size
+    svgElement.removeAttribute('width')
+    svgElement.removeAttribute('height')
+
+    // Append the SVG element to the shadow root
     shadowRoot.appendChild(svgElement.cloneNode(true))
   } else if (svgContent.trim() !== '') {
     // Do not throw error for empty content
