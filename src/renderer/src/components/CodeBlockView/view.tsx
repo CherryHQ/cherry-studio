@@ -303,7 +303,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // HTML 代码块特殊处理 - 在所有 hooks 调用之后
   if (language === 'html' && isHtmlCode(children)) {
-    return <HtmlArtifactsCard html={children} />
+    return <HtmlArtifactsCard html={children} onSave={onSave} />
   }
 
   return (

@@ -3,7 +3,7 @@ import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Button, Modal } from 'antd'
 import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -11,60 +11,16 @@ interface HtmlArtifactsPopupProps {
   open: boolean
   title: string
   html: string
+  onSave?: (html: string) => void
   onClose: () => void
 }
 
 type ViewMode = 'split' | 'code' | 'preview'
 
-const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onClose }) => {
+const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [currentHtml, setCurrentHtml] = useState(html)
   const [isFullscreen, setIsFullscreen] = useState(false)
-
-  // Preview refresh related state
-  const [previewHtml, setPreviewHtml] = useState(html)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const latestHtmlRef = useRef(html)
-  const currentPreviewHtmlRef = useRef(html)
-
-  // Sync internal state when external html updates
-  useEffect(() => {
-    setCurrentHtml(html)
-    latestHtmlRef.current = html
-  }, [html])
-
-  // Update reference when internally edited html changes
-  useEffect(() => {
-    latestHtmlRef.current = currentHtml
-  }, [currentHtml])
-
-  // Update reference when preview content changes
-  useEffect(() => {
-    currentPreviewHtmlRef.current = previewHtml
-  }, [previewHtml])
-
-  // Check and refresh preview every 2 seconds (only when content changes)
-  useEffect(() => {
-    if (!open) return
-
-    // Set initial preview content immediately
-    setPreviewHtml(latestHtmlRef.current)
-
-    // Set timer to check for content changes every 2 seconds
-    intervalRef.current = setInterval(() => {
-      if (latestHtmlRef.current !== currentPreviewHtmlRef.current) {
-        setPreviewHtml(latestHtmlRef.current)
-      }
-    }, 2000)
-
-    // Cleanup function
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [open])
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -148,15 +104,17 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         {showCode && (
           <CodeSection>
             <CodeEditor
-              value={currentHtml}
+              value={html}
               language="html"
               editable={true}
-              onSave={setCurrentHtml}
+              onSave={onSave}
               style={{ height: '100%' }}
               expanded
               unwrapped={false}
               options={{
-                stream: false
+                lineNumbers: true,
+                highlightActiveLine: true,
+                keymap: true
               }}
             />
           </CodeSection>
@@ -164,10 +122,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
 
         {showPreview && (
           <PreviewSection>
-            {previewHtml.trim() ? (
+            {html.trim() ? (
               <PreviewFrame
-                key={previewHtml} // Force recreate iframe when preview content changes
-                srcDoc={previewHtml}
+                key={html} // Force recreate iframe when preview content changes
+                srcDoc={html}
                 title="HTML Preview"
                 sandbox="allow-scripts allow-same-origin allow-forms"
               />

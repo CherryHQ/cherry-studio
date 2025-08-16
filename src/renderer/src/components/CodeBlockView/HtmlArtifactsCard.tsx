@@ -42,6 +42,7 @@ const HTML_COMPLETION_PATTERNS = [
 
 interface Props {
   html: string
+  onSave?: (html: string) => void
 }
 
 function hasUnmatchedTags(html: string): boolean {
@@ -108,7 +109,7 @@ const getTerminalStyles = (theme: ThemeMode) => ({
   promptColor: theme === 'dark' ? '#00ff00' : '#007700'
 })
 
-const HtmlArtifactsCard: FC<Props> = ({ html }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave }) => {
   const { t } = useTranslation()
   const title = extractTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -192,7 +193,13 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
         </Content>
       </Container>
 
-      <HtmlArtifactsPopup open={isPopupOpen} title={title} html={htmlContent} onClose={() => setIsPopupOpen(false)} />
+      <HtmlArtifactsPopup
+        open={isPopupOpen}
+        title={title}
+        html={htmlContent}
+        onSave={onSave}
+        onClose={() => setIsPopupOpen(false)}
+      />
     </>
   )
 }
