@@ -8,20 +8,19 @@ import {
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
-import { isFreeModel } from '@renderer/utils'
+import { isFreeModel } from '@renderer/utils/model'
 import { FC, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import CustomTag from './Tags/CustomTag'
 import {
   EmbeddingTag,
+  FreeTag,
   ReasoningTag,
   RerankerTag,
   ToolsCallingTag,
   VisionTag,
   WebSearchTag
-} from './Tags/ModelCapabilities'
+} from './Tags/Model'
 
 interface ModelTagsProps {
   model: Model
@@ -44,7 +43,6 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showTooltip = true,
   style
 }) => {
-  const { t } = useTranslation()
   const [shouldShowLabel, setShouldShowLabel] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -86,7 +84,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
         <ToolsCallingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
       {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
-      {showFree && isFreeModel(model) && <CustomTag size={size} color="#7cb305" icon={t('models.type.free')} />}
+      {showFree && isFreeModel(model) && <FreeTag size={size} />}
       {isRerankModel(model) && <RerankerTag size={size} />}
     </Container>
   )
