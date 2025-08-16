@@ -338,6 +338,10 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               description={t('settings.models.empty')}
               style={{
                 visibility: loadingModels ? 'hidden' : 'visible',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
                 margin: '0'
               }}
             />
