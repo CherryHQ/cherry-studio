@@ -2,7 +2,7 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
+import { KnowledgeBase } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -93,7 +93,6 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
 
         preprocessProvider: {
           type: 'preprocess',
-          providerId: value as PreprocessProviderId,
           provider
         }
       }))
