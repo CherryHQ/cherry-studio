@@ -142,7 +142,6 @@
     "@tryfabric/martian": "^1.2.4",
     "@types/cli-progress": "^3",
     "@types/diff": "^7",
-    "@types/dompurify": "^3.2.0",
     "@types/fs-extra": "^11",
     "@types/lodash": "^4.17.5",
     "@types/markdown-it": "^14",
