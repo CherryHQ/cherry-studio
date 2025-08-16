@@ -1,19 +1,28 @@
 import type { Element, Root } from 'hast'
 import { visit } from 'unist-util-visit'
 
+const isNumeric = (value: unknown): boolean => {
+  if (typeof value === 'string' && value.trim() !== '') {
+    return String(parseFloat(value)) === value.trim()
+  }
+  return false
+}
+
 /**
- * A Rehype plugin that makes SVG elements scalable.
+ * A Rehype plugin that prepares SVG elements for scalable rendering.
  *
- * This plugin traverses the HAST (HTML Abstract Syntax Tree) and performs
- * the following operations on each `<svg>` element:
+ * This plugin classifies SVGs into two categories:
  *
- * 1. Ensures a `viewBox` attribute exists. If it's missing but `width` and
- *    `height` are present, it generates a `viewBox` from them. This is
- *    crucial for making the SVG scalable.
+ * 1.  **Simple SVGs**: Those that already have a `viewBox` or have unitless
+ *     numeric `width` and `height` attributes. These are processed directly
+ *     in the HAST tree for maximum performance. A `viewBox` is added if
+ *     missing, and fixed dimensions are removed.
  *
- * 2. Removes the `width` and `height` attributes. This allows the SVG's size
- *    to be controlled by CSS (e.g., `max-width: 100%`), making it responsive
- *    and preventing it from overflowing its container.
+ * 2.  **Complex SVGs**: Those without a `viewBox` and with dimensions that
+ *     have units (e.g., "100pt", "10em"). These cannot be safely processed
+ *     at the data layer. The plugin adds a `data-needs-measurement="true"`
+ *     attribute to them, flagging them for runtime processing by a
+ *     specialized React component.
  *
  * @returns A unified transformer function.
  */
@@ -23,19 +32,28 @@ function rehypeScalableSvg() {
       if (node.tagName === 'svg') {
         const properties = node.properties || {}
         const hasViewBox = 'viewBox' in properties
-        const width = properties.width as string | number | undefined
-        const height = properties.height as string | number | undefined
+        const width = properties.width as string | undefined
+        const height = properties.height as string | undefined
 
-        if (!hasViewBox && width && height) {
-          const numericWidth = parseFloat(String(width))
-          const numericHeight = parseFloat(String(height))
-          if (!isNaN(numericWidth) && !isNaN(numericHeight)) {
-            properties.viewBox = `0 0 ${numericWidth} ${numericHeight}`
-          }
+        // 1. Universally set max-width from the width attribute if it exists.
+        // This is safe for both simple and complex cases.
+        if (width) {
+          const existingStyle = properties.style ? String(properties.style).trim().replace(/;$/, '') : ''
+          const maxWidth = `max-width: ${width}`
+          properties.style = existingStyle ? `${existingStyle}; ${maxWidth}` : maxWidth
         }
 
-        // Remove fixed width and height to allow CSS to control the size
-        delete properties.width
+        // 2. Handle viewBox creation for simple, numeric cases.
+        if (!hasViewBox && isNumeric(width) && isNumeric(height)) {
+          properties.viewBox = `0 0 ${width} ${height}`
+        }
+        // 3. Flag complex cases for runtime measurement.
+        else if (!hasViewBox && width && height) {
+          properties['data-needs-measurement'] = 'true'
+        }
+
+        // 4. Reset or clean up attributes.
+        properties.width = '100%'
         delete properties.height
 
         node.properties = properties
