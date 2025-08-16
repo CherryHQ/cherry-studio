@@ -1,5 +1,6 @@
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
-import React, { FC, useEffect, useRef } from 'react'
+import React, { FC, useCallback, useEffect, useRef } from 'react'
 
 interface SvgProps extends React.SVGProps<SVGSVGElement> {
   'data-needs-measurement'?: 'true'
@@ -33,8 +34,13 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
     }
   }, [needsMeasurement])
 
+  const onClick = useCallback(() => {
+    if (!svgRef.current) return
+    ImagePreviewService.show(svgRef.current, { format: 'svg' })
+  }, [])
+
   // Create a mutable copy of props to potentially modify.
-  const finalProps = { ...restProps }
+  const finalProps = { ...restProps, style: { cursor: 'pointer', ...restProps.style } }
 
   // If the SVG has been measured and mutated, we prevent React from
   // re-applying the original width and height attributes on subsequent renders.
@@ -44,7 +50,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
     delete finalProps.height
   }
 
-  return <svg ref={svgRef} {...finalProps} />
+  return <svg ref={svgRef} {...finalProps} onClick={onClick} />
 }
 
 export default MarkdownSvgRenderer
