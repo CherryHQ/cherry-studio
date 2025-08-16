@@ -5,7 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const RequestPayloadSchema = z.object({
   url: z.string().url(),

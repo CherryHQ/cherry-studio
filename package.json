@@ -270,7 +270,7 @@
     "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
     "zipread": "^1.3.3",
-    "zod": "^3.25.74"
+    "zod": "^4.0.0"
   },
   "resolutions": {
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
