@@ -56,6 +56,7 @@ export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
 export type ThinkingOption = ReasoningEffortOption | 'off'
 export type ThinkingModelType =
   | 'default'
+  | 'o'
   | 'gpt5'
   | 'grok'
   | 'gemini'

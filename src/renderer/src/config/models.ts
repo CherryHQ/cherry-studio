@@ -292,6 +292,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 // 模型类型到支持的reasoning_effort的映射表
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
+  o: ['low', 'medium', 'high'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -307,7 +308,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  gpt5: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
+  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
@@ -320,28 +322,28 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
+  let thinkingModelType: ThinkingModelType = 'default'
   if (isGPT5SeriesModel(model)) {
-    return 'gpt5'
-  }
-  if (isSupportedThinkingTokenGeminiModel(model)) {
+    thinkingModelType = 'gpt5'
+  } else if (isSupportedReasoningEffortOpenAIModel(model)) {
+    thinkingModelType = 'o'
+  } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-      return 'gemini'
+      thinkingModelType = 'gemini'
     } else {
-      return 'gemini_pro'
+      thinkingModelType = 'gemini_pro'
     }
-  }
-  if (isSupportedReasoningEffortGrokModel(model)) return 'grok'
-  if (isSupportedThinkingTokenQwenModel(model)) {
+  } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
+  else if (isSupportedThinkingTokenQwenModel(model)) {
     if (isQwenAlwaysThinkModel(model)) {
-      return 'qwen_thinking'
+      thinkingModelType = 'qwen_thinking'
     }
-    return 'qwen'
-  }
-  if (isSupportedThinkingTokenDoubaoModel(model)) return 'doubao'
-  if (isSupportedThinkingTokenHunyuanModel(model)) return 'hunyuan'
-  if (isSupportedReasoningEffortPerplexityModel(model)) return 'perplexity'
-  if (isSupportedThinkingTokenZhipuModel(model)) return 'zhipu'
-  return 'default'
+    thinkingModelType = 'qwen'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) thinkingModelType = 'doubao'
+  else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
+  else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  return thinkingModelType
 }
 
 export function isFunctionCallingModel(model?: Model): boolean {
