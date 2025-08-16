@@ -118,6 +118,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               expanded
               unwrapped={false}
               options={{
+                stream: true, // FIXME: 避免多余空行
                 lineNumbers: true,
                 keymap: true
               }}
