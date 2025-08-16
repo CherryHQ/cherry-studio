@@ -16,6 +16,14 @@ import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendB
 
 const logger = loggerService.withContext('Utils:export')
 
+// 全局的导出状态获取函数
+const getExportState = () => store.getState().runtime.export.isExporting
+
+// 全局的导出状态设置函数，使用 dispatch 保障 Redux 状态更新正确
+const setExportingState = (isExporting: boolean) => {
+  store.dispatch(setExportState({ isExporting }))
+}
+
 /**
  * 获取话题的消息列表，使用TopicManager确保消息被正确加载
  * 这样可以避免从未打开过的话题导出为空的问题
@@ -33,7 +41,7 @@ async function fetchTopicMessages(topicId: string): Promise<Message[]> {
  * @param {number} [length=80] 标题最大长度，默认为 80
  * @returns {string} 提取的标题
  */
-export function getTitleFromString(str: string, length: number = 80) {
+export function getTitleFromString(str: string, length: number = 80): string {
   let title = str.trimStart().split('\n')[0]
 
   if (title.includes('。')) {
@@ -57,7 +65,7 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
-const getRoleText = (role: string, modelName?: string, providerId?: string) => {
+const getRoleText = (role: string, modelName?: string, providerId?: string): string => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
 
   if (role === 'user') {
@@ -166,7 +174,7 @@ const createBaseMarkdown = (
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true
-) => {
+): { titleSection: string; reasoningSection: string; contentSection: string; citation: string } => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
   const titleSection = `## ${roleText}`
@@ -216,7 +224,7 @@ const createBaseMarkdown = (
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
-export const messageToMarkdown = (message: Message, excludeCitations?: boolean) => {
+export const messageToMarkdown = (message: Message, excludeCitations?: boolean): string => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
   const { titleSection, contentSection, citation } = createBaseMarkdown(
@@ -228,7 +236,7 @@ export const messageToMarkdown = (message: Message, excludeCitations?: boolean) 
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
-export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean) => {
+export const messageToMarkdownWithReasoning = (message: Message, excludeCitations?: boolean): string => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = store.getState().settings
   const shouldExcludeCitations = excludeCitations ?? excludeCitationsInExport
   const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(
@@ -237,10 +245,14 @@ export const messageToMarkdownWithReasoning = (message: Message, excludeCitation
     shouldExcludeCitations,
     standardizeCitationsInExport
   )
-  return [titleSection, '', reasoningSection + contentSection, citation].join('\n')
+  return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
 
-export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean, excludeCitations?: boolean) => {
+export const messagesToMarkdown = (
+  messages: Message[],
+  exportReasoning?: boolean,
+  excludeCitations?: boolean
+): string => {
   return messages
     .map((message) =>
       exportReasoning
@@ -266,7 +278,11 @@ const messagesToPlainText = (messages: Message[]): string => {
   return messages.map(formatMessageAsPlainText).join('\n\n')
 }
 
-export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean, excludeCitations?: boolean) => {
+export const topicToMarkdown = async (
+  topic: Topic,
+  exportReasoning?: boolean,
+  excludeCitations?: boolean
+): Promise<string> => {
   const topicName = `# ${topic.name}`
 
   const messages = await fetchTopicMessages(topic.id)
@@ -290,7 +306,18 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   return topicName
 }
 
-export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean, excludeCitations?: boolean) => {
+export const exportTopicAsMarkdown = async (
+  topic: Topic,
+  exportReasoning?: boolean,
+  excludeCitations?: boolean
+): Promise<void> => {
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'markdown-exporting' })
+    return
+  }
+
+  setExportingState(true)
+
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
@@ -305,7 +332,9 @@ export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: bool
       }
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
-      logger.debug(error)
+      logger.error('Failed to export topic as markdown:', error)
+    } finally {
+      setExportingState(false)
     }
   } else {
     try {
@@ -316,7 +345,9 @@ export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: bool
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
-      logger.debug(error)
+      logger.error('Failed to export topic as markdown:', error)
+    } finally {
+      setExportingState(false)
     }
   }
 }
@@ -325,7 +356,14 @@ export const exportMessageAsMarkdown = async (
   message: Message,
   exportReasoning?: boolean,
   excludeCitations?: boolean
-) => {
+): Promise<void> => {
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'markdown-exporting' })
+    return
+  }
+
+  setExportingState(true)
+
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
@@ -343,7 +381,9 @@ export const exportMessageAsMarkdown = async (
       }
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
-      logger.debug(error)
+      logger.error('Failed to export message as markdown:', error)
+    } finally {
+      setExportingState(false)
     }
   } else {
     try {
@@ -357,12 +397,14 @@ export const exportMessageAsMarkdown = async (
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
-      logger.debug(error)
+      logger.error('Failed to export message as markdown:', error)
+    } finally {
+      setExportingState(false)
     }
   }
 }
 
-const convertMarkdownToNotionBlocks = async (markdown: string) => {
+const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
   return markdownToBlocks(markdown)
 }
 
@@ -399,7 +441,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
       }
     ]
   } catch (error) {
-    logger.error('处理思维链内容时发生错误:', error as Error)
+    logger.error('failed to process reasoning content:', error as Error)
     // 发生错误时，回退到简单的段落处理
     return [
       {
@@ -428,7 +470,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
                     text: {
                       content:
                         thinkingContent.length > 1800
-                          ? thinkingContent.substring(0, 1800) + '...\n\n[内容过长，已截断]'
+                          ? thinkingContent.substring(0, 1800) + '...\n' + i18n.t('export.notion.reasoning_truncated')
                           : thinkingContent
                     }
                   }
@@ -442,25 +484,24 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 }
 
-const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any> => {
-  const { isExporting } = store.getState().runtime.export
-  if (isExporting) {
-    window.message.warning({ content: i18n.t('message.warn.notion.exporting'), key: 'notion-exporting' })
-    return null
+const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boolean> => {
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'notion-exporting' })
+    return false
   }
 
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
     window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
-    return null
+    return false
   }
 
   if (allBlocks.length === 0) {
-    window.message.error({ content: i18n.t('message.error.notion.no_content'), key: 'notion-no-content-error' })
-    return null
+    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-no-content-error' })
+    return false
   }
 
-  setExportState({ isExporting: true })
+  setExportingState(true)
 
   // 限制标题长度
   if (title.length > 32) {
@@ -485,9 +526,6 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
       }
     })
 
-    const mainPageResponse = response
-    const parentBlockId = response.id
-
     window.message.destroy('notion-preparing')
     window.message.loading({
       content: i18n.t('message.loading.notion.exporting_progress'),
@@ -496,14 +534,14 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
     })
 
     await appendBlocks({
-      block_id: parentBlockId,
+      block_id: response.id,
       children: allBlocks,
       client: notion
     })
 
     window.message.destroy('notion-exporting')
     window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
-    return mainPageResponse
+    return true
   } catch (error: any) {
     // 清理可能存在的loading消息
     window.message.destroy('notion-preparing')
@@ -511,13 +549,13 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
 
     logger.error('Notion export failed:', error)
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-error' })
-    return null
+    return false
   } finally {
-    setExportState({ isExporting: false })
+    setExportingState(false)
   }
 }
 
-export const exportMessageToNotion = async (title: string, content: string, message?: Message) => {
+export const exportMessageToNotion = async (title: string, content: string, message?: Message): Promise<boolean> => {
   const { notionExportReasoning } = store.getState().settings
 
   const notionBlocks = await convertMarkdownToNotionBlocks(content)
@@ -537,7 +575,7 @@ export const exportMessageToNotion = async (title: string, content: string, mess
   return executeNotionExport(title, notionBlocks)
 }
 
-export const exportTopicToNotion = async (topic: Topic) => {
+export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
   const { notionExportReasoning, excludeCitationsInExport } = store.getState().settings
 
   const topicMessages = await fetchTopicMessages(topic.id)
@@ -571,12 +609,11 @@ export const exportTopicToNotion = async (topic: Topic) => {
   return executeNotionExport(topic.name, allBlocks)
 }
 
-export const exportMarkdownToYuque = async (title: string, content: string) => {
-  const { isExporting } = store.getState().runtime.export
+export const exportMarkdownToYuque = async (title: string, content: string): Promise<any | null> => {
   const { yuqueToken, yuqueRepoId } = store.getState().settings
 
-  if (isExporting) {
-    window.message.warning({ content: i18n.t('message.warn.yuque.exporting'), key: 'yuque-exporting' })
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'yuque-exporting' })
     return
   }
 
@@ -585,7 +622,7 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     return
   }
 
-  setExportState({ isExporting: true })
+  setExportingState(true)
 
   try {
     const response = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueRepoId}/docs`, {
@@ -641,7 +678,7 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     })
     return null
   } finally {
-    setExportState({ isExporting: false })
+    setExportingState(false)
   }
 }
 
@@ -656,7 +693,14 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
  * @param attributes.folder 选择的文件夹路径或文件路径
  * @param attributes.vault 选择的Vault名称
  */
-export const exportMarkdownToObsidian = async (attributes: any) => {
+export const exportMarkdownToObsidian = async (attributes: any): Promise<void> => {
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'obsidian-exporting' })
+    return
+  }
+
+  setExportingState(true)
+
   try {
     // 从参数获取Vault名称
     const obsidianVault = attributes.vault
@@ -708,8 +752,10 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
-    logger.error('导出到Obsidian失败:', error as Error)
+    logger.error('Failed to export to Obsidian:', error as Error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+  } finally {
+    setExportingState(false)
   }
 }
 
@@ -758,12 +804,14 @@ function transformObsidianFileName(fileName: string): string {
   return sanitized
 }
 
-export const exportMarkdownToJoplin = async (title: string, contentOrMessages: string | Message | Message[]) => {
-  const { isExporting } = store.getState().runtime.export
+export const exportMarkdownToJoplin = async (
+  title: string,
+  contentOrMessages: string | Message | Message[]
+): Promise<any | null> => {
   const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } = store.getState().settings
 
-  if (isExporting) {
-    window.message.warning({ content: i18n.t('message.warn.joplin.exporting'), key: 'joplin-exporting' })
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'joplin-exporting' })
     return
   }
 
@@ -772,7 +820,7 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
     return
   }
 
-  setExportState({ isExporting: true })
+  setExportingState(true)
 
   let content: string
   if (typeof contentOrMessages === 'string') {
@@ -812,11 +860,11 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
     window.message.success(i18n.t('message.success.joplin.export'))
     return data
   } catch (error: any) {
-    logger.error('导出到Joplin失败:', error)
+    logger.error('Failed to export to Joplin:', error)
     window.message.error(i18n.t('message.error.joplin.export'))
     return null
   } finally {
-    setExportState({ isExporting: false })
+    setExportingState(false)
   }
 }
 
@@ -825,12 +873,11 @@ export const exportMarkdownToJoplin = async (title: string, contentOrMessages: s
  * @param title 笔记标题
  * @param content 笔记内容
  */
-export const exportMarkdownToSiyuan = async (title: string, content: string) => {
-  const { isExporting } = store.getState().runtime.export
+export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
   const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = store.getState().settings
 
-  if (isExporting) {
-    window.message.warning({ content: i18n.t('message.warn.siyuan.exporting'), key: 'siyuan-exporting' })
+  if (getExportState()) {
+    window.message.warning({ content: i18n.t('message.warn.export.exporting'), key: 'siyuan-exporting' })
     return
   }
 
@@ -839,7 +886,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
     return
   }
 
-  setExportState({ isExporting: true })
+  setExportingState(true)
 
   try {
     // test connection
@@ -875,13 +922,13 @@ export const exportMarkdownToSiyuan = async (title: string, content: string) => 
       key: 'siyuan-success'
     })
   } catch (error) {
-    logger.error('导出到思源笔记失败:', error as Error)
+    logger.error('Failed to export to Siyuan:', error as Error)
     window.message.error({
       content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
       key: 'siyuan-error'
     })
   } finally {
-    setExportState({ isExporting: false })
+    setExportingState(false)
   }
 }
 /**
