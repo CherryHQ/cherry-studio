@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { ShadowWhiteContainer } from './styles'
 import { BasicPreviewHandles } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -34,7 +35,7 @@ const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPrev
       ref={ref}
       imageRef={containerRef}
       source="svg">
-      <div ref={containerRef} className={className ?? 'svg-preview special-preview'}></div>
+      <ShadowWhiteContainer ref={containerRef} className={className ?? 'svg-preview special-preview'} />
     </ImagePreviewLayout>
   )
 }

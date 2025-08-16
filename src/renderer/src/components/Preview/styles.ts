@@ -33,3 +33,15 @@ export const PreviewContainer = styled(Flex).attrs({ role: 'alert' })`
     }
   }
 `
+
+export const ShadowWhiteContainer = styled.div`
+  --shadow-host-background-color: white;
+  --shadow-host-border: 0.5px solid var(--color-code-background);
+  --shadow-host-border-radius: 8px;
+`
+
+export const ShadowTransparentContainer = styled.div`
+  --shadow-host-background-color: transparent;
+  --shadow-host-border: unset;
+  --shadow-host-border-radius: unset;
+`

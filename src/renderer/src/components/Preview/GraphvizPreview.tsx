@@ -1,9 +1,9 @@
 import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
 import React, { memo, useCallback } from 'react'
-import styled from 'styled-components'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { ShadowWhiteContainer } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
@@ -13,8 +13,10 @@ const vizInitializer = new AsyncInitializer(async () => {
   return await module.instance()
 })
 
-/** 预览 Graphviz 图表
- * 使用 usePreviewRenderer hook 大幅简化组件逻辑
+/**
+ * 预览 Graphviz 图表
+ * - 使用 useDebouncedRender 改善体验
+ * - 使用 shadow dom 渲染 SVG
  */
 const GraphvizPreview = ({
   children,
@@ -41,16 +43,9 @@ const GraphvizPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="graphviz">
-      <StyledGraphviz ref={containerRef} className="graphviz special-preview" />
+      <ShadowWhiteContainer ref={containerRef} className="graphviz special-preview" />
     </ImagePreviewLayout>
   )
 }
-
-const StyledGraphviz = styled.div`
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
-`
 
 export default memo(GraphvizPreview)

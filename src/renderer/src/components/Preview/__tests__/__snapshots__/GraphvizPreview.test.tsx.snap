@@ -2,10 +2,9 @@
 
 exports[`GraphvizPreview > basic rendering > should match snapshot 1`] = `
 .c0 {
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
+  --shadow-host-background-color: white;
+  --shadow-host-border: 0.5px solid var(--color-code-background);
+  --shadow-host-border-radius: 8px;
 }
 
 <div>
