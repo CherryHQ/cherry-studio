@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:Knowledge')
 
@@ -174,6 +174,20 @@ const knowledgeSlice = createSlice({
       }
     },
 
+    // 当预处理 Provider 更新时，同步到所有使用该 Provider 的知识库
+    syncPreprocessProvider(state, action: PayloadAction<PreprocessProvider>) {
+      const updatedProvider = action.payload
+      state.bases.forEach((base) => {
+        if (base.preprocessProvider?.provider.id === updatedProvider.id) {
+          base.preprocessProvider = {
+            type: 'preprocess' as const,
+            provider: updatedProvider
+          }
+          base.updated_at = Date.now()
+        }
+      })
+    },
+
     updateBaseItemUniqueId(
       state,
       action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string; uniqueIds: string[] }>
@@ -221,7 +235,8 @@ export const {
   clearCompletedProcessing,
   clearAllProcessing,
   updateBaseItemUniqueId,
-  updateBaseItemIsPreprocessed
+  updateBaseItemIsPreprocessed,
+  syncPreprocessProvider
 } = knowledgeSlice.actions
 
 export default knowledgeSlice.reducer
