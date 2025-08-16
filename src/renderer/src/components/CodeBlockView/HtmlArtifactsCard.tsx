@@ -5,7 +5,7 @@ import { ThemeMode } from '@renderer/types'
 import { extractTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
 import { Code, Download, Globe, Sparkles } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
 import styled, { keyframes } from 'styled-components'
@@ -14,93 +14,10 @@ import HtmlArtifactsPopup from './HtmlArtifactsPopup'
 
 const logger = loggerService.withContext('HtmlArtifactsCard')
 
-const HTML_VOID_ELEMENTS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr'
-])
-
-const HTML_COMPLETION_PATTERNS = [
-  /<\/html\s*>/i,
-  /<!DOCTYPE\s+html/i,
-  /<\/body\s*>/i,
-  /<\/div\s*>/i,
-  /<\/script\s*>/i,
-  /<\/style\s*>/i
-]
-
 interface Props {
   html: string
   onSave?: (html: string) => void
-}
-
-function hasUnmatchedTags(html: string): boolean {
-  const stack: string[] = []
-  const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
-  let match
-
-  while ((match = tagRegex.exec(html)) !== null) {
-    const [fullTag, tagName] = match
-    const isClosing = fullTag.startsWith('</')
-    const isSelfClosing = fullTag.endsWith('/>') || HTML_VOID_ELEMENTS.has(tagName.toLowerCase())
-
-    if (isSelfClosing) continue
-
-    if (isClosing) {
-      if (stack.length === 0 || stack.pop() !== tagName.toLowerCase()) {
-        return true
-      }
-    } else {
-      stack.push(tagName.toLowerCase())
-    }
-  }
-
-  return stack.length > 0
-}
-
-function checkIsStreaming(html: string): boolean {
-  if (!html?.trim()) return false
-
-  const trimmed = html.trim()
-
-  // 快速检查：如果有明显的完成标志，直接返回false
-  for (const pattern of HTML_COMPLETION_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      // 特殊情况：同时有DOCTYPE和</body>
-      if (trimmed.includes('<!DOCTYPE') && /<\/body\s*>/i.test(trimmed)) {
-        return false
-      }
-      // 如果只是以</html>结尾，也认为是完成的
-      if (/<\/html\s*>$/i.test(trimmed)) {
-        return false
-      }
-    }
-  }
-
-  // 检查未完成的标志
-  const hasIncompleteTag = /<[^>]*$/.test(trimmed)
-  const hasUnmatched = hasUnmatchedTags(trimmed)
-
-  if (hasIncompleteTag || hasUnmatched) return true
-
-  // 对于简单片段，如果长度较短且没有明显结束标志，可能还在生成
-  const hasStructureTags = /<(html|body|head)[^>]*>/i.test(trimmed)
-  if (!hasStructureTags && trimmed.length < 500) {
-    return !HTML_COMPLETION_PATTERNS.some((pattern) => pattern.test(trimmed))
-  }
-
-  return false
+  isStreaming?: boolean
 }
 
 const getTerminalStyles = (theme: ThemeMode) => ({
@@ -109,7 +26,7 @@ const getTerminalStyles = (theme: ThemeMode) => ({
   promptColor: theme === 'dark' ? '#00ff00' : '#007700'
 })
 
-const HtmlArtifactsCard: FC<Props> = ({ html, onSave }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
   const { t } = useTranslation()
   const title = extractTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -117,7 +34,6 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave }) => {
 
   const htmlContent = html || ''
   const hasContent = htmlContent.trim().length > 0
-  const isStreaming = useMemo(() => checkIsStreaming(htmlContent), [htmlContent])
 
   const handleOpenExternal = async () => {
     const path = await window.api.file.createTempFile('artifacts-preview.html')
