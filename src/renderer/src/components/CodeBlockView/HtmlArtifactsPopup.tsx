@@ -1,9 +1,9 @@
-import CodeEditor from '@renderer/components/CodeEditor'
+import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
-import { Button, Modal } from 'antd'
-import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Button, Modal, Tooltip } from 'antd'
+import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, SaveIcon, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,6 +21,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const codeEditorRef = useRef<CodeEditorHandles>(null)
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -37,6 +38,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
 
   const showCode = viewMode === 'split' || viewMode === 'code'
   const showPreview = viewMode === 'split' || viewMode === 'preview'
+
+  const handleSave = () => {
+    codeEditorRef.current?.save?.()
+  }
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
@@ -104,6 +109,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         {showCode && (
           <CodeSection>
             <CodeEditor
+              ref={codeEditorRef}
               value={html}
               language="html"
               editable={true}
@@ -113,10 +119,19 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               unwrapped={false}
               options={{
                 lineNumbers: true,
-                highlightActiveLine: true,
                 keymap: true
               }}
             />
+            <ToolbarWrapper>
+              <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
+                <Button
+                  shape="circle"
+                  size="large"
+                  icon={<SaveIcon size={16} className="custom-lucide" />}
+                  onClick={handleSave}
+                />
+              </Tooltip>
+            </ToolbarWrapper>
           </CodeSection>
         )}
 
@@ -280,6 +295,7 @@ const CodeSection = styled.div`
   min-width: 300px;
   border-right: 1px solid var(--color-border);
   overflow: hidden;
+  position: relative;
 
   .monaco-editor,
   .cm-editor,
@@ -311,6 +327,17 @@ const EmptyPreview = styled.div`
   background: var(--color-background-soft);
   color: var(--color-text-secondary);
   font-size: 14px;
+`
+
+const ToolbarWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  gap: 4px;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1;
 `
 
 export default HtmlArtifactsPopup
