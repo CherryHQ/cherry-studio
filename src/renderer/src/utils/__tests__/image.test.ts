@@ -193,16 +193,6 @@ describe('utils/image', () => {
       spy.mockRestore()
     })
 
-    it('should only set width="100%" if width/height attributes are missing', () => {
-      const svgElement = createSvgElement('<svg></svg>')
-      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
-
-      expect(result.hasAttribute('viewBox')).toBe(false)
-      expect(result.style.maxWidth).toBe('')
-      expect(result.getAttribute('width')).toBe('100%')
-      expect(result.hasAttribute('height')).toBe(false)
-    })
-
     it('should return the element unchanged if it is not an SVGElement', () => {
       const divElement = document.createElement('div')
       const originalOuterHTML = divElement.outerHTML

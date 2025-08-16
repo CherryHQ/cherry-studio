@@ -319,19 +319,15 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
 
   const hasViewBox = element.hasAttribute('viewBox')
   const widthStr = element.getAttribute('width')
-  const heightStr = element.getAttribute('height')
 
   let measuredWidth: number | undefined
 
   // 如果缺少 viewBox 属性，测量元素尺寸来创建
   if (!hasViewBox) {
-    // 只在 width 和 height 都有值时测量
-    if (widthStr && heightStr) {
-      const renderedSize = measureElementSize(element)
-      if (renderedSize.width > 0 && renderedSize.height > 0) {
-        measuredWidth = renderedSize.width
-        element.setAttribute('viewBox', `0 0 ${renderedSize.width} ${renderedSize.height}`)
-      }
+    const renderedSize = measureElementSize(element)
+    if (renderedSize.width > 0 && renderedSize.height > 0) {
+      measuredWidth = renderedSize.width
+      element.setAttribute('viewBox', `0 0 ${renderedSize.width} ${renderedSize.height}`)
     }
   }
 
@@ -346,6 +342,9 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
   // 调整 width 和 height
   element.setAttribute('width', '100%')
   element.removeAttribute('height')
+
+  // FIXME: 移除 preserveAspectRatio 来避免某些图无法正常预览
+  element.removeAttribute('preserveAspectRatio')
 
   return element
 }
