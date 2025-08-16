@@ -189,12 +189,14 @@ const createBaseMarkdown = (
         reasoningContent = reasoningContent.substring(7)
       }
       reasoningContent = reasoningContent
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/\n/g, '<br>')
+        .replace(/\n/g, '<br>') // 先处理换行符转换为<br>
+        .replace(/<br\s*\/?>/gi, '___BR_PLACEHOLDER___') // 临时保护所有<br>标签
+        .replace(/&/g, '&amp;') // 转义&符号
+        .replace(/</g, '&lt;') // 转义<符号
+        .replace(/>/g, '&gt;') // 转义>符号
+        .replace(/"/g, '&quot;') // 转义"符号
+        .replace(/'/g, '&#39;') // 转义'符号
+        .replace(/___BR_PLACEHOLDER___/g, '<br>') // 恢复<br>标签
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
