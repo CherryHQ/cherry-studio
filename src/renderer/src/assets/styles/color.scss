@@ -35,6 +35,8 @@
   --color-error: #ff4d50;
   --color-link: #338cff;
   --color-code-background: #323232;
+  --color-inline-code-background: #323232;
+  --color-inline-code-text: rgb(218, 97, 92);
   --color-hover: rgba(40, 40, 40, 1);
   --color-active: rgba(55, 55, 55, 1);
   --color-frame-border: #333;
@@ -115,6 +117,8 @@
   --color-error: #ff4d50;
   --color-link: #1677ff;
   --color-code-background: #e3e3e3;
+  --color-inline-code-background: rgba(0, 0, 0, 0.06);
+  --color-inline-code-text: rgba(235, 87, 87);
   --color-hover: var(--color-white-mute);
   --color-active: var(--color-white-soft);
   --color-frame-border: #ddd;
