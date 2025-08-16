@@ -213,6 +213,9 @@ export enum IpcChannel {
 
   FullscreenStatusChanged = 'fullscreen-status-changed',
 
+  TopView_Opened = 'topview:opened',
+  TopView_Closed = 'topview:closed',
+
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
 

@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
@@ -31,6 +31,7 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+  private topViewOpenCount: number = 0
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -107,6 +108,13 @@ export class WindowService {
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
     this.loadMainWindowContent(mainWindow)
+
+    ipcMain.on(IpcChannel.TopView_Opened, () => {
+      this.topViewOpenCount++
+    })
+    ipcMain.on(IpcChannel.TopView_Closed, () => {
+      this.topViewOpenCount = Math.max(0, this.topViewOpenCount - 1)
+    })
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
@@ -227,6 +235,11 @@ export class WindowService {
       // 当按下Escape键且窗口处于全屏状态时退出全屏
       if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
         if (mainWindow.isFullScreen()) {
+          // 如果有打开的 TopView，让渲染进程处理
+          if (this.topViewOpenCount > 0) {
+            return
+          }
+
           // 获取 shortcuts 配置
           const shortcuts = configManager.getShortcuts()
           const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')

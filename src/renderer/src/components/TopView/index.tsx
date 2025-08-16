@@ -1,5 +1,6 @@
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
+import { IpcChannel } from '@shared/IpcChannel'
 import { message, Modal } from 'antd'
 import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -44,23 +45,39 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
     views.pop()
     elementsRef.current = views
     setElements(elementsRef.current)
+
+    if (elementsRef.current.length === 0) {
+      window.electron.ipcRenderer.send(IpcChannel.TopView_Closed)
+    }
   }
 
   onShow = ({ element, id }: ElementItem) => {
     if (!elementsRef.current.find((el) => el.id === id)) {
+      if (elementsRef.current.length === 0) {
+        window.electron.ipcRenderer.send(IpcChannel.TopView_Opened)
+      }
       elementsRef.current = elementsRef.current.concat([{ element, id }])
       setElements(elementsRef.current)
     }
   }
 
   onHide = (id: string) => {
+    const prevLength = elementsRef.current.length
     elementsRef.current = elementsRef.current.filter((el) => el.id !== id)
     setElements(elementsRef.current)
+
+    if (prevLength > 0 && elementsRef.current.length === 0) {
+      window.electron.ipcRenderer.send(IpcChannel.TopView_Closed)
+    }
   }
 
   onHideAll = () => {
+    const prevLength = elementsRef.current.length
     setElements([])
     elementsRef.current = []
+    if (prevLength > 0) {
+      window.electron.ipcRenderer.send(IpcChannel.TopView_Closed)
+    }
   }
 
   const FullScreenContainer: React.FC<PropsWithChildren> = useCallback(({ children }) => {
