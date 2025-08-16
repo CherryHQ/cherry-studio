@@ -458,7 +458,7 @@ const MemorySettings = () => {
     try {
       // Create the user by adding an initial memory with the userId
       // This implicitly creates the user in the system
-      await memoryService.setCurrentUser(userId)
+      memoryService.setCurrentUser(userId)
       await memoryService.add(t('memory.initial_memory_content'), { userId })
 
       // Refresh the users list from the database to persist the new user
