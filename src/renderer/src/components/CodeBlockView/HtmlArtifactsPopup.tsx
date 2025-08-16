@@ -2,7 +2,7 @@ import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Button, Modal, Splitter, Tooltip } from 'antd'
-import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, SaveIcon, X } from 'lucide-react'
+import { Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -51,7 +51,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
-            icon={<MonitorSpeaker size={14} />}
+            icon={<SquareSplitHorizontal size={14} />}
             onClick={() => setViewMode('split')}>
             {t('html_artifacts.split')}
           </ViewButton>
@@ -65,7 +65,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <ViewButton
             size="small"
             type={viewMode === 'preview' ? 'primary' : 'default'}
-            icon={<Monitor size={14} />}
+            icon={<Eye size={14} />}
             onClick={() => setViewMode('preview')}>
             {t('html_artifacts.preview')}
           </ViewButton>

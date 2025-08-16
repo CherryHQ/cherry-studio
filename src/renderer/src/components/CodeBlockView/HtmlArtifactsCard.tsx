@@ -1,10 +1,10 @@
-import { CodeOutlined, LinkOutlined } from '@ant-design/icons'
+import { CodeOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { extractTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
-import { Code, Download, Globe, Sparkles } from 'lucide-react'
+import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
@@ -98,10 +98,10 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
               <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button icon={<LinkOutlined />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
+              <Button icon={<LinkIcon size={14} />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button icon={<Download size={16} />} onClick={handleDownload} type="text" disabled={!hasContent}>
+              <Button icon={<DownloadIcon size={14} />} onClick={handleDownload} type="text" disabled={!hasContent}>
                 {t('code_block.download.label')}
               </Button>
             </ButtonContainer>
@@ -209,7 +209,6 @@ const ButtonContainer = styled.div`
   margin: 10px 16px !important;
   display: flex;
   flex-direction: row;
-  gap: 8px;
 `
 
 const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
