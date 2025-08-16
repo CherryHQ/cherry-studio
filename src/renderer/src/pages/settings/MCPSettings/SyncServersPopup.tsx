@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
+import { getBailianToken, saveBailianToken, syncBailianServers } from './providers/bailian'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './providers/modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
@@ -69,6 +70,17 @@ const providers: ProviderConfig[] = [
     getToken: getAI302Token,
     saveToken: saveAI302Token,
     syncServers: syncAi302Servers
+  },
+  {
+    key: 'bailian',
+    name: '阿里云百炼',
+    description: '百炼平台服务',
+    discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
+    apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
+    tokenFieldName: 'bailianToken',
+    getToken: getBailianToken,
+    saveToken: saveBailianToken,
+    syncServers: syncBailianServers
   }
 ]
 
