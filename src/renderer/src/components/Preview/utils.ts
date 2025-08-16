@@ -32,8 +32,6 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
     }
 
     svg {
-      max-width: 100%;
-      max-height: 100%;
       width: auto;
       height: auto;
     }

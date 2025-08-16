@@ -291,6 +291,7 @@ export const makeSvgScalable = (element: Element): Element => {
     const numericHeight = parseFloat(height)
     if (!isNaN(numericWidth) && !isNaN(numericHeight)) {
       element.setAttribute('viewBox', `0 0 ${numericWidth} ${numericHeight}`)
+      element.setAttribute('max-width', `${numericWidth}px`)
     }
   }
 
