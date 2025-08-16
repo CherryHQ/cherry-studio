@@ -1,4 +1,5 @@
 import { makeSvgSizeAdaptive } from '@renderer/utils'
+import DOMPurify from 'dompurify'
 
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
@@ -13,6 +14,13 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   if (!hostElement) {
     throw new Error('Host element for SVG rendering is not available.')
   }
+
+  // Sanitize the SVG content
+  const sanitizedContent = DOMPurify.sanitize(svgContent, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    RETURN_DOM_FRAGMENT: false,
+    RETURN_DOM: false
+  })
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 
@@ -36,19 +44,19 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   shadowRoot.innerHTML = ''
   shadowRoot.appendChild(style)
 
-  if (svgContent.trim() === '') {
+  if (sanitizedContent.trim() === '') {
     return
   }
 
   const parser = new DOMParser()
-  const doc = parser.parseFromString(svgContent, 'image/svg+xml')
+  const doc = parser.parseFromString(sanitizedContent, 'image/svg+xml')
   const parserError = doc.querySelector('parsererror')
   let svgElement: Element = doc.documentElement
 
   // If parsing fails or the namespace is incorrect, fall back to the more lenient HTML parser.
   if (parserError || svgElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
     const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = svgContent
+    tempDiv.innerHTML = sanitizedContent
     const svgFromHtml = tempDiv.querySelector('svg')
 
     if (svgFromHtml) {

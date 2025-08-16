@@ -8552,6 +8552,7 @@ __metadata:
     dexie-react-hooks: "npm:^1.1.7"
     diff: "npm:^7.0.0"
     docx: "npm:^9.0.2"
+    dompurify: "npm:^3.2.6"
     dotenv-cli: "npm:^7.4.2"
     electron: "npm:37.2.3"
     electron-builder: "npm:26.0.15"
@@ -11445,7 +11446,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dompurify@npm:^3.2.5":
+"dompurify@npm:^3.2.5, dompurify@npm:^3.2.6":
   version: 3.2.6
   resolution: "dompurify@npm:3.2.6"
   dependencies:
