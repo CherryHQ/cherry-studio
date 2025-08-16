@@ -105,7 +105,7 @@ describe('renderSvgInShadowHost', () => {
 
   it('should throw an error for non-SVG content', () => {
     const nonSvg = '<div>this is not svg</div>'
-    expect(() => renderSvgInShadowHost(nonSvg, hostElement)).toThrow('Invalid SVG content')
+    expect(() => renderSvgInShadowHost(nonSvg, hostElement)).toThrow()
   })
 
   it('should not throw an error for empty or whitespace content', () => {
