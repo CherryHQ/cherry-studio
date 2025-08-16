@@ -318,12 +318,14 @@ const TerminalCodeLine = styled.span<{ $theme: ThemeMode }>`
   word-break: break-word;
   color: ${(props) => getTerminalStyles(props.$theme).color};
   background-color: transparent !important;
+  font-family: var(--code-font-family);
 `
 
 const TerminalPrompt = styled.span<{ $theme: ThemeMode }>`
   color: ${(props) => getTerminalStyles(props.$theme).promptColor};
   font-weight: bold;
   flex-shrink: 0;
+  font-family: var(--code-font-family);
 `
 
 const blinkAnimation = keyframes`
