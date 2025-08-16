@@ -256,6 +256,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           break
         case 'Escape':
           e.preventDefault()
+          e.stopPropagation()
           setOpen(false)
           resolve(undefined)
           break
