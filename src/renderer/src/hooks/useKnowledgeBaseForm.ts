@@ -90,7 +90,6 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       }
       setNewBase((prev) => ({
         ...prev,
-
         preprocessProvider: {
           type: 'preprocess',
           provider
