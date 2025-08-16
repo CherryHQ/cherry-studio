@@ -14,6 +14,7 @@ import React, {
   startTransition,
   useCallback,
   useDeferredValue,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -211,10 +212,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
+    (e: KeyboardEvent) => {
       const modelCount = modelItems.length
 
-      if (!open || modelCount === 0 || e.nativeEvent.isComposing) return
+      if (!open || modelCount === 0 || e.isComposing) return
 
       // 键盘操作时禁用鼠标 hover
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
@@ -276,6 +277,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     [modelItems, open, focusedItemKey, resolve, handleItemClick, setFocusedItemKey, listItems]
   )
 
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
   const onCancel = useCallback(() => {
     setOpen(false)
   }, [])
@@ -334,54 +340,52 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   )
 
   return (
-    <div onKeyDown={handleKeyDown}>
-      <Modal
-        centered
-        open={open}
-        onCancel={onCancel}
-        afterClose={onAfterClose}
-        width={600}
-        transitionName="animation-move-down"
-        styles={{
-          content: {
-            borderRadius: 20,
-            padding: 0,
-            overflow: 'hidden',
-            paddingBottom: 16
-          },
-          body: {
-            maxHeight: 'inherit',
-            padding: 0
-          }
-        }}
-        closeIcon={null}
-        footer={null}>
-        {/* 搜索框 */}
-        <SelectModelSearchBar onSearch={setSearchText} />
-        <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+    <Modal
+      centered
+      open={open}
+      onCancel={onCancel}
+      afterClose={onAfterClose}
+      width={600}
+      transitionName="animation-move-down"
+      styles={{
+        content: {
+          borderRadius: 20,
+          padding: 0,
+          overflow: 'hidden',
+          paddingBottom: 16
+        },
+        body: {
+          maxHeight: 'inherit',
+          padding: 0
+        }
+      }}
+      closeIcon={null}
+      footer={null}>
+      {/* 搜索框 */}
+      <SelectModelSearchBar onSearch={setSearchText} />
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-        {listItems.length > 0 ? (
-          <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
-            <DynamicVirtualList
-              ref={listRef}
-              list={listItems}
-              size={listHeight}
-              getItemKey={getItemKey}
-              estimateSize={estimateSize}
-              isSticky={isSticky}
-              scrollPaddingStart={ITEM_HEIGHT} // 留出 sticky header 高度
-              overscan={5}
-              scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-              {rowRenderer}
-            </DynamicVirtualList>
-          </ListContainer>
-        ) : (
-          <EmptyState>
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          </EmptyState>
-        )}
-      </Modal>
-    </div>
+      {listItems.length > 0 ? (
+        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
+          <DynamicVirtualList
+            ref={listRef}
+            list={listItems}
+            size={listHeight}
+            getItemKey={getItemKey}
+            estimateSize={estimateSize}
+            isSticky={isSticky}
+            scrollPaddingStart={ITEM_HEIGHT} // 留出 sticky header 高度
+            overscan={5}
+            scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
+            {rowRenderer}
+          </DynamicVirtualList>
+        </ListContainer>
+      ) : (
+        <EmptyState>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </EmptyState>
+      )}
+    </Modal>
   )
 }
 
