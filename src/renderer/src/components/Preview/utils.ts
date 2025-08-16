@@ -1,4 +1,4 @@
-import { makeSvgScalable } from '@renderer/utils'
+import { makeSvgSizeAdaptive } from '@renderer/utils'
 
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
@@ -68,7 +68,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   // Type guard
   if (svgElement instanceof SVGSVGElement) {
     // Standardize the SVG element for proper scaling
-    makeSvgScalable(svgElement)
+    makeSvgSizeAdaptive(svgElement)
 
     // Append the SVG element to the shadow root
     shadowRoot.appendChild(svgElement)

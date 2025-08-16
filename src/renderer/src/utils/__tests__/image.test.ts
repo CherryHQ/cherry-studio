@@ -7,7 +7,7 @@ import {
   captureScrollableDivAsDataURL,
   compressImage,
   convertToBase64,
-  makeSvgScalable
+  makeSvgSizeAdaptive
 } from '../image'
 
 // mock 依赖
@@ -127,7 +127,7 @@ describe('utils/image', () => {
     })
   })
 
-  describe('makeSvgScalable', () => {
+  describe('makeSvgSizeAdaptive', () => {
     const createSvgElement = (svgString: string): SVGElement => {
       const div = document.createElement('div')
       div.innerHTML = svgString
@@ -151,7 +151,7 @@ describe('utils/image', () => {
         .spyOn(SVGElement.prototype, 'getBoundingClientRect')
         .mockReturnValue({ width: 133, height: 106 } as DOMRect)
 
-      const result = makeSvgScalable(svgElement) as SVGElement
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
 
       expect(spy).toHaveBeenCalled()
       expect(result.getAttribute('viewBox')).toBe('0 0 133 106')
@@ -166,7 +166,7 @@ describe('utils/image', () => {
       const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="100pt" height="80pt"></svg>')
       const spy = vi.spyOn(SVGElement.prototype, 'getBoundingClientRect') // Spy to ensure it's NOT called
 
-      const result = makeSvgScalable(svgElement) as SVGElement
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
 
       expect(spy).not.toHaveBeenCalled()
       expect(result.getAttribute('viewBox')).toBe('0 0 50 50')
@@ -184,7 +184,7 @@ describe('utils/image', () => {
         .spyOn(SVGElement.prototype, 'getBoundingClientRect')
         .mockReturnValue({ width: 0, height: 0 } as DOMRect)
 
-      const result = makeSvgScalable(svgElement) as SVGElement
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
 
       expect(result.hasAttribute('viewBox')).toBe(false)
       expect(result.style.maxWidth).toBe('100pt') // Falls back to width attribute
@@ -195,7 +195,7 @@ describe('utils/image', () => {
 
     it('should only set width="100%" if width/height attributes are missing', () => {
       const svgElement = createSvgElement('<svg></svg>')
-      const result = makeSvgScalable(svgElement) as SVGElement
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
 
       expect(result.hasAttribute('viewBox')).toBe(false)
       expect(result.style.maxWidth).toBe('')
@@ -206,7 +206,7 @@ describe('utils/image', () => {
     it('should return the element unchanged if it is not an SVGElement', () => {
       const divElement = document.createElement('div')
       const originalOuterHTML = divElement.outerHTML
-      const result = makeSvgScalable(divElement)
+      const result = makeSvgSizeAdaptive(divElement)
 
       expect(result.outerHTML).toBe(originalOuterHTML)
     })

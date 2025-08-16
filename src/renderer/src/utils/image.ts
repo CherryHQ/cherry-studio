@@ -311,7 +311,7 @@ function measureElementSize(element: Element): { width: number; height: number }
  * - 把 width 改为 100%
  * - 移除 height
  */
-export const makeSvgScalable = (element: Element): Element => {
+export const makeSvgSizeAdaptive = (element: Element): Element => {
   // type guard
   if (!(element instanceof SVGElement)) {
     return element

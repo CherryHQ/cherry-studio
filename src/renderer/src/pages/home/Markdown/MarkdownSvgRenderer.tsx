@@ -1,4 +1,4 @@
-import { makeSvgScalable } from '@renderer/utils/image'
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import React, { FC, useEffect, useRef, useState } from 'react'
 
 interface SvgProps extends React.SVGProps<SVGSVGElement> {
@@ -28,7 +28,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   useEffect(() => {
     if (needsMeasurement && svgRef.current && !isMeasured) {
       // The element is a real DOM node, we can now measure it.
-      makeSvgScalable(svgRef.current)
+      makeSvgSizeAdaptive(svgRef.current)
       // Set flag to prevent re-measuring on subsequent renders
       setIsMeasured(true)
     }
