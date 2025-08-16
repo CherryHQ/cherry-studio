@@ -268,9 +268,12 @@ export function isHtmlCode(code: string | null): boolean {
   // 1. 检查是否包含完整的HTML文档结构
   if (
     trimmedCode.includes('<!doctype html>') ||
-    (trimmedCode.includes('<html') && trimmedCode.includes('</html>')) ||
-    (trimmedCode.includes('<head') && trimmedCode.includes('</head>')) ||
-    (trimmedCode.includes('<body') && trimmedCode.includes('</body>'))
+    trimmedCode.includes('<html') ||
+    trimmedCode.includes('</html>') ||
+    trimmedCode.includes('<head') ||
+    trimmedCode.includes('</head>') ||
+    trimmedCode.includes('<body') ||
+    trimmedCode.includes('</body>')
   ) {
     return true
   }

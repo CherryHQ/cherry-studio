@@ -723,7 +723,7 @@ $$
       expect(isHtmlCode('')).toBe(false)
       expect(isHtmlCode('Hello world')).toBe(false)
       expect(isHtmlCode('a < b')).toBe(false)
-      expect(isHtmlCode('<div>')).toBe(false)
+      expect(isHtmlCode('<div>')).toBe(true)
     })
   })
 })
