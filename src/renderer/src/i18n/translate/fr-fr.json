@@ -840,6 +840,9 @@
     "created": "Date de création",
     "last_updated": "Dernière mise à jour",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "La chaîne de pensée ne peut pas être fractionnée, elle a été tronquée."
+    },
     "user": "Utilisateur"
   },
   "files": {
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "Exportation vers Joplin en cours"
-      },
-      "notion": {
-        "exporting": "Exportation en cours vers Notion, veuillez ne pas faire plusieurs demandes d'exportation!"
-      },
-      "siyuan": {
-        "exporting": "Exportation vers Siyuan en cours, veuillez ne pas demander à exporter à nouveau !"
-      },
-      "yuque": {
-        "exporting": "Exportation Yuque en cours, veuillez ne pas demander à exporter à nouveau !"
+      "export": {
+        "exporting": "Une autre exportation est en cours, veuillez patienter jusqu'à la fin de l'exportation précédente pour réessayer."
       }
     },
     "warning": {

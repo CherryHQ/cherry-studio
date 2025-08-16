@@ -840,6 +840,9 @@
     "created": "作成日",
     "last_updated": "最終更新日",
     "messages": "メッセージ",
+    "notion": {
+      "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
+    },
     "user": "ユーザー"
   },
   "files": {
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "Joplinへのエクスポート中"
-      },
-      "notion": {
-        "exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
-      },
-      "siyuan": {
-        "exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!"
-      },
-      "yuque": {
-        "exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!"
+      "export": {
+        "exporting": "他のエクスポートが実行中です。前のエクスポートが完了するまでお待ちください。"
       }
     },
     "warning": {

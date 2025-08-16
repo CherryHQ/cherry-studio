@@ -840,6 +840,9 @@
     "created": "建立時間",
     "last_updated": "最後更新",
     "messages": "訊息數",
+    "notion": {
+      "reasoning_truncated": "思維鏈無法分塊，已截斷"
+    },
     "user": "使用者"
   },
   "files": {
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "正在匯出至 Joplin"
-      },
-      "notion": {
-        "exporting": "正在匯出到 Notion，請勿重複請求匯出！"
-      },
-      "siyuan": {
-        "exporting": "正在導出到思源筆記，請勿重複請求導出！"
-      },
-      "yuque": {
-        "exporting": "正在導出語雀，請勿重複請求導出！"
+      "export": {
+        "exporting": "正在進行其他匯出，請等待上一次匯出完成後再試"
       }
     },
     "warning": {

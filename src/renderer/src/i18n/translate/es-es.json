@@ -840,6 +840,9 @@
     "created": "Fecha de creación",
     "last_updated": "Última actualización",
     "messages": "Mensajes",
+    "notion": {
+      "reasoning_truncated": "La cadena de pensamiento no se puede dividir en bloques, ha sido truncada"
+    },
     "user": "Usuario"
   },
   "files": {
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "Exportando a Joplin"
-      },
-      "notion": {
-        "exporting": "Se está exportando a Notion, ¡no solicite nuevamente la exportación!"
-      },
-      "siyuan": {
-        "exporting": "Exportando a Siyuan, ¡no solicite la exportación nuevamente!"
-      },
-      "yuque": {
-        "exporting": "Exportando Yuque, ¡no solicite la exportación nuevamente!"
+      "export": {
+        "exporting": "Realizando otra exportación, espere a que finalice la anterior para intentarlo de nuevo"
       }
     },
     "warning": {

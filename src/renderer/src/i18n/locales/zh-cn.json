@@ -840,6 +840,9 @@
     "created": "创建时间",
     "last_updated": "最后更新",
     "messages": "消息数",
+    "notion": {
+      "reasoning_truncated": "思维链无法分块，已截断"
+    },
     "user": "用户"
   },
   "files": {
@@ -1258,7 +1261,7 @@
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
-        "no_content": "无可导出到Notion的内容"
+        "no_content": "无可导出到 Notion 的内容"
       },
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "正在导出到Joplin"
-      },
-      "notion": {
-        "exporting": "正在导出到 Notion, 请勿重复请求导出！"
-      },
-      "siyuan": {
-        "exporting": "正在导出到思源笔记，请勿重复请求导出！"
-      },
-      "yuque": {
-        "exporting": "正在导出语雀，请勿重复请求导出！"
+      "export": {
+        "exporting": "正在进行其他导出，请等待上一导出完成后重试"
       }
     },
     "warning": {

@@ -840,6 +840,9 @@
     "created": "Created",
     "last_updated": "Last Updated",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
+    },
     "user": "User"
   },
   "files": {
@@ -1384,17 +1387,8 @@
       }
     },
     "warn": {
-      "joplin": {
-        "exporting": "Exporting to Joplin"
-      },
-      "notion": {
-        "exporting": "Exporting to Notion, please do not request export repeatedly!"
-      },
-      "siyuan": {
-        "exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
-      },
-      "yuque": {
-        "exporting": "Exporting to Yuque, please do not request export repeatedly!"
+      "export": {
+        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
       }
     },
     "warning": {
