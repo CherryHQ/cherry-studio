@@ -131,71 +131,84 @@ describe('utils/image', () => {
     const createSvgElement = (svgString: string): SVGElement => {
       const div = document.createElement('div')
       div.innerHTML = svgString
-      return div.querySelector('svg') as SVGElement
+      const svgElement = div.querySelector<SVGElement>('svg')
+      if (!svgElement) {
+        throw new Error(`Test setup error: No <svg> element found in string: "${svgString}"`)
+      }
+      return svgElement
     }
 
-    it('should add viewBox and remove width/height when viewBox is missing', () => {
-      const svgElement = createSvgElement('<svg width="800" height="600"></svg>')
-      const result = makeSvgScalable(svgElement)
-
-      expect(result.getAttribute('viewBox')).toBe('0 0 800 600')
-      expect(result.hasAttribute('width')).toBe(false)
-      expect(result.hasAttribute('height')).toBe(false)
+    // Mock document.body.appendChild to avoid errors in jsdom
+    beforeEach(() => {
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => ({}) as Node)
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => ({}) as Node)
     })
 
-    it('should not overwrite existing viewBox but still remove width/height', () => {
-      const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="800" height="600"></svg>')
-      const result = makeSvgScalable(svgElement)
+    it('should measure and add viewBox/max-width when viewBox is missing', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock the measurement result on the prototype
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 133, height: 106 } as DOMRect)
 
+      const result = makeSvgScalable(svgElement) as SVGElement
+
+      expect(spy).toHaveBeenCalled()
+      expect(result.getAttribute('viewBox')).toBe('0 0 133 106')
+      expect(result.style.maxWidth).toBe('133px')
+      expect(result.getAttribute('width')).toBe('100%')
+      expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore() // Clean up the prototype spy
+    })
+
+    it('should use width attribute for max-width when viewBox is present', () => {
+      const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="100pt" height="80pt"></svg>')
+      const spy = vi.spyOn(SVGElement.prototype, 'getBoundingClientRect') // Spy to ensure it's NOT called
+
+      const result = makeSvgScalable(svgElement) as SVGElement
+
+      expect(spy).not.toHaveBeenCalled()
       expect(result.getAttribute('viewBox')).toBe('0 0 50 50')
-      expect(result.hasAttribute('width')).toBe(false)
+      expect(result.style.maxWidth).toBe('100pt')
+      expect(result.getAttribute('width')).toBe('100%')
       expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore()
     })
 
-    it('should not add viewBox for non-numeric width/height but still remove them', () => {
-      const svgElement = createSvgElement('<svg width="100%" height="auto"></svg>')
-      const result = makeSvgScalable(svgElement)
+    it('should handle measurement failure gracefully', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock a failed measurement
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 0, height: 0 } as DOMRect)
+
+      const result = makeSvgScalable(svgElement) as SVGElement
 
       expect(result.hasAttribute('viewBox')).toBe(false)
-      expect(result.hasAttribute('width')).toBe(false)
-      expect(result.hasAttribute('height')).toBe(false)
+      expect(result.style.maxWidth).toBe('100pt') // Falls back to width attribute
+      expect(result.getAttribute('width')).toBe('100%')
+
+      spy.mockRestore()
     })
 
-    it('should do nothing if width, height, and viewBox are missing', () => {
-      const svgElement = createSvgElement('<svg><circle cx="50" cy="50" r="40" /></svg>')
-      const originalOuterHTML = svgElement.outerHTML
-      const result = makeSvgScalable(svgElement)
-
-      // Check that no attributes were added
-      expect(result.hasAttribute('viewBox')).toBe(false)
-      expect(result.hasAttribute('width')).toBe(false)
-      expect(result.hasAttribute('height')).toBe(false)
-      // Check that the content is unchanged
-      expect(result.outerHTML).toBe(originalOuterHTML)
-    })
-
-    it('should not add viewBox if only one dimension is present', () => {
-      const svgElement = createSvgElement('<svg height="600"></svg>')
-      const result = makeSvgScalable(svgElement)
+    it('should only set width="100%" if width/height attributes are missing', () => {
+      const svgElement = createSvgElement('<svg></svg>')
+      const result = makeSvgScalable(svgElement) as SVGElement
 
       expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.style.maxWidth).toBe('')
+      expect(result.getAttribute('width')).toBe('100%')
       expect(result.hasAttribute('height')).toBe(false)
     })
 
     it('should return the element unchanged if it is not an SVGElement', () => {
       const divElement = document.createElement('div')
-      divElement.setAttribute('width', '100')
-      divElement.setAttribute('height', '100')
-
       const originalOuterHTML = divElement.outerHTML
       const result = makeSvgScalable(divElement)
 
-      // Check that the element is the same object
-      expect(result).toBe(divElement)
-      // Check that the content is unchanged
       expect(result.outerHTML).toBe(originalOuterHTML)
-      // Verify no viewBox was added
-      expect(result.hasAttribute('viewBox')).toBe(false)
     })
   })
 })

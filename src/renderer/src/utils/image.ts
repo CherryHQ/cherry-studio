@@ -272,31 +272,79 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
 }
 
 /**
- * 确保 SVG 元素有 viewBox 并且移除固定的 width/height 属性。
- * 用于“预览”功能，让 SVG 在容器内可缩放。
+ * 使用离屏容器测量 DOM 元素的渲染尺寸
+ * @param element 要测量的元素
+ * @returns 渲染元素的宽度和高度（以像素为单位）
+ */
+function measureElementSize(element: Element): { width: number; height: number } {
+  const clone = element.cloneNode(true) as Element
+
+  // 检查元素类型并重置样式
+  if (clone instanceof HTMLElement || clone instanceof SVGElement) {
+    clone.style.width = ''
+    clone.style.height = ''
+    clone.style.position = ''
+    clone.style.visibility = ''
+  }
+
+  // 创建一个离屏容器
+  const container = document.createElement('div')
+  container.style.position = 'absolute'
+  container.style.top = '-9999px'
+  container.style.left = '-9999px'
+  container.style.visibility = 'hidden'
+
+  container.appendChild(clone)
+  document.body.appendChild(container)
+
+  // 测量并清理
+  const rect = clone.getBoundingClientRect()
+  document.body.removeChild(container)
+
+  return { width: rect.width, height: rect.height }
+}
+
+/**
+ * 让 SVG 元素在容器内可缩放，用于“预览”功能。
+ * - 补充缺失的 viewBox
+ * - 补充缺失的 max-width style
+ * - 把 width 改为 100%
+ * - 移除 height
  */
 export const makeSvgScalable = (element: Element): Element => {
-  // Type Guard: Only proceed if the element is actually an SVGElement.
+  // type guard
   if (!(element instanceof SVGElement)) {
     return element
   }
 
   const hasViewBox = element.hasAttribute('viewBox')
-  const width = element.getAttribute('width')
-  const height = element.getAttribute('height')
+  const widthStr = element.getAttribute('width')
+  const heightStr = element.getAttribute('height')
 
-  // 缺少 viewBox 但存在 width 和 height 属性时创建 viewBox
-  if (!hasViewBox && width && height) {
-    const numericWidth = parseFloat(width)
-    const numericHeight = parseFloat(height)
-    if (!isNaN(numericWidth) && !isNaN(numericHeight)) {
-      element.setAttribute('viewBox', `0 0 ${numericWidth} ${numericHeight}`)
-      element.setAttribute('max-width', `${numericWidth}px`)
+  let measuredWidth: number | undefined
+
+  // 如果缺少 viewBox 属性，测量元素尺寸来创建
+  if (!hasViewBox) {
+    // 只在 width 和 height 都有值时测量
+    if (widthStr && heightStr) {
+      const renderedSize = measureElementSize(element)
+      if (renderedSize.width > 0 && renderedSize.height > 0) {
+        measuredWidth = renderedSize.width
+        element.setAttribute('viewBox', `0 0 ${renderedSize.width} ${renderedSize.height}`)
+      }
     }
   }
 
-  // 移除固定的 width 和 height 属性，让 CSS 控制元素尺寸
-  element.removeAttribute('width')
+  // 设置 max-width
+  // 优先使用测量得到的宽度值，否则回退到 width 属性值
+  if (measuredWidth !== undefined) {
+    element.style.setProperty('max-width', `${measuredWidth}px`)
+  } else if (widthStr) {
+    element.style.setProperty('max-width', widthStr)
+  }
+
+  // 调整 width 和 height
+  element.setAttribute('width', '100%')
   element.removeAttribute('height')
 
   return element

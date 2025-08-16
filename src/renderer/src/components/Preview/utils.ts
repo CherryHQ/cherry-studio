@@ -30,11 +30,6 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       width: 100%;
       height: 100%;
     }
-
-    svg {
-      width: auto;
-      height: auto;
-    }
   `
 
   // Clear previous content and append new style
