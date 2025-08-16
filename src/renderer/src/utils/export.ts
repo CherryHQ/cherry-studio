@@ -3,16 +3,18 @@ import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
+import { createNote } from '@renderer/services/NotesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { NotesTreeNode } from '@renderer/types/note'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
+import { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('Utils:export')
 
@@ -889,4 +891,57 @@ async function createSiyuanDoc(
   }
 
   return data.data
+}
+
+/**
+ * 导出消息到笔记工作区
+ * @returns 创建的笔记节点
+ * @param title
+ * @param content
+ */
+export const exportMessageToNotes = async (title: string, content: string): Promise<NotesTreeNode | null> => {
+  try {
+    const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
+    const note = await createNote(title, cleanedContent)
+
+    window.message.success({
+      content: i18n.t('message.success.notes.export'),
+      key: 'notes-export-success'
+    })
+
+    return note
+  } catch (error) {
+    logger.error('导出到笔记失败:', error as Error)
+    window.message.error({
+      content: i18n.t('message.error.notes.export'),
+      key: 'notes-export-error'
+    })
+    throw error
+  }
+}
+
+/**
+ * 导出话题到笔记工作区
+ * @param topic 要导出的话题
+ * @returns 创建的笔记节点
+ */
+export const exportTopicToNotes = async (topic: Topic): Promise<NotesTreeNode | null> => {
+  try {
+    const content = await topicToMarkdown(topic)
+    const note = await createNote(topic.name, content)
+
+    window.message.success({
+      content: i18n.t('message.success.notes.export'),
+      key: 'notes-export-success'
+    })
+
+    return note
+  } catch (error) {
+    logger.error('导出到笔记失败:', error as Error)
+    window.message.error({
+      content: i18n.t('message.error.notes.export'),
+      key: 'notes-export-error'
+    })
+    throw error
+  }
 }

@@ -26,6 +26,7 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
@@ -256,6 +257,15 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'knowledge',
             onClick: () => {
               SaveToKnowledgePopup.showForMessage(message)
+            }
+          },
+          {
+            label: t('notes.save'),
+            key: 'clipboard',
+            onClick: async () => {
+              const title = await getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMessageToNotes(title, markdown)
             }
           }
         ]

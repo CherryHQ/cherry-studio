@@ -592,6 +592,7 @@
           "label": "Markdownとしてエクスポート",
           "reason": "Markdown としてエクスポート (思考内容を含む)"
         },
+        "notes": "ノートにエクスポート",
         "notion": "Notion にエクスポート",
         "obsidian": "Obsidian にエクスポート",
         "obsidian_atributes": "ノートの属性を設定",
@@ -1230,6 +1231,9 @@
           "specified": "Markdown ファイルのエクスポートに失敗しました"
         }
       },
+      "notes": {
+        "export": "ノートのエクスポートに失敗しました"
+      },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
@@ -1321,6 +1325,9 @@
           "preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
           "specified": "Markdown ファイルを正常にエクスポートしました"
         }
+      },
+      "notes": {
+        "export": "成功的にノートにエクスポートされました"
       },
       "notion": {
         "export": "Notionへのエクスポートに成功しました"
@@ -1500,6 +1507,41 @@
     "expand": "ダイアログを展開",
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
+  },
+  "notes": {
+    "characters": "文字",
+    "collapse": "閉じる",
+    "content_placeholder": "メモの内容を入力してください...",
+    "delete": "削除",
+    "delete_confirm": "この{{type}}を本当に削除しますか？",
+    "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
+    "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
+    "empty": "暫無ノート",
+    "expand": "展開",
+    "export_failed": "知識ベースへのエクスポートに失敗しました",
+    "export_knowledge": "ノートをナレッジベースにエクスポートする",
+    "export_success": "知識ベースへのエクスポートが成功しました",
+    "folder": "フォルダー",
+    "new_folder": "新しいフォルダーを作成する",
+    "new_note": "新規ノート作成",
+    "only_markdown": "Markdown ファイルのみをアップロードできます",
+    "rename": "名前の変更",
+    "save": "メモに保存する",
+    "show_starred": "お気に入りのノートを表示する",
+    "sort_a2z": "ファイル名（A-Z）",
+    "sort_created_asc": "作成日時（古い順）",
+    "sort_created_desc": "作成日時（新しい順）",
+    "sort_updated_asc": "更新日時（古い順）",
+    "sort_updated_desc": "更新日時（新しい順）",
+    "sort_z2a": "ファイル名（Z-A）",
+    "star": "お気に入りに追加する",
+    "starred_notes": "収集したノート",
+    "title": "ノート",
+    "unstar": "お気に入りを解除する",
+    "untitled_folder": "新ファイル夹",
+    "untitled_note": "無題のメモ",
+    "upload_failed": "ノートのアップロードに失敗しました",
+    "upload_success": "ノートのアップロードが成功しました"
   },
   "notification": {
     "assistant": "助手回應",
@@ -2286,6 +2328,7 @@
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -3765,6 +3808,7 @@
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
+    "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
     "translate": "翻訳"

@@ -6,7 +6,7 @@ export const RichEditorWrapper = styled.div<{
 }>`
   display: flex;
   flex-direction: column;
-  position: relative; /* allow absolute ToC dock not to scroll with editor */
+  position: relative;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-background);
@@ -205,7 +205,7 @@ export const TableOfContentsWrapper = styled.div`
   }
 
   .toc-item {
-    margin-left: calc((var(--level, 1) - 0.75) * 0.5rem);
+    margin-left: 0.25rem;
     margin-bottom: 0.25rem;
 
     a {
@@ -351,7 +351,8 @@ export const ToCDock = styled.div`
     border: 1px solid var(--color-border);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-    padding: 8px 8px;
+    padding: 8px 8px 0;
+    padding-left: 0;
     overflow: auto;
     opacity: 0;
     visibility: hidden;

@@ -665,7 +665,15 @@ export type CustomTranslateLanguage = {
   emoji: string
 }
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'notes'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

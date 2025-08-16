@@ -592,6 +592,7 @@
           "label": "导出为 Markdown",
           "reason": "导出为 Markdown (包含思考)"
         },
+        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "obsidian_atributes": "配置笔记属性",
@@ -1230,6 +1231,9 @@
           "specified": "导出 Markdown 文件失败"
         }
       },
+      "notes": {
+        "export": "导出笔记失败"
+      },
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID"
@@ -1321,6 +1325,9 @@
           "preconf": "成功导出 Markdown 文件到预先设定的路径",
           "specified": "成功导出 Markdown 文件"
         }
+      },
+      "notes": {
+        "export": "成功导出到笔记"
       },
       "notion": {
         "export": "成功导出到 Notion"
@@ -1500,6 +1507,41 @@
     "expand": "伸缩对话框",
     "hide_sidebar": "隐藏侧边栏",
     "show_sidebar": "显示侧边栏"
+  },
+  "notes": {
+    "characters": "字符",
+    "collapse": "收起",
+    "content_placeholder": "请输入笔记内容...",
+    "delete": "删除",
+    "delete_confirm": "确定要删除这个{{type}}吗？",
+    "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
+    "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
+    "empty": "暂无笔记",
+    "expand": "展开",
+    "export_failed": "导出到知识库失败",
+    "export_knowledge": "导出笔记到知识库",
+    "export_success": "成功导出到知识库",
+    "folder": "文件夹",
+    "new_folder": "新建文件夹",
+    "new_note": "新建笔记",
+    "only_markdown": "仅支持 Markdown 格式",
+    "rename": "重命名",
+    "save": "保存到笔记",
+    "show_starred": "显示收藏的笔记",
+    "sort_a2z": "文件名（A-Z）",
+    "sort_created_asc": "创建时间（从旧到新）",
+    "sort_created_desc": "创建时间（从新到旧）",
+    "sort_updated_asc": "更新时间（从旧到新）",
+    "sort_updated_desc": "更新时间（从新到旧）",
+    "sort_z2a": "文件名（Z-A）",
+    "star": "收藏",
+    "starred_notes": "收藏的笔记",
+    "title": "笔记",
+    "unstar": "取消收藏",
+    "untitled_folder": "新文件夹",
+    "untitled_note": "无标题笔记",
+    "upload_failed": "笔记上传失败",
+    "upload_success": "笔记上传成功"
   },
   "notification": {
     "assistant": "助手响应",
@@ -3765,6 +3807,7 @@
     "launchpad": "启动台",
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
+    "notes": "笔记",
     "paintings": "绘画",
     "settings": "设置",
     "translate": "翻译"

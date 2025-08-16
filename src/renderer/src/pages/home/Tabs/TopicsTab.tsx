@@ -23,6 +23,7 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
+  exportTopicToNotes,
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
@@ -332,6 +333,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
               }
             }
+          },
+          {
+            label: t('notes.save'),
+            key: 'notes',
+            onClick: async () => {
+              exportTopicToNotes(topic)
+            }
           }
         ]
       },
@@ -445,6 +453,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     exportMenuOptions.obsidian,
     exportMenuOptions.joplin,
     exportMenuOptions.siyuan,
+    exportMenuOptions.notes,
     assistants,
     assistant,
     updateTopic,
@@ -580,26 +589,29 @@ const TopicListItem = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  position: relative;
   cursor: pointer;
-  position: relative;
   width: calc(var(--assistants-width) - 20px);
+
   .menu {
     opacity: 0;
     color: var(--color-text-3);
   }
+
   &:hover {
     background-color: var(--color-list-item-hover);
     transition: background-color 0.1s;
+
     .menu {
       opacity: 1;
     }
   }
+
   &.active {
     background-color: var(--color-list-item);
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     .menu {
       opacity: 1;
+
       &:hover {
         color: var(--color-text-2);
       }
