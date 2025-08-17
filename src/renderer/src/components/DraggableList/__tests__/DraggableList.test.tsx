@@ -157,8 +157,7 @@ describe('DraggableList', () => {
 
       // 模拟拖拽到自身
       window.triggerOnDragEnd({ source: { index: 1 }, destination: { index: 1 } }, {})
-      expect(onUpdate).toHaveBeenCalledTimes(1)
-      expect(onUpdate.mock.calls[0][0]).toEqual(list)
+      expect(onUpdate).toHaveBeenCalledTimes(0)
     })
   })
 
@@ -175,8 +174,7 @@ describe('DraggableList', () => {
 
       // 拖拽自身
       window.triggerOnDragEnd({ source: { index: 0 }, destination: { index: 0 } }, {})
-      expect(onUpdate).toHaveBeenCalledTimes(1)
-      expect(onUpdate.mock.calls[0][0]).toEqual(list)
+      expect(onUpdate).toHaveBeenCalledTimes(0)
     })
 
     it('should not crash if callbacks are undefined', () => {
