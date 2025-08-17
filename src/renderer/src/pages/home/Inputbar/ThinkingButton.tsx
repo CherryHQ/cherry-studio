@@ -7,7 +7,12 @@ import {
   MdiLightbulbOn80
 } from '@renderer/components/Icons/SVGIcon'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
+import {
+  getThinkModelType,
+  isDoubaoThinkingAutoModel,
+  MODEL_SUPPORTED_OPTIONS,
+  THINKING_OPTION_FALLBACK
+} from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ThinkingOption } from '@renderer/types'
@@ -24,16 +29,6 @@ interface Props {
   model: Model
   assistant: Assistant
   ToolbarButton: any
-}
-
-// 选项转换映射表：当选项不支持时使用的替代选项
-const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
-  off: 'low', // off -> low (for Gemini Pro models)
-  minimal: 'low', // minimal -> low (for gpt-5 and after)
-  low: 'high',
-  medium: 'high', // medium -> high (for Grok models)
-  high: 'high',
-  auto: 'high' // auto -> high (for non-Gemini models)
 }
 
 const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): ReactElement => {
@@ -63,7 +58,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   useEffect(() => {
     if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
       // 使用表中定义的替代选项
-      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
+      const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
 
       updateAssistantSettings({
         reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
@@ -156,7 +151,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const getThinkingIcon = useCallback(() => {
     // 如果当前选项不支持，显示回退选项的图标
     if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
+      const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
       return createThinkingIcon(fallbackOption, true)
     }
     return createThinkingIcon(currentReasoningEffort, currentReasoningEffort !== 'off')

@@ -154,6 +154,7 @@ import {
   ReasoningEffortConfig,
   SystemProviderId,
   ThinkingModelType,
+  ThinkingOption,
   ThinkingOptionConfig
 } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
@@ -300,6 +301,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
+  doubao_no_auto: ['high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const
@@ -316,10 +318,21 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
 } as const
+
+// 选项转换映射表：当选项不支持时使用的替代选项
+export const THINKING_OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
+  off: 'low', // off -> low (for Gemini Pro models)
+  minimal: 'low', // minimal -> low (for gpt-5 and after)
+  low: 'high',
+  medium: 'high', // medium -> high (for Grok models)
+  high: 'high',
+  auto: 'high' // auto -> high (for non-Gemini models)
+}
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
@@ -339,8 +352,13 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'qwen_thinking'
     }
     thinkingModelType = 'qwen'
-  } else if (isSupportedThinkingTokenDoubaoModel(model)) thinkingModelType = 'doubao'
-  else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) {
+    if (isDoubaoThinkingAutoModel(model)) {
+      thinkingModelType = 'doubao'
+    } else {
+      thinkingModelType = 'doubao_no_auto'
+    }
+  } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
   return thinkingModelType

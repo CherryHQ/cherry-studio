@@ -52,37 +52,28 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
-export type ThinkingOption = ReasoningEffortOption | 'off'
-export type ThinkingModelType =
-  | 'default'
-  | 'o'
-  | 'gpt5'
-  | 'grok'
-  | 'gemini'
-  | 'gemini_pro'
-  | 'qwen'
-  | 'qwen_thinking'
-  | 'doubao'
-  | 'hunyuan'
-  | 'zhipu'
-  | 'perplexity'
-export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
-export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
-export type EffortRatio = Record<ReasoningEffortOption, number>
-
-const ThinkModelTypes: ThinkingModelType[] = [
+const ThinkModelTypes = [
   'default',
+  'o',
+  'gpt5',
   'grok',
   'gemini',
   'gemini_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
+  'doubao_no_auto',
   'hunyuan',
   'zhipu',
   'perplexity'
 ] as const
+
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+export type ThinkingOption = ReasoningEffortOption | 'off'
+export type ThinkingModelType = (typeof ThinkModelTypes)[number]
+export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
+export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
+export type EffortRatio = Record<ReasoningEffortOption, number>
 
 export function isThinkModelType(type: string): type is ThinkingModelType {
   return ThinkModelTypes.some((t) => t === type)
