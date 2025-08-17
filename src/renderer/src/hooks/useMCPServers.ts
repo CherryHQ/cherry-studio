@@ -18,7 +18,7 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPSer
 
 const selectMcpServers = (state: RootState) => state.mcp.servers as MCPServer[]
 const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>
-  servers.filter((server: MCPServer) => server.isActive)
+  servers.filter((server) => server.isActive)
 )
 
 export const useMCPServers = () => {
