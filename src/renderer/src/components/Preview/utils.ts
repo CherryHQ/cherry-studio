@@ -28,11 +28,15 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   const style = document.createElement('style')
   style.textContent = `
     :host {
+      --shadow-host-background-color: white;
+      --shadow-host-border: 0.5px solid var(--color-code-background);
+      --shadow-host-border-radius: 8px;
+
+      background-color: var(--shadow-host-background-color);
+      border: var(--shadow-host-border);
+      border-radius: var(--shadow-host-border-radius);
       padding: 1em;
-      background-color: white;
       overflow: hidden; /* Prevent scrollbars, as scaling is now handled */
-      border: 0.5px solid var(--color-code-background);
-      border-radius: 8px;
       display: block;
       position: relative;
       width: 100%;

@@ -530,7 +530,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-        inputbarToolsRef.current?.openMentionModelsPanel()
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position: cursorPosition - 1,
+          originalText: newText
+        })
       }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
