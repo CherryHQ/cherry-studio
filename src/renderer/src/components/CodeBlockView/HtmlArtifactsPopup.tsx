@@ -230,6 +230,10 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
     margin-bottom: 0 !important;
     border-radius: 0 !important;
   }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
 `
 
 const ModalHeader = styled.div`
