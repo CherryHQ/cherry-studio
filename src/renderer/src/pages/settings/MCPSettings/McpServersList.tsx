@@ -8,7 +8,7 @@ import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
 import { MonitorCheck, Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -134,6 +134,35 @@ const McpServersList: FC = () => {
     }
   }
 
+  const menuItems = useMemo(
+    () => [
+      {
+        key: 'manual',
+        label: t('settings.mcp.addServer.create'),
+        onClick: () => {
+          onAddMcpServer()
+        }
+      },
+      {
+        key: 'json',
+        label: t('settings.mcp.addServer.importFrom.json'),
+        onClick: () => {
+          setModalType('json')
+          setIsAddModalVisible(true)
+        }
+      },
+      {
+        key: 'dxt',
+        label: t('settings.mcp.addServer.importFrom.dxt'),
+        onClick: () => {
+          setModalType('dxt')
+          setIsAddModalVisible(true)
+        }
+      }
+    ],
+    [onAddMcpServer, t]
+  )
+
   return (
     <Container ref={scrollRef}>
       <ListHeader>
@@ -145,31 +174,7 @@ const McpServersList: FC = () => {
           <InstallNpxUv mini />
           <Dropdown
             menu={{
-              items: [
-                {
-                  key: 'manual',
-                  label: t('settings.mcp.addServer.create'),
-                  onClick: () => {
-                    onAddMcpServer()
-                  }
-                },
-                {
-                  key: 'json',
-                  label: t('settings.mcp.addServer.importFrom.json'),
-                  onClick: () => {
-                    setModalType('json')
-                    setIsAddModalVisible(true)
-                  }
-                },
-                {
-                  key: 'dxt',
-                  label: t('settings.mcp.addServer.importFrom.dxt'),
-                  onClick: () => {
-                    setModalType('dxt')
-                    setIsAddModalVisible(true)
-                  }
-                }
-              ]
+              items: menuItems
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
