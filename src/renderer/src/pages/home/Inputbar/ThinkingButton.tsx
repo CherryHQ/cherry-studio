@@ -17,7 +17,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, ReactElement, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
+import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ThinkingButtonRef {
@@ -53,19 +53,6 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     }
     return MODEL_SUPPORTED_OPTIONS[modelType]
   }, [model, modelType])
-
-  // 检查当前设置是否与当前模型兼容
-  useEffect(() => {
-    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-      // 使用表中定义的替代选项
-      const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
-
-      updateAssistantSettings({
-        reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-        qwenThinkMode: fallbackOption === 'off'
-      })
-    }
-  }, [currentReasoningEffort, supportedOptions, updateAssistantSettings, model.id])
 
   const createThinkingIcon = useCallback((option?: ThinkingOption, isActive: boolean = false) => {
     const iconColor = isActive ? 'var(--color-primary)' : 'var(--color-icon)'
