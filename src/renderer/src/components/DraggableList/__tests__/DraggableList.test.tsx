@@ -29,14 +29,14 @@ vi.mock('@hello-pangea/dnd', () => {
   }
 })
 
-// mock VirtualList 只做简单渲染
-vi.mock('rc-virtual-list', () => ({
+// mock antd list 只做简单渲染
+vi.mock('antd', () => ({
   __esModule: true,
-  default: ({ data, itemKey, children }: any) => (
+  List: ({ dataSource, renderItem }: any) => (
     <div data-testid="virtual-list">
-      {data.map((item: any, idx: number) => (
-        <div key={item[itemKey] || item} data-testid="virtual-list-item">
-          {children(item, idx)}
+      {dataSource.map((item: any, idx: number) => (
+        <div key={item.id || item} data-testid="virtual-list-item">
+          {renderItem(item, idx)}
         </div>
       ))}
     </div>

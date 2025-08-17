@@ -8603,7 +8603,6 @@ __metadata:
     prettier: "npm:^3.5.3"
     prettier-plugin-sort-json: "npm:^4.1.1"
     proxy-agent: "npm:^6.5.0"
-    rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
@@ -19042,7 +19041,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.18.6, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
+"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
   version: 3.18.6
   resolution: "rc-virtual-list@npm:3.18.6"
   dependencies:

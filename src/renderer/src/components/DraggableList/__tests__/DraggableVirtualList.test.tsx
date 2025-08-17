@@ -1,5 +1,3 @@
-/// <reference types="@vitest/browser/context" />
-
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -45,11 +43,6 @@ vi.mock('@tanstack/react-virtual', () => ({
     getTotalSize: () => count * 50,
     measureElement: vi.fn()
   })
-}))
-
-vi.mock('react-virtualized-auto-sizer', () => ({
-  __esModule: true,
-  default: ({ children }) => <div data-testid="auto-sizer">{children({ height: 500, width: 300 })}</div>
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
