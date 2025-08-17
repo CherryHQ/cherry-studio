@@ -15,10 +15,10 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import BuiltinMCPServersSection from './BuiltinMCPServersSection'
+import BuiltinMCPServerList from './BuiltinMCPServerList'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
-import McpResourcesSection from './McpResourcesSection'
+import McpMarketList from './McpMarketList'
 import SyncServersPopup from './SyncServersPopup'
 
 const McpServersList: FC = () => {
@@ -248,8 +248,8 @@ const McpServersList: FC = () => {
         />
       )}
 
-      <McpResourcesSection />
-      <BuiltinMCPServersSection />
+      <McpMarketList />
+      <BuiltinMCPServerList />
 
       <AddMcpServerModal
         visible={isAddModalVisible}
