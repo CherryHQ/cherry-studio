@@ -1,13 +1,13 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { DraggableList } from '@renderer/components/DraggableList'
-import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
-import { MonitorCheck, Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -22,7 +22,7 @@ import McpMarketList from './McpMarketList'
 import SyncServersPopup from './SyncServersPopup'
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
+  const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
@@ -87,6 +87,30 @@ const McpServersList: FC = () => {
     navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
+
+  const onDeleteMcpServer = useCallback(
+    async (server: MCPServer) => {
+      try {
+        window.modal.confirm({
+          title: t('settings.mcp.deleteServer'),
+          content: t('settings.mcp.deleteServerConfirm'),
+          centered: true,
+          onOk: async () => {
+            await window.api.mcp.removeServer(server)
+            deleteMCPServer(server.id)
+            window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+          }
+        })
+      } catch (error: any) {
+        window.message.error({
+          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
+          key: 'mcp-list'
+        })
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t]
+  )
 
   const onSyncServers = useCallback(() => {
     SyncServersPopup.show(mcpServers)
@@ -198,18 +222,19 @@ const McpServersList: FC = () => {
                 {serverVersions[server.id] && <VersionBadge count={serverVersions[server.id]} color="blue" />}
                 {server.providerUrl && (
                   <Button
-                    size="small"
                     type="text"
-                    onClick={() => window.open(server.providerUrl, '_blank')}
+                    size="small"
+                    shape="circle"
                     icon={<SquareArrowOutUpRight size={14} />}
                     className="nodrag"
-                    style={{ fontSize: 13, height: 28, borderRadius: 20 }}></Button>
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(server.providerUrl, '_blank')
+                    }}
+                  />
                 )}
-                <ServerIcon>
-                  <MonitorCheck size={16} color={server.isActive ? 'var(--color-primary)' : 'var(--color-text-3)'} />
-                </ServerIcon>
               </ServerName>
-              <StatusIndicator onClick={(e) => e.stopPropagation()}>
+              <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
                 <Switch
                   value={server.isActive}
                   key={server.id}
@@ -218,11 +243,21 @@ const McpServersList: FC = () => {
                   size="small"
                 />
                 <Button
-                  icon={<Settings2 size={16} />}
                   type="text"
+                  shape="circle"
+                  icon={<DeleteIcon size={16} className="lucide-custom" />}
+                  className="nodrag"
+                  danger
+                  onClick={() => onDeleteMcpServer(server)}
+                />
+                <Button
+                  type="text"
+                  shape="circle"
+                  icon={<Settings2 size={16} />}
+                  className="nodrag"
                   onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
                 />
-              </StatusIndicator>
+              </ToolbarWrapper>
             </ServerHeader>
             <ServerDescription>{server.description}</ServerDescription>
             <ServerFooter>
@@ -323,12 +358,6 @@ const ServerHeader = styled.div`
   margin-bottom: 5px;
 `
 
-const ServerIcon = styled.div`
-  font-size: 18px;
-  margin-right: 8px;
-  display: flex;
-`
-
 const ServerName = styled.div`
   flex: 1;
   white-space: nowrap;
@@ -344,11 +373,14 @@ const ServerNameText = styled.span`
   font-weight: 500;
 `
 
-const StatusIndicator = styled.div`
-  margin-left: 8px;
+const ToolbarWrapper = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+
+  > :first-child {
+    margin-right: 4px;
+  }
 `
 
 const ServerDescription = styled.div`
