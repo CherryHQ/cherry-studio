@@ -11,7 +11,7 @@ import type { Node } from 'unist'
 
 interface Props {
   children: React.ReactNode
-  node?: Node
+  node?: Omit<Node, 'type'>
   blockId?: string
 }
 

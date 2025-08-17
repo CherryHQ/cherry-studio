@@ -5,7 +5,7 @@ import type { Node } from 'unist'
 import CitationTooltip from './CitationTooltip'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: Node
+  node?: Omit<Node, 'type'>
   citationData?: {
     url: string
     title?: string

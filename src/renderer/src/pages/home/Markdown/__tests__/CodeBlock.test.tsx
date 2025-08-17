@@ -59,7 +59,13 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
 describe('CodeBlock', () => {
   const defaultProps = {
     blockId: 'test-msg-block-id',
-    node: { position: { start: { line: 1, column: 1, offset: 0 } } },
+    node: {
+      position: {
+        start: { line: 1, column: 1, offset: 0 },
+        end: { line: 2, column: 1, offset: 2 },
+        value: 'console.log("hello world")'
+      }
+    },
     children: 'console.log("hello world")',
     className: 'language-javascript'
   }

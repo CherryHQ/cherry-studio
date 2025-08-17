@@ -4,13 +4,13 @@ import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { getCodeBlockId } from '@renderer/utils/markdown'
+import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
-import type { Node } from 'unist'
 
 interface Props {
   children: string
   className?: string
-  node?: Node
+  node?: Omit<Node, 'type'>
   blockId: string // Message block id
   [key: string]: any
 }
