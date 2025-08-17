@@ -17,6 +17,7 @@ import { TextLoader } from 'langchain/document_loaders/fs/text'
 
 import MultiModalEmbeddings from '../embeddings/MultiModalEmbeddings'
 import { SplitterFactory } from '../splitter'
+import { MarkdownLoader } from './MarkdownLoader'
 import { NoteLoader } from './NoteLoader'
 import { YoutubeLoader } from './YoutubeLoader'
 
@@ -33,6 +34,7 @@ type LoaderInstance =
   | YoutubeLoader
   | SitemapLoader
   | NoteLoader
+  | MarkdownLoader
 
 /**
  * 为文档数组中的每个文档的 metadata 添加类型信息。
@@ -115,7 +117,7 @@ const FILE_LOADER_MAP: Record<string, { loader: new (path: string) => LoaderInst
   '.doc': { loader: DocxLoader, type: 'doc' },
   '.json': { loader: JSONLoader, type: 'json' },
   '.epub': { loader: EPubLoader, type: 'epub' },
-  '.md': { loader: TextLoader, type: 'markdown' }
+  '.md': { loader: MarkdownLoader, type: 'markdown' }
 }
 
 export async function addFileLoader(
