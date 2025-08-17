@@ -61,10 +61,10 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.service_tier.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportServiceTier: !checked }
+            apiOptions: { ...provider.apiOptions, isSupportServiceTier: checked }
           })
         },
-        checked: !provider.apiOptions?.isNotSupportServiceTier
+        checked: !!provider.apiOptions?.isSupportServiceTier
       },
       {
         key: 'openai_enable_thinking',

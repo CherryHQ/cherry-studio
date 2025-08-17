@@ -1297,7 +1297,7 @@ const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisf
  */
 export const isSupportServiceTierProvider = (provider: Provider) => {
   return (
-    provider.apiOptions?.isNotSupportServiceTier !== true &&
-    !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
+    provider.apiOptions?.isSupportServiceTier === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
 }

@@ -2107,8 +2107,12 @@ const migrateConfig = {
   '132': (state: RootState) => {
     try {
       state.llm.providers.forEach((p) => {
+        // 如果原本是undefined则不做改动，静默从默认支持改为默认不支持
         if (p.apiOptions?.isNotSupportDeveloperRole) {
           p.apiOptions.isSupportDeveloperRole = !p.apiOptions.isNotSupportDeveloperRole
+        }
+        if (p.apiOptions?.isNotSupportServiceTier) {
+          p.apiOptions.isSupportServiceTier = !p.apiOptions.isNotSupportServiceTier
         }
       })
       return state

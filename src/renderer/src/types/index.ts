@@ -207,8 +207,12 @@ export type ProviderApiOptions = {
   isNotSupportDeveloperRole?: boolean
   /* 是否支持 message 的 role 为 developer */
   isSupportDeveloperRole?: boolean
-  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  /**
+   * @deprecated
+   * 是否不支持 service_tier 参数. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
+  /* 是否支持 service_tier 参数. Only for OpenAI Models. */
+  isSupportServiceTier?: boolean
   /** 是否不支持 enable_thinking 参数 */
   isNotSupportEnableThinking?: boolean
 }
