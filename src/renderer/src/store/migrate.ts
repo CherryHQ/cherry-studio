@@ -2103,6 +2103,19 @@ const migrateConfig = {
       logger.error('migrate 131 error', error as Error)
       return state
     }
+  },
+  '132': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((p) => {
+        if (p.apiOptions?.isNotSupportDeveloperRole) {
+          p.apiOptions.isSupportDeveloperRole = !p.apiOptions.isNotSupportDeveloperRole
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 132 error', error as Error)
+      return state
+    }
   }
 }
 

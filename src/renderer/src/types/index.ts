@@ -201,8 +201,12 @@ export type ProviderApiOptions = {
   isNotSupportArrayContent?: boolean
   /** 是否不支持 stream_options 参数 */
   isNotSupportStreamOptions?: boolean
-  /** 是否不支持 message 的 role 为 developer */
+  /**
+   * @deprecated
+   * 是否不支持 message 的 role 为 developer */
   isNotSupportDeveloperRole?: boolean
+  /* 是否支持 message 的 role 为 developer */
+  isSupportDeveloperRole?: boolean
   /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
   /** 是否不支持 enable_thinking 参数 */

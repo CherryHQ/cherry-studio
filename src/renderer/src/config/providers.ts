@@ -52,7 +52,14 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { AtLeast, OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
+import {
+  AtLeast,
+  isSystemProvider,
+  OpenAIServiceTiers,
+  Provider,
+  SystemProvider,
+  SystemProviderId
+} from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { SYSTEM_MODELS } from './models'
@@ -1253,8 +1260,8 @@ const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe', 'qiniu'] as const satisfies
  */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
   return (
-    provider.apiOptions?.isNotSupportDeveloperRole !== true &&
-    !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id)
+    provider.apiOptions?.isSupportDeveloperRole === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id))
   )
 }
 

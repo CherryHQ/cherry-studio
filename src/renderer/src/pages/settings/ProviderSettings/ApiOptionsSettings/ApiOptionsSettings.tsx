@@ -39,10 +39,10 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
         tip: t('settings.provider.api.options.developer_role.help'),
         onChange: (checked: boolean) => {
           updateProviderTransition({
-            apiOptions: { ...provider.apiOptions, isNotSupportDeveloperRole: !checked }
+            apiOptions: { ...provider.apiOptions, isSupportDeveloperRole: checked }
           })
         },
-        checked: !provider.apiOptions?.isNotSupportDeveloperRole
+        checked: !!provider.apiOptions?.isSupportDeveloperRole
       },
       {
         key: 'openai_stream_options',
