@@ -3,8 +3,7 @@ import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  THINKING_OPTION_FALLBACK
+  MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -98,8 +97,9 @@ export function useAssistant(id: string) {
       const currentReasoningEffort = assistant.settings?.reasoning_effort
       const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
       if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-        // 使用表中定义的替代选项
-        const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort]
+        // 选项不支持时，回退到第一个支持的值
+        // 注意：这里假设可用的options不会为空
+        const fallbackOption = supportedOptions[0]
 
         updateAssistantSettings({
           reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,

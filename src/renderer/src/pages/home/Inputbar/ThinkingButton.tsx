@@ -7,12 +7,7 @@ import {
   MdiLightbulbOn80
 } from '@renderer/components/Icons/SVGIcon'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import {
-  getThinkModelType,
-  isDoubaoThinkingAutoModel,
-  MODEL_SUPPORTED_OPTIONS,
-  THINKING_OPTION_FALLBACK
-} from '@renderer/config/models'
+import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ThinkingOption } from '@renderer/types'
@@ -136,13 +131,9 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   // 获取当前应显示的图标
   const getThinkingIcon = useCallback(() => {
-    // 如果当前选项不支持，显示回退选项的图标
-    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-      const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
-      return createThinkingIcon(fallbackOption, true)
-    }
+    // 不再判断选项是否支持，依赖 useAssistant 更新选项为支持选项的行为
     return createThinkingIcon(currentReasoningEffort, currentReasoningEffort !== 'off')
-  }, [createThinkingIcon, currentReasoningEffort, supportedOptions])
+  }, [createThinkingIcon, currentReasoningEffort])
 
   useImperativeHandle(ref, () => ({
     openQuickPanel

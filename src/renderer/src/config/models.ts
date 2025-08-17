@@ -154,7 +154,6 @@ import {
   ReasoningEffortConfig,
   SystemProviderId,
   ThinkingModelType,
-  ThinkingOption,
   ThinkingOptionConfig
 } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
@@ -323,16 +322,6 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
 } as const
-
-// 选项转换映射表：当选项不支持时使用的替代选项
-export const THINKING_OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
-  off: 'low', // off -> low (for Gemini Pro models)
-  minimal: 'low', // minimal -> low (for gpt-5 and after)
-  low: 'high',
-  medium: 'high', // medium -> high (for Grok models)
-  high: 'high',
-  auto: 'high' // auto -> high (for non-Gemini models)
-}
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
