@@ -206,7 +206,6 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
       : `
     .ant-modal-body {
       height: 80vh !important;
-      min-height: 600px !important;
     }
   `}
 
