@@ -1,13 +1,12 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { DraggableList } from '@renderer/components/DraggableList'
-import { DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Badge, Button, Dropdown, Empty, Switch, Tag } from 'antd'
-import { Plus, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Button, Dropdown, Empty } from 'antd'
+import { Plus } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -19,6 +18,7 @@ import BuiltinMCPServerList from './BuiltinMCPServerList'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
 import McpMarketList from './McpMarketList'
+import McpServerCard from './McpServerCard'
 import SyncServersPopup from './SyncServersPopup'
 
 const McpServersList: FC = () => {
@@ -212,72 +212,17 @@ const McpServersList: FC = () => {
       </ListHeader>
       <DraggableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
         {(server: MCPServer) => (
-          <ServerCard
-            key={server.id}
-            onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
-            <ServerHeader>
-              <ServerName>
-                {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-                <ServerNameText>{server.name}</ServerNameText>
-                {serverVersions[server.id] && <VersionBadge count={serverVersions[server.id]} color="blue" />}
-                {server.providerUrl && (
-                  <Button
-                    type="text"
-                    size="small"
-                    shape="circle"
-                    icon={<SquareArrowOutUpRight size={14} />}
-                    className="nodrag"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(server.providerUrl, '_blank')
-                    }}
-                  />
-                )}
-              </ServerName>
-              <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  value={server.isActive}
-                  key={server.id}
-                  loading={loadingServerIds.has(server.id)}
-                  onChange={(checked) => handleToggleActive(server, checked)}
-                  size="small"
-                />
-                <Button
-                  type="text"
-                  shape="circle"
-                  icon={<DeleteIcon size={16} className="lucide-custom" />}
-                  className="nodrag"
-                  danger
-                  onClick={() => onDeleteMcpServer(server)}
-                />
-                <Button
-                  type="text"
-                  shape="circle"
-                  icon={<Settings2 size={16} />}
-                  className="nodrag"
-                  onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
-                />
-              </ToolbarWrapper>
-            </ServerHeader>
-            <ServerDescription>{server.description}</ServerDescription>
-            <ServerFooter>
-              <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                {getMcpTypeLabel(server.type ?? 'stdio')}
-              </Tag>
-              {server.provider && (
-                <Tag color="success" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                  {server.provider}
-                </Tag>
-              )}
-              {server.tags
-                ?.filter((tag): tag is string => typeof tag === 'string')
-                .map((tag) => (
-                  <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
-                    {tag}
-                  </Tag>
-                ))}
-            </ServerFooter>
-          </ServerCard>
+          <div onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
+            <McpServerCard
+              server={server}
+              version={serverVersions[server.id]}
+              isLoading={loadingServerIds.has(server.id)}
+              onToggle={(active) => handleToggleActive(server, active)}
+              onDelete={() => onDeleteMcpServer(server)}
+              onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
+              onOpenUrl={(url) => window.open(url, '_blank')}
+            />
+          </div>
         )}
       </DraggableList>
       {mcpServers.length === 0 && (
@@ -327,101 +272,10 @@ const ListHeader = styled.div`
   }
 `
 
-const ServerCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
-  padding: 10px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  margin-bottom: 5px;
-  height: 125px;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
-
-const ServerLogo = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 8px;
-`
-
-const ServerHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-`
-
-const ServerName = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const ServerNameText = styled.span`
-  font-size: 15px;
-  font-weight: 500;
-`
-
-const ToolbarWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  > :first-child {
-    margin-right: 4px;
-  }
-`
-
-const ServerDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  word-break: break-word;
-  height: 50px;
-`
-
-const ServerFooter = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-start;
-  margin-top: 10px;
-`
-
 const ButtonGroup = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-`
-
-const VersionBadge = styled(Badge)`
-  .ant-badge-count {
-    background-color: var(--color-primary);
-    color: white;
-    font-size: 10px;
-    font-weight: 500;
-    padding: 0 5px;
-    height: 16px;
-    line-height: 16px;
-    border-radius: 8px;
-    min-width: 16px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  }
 `
 
 export default McpServersList
