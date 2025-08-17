@@ -840,6 +840,9 @@
     "created": "创建时间",
     "last_updated": "最后更新",
     "messages": "消息数",
+    "notion": {
+      "reasoning_truncated": "思维链无法分块，已截断"
+    },
     "user": "用户"
   },
   "files": {
@@ -1285,7 +1288,8 @@
       },
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
-        "no_api_key": "未配置 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
+        "no_content": "无可导出到 Notion 的内容"
       },
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
@@ -1418,14 +1422,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "正在导出到 Notion, 请勿重复请求导出！"
-      },
-      "siyuan": {
-        "exporting": "正在导出到思源笔记，请勿重复请求导出！"
-      },
-      "yuque": {
-        "exporting": "正在导出语雀，请勿重复请求导出！"
+      "export": {
+        "exporting": "正在进行其他导出，请等待上一导出完成后重试"
       }
     },
     "warning": {
@@ -1614,6 +1612,7 @@
       "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本"
     },
     "generate": {
+      "height": "高度",
       "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
       "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
       "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
@@ -1621,8 +1620,11 @@
       "person_generation": "生成人物",
       "person_generation_tip": "允许模型生成人物图像",
       "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+      "safety_tolerance": "安全容忍度",
+      "safety_tolerance_tip": "控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
       "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
-      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本"
+      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
+      "width": "宽度"
     },
     "generated_image": "生成图片",
     "go_to_settings": "去设置",
@@ -1677,7 +1679,7 @@
     "prompt_enhancement_tip": "开启后将提示重写为详细的、适合模型的版本",
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-    "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前 Imagen 仅支持英文提示词",
+    "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
     "quality_options": {

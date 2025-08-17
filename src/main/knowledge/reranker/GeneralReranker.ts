@@ -1,5 +1,5 @@
 import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
-import axios from 'axios'
+import { net } from 'electron'
 
 import BaseReranker from './BaseReranker'
 export default class GeneralReranker extends BaseReranker {
@@ -10,7 +10,18 @@ export default class GeneralReranker extends BaseReranker {
     const url = this.getRerankUrl()
     const requestBody = this.getRerankRequestBody(query, searchResults)
     try {
-      const { data } = await axios.post(url, requestBody, { headers: this.defaultHeaders() })
+      const response = await net.fetch(url, {
+        method: 'POST',
+        headers: this.defaultHeaders(),
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
       const rerankResults = this.extractRerankResult(data)
       return this.getRerankResult(searchResults, rerankResults)
     } catch (error: any) {

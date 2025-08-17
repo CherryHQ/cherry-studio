@@ -650,27 +650,27 @@
   },
   "code": {
     "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
-    "bun_required_message": "Pour exécuter l'outil CLI, il est nécessaire d'installer l'environnement Bun.",
-    "cli_tool": "Outil en ligne de commande",
-    "cli_tool_placeholder": "Sélectionnez l’outil CLI à utiliser",
-    "description": "Lancez rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement.",
+    "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
+    "cli_tool": "Outil CLI",
+    "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
+    "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "install_bun": "Installer Bun",
     "installing_bun": "Installation en cours...",
     "launch": {
-      "bun_required": "Veuillez d'abord installer l'environnement Bun avant de démarrer l'outil CLI.",
-      "error": "Échec du démarrage, veuillez réessayer.",
+      "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
+      "error": "Échec du démarrage, veuillez réessayer",
       "label": "Démarrer",
-      "success": "Lancement réussi",
-      "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail."
+      "success": "Démarrage réussi",
+      "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
     },
-    "launching": "Initialisation en cours...",
+    "launching": "En cours de démarrage...",
     "model": "modèle",
-    "model_placeholder": "Choisissez le modèle à utiliser",
+    "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
-    "select_folder": "Sélectionner un dossier",
-    "title": "Outil de code",
-    "update_options": "Mettre à jour les options",
+    "select_folder": "Sélectionner le dossier",
+    "title": "Outils de code",
+    "update_options": "Options de mise à jour",
     "working_directory": "répertoire de travail"
   },
   "code_block": {
@@ -840,6 +840,9 @@
     "created": "Date de création",
     "last_updated": "Dernière mise à jour",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "La chaîne de pensée ne peut pas être fractionnée, elle a été tronquée."
+    },
     "user": "Utilisateur"
   },
   "files": {
@@ -1285,7 +1288,8 @@
       },
       "notion": {
         "export": "Erreur lors de l'exportation vers Notion, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
-        "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée"
+        "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée",
+        "no_content": "Aucun contenu à exporter vers Notion"
       },
       "siyuan": {
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
@@ -1418,14 +1422,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exportation en cours vers Notion, veuillez ne pas faire plusieurs demandes d'exportation!"
-      },
-      "siyuan": {
-        "exporting": "Exportation vers Siyuan en cours, veuillez ne pas demander à exporter à nouveau !"
-      },
-      "yuque": {
-        "exporting": "Exportation Yuque en cours, veuillez ne pas demander à exporter à nouveau !"
+      "export": {
+        "exporting": "Une autre exportation est en cours, veuillez patienter jusqu'à la fin de l'exportation précédente pour réessayer."
       }
     },
     "warning": {
@@ -2753,13 +2751,13 @@
     "math": {
       "engine": {
         "label": "Moteur de formules mathématiques",
-        "none": "Rien"
+        "none": "Aucun"
       },
       "single_dollar": {
-        "label": "Activer $...$",
-        "tip": "Rendu des formules mathématiques encadrées par un seul symbole dollar $...$, activé par défaut."
+        "label": "activer $...$",
+        "tip": "Rendu des formules mathématiques encapsulées par un seul symbole dollar $...$, activé par défaut."
       },
-      "title": "Formules mathématiques"
+      "title": "Configuration des formules mathématiques"
     },
     "mcp": {
       "actions": "Actions",
@@ -3002,7 +3000,7 @@
         "none": "Ne pas afficher"
       },
       "prompt": "Mot-clé d'affichage",
-      "show_message_outline": "Afficher le plan des messages",
+      "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },

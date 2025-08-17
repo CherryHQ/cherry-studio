@@ -840,6 +840,9 @@
     "created": "Created",
     "last_updated": "Last Updated",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
+    },
     "user": "User"
   },
   "files": {
@@ -1285,7 +1288,8 @@
       },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured"
+        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+        "no_content": "There is nothing to export to Notion."
       },
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
@@ -1418,14 +1422,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exporting to Notion, please do not request export repeatedly!"
-      },
-      "siyuan": {
-        "exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
-      },
-      "yuque": {
-        "exporting": "Exporting to Yuque, please do not request export repeatedly!"
+      "export": {
+        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
       }
     },
     "warning": {
@@ -1614,6 +1612,7 @@
       "style_type_tip": "Style for edited image, only for V_2 and above"
     },
     "generate": {
+      "height": "Height",
       "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
       "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
       "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
@@ -1621,8 +1620,11 @@
       "person_generation": "Generate person",
       "person_generation_tip": "Allow model to generate person images",
       "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "safety_tolerance": "Safety Tolerance",
+      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
       "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above"
+      "style_type_tip": "Image generation style for V_2 and above",
+      "width": "Width"
     },
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
@@ -1677,7 +1679,7 @@
     "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-    "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+    "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {

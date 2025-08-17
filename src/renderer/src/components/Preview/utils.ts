@@ -1,3 +1,6 @@
+import { makeSvgSizeAdaptive } from '@renderer/utils'
+import DOMPurify from 'dompurify'
+
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
  * This function handles creating the shadow root, injecting base styles for the host,
@@ -12,15 +15,22 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
     throw new Error('Host element for SVG rendering is not available.')
   }
 
+  // Sanitize the SVG content
+  const sanitizedContent = DOMPurify.sanitize(svgContent, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    RETURN_DOM_FRAGMENT: false,
+    RETURN_DOM: false
+  })
+
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 
-  // Base styles for the host element
+  // Base styles for the host element and the inner SVG
   const style = document.createElement('style')
   style.textContent = `
     :host {
       padding: 1em;
       background-color: white;
-      overflow: auto;
+      overflow: hidden; /* Prevent scrollbars, as scaling is now handled */
       border: 0.5px solid var(--color-code-background);
       border-radius: 8px;
       display: block;
@@ -28,34 +38,51 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       width: 100%;
       height: 100%;
     }
-    svg {
-      max-width: 100%;
-      height: auto;
-    }
   `
 
-  // Clear previous content and append new style and SVG
+  // Clear previous content and append new style
   shadowRoot.innerHTML = ''
   shadowRoot.appendChild(style)
 
-  // Parse and append the SVG using DOMParser to prevent script execution and check for errors
-  if (svgContent.trim() === '') {
+  if (sanitizedContent.trim() === '') {
     return
   }
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(svgContent, 'image/svg+xml')
 
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(sanitizedContent, 'image/svg+xml')
   const parserError = doc.querySelector('parsererror')
-  if (parserError) {
-    // Throw a specific error that can be caught by the calling component
-    throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
+  let svgElement: Element = doc.documentElement
+
+  // If parsing fails or the namespace is incorrect, fall back to the more lenient HTML parser.
+  if (parserError || svgElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = sanitizedContent
+    const svgFromHtml = tempDiv.querySelector('svg')
+
+    if (svgFromHtml) {
+      // Directly use the DOM node created by the HTML parser.
+      svgElement = svgFromHtml
+      // Ensure the xmlns attribute is present.
+      svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    } else {
+      // If both parsing methods fail, the SVG content is genuinely invalid.
+      if (parserError) {
+        throw new Error(`SVG parsing error: ${parserError.textContent || 'Unknown parsing error'}`)
+      }
+      throw new Error('Invalid SVG content: The provided string does not contain a valid SVG element.')
+    }
   }
 
-  const svgElement = doc.documentElement
-  if (svgElement && svgElement.nodeName.toLowerCase() === 'svg') {
-    shadowRoot.appendChild(svgElement.cloneNode(true))
-  } else if (svgContent.trim() !== '') {
-    // Do not throw error for empty content
+  // Type guard
+  if (svgElement instanceof SVGSVGElement) {
+    // Standardize the SVG element for proper scaling
+    makeSvgSizeAdaptive(svgElement)
+
+    // Append the SVG element to the shadow root
+    shadowRoot.appendChild(svgElement)
+  } else {
+    // This path is taken if the content is valid XML but not a valid SVG document
+    // (e.g., root element is not <svg>), or if the fallback parser fails.
     throw new Error('Invalid SVG content: The provided string is not a valid SVG document.')
   }
 }

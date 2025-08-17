@@ -649,28 +649,28 @@
     "translate": "Traducir"
   },
   "code": {
-    "auto_update_to_latest": "Comprobar actualizaciones e instalar la última versión",
-    "bun_required_message": "Para ejecutar la herramienta CLI es necesario instalar el entorno Bun.",
-    "cli_tool": "Herramienta CLI",
-    "cli_tool_placeholder": "Seleccionar la herramienta CLI a utilizar",
-    "description": "Inicio rápido de múltiples herramientas CLI de código para mejorar la eficiencia en el desarrollo.",
+    "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
+    "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
+    "cli_tool": "Herramienta de línea de comandos",
+    "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
     "folder_placeholder": "Seleccionar directorio de trabajo",
     "install_bun": "Instalar Bun",
     "installing_bun": "Instalando...",
     "launch": {
-      "bun_required": "Por favor, instala primero el entorno Bun antes de iniciar la herramienta CLI.",
-      "error": "Inicio fallido, por favor inténtalo de nuevo.",
-      "label": "arrancar",
+      "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
+      "error": "Error al iniciar, intente nuevamente",
+      "label": "Iniciar",
       "success": "Inicio exitoso",
-      "validation_error": "Por favor, complete todos los campos obligatorios: herramienta CLI, modelo y directorio de trabajo."
+      "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
-    "model": "Modelo",
-    "model_placeholder": "Selecciona el modelo a utilizar",
-    "model_required": "Por favor, selecciona el modelo.",
+    "model": "modelo",
+    "model_placeholder": "Seleccionar el modelo que se va a utilizar",
+    "model_required": "Seleccione el modelo",
     "select_folder": "Seleccionar carpeta",
     "title": "Herramientas de código",
-    "update_options": "Actualizar opciones",
+    "update_options": "Opciones de actualización",
     "working_directory": "directorio de trabajo"
   },
   "code_block": {
@@ -840,6 +840,9 @@
     "created": "Fecha de creación",
     "last_updated": "Última actualización",
     "messages": "Mensajes",
+    "notion": {
+      "reasoning_truncated": "La cadena de pensamiento no se puede dividir en bloques, ha sido truncada"
+    },
     "user": "Usuario"
   },
   "files": {
@@ -1285,7 +1288,8 @@
       },
       "notion": {
         "export": "Error de exportación de Notion, verifique el estado de conexión y la configuración según la documentación",
-        "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion"
+        "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
+        "no_content": "No hay contenido que exportar a Notion"
       },
       "siyuan": {
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
@@ -1418,14 +1422,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Se está exportando a Notion, ¡no solicite nuevamente la exportación!"
-      },
-      "siyuan": {
-        "exporting": "Exportando a Siyuan, ¡no solicite la exportación nuevamente!"
-      },
-      "yuque": {
-        "exporting": "Exportando Yuque, ¡no solicite la exportación nuevamente!"
+      "export": {
+        "exporting": "Realizando otra exportación, espere a que finalice la anterior para intentarlo de nuevo"
       }
     },
     "warning": {
@@ -2752,12 +2750,12 @@
     },
     "math": {
       "engine": {
-        "label": "motor de fórmulas matemáticas",
-        "none": "Ninguno"
+        "label": "Motor de fórmulas matemáticas",
+        "none": "sin contenido"
       },
       "single_dollar": {
-        "label": "Habilitar $...$",
-        "tip": "Renderizar fórmulas matemáticas envueltas en un único signo de dólar $...$, habilitado por defecto."
+        "label": "habilitar $...$",
+        "tip": "Renderiza fórmulas matemáticas encerradas entre un único símbolo de dólar $...$, habilitado por defecto."
       },
       "title": "Configuración de fórmulas matemáticas"
     },

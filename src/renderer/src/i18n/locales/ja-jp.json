@@ -840,6 +840,9 @@
     "created": "作成日",
     "last_updated": "最終更新日",
     "messages": "メッセージ",
+    "notion": {
+      "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
+    },
     "user": "ユーザー"
   },
   "files": {
@@ -1285,7 +1288,8 @@
       },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
-        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
+        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+        "no_content": "Notionにエクスポートできる内容がありません。"
       },
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
@@ -1418,14 +1422,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
-      },
-      "siyuan": {
-        "exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!"
-      },
-      "yuque": {
-        "exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!"
+      "export": {
+        "exporting": "他のエクスポートが実行中です。前のエクスポートが完了するまでお待ちください。"
       }
     },
     "warning": {
@@ -1614,6 +1612,7 @@
       "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用"
     },
     "generate": {
+      "height": "高さ",
       "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
       "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
       "negative_prompt_tip": "画像に含めたくない内容を説明します",
@@ -1621,8 +1620,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "人物画像を生成する",
       "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "画像生成の安全耐性を制御します。FLUX.1-Kontext-pro のみ利用可能です",
       "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
-      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+      "width": "幅"
     },
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
@@ -1677,7 +1679,7 @@
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-    "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+    "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {

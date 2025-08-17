@@ -29,7 +29,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import type { GetResourceResponse, MCPCallToolResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -205,7 +205,7 @@ class McpService {
                       }
                     }
 
-                    return fetch(url, { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
                   }
                 },
                 requestInit: {

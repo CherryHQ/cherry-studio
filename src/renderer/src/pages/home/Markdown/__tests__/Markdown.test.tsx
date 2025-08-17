@@ -68,9 +68,9 @@ vi.mock('../CodeBlock', () => ({
   )
 }))
 
-vi.mock('../ImagePreview', () => ({
+vi.mock('@renderer/components/ImageViewer', () => ({
   __esModule: true,
-  default: (props: any) => <img data-testid="image-preview" {...props} />
+  default: (props: any) => <img data-testid="image-viewer" {...props} />
 }))
 
 vi.mock('../Link', () => ({
@@ -94,12 +94,18 @@ vi.mock('../Table', () => ({
   )
 }))
 
+vi.mock('../MarkdownSvgRenderer', () => ({
+  __esModule: true,
+  default: ({ children }: any) => <div data-testid="svg-renderer">{children}</div>
+}))
+
 vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="shadow-dom">{children}</div>
 }))
 
 // Mock plugins
+vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
@@ -109,6 +115,16 @@ vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
 
 // Mock custom plugins
 vi.mock('../plugins/remarkDisableConstructs', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeHeadingIds', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeScalableSvg', () => ({
   __esModule: true,
   default: vi.fn()
 }))
@@ -331,7 +347,7 @@ describe('Markdown', () => {
       expect(tableComponent).toHaveAttribute('data-block-id', 'test-block-456')
     })
 
-    it('should integrate ImagePreview component', () => {
+    it('should integrate ImageViewer component', () => {
       render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('has-img-component')).toBeInTheDocument()
