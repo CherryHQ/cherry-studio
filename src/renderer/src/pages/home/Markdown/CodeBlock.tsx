@@ -5,11 +5,12 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { getCodeBlockId } from '@renderer/utils/markdown'
 import React, { memo, useCallback, useMemo } from 'react'
+import type { Node } from 'unist'
 
 interface Props {
   children: string
   className?: string
-  node?: any
+  node?: Node
   blockId: string // Message block id
   [key: string]: any
 }
