@@ -25,7 +25,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,7 +99,7 @@ export function useAssistant(id: string) {
       const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
       if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
         // 使用表中定义的替代选项
-        const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
+        const fallbackOption = THINKING_OPTION_FALLBACK[currentReasoningEffort]
 
         updateAssistantSettings({
           reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
