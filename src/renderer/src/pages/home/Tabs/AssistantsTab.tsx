@@ -111,12 +111,13 @@ const Assistants: FC<AssistantsTabProps> = ({
                   <Sortable
                     items={group.assistants}
                     itemKey="id"
+                    useDragOverlay={false}
                     onSortEnd={({ oldIndex, newIndex }) => {
                       const newList = droppableReorder(group.assistants, oldIndex, newIndex)
                       handleGroupReorder(group.tag, newList)
                     }}
-                    renderItem={(assistant, { isDragging }) => (
-                      <div style={{ marginBottom: 8 }} className={isDragging ? 'dragging' : ''}>
+                    renderItem={(assistant, { dragging }) => (
+                      <div style={{ marginBottom: 8 }} className={dragging ? 'dragging' : ''}>
                         <AssistantItem
                           key={assistant.id}
                           assistant={assistant}
@@ -147,12 +148,13 @@ const Assistants: FC<AssistantsTabProps> = ({
       <Sortable
         items={assistants}
         itemKey="id"
+        useDragOverlay={false}
         onSortEnd={({ oldIndex, newIndex }) => {
           const newList = droppableReorder(assistants, oldIndex, newIndex)
           updateAssistants(newList)
         }}
-        renderItem={(assistant, { isDragging }) => (
-          <div style={{ marginBottom: 8 }} className={isDragging ? 'dragging' : ''}>
+        renderItem={(assistant, { dragging }) => (
+          <div style={{ marginBottom: 8 }} className={dragging ? 'dragging' : ''}>
             <AssistantItem
               key={assistant.id}
               assistant={assistant}

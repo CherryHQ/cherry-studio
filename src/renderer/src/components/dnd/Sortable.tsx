@@ -1,4 +1,14 @@
-import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import {
+  defaultDropAnimationSideEffects,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  UniqueIdentifier,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
 import { restrictToHorizontalAxis, restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import {
   horizontalListSortingStrategy,
@@ -7,18 +17,21 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 
+import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
 
 interface SortableProps<T> {
   items: T[]
   itemKey: keyof T | ((item: T) => string | number)
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
-  renderItem: (item: T, props: { isDragging: boolean }) => React.ReactNode
+  renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
   layout?: 'list' | 'grid'
   horizontal?: boolean
   className?: string
+  useDragOverlay?: boolean
 }
 
 function Sortable<T>({
@@ -28,10 +41,21 @@ function Sortable<T>({
   renderItem,
   layout = 'list',
   horizontal = false,
-  className
+  className,
+  useDragOverlay = true
 }: SortableProps<T>) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5
+      }
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -42,14 +66,48 @@ function Sortable<T>({
     return items.map(getId)
   }, [items, itemKey])
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
 
-    if (over && active.id !== over.id) {
-      const oldIndex = itemIds.indexOf(active.id)
-      const newIndex = itemIds.indexOf(over.id)
-      onSortEnd({ oldIndex, newIndex })
+  const activeItem = activeId
+    ? items.find((item) => {
+        const id = typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number)
+        return id === activeId
+      })
+    : null
+
+  const getIndex = (id: UniqueIdentifier) => itemIds.indexOf(id)
+
+  const activeIndex = activeId ? getIndex(activeId) : -1
+
+  const handleDragStart = ({ active }) => {
+    if (active) {
+      setActiveId(active.id)
     }
+  }
+
+  const handleDragEnd = ({ over }) => {
+    setActiveId(null)
+
+    if (over) {
+      const overIndex = getIndex(over.id)
+      if (activeIndex !== overIndex) {
+        onSortEnd({ oldIndex: activeIndex, newIndex: overIndex })
+      }
+    }
+  }
+
+  const handleDragCancel = () => {
+    setActiveId(null)
+  }
+
+  const dropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5'
+        }
+      }
+    })
   }
 
   const strategy =
@@ -57,14 +115,34 @@ function Sortable<T>({
   const modifiers = layout === 'list' ? (horizontal ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]) : []
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} modifiers={modifiers}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      modifiers={modifiers}>
       <SortableContext items={itemIds} strategy={strategy}>
         <div className={className} data-layout={layout}>
-          {items.map((item) => (
-            <SortableItem key={itemIds[items.indexOf(item)]} item={item} itemKey={itemKey} renderItem={renderItem} />
+          {items.map((item, index) => (
+            <SortableItem
+              key={itemIds[index]}
+              item={item}
+              itemKey={itemKey}
+              renderItem={renderItem}
+              useDragOverlay={useDragOverlay}
+            />
           ))}
         </div>
       </SortableContext>
+
+      {useDragOverlay &&
+        activeItem &&
+        createPortal(
+          <DragOverlay adjustScale dropAnimation={dropAnimation}>
+            <ItemRenderer item={activeItem} renderItem={renderItem} dragOverlay />
+          </DragOverlay>,
+          document.body
+        )}
     </DndContext>
   )
 }
