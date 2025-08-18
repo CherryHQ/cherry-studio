@@ -648,6 +648,31 @@
     },
     "translate": "Traducir"
   },
+  "code": {
+    "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
+    "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
+    "cli_tool": "Herramienta de línea de comandos",
+    "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "folder_placeholder": "Seleccionar directorio de trabajo",
+    "install_bun": "Instalar Bun",
+    "installing_bun": "Instalando...",
+    "launch": {
+      "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
+      "error": "Error al iniciar, intente nuevamente",
+      "label": "Iniciar",
+      "success": "Inicio exitoso",
+      "validation_error": "Complete all required fields: CLI tool, model, and working directory"
+    },
+    "launching": "Iniciando...",
+    "model": "modelo",
+    "model_placeholder": "Seleccionar el modelo que se va a utilizar",
+    "model_required": "Seleccione el modelo",
+    "select_folder": "Seleccionar carpeta",
+    "title": "Herramientas de código",
+    "update_options": "Opciones de actualización",
+    "working_directory": "directorio de trabajo"
+  },
   "code_block": {
     "collapse": "Replegar",
     "copy": {
@@ -816,6 +841,9 @@
     "created": "Fecha de creación",
     "last_updated": "Última actualización",
     "messages": "Mensajes",
+    "notion": {
+      "reasoning_truncated": "La cadena de pensamiento no se puede dividir en bloques, ha sido truncada"
+    },
     "user": "Usuario"
   },
   "files": {
@@ -1233,7 +1261,8 @@
       },
       "notion": {
         "export": "Error de exportación de Notion, verifique el estado de conexión y la configuración según la documentación",
-        "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion"
+        "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
+        "no_content": "No hay contenido que exportar a Notion"
       },
       "siyuan": {
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
@@ -1359,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Se está exportando a Notion, ¡no solicite nuevamente la exportación!"
-      },
-      "siyuan": {
-        "exporting": "Exportando a Siyuan, ¡no solicite la exportación nuevamente!"
-      },
-      "yuque": {
-        "exporting": "Exportando Yuque, ¡no solicite la exportación nuevamente!"
+      "export": {
+        "exporting": "Realizando otra exportación, espere a que finalice la anterior para intentarlo de nuevo"
       }
     },
     "warning": {
@@ -2691,6 +2714,17 @@
       "title": "Inicio",
       "totray": "Minimizar a la bandeja al iniciar"
     },
+    "math": {
+      "engine": {
+        "label": "Motor de fórmulas matemáticas",
+        "none": "sin contenido"
+      },
+      "single_dollar": {
+        "label": "habilitar $...$",
+        "tip": "Renderiza fórmulas matemáticas encerradas entre un único símbolo de dólar $...$, habilitado por defecto."
+      },
+      "title": "Configuración de fórmulas matemáticas"
+    },
     "mcp": {
       "actions": "Acciones",
       "active": "Activar",
@@ -2921,10 +2955,6 @@
         "title": "Configuración de entrada"
       },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
-      "math_engine": {
-        "label": "Motor de fórmulas matemáticas",
-        "none": "Ninguno"
-      },
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
         "title": "Configuración del modelo"
@@ -2936,6 +2966,7 @@
         "none": "No mostrar"
       },
       "prompt": "Palabra de indicación",
+      "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
@@ -3562,6 +3593,7 @@
   "title": {
     "agents": "Agentes",
     "apps": "Aplicaciones",
+    "code": "Código",
     "files": "Archivos",
     "home": "Inicio",
     "knowledge": "Base de conocimiento",
@@ -3634,8 +3666,10 @@
       "detect": {
         "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas"
       },
+      "detected_unknown": "Idioma desconocido no intercambiable",
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
+      "invalid_source": "Invalid source language",
       "not_configured": "El modelo de traducción no está configurado",
       "not_supported": "Idioma no compatible {{language}}",
       "unknown": "Se produjo un error desconocido durante la traducción"

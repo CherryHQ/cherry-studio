@@ -1,4 +1,3 @@
-import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { PreprocessProvider } from '@renderer/types'
@@ -6,7 +5,7 @@ import { Select } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import PreprocessProviderSettings from './PreprocessSettings'
 
 const PreprocessSettings: FC = () => {
@@ -40,8 +39,9 @@ const PreprocessSettings: FC = () => {
               placeholder={t('settings.tool.preprocess.provider_placeholder')}
               options={preprocessProviders.map((p) => ({
                 value: p.id,
-                label: p.name,
-                disabled: !isMac && p.id === 'system' // 在非 Mac 系统下禁用 system 选项
+                label: p.name
+                // 由于system字段实际未使用，先注释掉
+                // disabled: !isMac && p.id === 'system' // 在非 Mac 系统下禁用 system 选项
               }))}
             />
           </div>

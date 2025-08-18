@@ -5,7 +5,7 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 
-const mcpResources = [
+const mcpMarkets = [
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',
@@ -62,38 +62,38 @@ const mcpResources = [
   }
 ]
 
-const McpResourcesSection: FC = () => {
+const McpMarketList: FC = () => {
   const { t } = useTranslation()
 
   return (
     <>
       <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.findMore')}</SettingTitle>
-      <ResourcesGrid>
-        {mcpResources.map((resource) => (
-          <ResourceCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
-            <ResourceHeader>
-              <ResourceLogo src={resource.logo} alt={`${resource.name} logo`} />
-              <ResourceName>{resource.name}</ResourceName>
+      <MarketGrid>
+        {mcpMarkets.map((resource) => (
+          <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
+            <MarketHeader>
+              <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
+              <MarketName>{resource.name}</MarketName>
               <ExternalLinkIcon>
                 <ExternalLink size={14} />
               </ExternalLinkIcon>
-            </ResourceHeader>
-            <ResourceDescription>{t(resource.descriptionKey)}</ResourceDescription>
-          </ResourceCard>
+            </MarketHeader>
+            <MarketDescription>{t(resource.descriptionKey)}</MarketDescription>
+          </MarketCard>
         ))}
-      </ResourcesGrid>
+      </MarketGrid>
     </>
   )
 }
 
-const ResourcesGrid = styled.div`
+const MarketGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 `
 
-const ResourceCard = styled.div`
+const MarketCard = styled.div`
   display: flex;
   flex-direction: column;
   border: 0.5px solid var(--color-border);
@@ -110,13 +110,13 @@ const ResourceCard = styled.div`
   }
 `
 
-const ResourceHeader = styled.div`
+const MarketHeader = styled.div`
   display: flex;
   align-items: center;
   margin-bottom: 8px;
 `
 
-const ResourceLogo = styled.img`
+const MarketLogo = styled.img`
   width: 20px;
   height: 20px;
   border-radius: 4px;
@@ -124,7 +124,7 @@ const ResourceLogo = styled.img`
   margin-right: 8px;
 `
 
-const ResourceName = styled.span`
+const MarketName = styled.span`
   font-size: 14px;
   font-weight: 500;
   flex: 1;
@@ -139,7 +139,7 @@ const ExternalLinkIcon = styled.div`
   align-items: center;
 `
 
-const ResourceDescription = styled.div`
+const MarketDescription = styled.div`
   font-size: 12px;
   color: var(--color-text-2);
   overflow: hidden;
@@ -149,4 +149,4 @@ const ResourceDescription = styled.div`
   line-height: 1.4;
 `
 
-export default McpResourcesSection
+export default McpMarketList

@@ -648,6 +648,31 @@
     },
     "translate": "Translate"
   },
+  "code": {
+    "auto_update_to_latest": "Automatically update to latest version",
+    "bun_required_message": "Bun environment is required to run CLI tools",
+    "cli_tool": "CLI Tool",
+    "cli_tool_placeholder": "Select the CLI tool to use",
+    "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "folder_placeholder": "Select working directory",
+    "install_bun": "Install Bun",
+    "installing_bun": "Installing...",
+    "launch": {
+      "bun_required": "Please install Bun environment first before launching CLI tools",
+      "error": "Launch failed, please try again",
+      "label": "Launch",
+      "success": "Launch successful",
+      "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
+    },
+    "launching": "Launching...",
+    "model": "Model",
+    "model_placeholder": "Select the model to use",
+    "model_required": "Please select a model",
+    "select_folder": "Select Folder",
+    "title": "Code Tools",
+    "update_options": "Update Options",
+    "working_directory": "Working Directory"
+  },
   "code_block": {
     "collapse": "Collapse",
     "copy": {
@@ -816,6 +841,9 @@
     "created": "Created",
     "last_updated": "Last Updated",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
+    },
     "user": "User"
   },
   "files": {
@@ -1233,7 +1261,8 @@
       },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured"
+        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+        "no_content": "There is nothing to export to Notion."
       },
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
@@ -1359,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exporting to Notion, please do not request export repeatedly!"
-      },
-      "siyuan": {
-        "exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
-      },
-      "yuque": {
-        "exporting": "Exporting to Yuque, please do not request export repeatedly!"
+      "export": {
+        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
       }
     },
     "warning": {
@@ -1555,6 +1578,7 @@
       "style_type_tip": "Style for edited image, only for V_2 and above"
     },
     "generate": {
+      "height": "Height",
       "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
       "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
       "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
@@ -1562,8 +1586,11 @@
       "person_generation": "Generate person",
       "person_generation_tip": "Allow model to generate person images",
       "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "safety_tolerance": "Safety Tolerance",
+      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
       "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above"
+      "style_type_tip": "Image generation style for V_2 and above",
+      "width": "Width"
     },
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
@@ -1618,7 +1645,7 @@
     "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-    "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+    "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {
@@ -2691,6 +2718,17 @@
       "title": "Launch",
       "totray": "Minimize to Tray on Launch"
     },
+    "math": {
+      "engine": {
+        "label": "Math engine",
+        "none": "None"
+      },
+      "single_dollar": {
+        "label": "Enable $...$",
+        "tip": "Render math equations quoted by single dollar signs $...$. Default is enabled."
+      },
+      "title": "Math Settings"
+    },
     "mcp": {
       "actions": "Actions",
       "active": "Active",
@@ -2865,7 +2903,7 @@
       "tagsPlaceholder": "Enter tags",
       "timeout": "Timeout",
       "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
-      "title": "MCP Settings",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "Auto Approve",
@@ -2921,10 +2959,6 @@
         "title": "Input Settings"
       },
       "markdown_rendering_input_message": "Markdown render input message",
-      "math_engine": {
-        "label": "Math engine",
-        "none": "None"
-      },
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "model": {
         "title": "Model Settings"
@@ -2936,6 +2970,7 @@
         "none": "None"
       },
       "prompt": "Show prompt",
+      "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
@@ -3408,10 +3443,10 @@
     "title": "Settings",
     "tool": {
       "preprocess": {
-        "provider": "Pre Process Provider",
-        "provider_placeholder": "Choose a Pre Process provider",
-        "title": "Pre Process",
-        "tooltip": "In Settings -> Tools, set a document preprocessing service provider. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
+        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
       "websearch": {
@@ -3562,6 +3597,7 @@
   "title": {
     "agents": "Agents",
     "apps": "Apps",
+    "code": "Code",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",
@@ -3634,8 +3670,10 @@
       "detect": {
         "qwen_mt": "QwenMT model cannot be used for language detection"
       },
+      "detected_unknown": "Unknown language cannot be exchanged",
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
+      "invalid_source": "Invalid source language",
       "not_configured": "Translation model is not configured",
       "not_supported": "Unsupported language {{language}}",
       "unknown": "An unknown error occurred during translation"

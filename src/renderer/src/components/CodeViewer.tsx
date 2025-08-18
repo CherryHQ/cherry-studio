@@ -54,7 +54,8 @@ const CodeViewer = ({ children, language, expanded, unwrapped, onHeightChange, c
         if (properties.style) {
           shikiTheme.style.cssText += `${properties.style}`
         }
-        shikiTheme.tabIndex = properties.tabindex
+        // FIXME: 临时解决 SelectionToolbar 无法弹出，走剪贴板回退的问题
+        // shikiTheme.tabIndex = properties.tabindex
       }
     })
     return () => {

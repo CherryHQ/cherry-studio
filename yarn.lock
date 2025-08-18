@@ -4378,12 +4378,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@mermaid-js/parser@npm:^0.5.0":
-  version: 0.5.0
-  resolution: "@mermaid-js/parser@npm:0.5.0"
+"@mermaid-js/parser@npm:^0.6.2":
+  version: 0.6.2
+  resolution: "@mermaid-js/parser@npm:0.6.2"
   dependencies:
     langium: "npm:3.3.1"
-  checksum: 10c0/af1c1cf6cfe808bf5f7c232a881e5f9d6778c2fc3997d8ea3da93f59097411d0e13f74649e2576488f82227bab58e47a49f4e77cb11cf4196176f3c4135c724d
+  checksum: 10c0/6059341a5dc3fdf56dd75c858843154e18c582e5cc41c3e73e9a076e218116c6bdbdba729d27154cef61430c900d87342423bbb81e37d8a9968c6c2fdd99e87a
   languageName: node
   linkType: hard
 
@@ -8588,7 +8588,7 @@ __metadata:
     lucide-react: "npm:^0.525.0"
     macos-release: "npm:^3.4.0"
     markdown-it: "npm:^14.1.0"
-    mermaid: "npm:^11.7.0"
+    mermaid: "npm:^11.9.0"
     mime: "npm:^4.0.4"
     motion: "npm:^12.10.5"
     node-stream-zip: "npm:^1.15.0"
@@ -8603,7 +8603,6 @@ __metadata:
     prettier: "npm:^3.5.3"
     prettier-plugin-sort-json: "npm:^4.1.1"
     proxy-agent: "npm:^6.5.0"
-    rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
@@ -8621,7 +8620,9 @@ __metadata:
     reflect-metadata: "npm:0.2.2"
     rehype-katex: "npm:^7.0.1"
     rehype-mathjax: "npm:^7.1.0"
+    rehype-parse: "npm:^9.0.1"
     rehype-raw: "npm:^7.0.0"
+    rehype-stringify: "npm:^10.0.1"
     remark-cjk-friendly: "npm:^1.2.0"
     remark-gfm: "npm:^4.0.1"
     remark-github-blockquote-alert: "npm:^2.0.0"
@@ -8629,7 +8630,7 @@ __metadata:
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^1.0.8"
+    selection-hook: "npm:^1.0.9"
     shiki: "npm:^3.9.1"
     strict-url-sanitise: "npm:^0.0.1"
     string-width: "npm:^7.2.0"
@@ -13728,7 +13729,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hast-util-to-html@npm:^9.0.5":
+"hast-util-to-html@npm:^9.0.0, hast-util-to-html@npm:^9.0.5":
   version: 9.0.5
   resolution: "hast-util-to-html@npm:9.0.5"
   dependencies:
@@ -14812,7 +14813,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"katex@npm:^0.16.0, katex@npm:^0.16.9":
+"katex@npm:^0.16.0, katex@npm:^0.16.22":
   version: 0.16.22
   resolution: "katex@npm:0.16.22"
   dependencies:
@@ -15664,12 +15665,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"marked@npm:^15.0.7":
-  version: 15.0.11
-  resolution: "marked@npm:15.0.11"
+"marked@npm:^16.0.0":
+  version: 16.1.2
+  resolution: "marked@npm:16.1.2"
   bin:
     marked: bin/marked.js
-  checksum: 10c0/d532db4955c1f2ac6efc65a644725e9e12e7944cb6af40c7148baecfd3b3c2f3564229b3daf12d2125635466448fb9b367ce52357be3aea0273e3d152efdbdcf
+  checksum: 10c0/4e5878f1aa89de139bed14835865af20f26527674f41dedf2b33d2f85360298a1a0cc0505c675f072175c86eb30684c7b4e287d18f5958daa26e36bc1308d321
   languageName: node
   linkType: hard
 
@@ -16087,13 +16088,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mermaid@npm:^11.7.0":
-  version: 11.7.0
-  resolution: "mermaid@npm:11.7.0"
+"mermaid@npm:^11.9.0":
+  version: 11.9.0
+  resolution: "mermaid@npm:11.9.0"
   dependencies:
     "@braintree/sanitize-url": "npm:^7.0.4"
     "@iconify/utils": "npm:^2.1.33"
-    "@mermaid-js/parser": "npm:^0.5.0"
+    "@mermaid-js/parser": "npm:^0.6.2"
     "@types/d3": "npm:^7.4.3"
     cytoscape: "npm:^3.29.3"
     cytoscape-cose-bilkent: "npm:^4.1.0"
@@ -16103,15 +16104,15 @@ __metadata:
     dagre-d3-es: "npm:7.0.11"
     dayjs: "npm:^1.11.13"
     dompurify: "npm:^3.2.5"
-    katex: "npm:^0.16.9"
+    katex: "npm:^0.16.22"
     khroma: "npm:^2.1.0"
     lodash-es: "npm:^4.17.21"
-    marked: "npm:^15.0.7"
+    marked: "npm:^16.0.0"
     roughjs: "npm:^4.6.6"
     stylis: "npm:^4.3.6"
     ts-dedent: "npm:^2.2.0"
     uuid: "npm:^11.1.0"
-  checksum: 10c0/ab37f563b54d53c513d792a91aae54c6e2ed20f4d8606cdec993d60b8c50534ac6ab740408d710a655c6190341704cf133f0a7fb47e230c0c94b38cf08e07775
+  checksum: 10c0/f3420d0fd8919b31e36354cbf0ddd26398898c960e0bcb0e52aceae657245fcf1e5fe3e28651bff83c9b1fb8b6d3e07fc8b26d111ef3159fcf780d53ce40a437
   languageName: node
   linkType: hard
 
@@ -19040,7 +19041,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.18.6, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
+"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
   version: 3.18.6
   resolution: "rc-virtual-list@npm:3.18.6"
   dependencies:
@@ -19509,6 +19510,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"rehype-parse@npm:^9.0.1":
+  version: 9.0.1
+  resolution: "rehype-parse@npm:9.0.1"
+  dependencies:
+    "@types/hast": "npm:^3.0.0"
+    hast-util-from-html: "npm:^2.0.0"
+    unified: "npm:^11.0.0"
+  checksum: 10c0/efa9ca17673fe70e2d322a1d262796bbed5f6a89382f8f8393352bbd6f6bbf1d4d1d050984b86ff9cb6c0fa2535175ab0829e53c94b1e38fc3c158e6c0ad90bc
+  languageName: node
+  linkType: hard
+
 "rehype-raw@npm:^7.0.0":
   version: 7.0.0
   resolution: "rehype-raw@npm:7.0.0"
@@ -19517,6 +19529,17 @@ __metadata:
     hast-util-raw: "npm:^9.0.0"
     vfile: "npm:^6.0.0"
   checksum: 10c0/1435b4b6640a5bc3abe3b2133885c4dbff5ef2190ef9cfe09d6a63f74dd7d7ffd0cede70603278560ccf1acbfb9da9faae4b68065a28bc5aa88ad18e40f32d52
+  languageName: node
+  linkType: hard
+
+"rehype-stringify@npm:^10.0.1":
+  version: 10.0.1
+  resolution: "rehype-stringify@npm:10.0.1"
+  dependencies:
+    "@types/hast": "npm:^3.0.0"
+    hast-util-to-html: "npm:^9.0.0"
+    unified: "npm:^11.0.0"
+  checksum: 10c0/c643ae3a4862465033e0f1e9f664433767279b4ee9296570746970a79940417ec1fb1997a513659aab97063cf971c5d97e0af8129f590719f01628c8aa480765
   languageName: node
   linkType: hard
 
@@ -20066,14 +20089,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^1.0.8":
-  version: 1.0.8
-  resolution: "selection-hook@npm:1.0.8"
+"selection-hook@npm:^1.0.9":
+  version: 1.0.9
+  resolution: "selection-hook@npm:1.0.9"
   dependencies:
     node-addon-api: "npm:^8.4.0"
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/ed7e230ddf10fcd1974b166c5e73170900260664e40454e4e1fcdf0ba21d2a08cf95824c085fa07069aa99b663e0ee3f2aed74c3fbdba0f4e99abe6956bd51dc
+  checksum: 10c0/5f3114b528d9e1545a5dc4b99927a0ab441570063bb348b52784d757c8f250f0d6a875175d371adf5dc2bfc82bf6bb86f99d3ee66fefe0749040c0b50f3217c3
   languageName: node
   linkType: hard
 
@@ -22314,21 +22337,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"windows-system-proxy@npm:1.0.0":
-  version: 1.0.0
-  resolution: "windows-system-proxy@npm:1.0.0"
+"windows-system-proxy@npm:^1.0.0":
+  version: 1.0.1
+  resolution: "windows-system-proxy@npm:1.0.1"
   dependencies:
     registry-js: "npm:^1.15.1"
-  checksum: 10c0/f3712938ce0786c359f171c40cc40df37448e06feeaaddd056312dcc93caff02c1eac9df6f0fac162ec99ac1f23dffb70bf19fe08fac097fed3c32b7ae95f6aa
-  languageName: node
-  linkType: hard
-
-"windows-system-proxy@patch:windows-system-proxy@npm%3A1.0.0#~/.yarn/patches/windows-system-proxy-npm-1.0.0-ff2a828eec.patch":
-  version: 1.0.0
-  resolution: "windows-system-proxy@patch:windows-system-proxy@npm%3A1.0.0#~/.yarn/patches/windows-system-proxy-npm-1.0.0-ff2a828eec.patch::version=1.0.0&hash=bc3cd7"
-  dependencies:
-    registry-js: "npm:^1.15.1"
-  checksum: 10c0/4941a22109ced18bece1aa7eacb828a1b4364d031c8528fc76a0a76509ef431f70886574d8629d5086ef7dbfb9595815996489acaa9468c63b337551847761fd
+  checksum: 10c0/662a9bb283ce1458a25e257a0cb4f81b7efd8e80fa14bf4b5af819f85396a5ad3c68674d9458014091ba6ce81da8f868a49dfad009330c5260f72f7afdea4fc2
   languageName: node
   linkType: hard
 

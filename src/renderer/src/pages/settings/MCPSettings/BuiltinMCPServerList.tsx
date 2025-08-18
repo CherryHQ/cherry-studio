@@ -9,7 +9,7 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 
-const BuiltinMCPServersSection: FC = () => {
+const BuiltinMCPServerList: FC = () => {
   const { t } = useTranslation()
   const { addMCPServer, mcpServers } = useMCPServers()
 
@@ -176,4 +176,4 @@ const ServerFooter = styled.div`
   margin-top: 10px;
 `
 
-export default BuiltinMCPServersSection
+export default BuiltinMCPServerList

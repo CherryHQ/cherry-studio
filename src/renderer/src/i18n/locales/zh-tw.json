@@ -648,6 +648,31 @@
     },
     "translate": "翻譯"
   },
+  "code": {
+    "auto_update_to_latest": "檢查更新並安裝最新版本",
+    "bun_required_message": "運行 CLI 工具需要安裝 Bun 環境",
+    "cli_tool": "CLI 工具",
+    "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "folder_placeholder": "選擇工作目錄",
+    "install_bun": "安裝 Bun",
+    "installing_bun": "安裝中...",
+    "launch": {
+      "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
+      "error": "啟動失敗，請重試",
+      "label": "啟動",
+      "success": "啟動成功",
+      "validation_error": "請完成所有必填項目：CLI 工具、模型和工作目錄"
+    },
+    "launching": "啟動中...",
+    "model": "模型",
+    "model_placeholder": "選擇要使用的模型",
+    "model_required": "請選擇模型",
+    "select_folder": "選擇資料夾",
+    "title": "程式碼工具",
+    "update_options": "更新選項",
+    "working_directory": "工作目錄"
+  },
   "code_block": {
     "collapse": "折疊",
     "copy": {
@@ -816,6 +841,9 @@
     "created": "建立時間",
     "last_updated": "最後更新",
     "messages": "訊息數",
+    "notion": {
+      "reasoning_truncated": "思維鏈無法分塊，已截斷"
+    },
     "user": "使用者"
   },
   "files": {
@@ -1233,7 +1261,8 @@
       },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
-        "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
+        "no_content": "沒有可匯出至 Notion 的內容"
       },
       "siyuan": {
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
@@ -1359,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "正在匯出到 Notion，請勿重複請求匯出！"
-      },
-      "siyuan": {
-        "exporting": "正在導出到思源筆記，請勿重複請求導出！"
-      },
-      "yuque": {
-        "exporting": "正在導出語雀，請勿重複請求導出！"
+      "export": {
+        "exporting": "正在進行其他匯出，請等待上一次匯出完成後再試"
       }
     },
     "warning": {
@@ -1555,6 +1578,7 @@
       "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本"
     },
     "generate": {
+      "height": "高度",
       "magic_prompt_option_tip": "智能優化生成效果的提示詞",
       "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
       "negative_prompt_tip": "描述不想在圖像中出現的內容",
@@ -1562,8 +1586,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "允許模型生成人物圖像",
       "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "控制圖像生成的安全耐性，僅適用於 FLUX.1-Kontext-pro 版本",
       "seed_tip": "控制圖像生成的隨機性，以重現相同的生成結果",
-      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+      "width": "寬度"
     },
     "generated_image": "生成圖片",
     "go_to_settings": "去設置",
@@ -1618,7 +1645,7 @@
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入英文圖片描述，目前 Imagen 僅支持英文提示詞",
+    "prompt_placeholder_en": "輸入英文圖片描述，目前僅支持英文提示詞",
     "proxy_required": "打開代理並開啟”TUN 模式 “查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2691,6 +2718,17 @@
       "title": "啟動",
       "totray": "啟動時最小化到系统匣"
     },
+    "math": {
+      "engine": {
+        "label": "數學公式引擎",
+        "none": "無"
+      },
+      "single_dollar": {
+        "label": "啟用 $...$",
+        "tip": "渲染單個美元符號 $...$ 包裹的數學公式，默認啟用。"
+      },
+      "title": "數學公式設定"
+    },
     "mcp": {
       "actions": "操作",
       "active": "啟用",
@@ -2865,7 +2903,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "超時",
       "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為 60 秒",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動批准",
@@ -2921,10 +2959,6 @@
         "title": "輸入設定"
       },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
-      "math_engine": {
-        "label": "數學公式引擎",
-        "none": "無"
-      },
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
         "title": "模型設定"
@@ -2936,6 +2970,7 @@
         "none": "不顯示"
       },
       "prompt": "提示詞顯示",
+      "show_message_outline": "顯示消息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
@@ -3408,10 +3443,10 @@
     "title": "設定",
     "tool": {
       "preprocess": {
-        "provider": "前置處理供應商",
-        "provider_placeholder": "選擇一個預處理供應商",
-        "title": "前置處理",
-        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
+        "provider": "文件處理供應商",
+        "provider_placeholder": "選擇一個文件處理供應商",
+        "title": "文件處理",
+        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
       "title": "其他設定",
       "websearch": {
@@ -3562,6 +3597,7 @@
   "title": {
     "agents": "智能體",
     "apps": "小程序",
+    "code": "Code",
     "files": "文件",
     "home": "主頁",
     "knowledge": "知識庫",
@@ -3634,8 +3670,10 @@
       "detect": {
         "qwen_mt": "QwenMT模型不能用於語言檢測"
       },
+      "detected_unknown": "未知語言不可交換",
       "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
+      "invalid_source": "無效的源語言",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"

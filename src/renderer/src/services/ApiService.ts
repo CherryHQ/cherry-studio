@@ -108,9 +108,9 @@ async function fetchExternalTool(
   const showListTools = enabledMCPs && enabledMCPs.length > 0
 
   // 是否使用工具
-  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory || showListTools
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || showListTools
 
-  // 在工具链开始时发送进度通知
+  // 在工具链开始时发送进度通知（不包括记忆搜索）
   if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
@@ -460,8 +460,6 @@ export async function fetchChatCompletion({
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
   const model = assistant.model || getDefaultModel()
 
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
   const filteredMessages2 = filterUsefulMessages(filteredMessages1)
@@ -492,7 +490,7 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   const completionsParams: CompletionsParams = {
     callType: 'chat',
     messages: _messages,

@@ -648,6 +648,31 @@
     },
     "translate": "Traduire"
   },
+  "code": {
+    "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
+    "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
+    "cli_tool": "Outil CLI",
+    "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
+    "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "folder_placeholder": "Sélectionner le répertoire de travail",
+    "install_bun": "Installer Bun",
+    "installing_bun": "Installation en cours...",
+    "launch": {
+      "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
+      "error": "Échec du démarrage, veuillez réessayer",
+      "label": "Démarrer",
+      "success": "Démarrage réussi",
+      "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
+    },
+    "launching": "En cours de démarrage...",
+    "model": "modèle",
+    "model_placeholder": "Sélectionnez le modèle à utiliser",
+    "model_required": "Veuillez sélectionner le modèle",
+    "select_folder": "Sélectionner le dossier",
+    "title": "Outils de code",
+    "update_options": "Options de mise à jour",
+    "working_directory": "répertoire de travail"
+  },
   "code_block": {
     "collapse": "Réduire",
     "copy": {
@@ -816,6 +841,9 @@
     "created": "Date de création",
     "last_updated": "Dernière mise à jour",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "La chaîne de pensée ne peut pas être fractionnée, elle a été tronquée."
+    },
     "user": "Utilisateur"
   },
   "files": {
@@ -1233,7 +1261,8 @@
       },
       "notion": {
         "export": "Erreur lors de l'exportation vers Notion, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
-        "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée"
+        "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée",
+        "no_content": "Aucun contenu à exporter vers Notion"
       },
       "siyuan": {
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
@@ -1359,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exportation en cours vers Notion, veuillez ne pas faire plusieurs demandes d'exportation!"
-      },
-      "siyuan": {
-        "exporting": "Exportation vers Siyuan en cours, veuillez ne pas demander à exporter à nouveau !"
-      },
-      "yuque": {
-        "exporting": "Exportation Yuque en cours, veuillez ne pas demander à exporter à nouveau !"
+      "export": {
+        "exporting": "Une autre exportation est en cours, veuillez patienter jusqu'à la fin de l'exportation précédente pour réessayer."
       }
     },
     "warning": {
@@ -2691,6 +2714,17 @@
       "title": "Démarrage",
       "totray": "Minimiser dans la barre d'état système au démarrage"
     },
+    "math": {
+      "engine": {
+        "label": "Moteur de formules mathématiques",
+        "none": "Aucun"
+      },
+      "single_dollar": {
+        "label": "activer $...$",
+        "tip": "Rendu des formules mathématiques encapsulées par un seul symbole dollar $...$, activé par défaut."
+      },
+      "title": "Configuration des formules mathématiques"
+    },
     "mcp": {
       "actions": "Actions",
       "active": "Activer",
@@ -2921,10 +2955,6 @@
         "title": "Paramètres d'entrée"
       },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
-      "math_engine": {
-        "label": "Moteur de formules mathématiques",
-        "none": "Aucun"
-      },
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
         "title": "Paramètres du modèle"
@@ -2936,6 +2966,7 @@
         "none": "Ne pas afficher"
       },
       "prompt": "Mot-clé d'affichage",
+      "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
@@ -3562,6 +3593,7 @@
   "title": {
     "agents": "Agent intelligent",
     "apps": "Mini-programmes",
+    "code": "Code",
     "files": "Fichiers",
     "home": "Page d'accueil",
     "knowledge": "Base de connaissances",
@@ -3634,8 +3666,10 @@
       "detect": {
         "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues"
       },
+      "detected_unknown": "Langue inconnue non échangeable",
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
+      "invalid_source": "Langue source invalide",
       "not_configured": "le modèle de traduction n'est pas configuré",
       "not_supported": "Langue non prise en charge {{language}}",
       "unknown": "Une erreur inconnue s'est produite lors de la traduction"

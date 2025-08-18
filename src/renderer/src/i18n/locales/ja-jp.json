@@ -648,6 +648,31 @@
     },
     "translate": "翻訳"
   },
+  "code": {
+    "auto_update_to_latest": "最新バージョンを自動的に更新する",
+    "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
+    "cli_tool": "CLI ツール",
+    "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "folder_placeholder": "作業ディレクトリを選択してください",
+    "install_bun": "Bun をインストール",
+    "installing_bun": "インストール中...",
+    "launch": {
+      "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
+      "error": "起動に失敗しました。もう一度試してください",
+      "label": "起動",
+      "success": "起動成功",
+      "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
+    },
+    "launching": "起動中...",
+    "model": "モデル",
+    "model_placeholder": "使用するモデルを選択してください",
+    "model_required": "モデルを選択してください",
+    "select_folder": "フォルダを選択",
+    "title": "コードツール",
+    "update_options": "更新オプション",
+    "working_directory": "作業ディレクトリ"
+  },
   "code_block": {
     "collapse": "折りたたむ",
     "copy": {
@@ -816,6 +841,9 @@
     "created": "作成日",
     "last_updated": "最終更新日",
     "messages": "メッセージ",
+    "notion": {
+      "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
+    },
     "user": "ユーザー"
   },
   "files": {
@@ -1233,7 +1261,8 @@
       },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
-        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
+        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+        "no_content": "Notionにエクスポートできる内容がありません。"
       },
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
@@ -1359,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
-      },
-      "siyuan": {
-        "exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!"
-      },
-      "yuque": {
-        "exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!"
+      "export": {
+        "exporting": "他のエクスポートが実行中です。前のエクスポートが完了するまでお待ちください。"
       }
     },
     "warning": {
@@ -1555,6 +1578,7 @@
       "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用"
     },
     "generate": {
+      "height": "高さ",
       "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
       "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
       "negative_prompt_tip": "画像に含めたくない内容を説明します",
@@ -1562,8 +1586,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "人物画像を生成する",
       "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "画像生成の安全耐性を制御します。FLUX.1-Kontext-pro のみ利用可能です",
       "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
-      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+      "width": "幅"
     },
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
@@ -1618,7 +1645,7 @@
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-    "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+    "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2691,6 +2718,17 @@
       "title": "起動",
       "totray": "起動時にトレイに最小化"
     },
+    "math": {
+      "engine": {
+        "label": "数式エンジン",
+        "none": "なし"
+      },
+      "single_dollar": {
+        "label": "$...$ を有効にする",
+        "tip": "単一のドル記号 $...$ で囲まれた数式をレンダリングします。デフォルトで有効です。"
+      },
+      "title": "数式設定"
+    },
     "mcp": {
       "actions": "操作",
       "active": "有効",
@@ -2865,7 +2903,7 @@
       "tagsPlaceholder": "タグを入力",
       "timeout": "タイムアウト",
       "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動承認",
@@ -2921,10 +2959,6 @@
         "title": "入力設定"
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
-      "math_engine": {
-        "label": "数式エンジン",
-        "none": "なし"
-      },
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "model": {
         "title": "モデル設定"
@@ -2936,6 +2970,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
@@ -3562,6 +3597,7 @@
   "title": {
     "agents": "エージェント",
     "apps": "アプリ",
+    "code": "Code",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",
@@ -3634,8 +3670,10 @@
       "detect": {
         "qwen_mt": "QwenMTモデルは言語検出に使用できません"
       },
+      "detected_unknown": "未知の言語は交換できません",
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
+      "invalid_source": "無効なソース言語",
       "not_configured": "翻訳モデルが設定されていません",
       "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"
