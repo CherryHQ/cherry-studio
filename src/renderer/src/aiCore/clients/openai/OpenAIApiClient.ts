@@ -5,7 +5,9 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   getThinkModelType,
+  isClaudeReasoningModel,
   isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
@@ -46,6 +48,7 @@ import {
   Model,
   OpenAIServiceTier,
   Provider,
+  SystemProviderIds,
   ToolCallResponse,
   TranslateAssistant,
   WebSearchSource
@@ -557,17 +560,27 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
         }
 
-        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (
-          lastUserMsg &&
-          isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportEnableThinkingProvider(this.provider)
-        ) {
-          const postsuffix = '/no_think'
-          const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-          const currentContent = lastUserMsg.content
+        // poe 需要通过用户消息传递 reasoningEffort
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
-          lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+        if (lastUserMsg) {
+          if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
+            const postsuffix = '/no_think'
+            const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+            const currentContent = lastUserMsg.content
+
+            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+          }
+          if (this.provider.id === SystemProviderIds.poe) {
+            if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
+              lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
+            } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
+            } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+            }
+          }
         }
 
         // 4. 最终请求消息
@@ -584,8 +597,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // Create the appropriate parameters object based on whether streaming is enabled
         // Note: Some providers like Mistral don't support stream_options
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
-        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
         // minimal cannot be used with web_search tool
         if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort === 'minimal' && enableWebSearch) {
