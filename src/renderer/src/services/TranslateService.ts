@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import { CompletionsParams } from '@renderer/aiCore/legacy/middleware/schemas'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,

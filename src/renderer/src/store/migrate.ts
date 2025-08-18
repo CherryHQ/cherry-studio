@@ -819,6 +819,7 @@ const migrateConfig = {
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })
@@ -876,6 +877,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })

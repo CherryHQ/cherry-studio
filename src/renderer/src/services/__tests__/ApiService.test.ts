@@ -9,12 +9,12 @@ import {
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
-import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
-import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
-import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/legacy/clients'
+import { AnthropicAPIClient } from '@renderer/aiCore/legacy/clients/anthropic/AnthropicAPIClient'
+import { ApiClientFactory } from '@renderer/aiCore/legacy/clients/ApiClientFactory'
+import { GeminiAPIClient } from '@renderer/aiCore/legacy/clients/gemini/GeminiAPIClient'
+import { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
+import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import { isVisionModel } from '@renderer/config/models'
 import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
@@ -2406,7 +2406,8 @@ describe('ApiService', () => {
             },
             description: 'print the name and age',
             required: ['name', 'age']
-          }
+          },
+          type: 'mcp'
         }
       ],
       onChunk,
@@ -2497,7 +2498,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             toolUseId: 'mcp-tool-1',
             arguments: {
@@ -2529,7 +2531,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             toolUseId: 'mcp-tool-1',
             arguments: {
@@ -2560,7 +2563,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             response: {
               content: [
