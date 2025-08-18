@@ -1225,7 +1225,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   poe: {
     api: {
-      url: 'https://api.poe.com/v1'
+      url: 'https://api.poe.com/v1/'
     },
     websites: {
       official: 'https://poe.com/',
