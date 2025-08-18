@@ -68,7 +68,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
         <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
         {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
         {server.tags
-          ?.filter((tag): tag is string => typeof tag === 'string')
+          ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
           .map((tag) => (
             <ServerTag key={tag} color="default">
               {tag}
