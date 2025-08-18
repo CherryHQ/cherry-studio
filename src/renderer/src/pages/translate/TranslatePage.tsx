@@ -665,7 +665,7 @@ const TranslateButton = ({
         </Button>
       )}
       {translating && (
-        <Button danger type="primary" onClick={onAbort} icon={<CirclePause />}>
+        <Button danger type="primary" onClick={onAbort} icon={<CirclePause size={14} />}>
           {t('common.stop')}
         </Button>
       )}
