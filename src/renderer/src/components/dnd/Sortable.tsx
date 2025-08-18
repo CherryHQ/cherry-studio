@@ -2,6 +2,7 @@ import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, use
 import { restrictToHorizontalAxis, restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import {
   horizontalListSortingStrategy,
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
@@ -16,10 +17,19 @@ interface SortableProps<T> {
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
   renderItem: (item: T, props: { isDragging: boolean }) => React.ReactNode
   layout?: 'list' | 'grid'
+  horizontal?: boolean
   className?: string
 }
 
-function Sortable<T>({ items, itemKey, onSortEnd, renderItem, layout = 'list', className }: SortableProps<T>) {
+function Sortable<T>({
+  items,
+  itemKey,
+  onSortEnd,
+  renderItem,
+  layout = 'list',
+  horizontal = false,
+  className
+}: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -42,8 +52,9 @@ function Sortable<T>({ items, itemKey, onSortEnd, renderItem, layout = 'list', c
     }
   }
 
-  const strategy = layout === 'list' ? verticalListSortingStrategy : horizontalListSortingStrategy
-  const modifiers = layout === 'list' ? [restrictToVerticalAxis] : [restrictToHorizontalAxis]
+  const strategy =
+    layout === 'list' ? (horizontal ? horizontalListSortingStrategy : verticalListSortingStrategy) : rectSortingStrategy
+  const modifiers = layout === 'list' ? (horizontal ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]) : []
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd} modifiers={modifiers}>

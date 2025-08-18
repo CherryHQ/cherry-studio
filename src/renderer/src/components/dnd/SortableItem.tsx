@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import React, { CSSProperties } from 'react'
+import { motion } from 'motion/react'
+import React from 'react'
 import styled from 'styled-components'
 
 interface SortableItemProps<T> {
@@ -13,40 +13,49 @@ export function SortableItem<T>({ item, itemKey, renderItem }: SortableItemProps
   const getId = () => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number))
   const id = getId()
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-
-  const wrapperStyle: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    position: 'relative',
-    ...(isDragging && {
-      cursor: 'grabbing',
-      zIndex: 9999
-    })
-  }
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
+    id,
+    transition: null
+  })
 
   return (
-    <div ref={setNodeRef} style={wrapperStyle} {...attributes} {...listeners} className="sortable-item">
-      <ItemContent className={isDragging ? 'dragging' : ''}>{renderItem(item, { isDragging })}</ItemContent>
-    </div>
+    <ItemContent
+      ref={setNodeRef}
+      layoutId={String(id)}
+      animate={
+        transform
+          ? {
+              x: transform.x,
+              y: transform.y,
+              scale: isDragging ? 1.02 : 1,
+              zIndex: isDragging ? 1 : 0
+            }
+          : {
+              x: 0,
+              y: 0,
+              scale: 1
+            }
+      }
+      transition={{
+        duration: !isDragging ? 0.2 : 0,
+        easings: {
+          type: 'spring'
+        },
+        scale: {
+          duration: 0.2
+        },
+        zIndex: {
+          delay: isDragging ? 0 : 0.2
+        }
+      }}
+      className="sortable-item"
+      {...attributes}
+      {...listeners}>
+      {renderItem(item, { isDragging })}
+    </ItemContent>
   )
 }
 
-const ItemContent = styled.div`
-  --scale: 1.02;
-
-  &.dragging {
-    animation: pop 200ms cubic-bezier(0.18, 0.67, 0.6, 1.22);
-    transform: scale(var(--scale));
-    opacity: 1;
-  }
-
-  @keyframes pop {
-    0% {
-      transform: scale(1);
-    }
-    100% {
-      transform: scale(var(--scale));
-    }
-  }
+const ItemContent = styled(motion.div)`
+  position: relative;
 `
