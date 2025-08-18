@@ -2,10 +2,12 @@ import { loggerService } from '@logger'
 import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { fetchLanguageDetection } from '@renderer/services/ApiService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
 import React, { RefObject } from 'react'
+import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('Utils:translate')
 
@@ -27,7 +29,7 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
   switch (method) {
     case 'auto':
       // hard encoded threshold
-      result = text.length < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
+      result = estimateTextTokens(text) < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
       break
     case 'franc':
       result = detectLanguageByFranc(text)
@@ -46,7 +48,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   logger.info('Detect langugage by llm')
   let detectedLang = ''
   await fetchLanguageDetection({
-    text: inputText.slice(0, 50),
+    text: sliceByTokens(inputText, 0, 50),
     onResponse: (text) => {
       detectedLang = text.replace(/^\s*\n+/g, '')
     }
