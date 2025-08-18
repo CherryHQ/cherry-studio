@@ -780,6 +780,7 @@
         "label": "按拼音排序"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
@@ -3668,6 +3669,9 @@
         "save": "保存翻译历史失败"
       },
       "title": "翻译历史"
+    },
+    "info": {
+      "aborted": "翻译中止"
     },
     "input": {
       "placeholder": "输入文本进行翻译"

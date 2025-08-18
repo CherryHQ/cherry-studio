@@ -13,10 +13,12 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction, uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -26,7 +28,7 @@ import {
 import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, FolderClock, Settings2 } from 'lucide-react'
+import { Check, CirclePause, FolderClock, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -68,6 +70,7 @@ const TranslatePage: FC = () => {
   // redux states
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
+  const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -116,13 +119,17 @@ const TranslatePage: FC = () => {
       }
 
       setTranslating(true)
+      const abortKey = uuid()
+      dispatch(setTranslateAbortKey(abortKey))
 
       let translated: string
       try {
-        translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
+        translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
       } catch (e) {
-        logger.error('Failed to translate text', e as Error)
-        window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+        if (!isAbortError(e)) {
+          logger.error('Failed to translate text', e as Error)
+          window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+        }
         setTranslating(false)
         return
       }
@@ -194,6 +201,15 @@ const TranslatePage: FC = () => {
       })
       return
     }
+  }
+
+  // 控制停止翻译
+  const onAbort = async () => {
+    if (!abortKey || !abortKey.trim()) {
+      logger.error('Failed to abort. Invalid abortKey.')
+      return
+    }
+    abortCompletion(abortKey)
   }
 
   // 控制双向翻译切换
@@ -432,7 +448,12 @@ const TranslatePage: FC = () => {
               />
             </Tooltip>
             {getLanguageDisplay()}
-            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
+            <TranslateButton
+              translating={translating}
+              onTranslate={onTranslate}
+              couldTranslate={couldTranslate}
+              onAbort={onAbort}
+            />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
             <ModelSelectButton
@@ -617,11 +638,13 @@ const OutputText = styled.div`
 const TranslateButton = ({
   translating,
   onTranslate,
-  couldTranslate
+  couldTranslate,
+  onAbort
 }: {
   translating: boolean
   onTranslate: () => void
   couldTranslate: boolean
+  onAbort: () => void
 }) => {
   const { t } = useTranslation()
   return (
@@ -636,14 +659,16 @@ const TranslateButton = ({
           Shift + Enter: {t('translate.tooltip.newline')}
         </div>
       }>
-      <Button
-        type="primary"
-        loading={translating}
-        onClick={onTranslate}
-        disabled={!couldTranslate}
-        icon={<SendOutlined />}>
-        {t('translate.button.translate')}
-      </Button>
+      {!translating && (
+        <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
+          {t('translate.button.translate')}
+        </Button>
+      )}
+      {translating && (
+        <Button danger type="primary" onClick={onAbort} icon={<CirclePause />}>
+          {t('common.stop')}
+        </Button>
+      )}
     </Tooltip>
   )
 }
