@@ -228,146 +228,161 @@ const CodeToolsPage: FC = () => {
 
   return (
     <Container>
-      <Title>{t('code.title')}</Title>
-      <Description>{t('code.description')}</Description>
+      <MainContent>
+        <Title>{t('code.title')}</Title>
+        <Description>{t('code.description')}</Description>
 
-      {/* Bun 安装状态提示 */}
-      {!isBunInstalled && (
-        <BunInstallAlert>
-          <Alert
-            type="warning"
-            banner
-            style={{ borderRadius: 'var(--list-item-border-radius)' }}
-            message={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{t('code.bun_required_message')}</span>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Download size={14} />}
-                  onClick={handleInstallBun}
-                  loading={isInstallingBun}
-                  disabled={isInstallingBun}>
-                  {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
-                </Button>
-              </div>
-            }
-          />
-        </BunInstallAlert>
-      )}
-
-      <SettingsPanel>
-        <SettingsItem>
-          <div className="settings-label">{t('code.cli_tool')}</div>
-          <Select
-            style={{ width: '100%' }}
-            placeholder={t('code.cli_tool_placeholder')}
-            value={selectedCliTool}
-            onChange={handleCliToolChange}
-            options={CLI_TOOLS}
-          />
-        </SettingsItem>
-
-        <SettingsItem>
-          <div className="settings-label">{t('code.model')}</div>
-          <ModelSelector
-            providers={availableProviders}
-            predicate={modelPredicate}
-            style={{ width: '100%' }}
-            placeholder={t('code.model_placeholder')}
-            value={selectedModel ? getModelUniqId(selectedModel) : undefined}
-            onChange={handleModelChange}
-            allowClear
-          />
-        </SettingsItem>
-
-        <SettingsItem>
-          <div className="settings-label">{t('code.working_directory')}</div>
-          <Space.Compact style={{ width: '100%', display: 'flex' }}>
-            <Select
-              style={{ flex: 1, width: 480 }}
-              placeholder={t('code.folder_placeholder')}
-              value={currentDirectory || undefined}
-              onChange={handleDirectoryChange}
-              allowClear
-              showSearch
-              filterOption={(input, option) => {
-                const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
-                return label.toLowerCase().includes(input.toLowerCase())
-              }}
-              options={directories.map((dir) => ({
-                value: dir,
-                label: (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dir}</span>
-                    <X
-                      size={14}
-                      style={{ marginLeft: 8, cursor: 'pointer', color: '#999' }}
-                      onClick={(e) => handleRemoveDirectory(dir, e)}
-                    />
-                  </div>
-                )
-              }))}
+        {/* Bun 安装状态提示 */}
+        {!isBunInstalled && (
+          <BunInstallAlert>
+            <Alert
+              type="warning"
+              banner
+              style={{ borderRadius: 'var(--list-item-border-radius)' }}
+              message={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t('code.bun_required_message')}</span>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Download size={14} />}
+                    onClick={handleInstallBun}
+                    loading={isInstallingBun}
+                    disabled={isInstallingBun}>
+                    {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
+                  </Button>
+                </div>
+              }
             />
-            <Button onClick={handleFolderSelect} style={{ width: 120 }}>
-              {t('code.select_folder')}
-            </Button>
-          </Space.Compact>
-        </SettingsItem>
+          </BunInstallAlert>
+        )}
 
-        <SettingsItem>
-          <div className="settings-label">{t('code.update_options')}</div>
-          <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
-            {t('code.auto_update_to_latest')}
-          </Checkbox>
-        </SettingsItem>
-      </SettingsPanel>
+        <SettingsPanel>
+          <SettingsItem>
+            <div className="settings-label">{t('code.cli_tool')}</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder={t('code.cli_tool_placeholder')}
+              value={selectedCliTool}
+              onChange={handleCliToolChange}
+              options={CLI_TOOLS}
+            />
+          </SettingsItem>
 
-      <Button
-        type="primary"
-        icon={<Terminal size={16} />}
-        size="large"
-        onClick={handleLaunch}
-        loading={isLaunching}
-        disabled={!canLaunch || !isBunInstalled}
-        block>
-        {isLaunching ? t('code.launching') : t('code.launch.label')}
-      </Button>
+          <SettingsItem>
+            <div className="settings-label">{t('code.model')}</div>
+            <ModelSelector
+              providers={availableProviders}
+              predicate={modelPredicate}
+              style={{ width: '100%' }}
+              placeholder={t('code.model_placeholder')}
+              value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+              onChange={handleModelChange}
+              allowClear
+            />
+          </SettingsItem>
+
+          <SettingsItem>
+            <div className="settings-label">{t('code.working_directory')}</div>
+            <Space.Compact style={{ width: '100%', display: 'flex' }}>
+              <Select
+                style={{ flex: 1, width: 480 }}
+                placeholder={t('code.folder_placeholder')}
+                value={currentDirectory || undefined}
+                onChange={handleDirectoryChange}
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
+                  return label.toLowerCase().includes(input.toLowerCase())
+                }}
+                options={directories.map((dir) => ({
+                  value: dir,
+                  label: (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dir}</span>
+                      <X
+                        size={14}
+                        style={{ marginLeft: 8, cursor: 'pointer', color: '#999' }}
+                        onClick={(e) => handleRemoveDirectory(dir, e)}
+                      />
+                    </div>
+                  )
+                }))}
+              />
+              <Button onClick={handleFolderSelect} style={{ width: 120 }}>
+                {t('code.select_folder')}
+              </Button>
+            </Space.Compact>
+          </SettingsItem>
+
+          <SettingsItem>
+            <div className="settings-label">{t('code.update_options')}</div>
+            <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
+              {t('code.auto_update_to_latest')}
+            </Checkbox>
+          </SettingsItem>
+        </SettingsPanel>
+
+        <Button
+          type="primary"
+          icon={<Terminal size={16} />}
+          size="large"
+          onClick={handleLaunch}
+          loading={isLaunching}
+          disabled={!canLaunch || !isBunInstalled}
+          block>
+          {isLaunching ? t('code.launching') : t('code.launch.label')}
+        </Button>
+      </MainContent>
     </Container>
   )
 }
 
 // 样式组件
 const Container = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+`
+
+const MainContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: 600px;
-  margin: auto;
+  padding: clamp(16px, 2.5vh, 24px);
+  background: var(--color-background);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `
 
 const Title = styled.h1`
   font-size: 24px;
   font-weight: 600;
-  margin-bottom: 8px;
-  margin-top: -50px;
+  margin-bottom: clamp(6px, 2.5vh, 16px);
   color: var(--color-text-1);
 `
 
 const Description = styled.p`
   font-size: 14px;
   color: var(--color-text-2);
-  margin-bottom: 32px;
-  line-height: 1.5;
+  margin-bottom: clamp(20px, 3.5vh, 32px);
+  line-height: 1.4;
 `
 
 const SettingsPanel = styled.div`
-  margin-bottom: 32px;
+  margin-bottom: clamp(20px, 3.5vh, 32px);
 `
 
 const SettingsItem = styled.div`
-  margin-bottom: 24px;
+  margin-bottom: clamp(16px, 2.5vh, 24px);
 
   .settings-label {
     font-size: 14px;
-    margin-bottom: 8px;
+    margin-bottom: clamp(6px, 1.5vh, 8px);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -377,7 +392,7 @@ const SettingsItem = styled.div`
 `
 
 const BunInstallAlert = styled.div`
-  margin-bottom: 24px;
+  margin-bottom: clamp(12px, 2.5vh, 24px);
 `
 
 export default CodeToolsPage
