@@ -573,6 +573,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
           }
           if (this.provider.id === SystemProviderIds.poe) {
+            // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
             if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
               lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
             } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
