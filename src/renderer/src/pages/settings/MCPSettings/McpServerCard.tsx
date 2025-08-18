@@ -67,11 +67,13 @@ const McpServerCard: FC<McpServerCardProps> = ({
       <ServerFooter>
         <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
         {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
-        {server.tags?.map((tag) => (
-          <ServerTag key={tag} color="default">
-            {tag}
-          </ServerTag>
-        ))}
+        {server.tags
+          ?.filter((tag): tag is string => typeof tag === 'string')
+          .map((tag) => (
+            <ServerTag key={tag} color="default">
+              {tag}
+            </ServerTag>
+          ))}
       </ServerFooter>
     </CardContainer>
   )
