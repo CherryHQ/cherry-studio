@@ -780,6 +780,7 @@
         "label": "Sort by Pinyin"
       }
     },
+    "stop": "Stop",
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
@@ -3668,6 +3669,9 @@
         "save": "Failed to save translation history"
       },
       "title": "Translation History"
+    },
+    "info": {
+      "aborted": "Translation aborted"
     },
     "input": {
       "placeholder": "Enter text to translate"

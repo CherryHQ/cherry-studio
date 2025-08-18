@@ -780,6 +780,7 @@
         "label": "Ordenar por pinyin"
       }
     },
+    "stop": "Detener",
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
@@ -1577,6 +1578,7 @@
       "style_type_tip": "Estilo de la imagen editada, solo aplicable para la versión V_2 y posteriores"
     },
     "generate": {
+      "height": "altura",
       "magic_prompt_option_tip": "Optimización inteligente de indicaciones para mejorar los resultados de generación",
       "model_tip": "Versión del modelo: V2 es el modelo más reciente de la interfaz, V2A es un modelo rápido, V_1 es el modelo inicial y _TURBO es la versión acelerada",
       "negative_prompt_tip": "Describe elementos que no deseas en la imagen. Solo compatible con las versiones V_1, V_1_TURBO, V_2 y V_2_TURBO",
@@ -1584,8 +1586,11 @@
       "person_generation": "Generar Persona",
       "person_generation_tip": "Permite que el modelo genere imágenes de personas",
       "rendering_speed_tip": "Controla el equilibrio entre velocidad y calidad de renderizado, solo aplicable a la versión V_3",
+      "safety_tolerance": "Tolerancia a la seguridad",
+      "safety_tolerance_tip": "Controla la tolerancia de seguridad para la generación de imágenes, aplicable solo a la versión FLUX.1-Kontext-pro",
       "seed_tip": "Controla la aleatoriedad en la generación de imágenes, útil para reproducir resultados idénticos",
-      "style_type_tip": "Estilo de generación de imágenes, solo aplicable para la versión V_2 y posteriores"
+      "style_type_tip": "Estilo de generación de imágenes, solo aplicable para la versión V_2 y posteriores",
+      "width": "Ancho"
     },
     "generated_image": "Generar imagen",
     "go_to_settings": "Ir a configuración",
@@ -3664,6 +3669,9 @@
         "save": "Error al guardar el historial de traducciones"
       },
       "title": "Historial de traducciones"
+    },
+    "info": {
+      "aborted": "Traducción cancelada"
     },
     "input": {
       "placeholder": "Ingrese el texto para traducir"
