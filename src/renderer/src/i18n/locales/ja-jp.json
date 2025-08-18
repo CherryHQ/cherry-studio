@@ -3668,9 +3668,9 @@
     "empty": "翻訳内容が空です",
     "error": {
       "detect": {
-        "qwen_mt": "QwenMTモデルは言語検出に使用できません"
+        "qwen_mt": "QwenMTモデルは言語検出に使用できません",
+        "unknown": "検出された言語は不明です"
       },
-      "detected_unknown": "未知の言語は交換できません",
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
       "invalid_source": "無効なソース言語",

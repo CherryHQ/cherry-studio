@@ -3668,9 +3668,9 @@
     "empty": "翻译内容为空",
     "error": {
       "detect": {
-        "qwen_mt": "QwenMT模型不能用于语言检测"
+        "qwen_mt": "QwenMT模型不能用于语言检测",
+        "unknown": "检测到未知语言"
       },
-      "detected_unknown": "未知语言不可交换",
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",

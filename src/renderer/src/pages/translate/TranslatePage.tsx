@@ -262,7 +262,7 @@ const TranslatePage: FC = () => {
       return
     }
     if (source.langCode === UNKNOWN.langCode) {
-      window.message.error(t('translate.error.detected_unknown'))
+      window.message.error(t('translate.error.detect.unknown'))
       return
     }
     const target = targetLanguage

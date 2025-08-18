@@ -3664,9 +3664,9 @@
     "empty": "O conteúdo de tradução está vazio",
     "error": {
       "detect": {
-        "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma"
+        "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
+        "unknown": "Idioma desconhecido detectado"
       },
-      "detected_unknown": "Idioma desconhecido não pode ser trocado",
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "invalid_source": "Idioma de origem inválido",

@@ -3668,9 +3668,9 @@
     "empty": "Translation content is empty",
     "error": {
       "detect": {
-        "qwen_mt": "QwenMT model cannot be used for language detection"
+        "qwen_mt": "QwenMT model cannot be used for language detection",
+        "unknown": "Unknown language detected"
       },
-      "detected_unknown": "Unknown language cannot be exchanged",
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
       "invalid_source": "Invalid source language",

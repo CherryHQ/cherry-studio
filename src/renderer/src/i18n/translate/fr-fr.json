@@ -3664,9 +3664,9 @@
     "empty": "Le contenu à traduire est vide",
     "error": {
       "detect": {
-        "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues"
+        "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues",
+        "unknown": "Langue inconnue détectée"
       },
-      "detected_unknown": "Langue inconnue non échangeable",
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "invalid_source": "Langue source invalide",

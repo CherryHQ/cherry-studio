@@ -3664,9 +3664,9 @@
     "empty": "El contenido de traducción está vacío",
     "error": {
       "detect": {
-        "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas"
+        "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas",
+        "unknown": "Se detectó un idioma desconocido"
       },
-      "detected_unknown": "Idioma desconocido no intercambiable",
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
       "invalid_source": "Invalid source language",
