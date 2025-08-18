@@ -1,14 +1,16 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
-import { DraggableList } from '@renderer/components/DraggableList'
+import { Sortable } from '@renderer/components/dnd'
+import { useDndState } from '@renderer/components/dnd/useDndState'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
+import { droppableReorder } from '@renderer/utils'
 import { Tooltip, Typography } from 'antd'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -27,7 +29,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateDefaultAssistant
 }) => {
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
-  const [dragging, setDragging] = useState(false)
+  const { isDragging } = useDndState()
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
@@ -106,26 +108,30 @@ const Assistants: FC<AssistantsTabProps> = ({
               )}
               {!collapsedTags[group.tag] && (
                 <div>
-                  <DraggableList
-                    list={group.assistants}
-                    onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
-                    onDragStart={() => setDragging(true)}
-                    onDragEnd={() => setDragging(false)}>
-                    {(assistant) => (
-                      <AssistantItem
-                        key={assistant.id}
-                        assistant={assistant}
-                        isActive={assistant.id === activeAssistant.id}
-                        sortBy={assistantsTabSortType}
-                        onSwitch={setActiveAssistant}
-                        onDelete={onDelete}
-                        addAgent={addAgent}
-                        copyAssistant={copyAssistant}
-                        onCreateDefaultAssistant={onCreateDefaultAssistant}
-                        handleSortByChange={handleSortByChange}
-                      />
+                  <Sortable
+                    items={group.assistants}
+                    itemKey="id"
+                    onSortEnd={({ oldIndex, newIndex }) => {
+                      const newList = droppableReorder(group.assistants, oldIndex, newIndex)
+                      handleGroupReorder(group.tag, newList)
+                    }}
+                    renderItem={(assistant, { isDragging }) => (
+                      <div style={{ marginBottom: 8 }} className={isDragging ? 'dragging' : ''}>
+                        <AssistantItem
+                          key={assistant.id}
+                          assistant={assistant}
+                          isActive={assistant.id === activeAssistant.id}
+                          sortBy={assistantsTabSortType}
+                          onSwitch={setActiveAssistant}
+                          onDelete={onDelete}
+                          addAgent={addAgent}
+                          copyAssistant={copyAssistant}
+                          onCreateDefaultAssistant={onCreateDefaultAssistant}
+                          handleSortByChange={handleSortByChange}
+                        />
+                      </div>
                     )}
-                  </DraggableList>
+                  />
                 </div>
               )}
             </TagsContainer>
@@ -138,27 +144,31 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DraggableList
-        list={assistants}
-        onUpdate={updateAssistants}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            sortBy={assistantsTabSortType}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            copyAssistant={copyAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-            handleSortByChange={handleSortByChange}
-          />
+      <Sortable
+        items={assistants}
+        itemKey="id"
+        onSortEnd={({ oldIndex, newIndex }) => {
+          const newList = droppableReorder(assistants, oldIndex, newIndex)
+          updateAssistants(newList)
+        }}
+        renderItem={(assistant, { isDragging }) => (
+          <div style={{ marginBottom: 8 }} className={isDragging ? 'dragging' : ''}>
+            <AssistantItem
+              key={assistant.id}
+              assistant={assistant}
+              isActive={assistant.id === activeAssistant.id}
+              sortBy={assistantsTabSortType}
+              onSwitch={setActiveAssistant}
+              onDelete={onDelete}
+              addAgent={addAgent}
+              copyAssistant={copyAssistant}
+              onCreateDefaultAssistant={onCreateDefaultAssistant}
+              handleSortByChange={handleSortByChange}
+            />
+          </div>
         )}
-      </DraggableList>
-      {!dragging && renderAddAssistantButton}
+      />
+      {!isDragging && renderAddAssistantButton}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )
