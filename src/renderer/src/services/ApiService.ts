@@ -658,7 +658,7 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
   const stream = isSupportedStreamOutput()
 
   const params: CompletionsParams = {
-    callType: 'lang-detect',
+    callType: 'translate-lang-detect',
     messages: 'follow system prompt',
     assistant,
     streamOutput: stream,
