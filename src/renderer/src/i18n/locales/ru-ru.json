@@ -1438,6 +1438,27 @@
     },
     "title": "Встроенные приложения"
   },
+  "minapps": {
+    "baichuan": "Байчжан",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Tencent Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
@@ -2703,6 +2724,11 @@
     },
     "input": {
       "auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
+      "clear": {
+        "all": "Очистить",
+        "knowledge_base": "Очистить выбранные базы знаний",
+        "models": "Очистить все модели"
+      },
       "show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
       "target_language": {
         "chinese": "Китайский упрощенный",

@@ -58,8 +58,6 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
 import InputbarTools, { InputbarToolsRef } from './InputbarTools'
-import KnowledgeBaseInput from './KnowledgeBaseInput'
-import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -439,11 +437,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionedModels.length > 0) {
-      setMentionedModels((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
-
     if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
@@ -766,19 +759,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const handleRemoveModel = (model: Model) => {
-    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
-  }
-
-  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-    updateAssistant({
-      ...assistant,
-      knowledge_bases: newKnowledgeBases
-    })
-    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
@@ -858,15 +838,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
-          {selectedKnowledgeBases.length > 0 && (
-            <KnowledgeBaseInput
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
-            />
-          )}
-          {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
-          )}
           <Textarea
             value={text}
             onChange={onChange}
@@ -923,6 +894,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               resizeTextArea={resizeTextArea}
               mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
+              onClearMentionModels={() => setMentionedModels([])}
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}

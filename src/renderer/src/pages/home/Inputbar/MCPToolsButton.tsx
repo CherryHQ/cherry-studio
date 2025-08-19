@@ -4,7 +4,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
-import { CircleX, Plus, SquareTerminal } from 'lucide-react'
+import { CircleX, Hammer, Plus } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -168,7 +168,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
-      icon: <SquareTerminal />,
+      icon: <Hammer />,
       action: () => EventEmitter.emit('mcp-server-select', server),
       isSelected: assistantMcpServers.some((s) => s.id === server.id)
     }))
@@ -180,7 +180,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     })
 
     newList.unshift({
-      label: t('common.close'),
+      label: t('settings.input.clear.all'),
       description: t('settings.mcp.disable.description'),
       icon: <CircleX />,
       isSelected: false,
@@ -335,7 +335,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     return prompts.map((prompt) => ({
       label: prompt.name,
       description: prompt.description,
-      icon: <SquareTerminal />,
+      icon: <Hammer />,
       action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,7 +415,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           resources.map((resource) => ({
             label: resource.name,
             description: resource.description,
-            icon: <SquareTerminal />,
+            icon: <Hammer />,
             action: () => handleResourceSelect(resource)
           }))
         )
@@ -456,7 +456,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <SquareTerminal
+        <Hammer
           size={18}
           color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
         />

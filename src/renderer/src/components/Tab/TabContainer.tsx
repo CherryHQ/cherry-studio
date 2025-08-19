@@ -14,6 +14,7 @@ import { Tooltip } from 'antd'
 import {
   FileSearch,
   Folder,
+  Hammer,
   Home,
   Languages,
   LayoutGrid,
@@ -22,7 +23,6 @@ import {
   Palette,
   Settings,
   Sparkle,
-  SquareTerminal,
   Sun,
   Terminal,
   X
@@ -53,7 +53,7 @@ const getTabIcon = (tabId: string): React.ReactNode | undefined => {
     case 'knowledge':
       return <FileSearch size={14} />
     case 'mcp':
-      return <SquareTerminal size={14} />
+      return <Hammer size={14} />
     case 'files':
       return <Folder size={14} />
     case 'settings':

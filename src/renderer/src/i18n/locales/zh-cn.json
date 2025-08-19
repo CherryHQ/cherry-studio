@@ -1438,6 +1438,27 @@
     },
     "title": "小程序"
   },
+  "minapps": {
+    "baichuan": "百小应",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智谱清言",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "metaso": "秘塔AI搜索",
+    "nami-ai": "纳米AI",
+    "nami-ai-search": "纳米AI搜索",
+    "qwen": "通义千问",
+    "sensechat": "商量",
+    "tencent-yuanbao": "腾讯元宝",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "万知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS灵犀",
+    "xiaoyi": "小艺",
+    "yuewen": "跃问",
+    "zhihu": "知乎直答"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
@@ -2703,6 +2724,11 @@
     },
     "input": {
       "auto_translate_with_space": "3 个空格快速翻译",
+      "clear": {
+        "all": "清除",
+        "knowledge_base": "清除选中的知识库",
+        "models": "清除@的所有模型"
+      },
       "show_translate_confirm": "显示翻译确认对话框",
       "target_language": {
         "chinese": "简体中文",

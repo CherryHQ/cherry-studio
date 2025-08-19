@@ -1438,6 +1438,27 @@
     },
     "title": "Pequeno aplicativo"
   },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "Aviso: Caso encontre a mensagem do Google \"navegador não confiável\" ao fazer login, faça primeiro o login da conta no mini programa do Google na lista de mini programas, e depois use o login do Google em outros mini programas"
@@ -1586,11 +1607,11 @@
       "person_generation": "Gerar Personagem",
       "person_generation_tip": "Permite que o modelo gere imagens de personagens",
       "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
-      "safety_tolerance": "Tolerância à segurança",
-      "safety_tolerance_tip": "Controla a tolerância de segurança na geração de imagens, aplicável apenas à versão FLUX.1-Kontext-pro",
+      "safety_tolerance": "Tolerância de segurança",
+      "safety_tolerance_tip": "Controle a tolerância de segurança para a geração de imagens, aplicável apenas à versão FLUX.1-Kontext-pro",
       "seed_tip": "Controla a aleatoriedade na geração das imagens, usado para reproduzir resultados idênticos",
       "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
-      "width": "largura"
+      "width": "Largura"
     },
     "generated_image": "Imagem gerada",
     "go_to_settings": "Ir para configurações",
@@ -2703,6 +2724,11 @@
     },
     "input": {
       "auto_translate_with_space": "Traduzir com três espaços rápidos",
+      "clear": {
+        "all": "Limpar",
+        "knowledge_base": "Limpar base de conhecimento selecionada",
+        "models": "Limpar todos os modelos"
+      },
       "show_translate_confirm": "Mostrar diálogo de confirmação de tradução",
       "target_language": {
         "chinese": "Chinês simplificado",

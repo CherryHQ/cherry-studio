@@ -45,7 +45,7 @@ const mcpMarkets = [
   {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
-    logo: 'https://composio.dev/wp-content/uploads/2025/02/Fevicon-composio.png',
+    logo: 'https://avatars.githubusercontent.com/u/128464815',
     descriptionKey: 'settings.mcp.more.composio'
   },
   {
@@ -117,8 +117,8 @@ const MarketHeader = styled.div`
 `
 
 const MarketLogo = styled.img`
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 4px;
   object-fit: cover;
   margin-right: 8px;

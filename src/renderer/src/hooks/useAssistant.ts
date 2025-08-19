@@ -88,31 +88,33 @@ export function useAssistant(id: string) {
     (settings: Partial<AssistantSettings>) => {
       assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
     },
-    [assistant.id, dispatch]
+    [assistant?.id, dispatch]
   )
 
   // 当model变化时，同步reasoning effort为模型支持的合法值
   useEffect(() => {
-    if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
-      const currentReasoningEffort = assistant.settings?.reasoning_effort
-      const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
-      if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-        // 选项不支持时，回退到第一个支持的值
-        // 注意：这里假设可用的options不会为空
-        const fallbackOption = supportedOptions[0]
+    if (assistant?.settings) {
+      if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
+        const currentReasoningEffort = assistant?.settings?.reasoning_effort
+        const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
+        if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
+          // 选项不支持时，回退到第一个支持的值
+          // 注意：这里假设可用的options不会为空
+          const fallbackOption = supportedOptions[0]
 
+          updateAssistantSettings({
+            reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'off'
+          })
+        }
+      } else {
         updateAssistantSettings({
-          reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-          qwenThinkMode: fallbackOption === 'off'
+          reasoning_effort: undefined,
+          qwenThinkMode: undefined
         })
       }
-    } else {
-      updateAssistantSettings({
-        reasoning_effort: undefined,
-        qwenThinkMode: undefined
-      })
     }
-  }, [assistant.settings?.reasoning_effort, model, updateAssistantSettings])
+  }, [assistant?.settings, model, updateAssistantSettings])
 
   return {
     assistant: assistantWithModel,

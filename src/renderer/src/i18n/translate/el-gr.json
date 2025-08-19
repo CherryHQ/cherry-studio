@@ -1438,6 +1438,27 @@
     },
     "title": "Μικρόπρογραμμα"
   },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "Υπόδειξη: Αν συναντήσετε την ειδοποίηση «Μη εμπιστευόμενος περιηγητής» κατά τη σύνδεση στο Google, πρώτα ολοκληρώστε τη σύνδεση του λογαριασμού σας μέσω της εφαρμογής Google στη λίστα μικροεφαρμογών, και στη συνέχεια χρησιμοποιήστε τη σύνδεση Google σε άλλες μικροεφαρμογές"
@@ -1586,11 +1607,11 @@
       "person_generation": "Δημιουργία προσώπου",
       "person_generation_tip": "Επιτρέπει στο μοντέλο να δημιουργεί εικόνες προσώπων",
       "rendering_speed_tip": "Ελέγχει την ισορροπία μεταξύ ταχύτητας και ποιότητας απόδοσης, ισχύει μόνο για την έκδοση V_3",
-      "safety_tolerance": "Επίπεδο ανοχής για την ασφάλεια",
-      "safety_tolerance_tip": "Ελέγξτε το επίπεδο ασφαλούς ανοχής για τη δημιουργία εικόνας, ισχύει μόνο για την έκδοση FLUX.1-Kontext-pro",
+      "safety_tolerance": "Ασφάλεια",
+      "safety_tolerance_tip": "Έλεγχος της ασφάλειας της δημιουργίας εικόνας, ισχύει μόνο για την έκδοση FLUX.1-Kontext-pro",
       "seed_tip": "Ελέγχει την τυχαιότητα της δημιουργίας εικόνας, χρησιμοποιείται για να επαναληφθεί το ίδιο αποτέλεσμα",
       "style_type_tip": "Στυλ δημιουργίας εικόνας, ισχύει μόνο για την έκδοση V_2 και μεταγενέστερες",
-      "width": "πλάτος"
+      "width": "Πλάτος"
     },
     "generated_image": "Δημιουργία εικόνας",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
@@ -2703,6 +2724,11 @@
     },
     "input": {
       "auto_translate_with_space": "Μετάφραση με τρεις γρήγορες πιστώσεις",
+      "clear": {
+        "all": "Εκκαθάριση",
+        "knowledge_base": "Εκκαθάριση επιλεγμένων βάσεων γνώσης",
+        "models": "Εκκαθάριση όλων των μοντέλων"
+      },
       "show_translate_confirm": "Εμφάνιση παραθύρου επιβεβαίωσης μετάφρασης",
       "target_language": {
         "chinese": "Σινογραμματικό",
