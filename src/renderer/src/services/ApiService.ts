@@ -65,7 +65,7 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
+  getSummaryModel,
   getTranslateModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
@@ -677,7 +677,7 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = getSummaryModel() || assistant.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
