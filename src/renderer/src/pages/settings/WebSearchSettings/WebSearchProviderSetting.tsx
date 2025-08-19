@@ -13,7 +13,7 @@ import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info, List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,10 +33,18 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
+  const checkSearchTimerRef = useRef<NodeJS.Timeout>(undefined)
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(checkSearchTimerRef.current)
+    }
+  }, [])
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -125,7 +133,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       })
     } finally {
       setApiChecking(false)
-      setTimeout(() => setApiValid(false), 2500)
+      clearTimeout(checkSearchTimerRef.current)
+      checkSearchTimerRef.current = setTimeout(() => setApiValid(false), 2500)
     }
   }
 
