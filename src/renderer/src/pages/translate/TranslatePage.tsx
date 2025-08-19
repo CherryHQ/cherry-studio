@@ -75,12 +75,20 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
+  const copyTimerRef = useRef<NodeJS.Timeout>(undefined)
 
   const dispatch = useAppDispatch()
 
   _text = text
   _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(copyTimerRef.current)
+    }
+  }, [])
 
   // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
@@ -223,7 +231,8 @@ const TranslatePage: FC = () => {
   const onCopy = () => {
     navigator.clipboard.writeText(translatedContent)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    clearTimeout(copyTimerRef.current)
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
   }
 
   // 控制历史记录点击
