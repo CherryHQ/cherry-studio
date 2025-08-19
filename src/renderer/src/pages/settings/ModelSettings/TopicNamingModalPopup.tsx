@@ -83,7 +83,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   return (
     <Modal
-      title={t('settings.models.summary_model_setting_title')}
+      title={t('settings.models.quick_model.setting_title')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}

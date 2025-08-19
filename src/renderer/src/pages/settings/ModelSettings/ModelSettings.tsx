@@ -85,8 +85,8 @@ const ModelSettings: FC = () => {
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
             <FolderPen size={18} color="var(--color-text)" />
-            {t('settings.models.summary_model')}
-            <InfoTooltip title={t('settings.models.summary_model_tooltip')} />
+            {t('settings.models.quick_model.label')}
+            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
@@ -101,7 +101,7 @@ const ModelSettings: FC = () => {
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
         </HStack>
-        <SettingDescription>{t('settings.models.summary_model_description')}</SettingDescription>
+        <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>

@@ -3139,10 +3139,12 @@
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "选择助手",
-      "summary_model": "摘要模型",
-      "summary_model_description": "执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
-      "summary_model_setting_title": "摘要模型设置",
-      "summary_model_tooltip": "建议选择轻量模型，不建议选择思考模型",
+      "quick_model": {
+        "description": "执行话题命名、搜索关键字提炼等简单任务时使用的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型设置",
+        "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
       "topic_naming": {
         "auto": "话题自动重命名",
         "label": "话题命名",
