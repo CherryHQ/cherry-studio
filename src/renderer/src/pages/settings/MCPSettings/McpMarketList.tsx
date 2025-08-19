@@ -45,7 +45,7 @@ const mcpMarkets = [
   {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
-    logo: 'https://mcp.composio.dev/favicon.ico',
+    logo: 'https://avatars.githubusercontent.com/u/128464815',
     descriptionKey: 'settings.mcp.more.composio'
   },
   {
@@ -119,9 +119,7 @@ const MarketHeader = styled.div`
 const MarketLogo = styled.img`
   width: 24px;
   height: 24px;
-  background-color: #fff;
   border-radius: 4px;
-  padding: 2px;
   object-fit: cover;
   margin-right: 8px;
 `
