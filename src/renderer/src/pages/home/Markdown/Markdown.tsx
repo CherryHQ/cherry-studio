@@ -36,7 +36,7 @@ import Table from './Table'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
-const DISALLOWED_ELEMENTS = ['iframe']
+const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
