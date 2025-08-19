@@ -2122,7 +2122,7 @@ const migrateConfig = {
   },
   '133': (state: RootState) => {
     try {
-      state.settings.sidebarIcons.visible.push('code')
+      state.settings.sidebarIcons.visible.push('code_tools')
       if (state.codeTools) {
         state.codeTools.environmentVariables = {
           'qwen-code': '',
