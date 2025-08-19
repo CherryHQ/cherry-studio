@@ -2119,6 +2119,15 @@ const migrateConfig = {
       logger.error('migrate 132 error', error as Error)
       return state
     }
+  },
+  '133': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible.push('code_tools')
+      return state
+    } catch (error) {
+      logger.error('migrate 133 error', error as Error)
+      return state
+    }
   }
 }
 
