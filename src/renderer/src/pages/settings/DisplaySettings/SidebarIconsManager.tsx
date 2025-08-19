@@ -117,7 +117,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
       files: <Folder size={15} />,
-      code: <Terminal size={16} />
+      code_tools: <Terminal size={16} />
     }),
     []
   )

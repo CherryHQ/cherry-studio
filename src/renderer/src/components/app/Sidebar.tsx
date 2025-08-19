@@ -14,7 +14,6 @@ import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
-  Code,
   FileSearch,
   Folder,
   Languages,
@@ -138,7 +137,7 @@ const MainMenus: FC = () => {
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={17} className="icon" />,
-    code: <Terminal size={18} className="icon" />
+    code_tools: <Terminal size={18} className="icon" />
   }
 
   const pathMap = {
@@ -149,7 +148,7 @@ const MainMenus: FC = () => {
     minapp: '/apps',
     knowledge: '/knowledge',
     files: '/files',
-    code: '/code'
+    code_tools: '/code'
   }
 
   return sidebarIcons.visible.map((icon) => {
