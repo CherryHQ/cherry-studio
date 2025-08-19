@@ -170,6 +170,8 @@ const MinappPopupContainer: React.FC = () => {
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
+  const loadedTimerRef = useRef<NodeJS.Timeout>(undefined)
+
   useBridge()
 
   /** set the popup display status */
@@ -295,9 +297,16 @@ const MinappPopupContainer: React.FC = () => {
       window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
     }
     if (appid == currentMinappId) {
-      setTimeout(() => setIsReady(true), 200)
+      clearTimeout(loadedTimerRef.current)
+      loadedTimerRef.current = setTimeout(() => setIsReady(true), 200)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(loadedTimerRef.current)
+    }
+  }, [])
 
   /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
