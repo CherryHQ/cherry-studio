@@ -3088,7 +3088,6 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
-      "enable_topic_naming": "Topic Auto Naming",
       "manage": {
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
@@ -3117,7 +3116,11 @@
       "summary_model": "[to be translated]:摘要模型",
       "summary_model_description": "[to be translated]:执行话题命名、搜索结果摘要等总结性质的任务时使用的模型",
       "summary_model_setting_title": "[to be translated]:摘要模型设置",
-      "topic_naming_prompt": "Topic Naming Prompt",
+      "topic_naming": {
+        "auto": "Topic Auto Naming",
+        "label": "[to be translated]:话题命名",
+        "prompt": "Topic Naming Prompt"
+      },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
       "translate_model_prompt_message": "Please enter the translate model prompt",

@@ -3088,7 +3088,6 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
-      "enable_topic_naming": "トピックの自動命名",
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
@@ -3117,7 +3116,11 @@
       "summary_model": "[to be translated]:摘要模型",
       "summary_model_description": "[to be translated]:执行话题命名、搜索结果摘要等总结性质的任务时使用的模型",
       "summary_model_setting_title": "[to be translated]:摘要模型设置",
-      "topic_naming_prompt": "トピック命名プロンプト",
+      "topic_naming": {
+        "auto": "トピックの自動命名",
+        "label": "[to be translated]:话题命名",
+        "prompt": "トピック命名プロンプト"
+      },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
