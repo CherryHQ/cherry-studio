@@ -131,8 +131,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     assistant?.webSearchProviderId,
     providers,
     t,
-    updateToModelBuiltinWebSearch,
-    updateWebSearchProvider
+    updateQuickPanelItem,
+    updateToModelBuiltinWebSearch
   ])
 
   const openQuickPanel = useCallback(() => {
