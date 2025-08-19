@@ -2253,8 +2253,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д.",
-          "title": "Использовать модель именования тем для создания заголовков сообщений"
+          "help": "[to be translated]:开启后，使用总结模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
+          "title": "[to be translated]:使用总结模型为导出的消息命名标题"
         }
       },
       "minute_interval_one": "{{count}} минута",
@@ -3114,9 +3114,9 @@
       "quick_assistant_default_tag": "умолчанию",
       "quick_assistant_model": "Модель быстрого помощника",
       "quick_assistant_selection": "Выберите помощника",
-      "topic_naming_model": "Модель именования топика",
-      "topic_naming_model_description": "Модель, используемая при автоматическом именовании нового топика",
-      "topic_naming_model_setting_title": "Настройки модели именования топика",
+      "summary_model": "[to be translated]:摘要模型",
+      "summary_model_description": "[to be translated]:执行话题命名、搜索结果摘要等总结性质的任务时使用的模型",
+      "summary_model_setting_title": "[to be translated]:摘要模型设置",
       "topic_naming_prompt": "Подсказка для именования топика",
       "translate_model": "Модель перевода",
       "translate_model_description": "Модель, используемая для сервиса перевода",
