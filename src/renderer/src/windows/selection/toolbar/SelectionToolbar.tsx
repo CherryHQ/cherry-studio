@@ -103,7 +103,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
-  const copyIconTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const copyIconTimeoutRef = useRef<NodeJS.Timeout>(undefined)
+  const textSelectedTimerRef = useRef<NodeJS.Timeout>(undefined)
 
   const realActionItems = useMemo(() => {
     return actionItems?.filter((item) => item.enabled)
@@ -121,7 +122,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
         isFullScreen.current = selectionData.isFullscreen ?? false
-        setTimeout(() => {
+        clearTimeout(textSelectedTimerRef.current)
+        textSelectedTimerRef.current = setTimeout(() => {
           //make sure the animation is active
           setAnimateKey((prev) => prev + 1)
         }, 400)
@@ -176,6 +178,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     setCopyIconStatus('normal')
     setCopyIconAnimation('none')
     clearTimeout(copyIconTimeoutRef.current)
+    clearTimeout(textSelectedTimerRef.current)
   }
 
   const handleAction = useCallback(
