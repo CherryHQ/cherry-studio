@@ -28,11 +28,13 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { providers } = useWebSearchProviders()
   const { updateAssistant } = useAssistant(assistant.id)
 
+  // 注意：assistant.enableWebSearch 有不同的语义
+  /** 表示是否启用网络搜索 */
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
 
   const WebSearchIcon = useCallback(
-    ({ pid, size = 18 }: { pid?: WebSearchProviderId; size?: number }) => {
-      const iconColor = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
+    ({ pid, size = 18, color }: { pid?: WebSearchProviderId; size?: number; color?: string }) => {
+      const iconColor = color ?? (enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)')
 
       switch (pid) {
         case 'bocha':
@@ -57,19 +59,21 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     [enableWebSearch]
   )
 
-  const updateSelectedWebSearchProvider = useCallback(
+  const updateWebSearchProvider = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-      const currentWebSearchProviderId = assistant.webSearchProviderId
-      const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
       startTransition(() => {
-        updateAssistant({ ...assistant, webSearchProviderId: newWebSearchProviderId, enableWebSearch: false })
+        updateAssistant({
+          ...assistant,
+          webSearchProviderId: providerId,
+          enableWebSearch: false
+        })
       })
     },
     [assistant, updateAssistant]
   )
 
-  const updateSelectedWebSearchBuiltin = useCallback(async () => {
+  const updateToModelBuiltinWebSearch = useCallback(async () => {
     // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
     startTransition(() => {
       updateAssistant({ ...assistant, webSearchProviderId: undefined, enableWebSearch: !assistant.enableWebSearch })
@@ -87,10 +91,10 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <WebSearchIcon size={13} pid={p.id} />,
+        icon: <WebSearchIcon color="" size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
-        action: () => updateSelectedWebSearchProvider(p.id)
+        action: () => updateWebSearchProvider(p.id)
       }))
       .filter((o) => !o.disabled)
 
@@ -103,7 +107,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         icon: <Globe />,
         isSelected: assistant.enableWebSearch,
         disabled: !isWebSearchModelEnabled,
-        action: () => updateSelectedWebSearchBuiltin()
+        action: () => updateToModelBuiltinWebSearch()
       })
     }
 
@@ -115,36 +119,18 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     assistant?.webSearchProviderId,
     providers,
     t,
-    updateSelectedWebSearchBuiltin,
-    updateSelectedWebSearchProvider
+    updateToModelBuiltinWebSearch,
+    updateWebSearchProvider
   ])
 
   const openQuickPanel = useCallback(() => {
-    if (assistant.webSearchProviderId) {
-      updateSelectedWebSearchProvider(undefined)
-      return
-    }
-
-    if (assistant.enableWebSearch) {
-      updateSelectedWebSearchBuiltin()
-      return
-    }
-
     quickPanel.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: '?',
       pageSize: 9
     })
-  }, [
-    assistant.webSearchProviderId,
-    assistant.enableWebSearch,
-    quickPanel,
-    t,
-    providerItems,
-    updateSelectedWebSearchProvider,
-    updateSelectedWebSearchBuiltin
-  ])
+  }, [quickPanel, t, providerItems])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '?') {
