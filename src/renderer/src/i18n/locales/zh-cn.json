@@ -3142,6 +3142,7 @@
       "summary_model": "摘要模型",
       "summary_model_description": "执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
       "summary_model_setting_title": "摘要模型设置",
+      "summary_model_tooltip": "建议选择轻量模型，不建议选择思考模型",
       "topic_naming": {
         "auto": "话题自动重命名",
         "label": "话题命名",

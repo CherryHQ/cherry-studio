@@ -1,4 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
+import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -85,6 +86,7 @@ const ModelSettings: FC = () => {
           <HStack alignItems="center" gap={10}>
             <FolderPen size={18} color="var(--color-text)" />
             {t('settings.models.summary_model')}
+            <InfoTooltip title={t('settings.models.summary_model_tooltip')} />
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
