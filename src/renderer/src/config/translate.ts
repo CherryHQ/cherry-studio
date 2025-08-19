@@ -85,6 +85,13 @@ export const RUSSIAN: TranslateLanguage = {
   emoji: '🇷🇺'
 }
 
+export const GREEK: TranslateLanguage = {
+  value: 'Greek',
+  langCode: 'el-gr',
+  label: () => i18n.t('languages.greek'),
+  emoji: '🇬🇷'
+}
+
 export const POLISH: TranslateLanguage = {
   value: 'Polish',
   langCode: 'pl-pl',
@@ -160,6 +167,7 @@ export const LanguagesEnum = {
   esES: SPANISH,
   ptPT: PORTUGUESE,
   ruRU: RUSSIAN,
+  elGR: GREEK,
   plPL: POLISH,
   arAR: ARABIC,
   trTR: TURKISH,
