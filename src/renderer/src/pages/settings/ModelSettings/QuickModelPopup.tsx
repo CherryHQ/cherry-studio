@@ -1,4 +1,5 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
+import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -61,11 +62,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         </HStack>
         <Divider style={{ margin: 0 }} />
         <div>
-          <Flex align="center" gap={4} style={{ marginBottom: 4 }}>
+          <Flex align="center" gap={4} style={{ marginBottom: 4, height: 30 }}>
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
+            {topicNamingPrompt && <Button icon={<ResetIcon size={14} />} onClick={handleReset} type="text" />}
           </Flex>
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 10 }}
@@ -74,11 +76,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             placeholder={t('prompts.title')}
             style={{ width: '100%' }}
           />
-          {topicNamingPrompt && (
-            <Button style={{ marginTop: 16 }} onClick={handleReset}>
-              {t('common.reset')}
-            </Button>
-          )}
         </div>
       </Flex>
     </Modal>
