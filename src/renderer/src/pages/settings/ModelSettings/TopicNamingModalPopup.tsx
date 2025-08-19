@@ -43,13 +43,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     return (
       <>
         <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} alignItems="center">
-          <div>{t('settings.models.enable_topic_naming')}</div>
+          <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
         </HStack>
         <Divider style={{ margin: '10px 0' }} />
         <div style={{ marginBottom: 20 }}>
           <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
-            <div>{t('settings.models.topic_naming_prompt')}</div>
+            <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
