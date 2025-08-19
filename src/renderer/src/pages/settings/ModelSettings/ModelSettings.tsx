@@ -14,7 +14,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { find } from 'lodash'
-import { FolderPen, Languages, MessageSquareMore, Settings2 } from 'lucide-react'
+import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -81,7 +81,7 @@ const ModelSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
-            <FolderPen size={18} color="var(--color-text)" />
+            <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
             <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
           </HStack>
