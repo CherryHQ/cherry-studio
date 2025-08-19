@@ -17,6 +17,7 @@ import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import type { AutoDetectionMethod, Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -347,9 +348,14 @@ const TranslatePage: FC = () => {
   }, [getLanguageByLangcode])
 
   // 控制设置同步
-  const updateAutoDetectionMethod = (method: AutoDetectionMethod) => {
-    setAutoDetectionMethod(method)
-    db.settings.put({ id: 'translate:detect:method', value: method })
+  const updateAutoDetectionMethod = async (method: AutoDetectionMethod) => {
+    try {
+      await db.settings.put({ id: 'translate:detect:method', value: method })
+      setAutoDetectionMethod(method)
+    } catch (e) {
+      logger.error('Failed to update auto detection method setting.', e as Error)
+      window.message.error(t('translate.error.detect.update_setting') + formatErrorMessage(e))
+    }
   }
 
   // 控制Enter触发翻译

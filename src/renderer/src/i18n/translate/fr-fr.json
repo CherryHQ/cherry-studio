@@ -654,6 +654,8 @@
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
+    "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "install_bun": "Installer Bun",
     "installing_bun": "Installation en cours...",
@@ -3694,7 +3696,8 @@
     "error": {
       "detect": {
         "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues",
-        "unknown": "Langue inconnue détectée"
+        "unknown": "Langue inconnue détectée",
+        "update_setting": "Échec du paramétrage"
       },
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",

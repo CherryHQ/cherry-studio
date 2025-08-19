@@ -654,6 +654,8 @@
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
+    "environment_variables": "variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
     "install_bun": "Instalar Bun",
     "installing_bun": "Instalando...",
@@ -3694,7 +3696,8 @@
     "error": {
       "detect": {
         "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas",
-        "unknown": "Se detectó un idioma desconocido"
+        "unknown": "Se detectó un idioma desconocido",
+        "update_setting": "Configuración fallida"
       },
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
