@@ -2135,6 +2135,33 @@ const migrateConfig = {
       logger.error('migrate 133 error', error as Error)
       return state
     }
+  },
+  '134': (state: RootState) => {
+    try {
+      if (!state.assistants.defaultAssistant.settings) {
+        state.assistants.defaultAssistant.settings = {
+          temperature: DEFAULT_TEMPERATURE,
+          enableTemperature: true,
+          contextCount: DEFAULT_CONTEXTCOUNT,
+          enableMaxTokens: false,
+          maxTokens: 0,
+          streamOutput: true,
+          topP: 1,
+          enableTopP: true,
+          toolUseMode: 'prompt',
+          customParameters: []
+        }
+      } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
+        state.assistants.defaultAssistant.settings = {
+          ...state.assistants.defaultAssistant.settings,
+          toolUseMode: 'prompt'
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 134 error', error as Error)
+      return state
+    }
   }
 }
 
