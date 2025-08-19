@@ -135,7 +135,7 @@ async function fetchExternalTool(
     }
 
     const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.model = getSummaryModel() || assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
     const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
@@ -747,7 +747,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getSummaryModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
