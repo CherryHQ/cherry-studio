@@ -3114,7 +3114,7 @@
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
       "summary_model": "[to be translated]:摘要模型",
-      "summary_model_description": "[to be translated]:执行话题命名、搜索结果摘要等总结性质的任务时使用的模型",
+      "summary_model_description": "[to be translated]:执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
       "summary_model_setting_title": "[to be translated]:摘要模型设置",
       "topic_naming": {
         "auto": "トピックの自動命名",

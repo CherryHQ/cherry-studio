@@ -3114,7 +3114,7 @@
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "选择助手",
       "summary_model": "摘要模型",
-      "summary_model_description": "执行话题命名、搜索结果摘要等总结性质的任务时使用的模型",
+      "summary_model_description": "执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
       "summary_model_setting_title": "摘要模型设置",
       "topic_naming": {
         "auto": "话题自动重命名",
