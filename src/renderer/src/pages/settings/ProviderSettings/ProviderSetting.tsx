@@ -237,12 +237,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Button
-              type="text"
-              icon={<Bolt size={14} />}
-              size="small"
-              onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
-            />
+            <Tooltip title={t('settings.provider.api.options.label')}>
+              <Button
+                type="text"
+                icon={<Bolt size={14} />}
+                size="small"
+                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+              />
+            </Tooltip>
           )}
         </Flex>
         <Switch
