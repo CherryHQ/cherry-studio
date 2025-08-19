@@ -793,6 +793,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [couldMentionNotVisionModel]
   )
 
+  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
+
   const onToggleExpended = () => {
     const currentlyExpanded = expended || !!textareaHeight
     const shouldExpand = !currentlyExpanded
@@ -893,7 +895,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               resizeTextArea={resizeTextArea}
               mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
-              onClearMentionModels={() => setMentionedModels([])}
+              onClearMentionModels={onClearMentionModels}
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
