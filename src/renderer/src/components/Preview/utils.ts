@@ -1,5 +1,4 @@
 import { makeSvgSizeAdaptive } from '@renderer/utils'
-import DOMPurify from 'dompurify'
 
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.
@@ -15,12 +14,14 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
     throw new Error('Host element for SVG rendering is not available.')
   }
 
-  // Sanitize the SVG content
-  const sanitizedContent = DOMPurify.sanitize(svgContent, {
-    USE_PROFILES: { svg: true, svgFilters: true },
-    RETURN_DOM_FRAGMENT: false,
-    RETURN_DOM: false
-  })
+  // FIXME: Sanitize the SVG content
+  // const sanitizedContent = DOMPurify.sanitize(svgContent, {
+  //   USE_PROFILES: { svg: true, svgFilters: true },
+  //   RETURN_DOM_FRAGMENT: false,
+  //   RETURN_DOM: false
+  // })
+
+  const sanitizedContent = svgContent
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 
