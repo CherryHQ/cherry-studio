@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { DraggableList } from '@renderer/components/DraggableList'
+import { Sortable } from '@renderer/components/dnd'
 import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
@@ -210,9 +210,19 @@ const McpServersList: FC = () => {
           </Button>
         </ButtonGroup>
       </ListHeader>
-      <DraggableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
-        {(server: MCPServer) => (
-          <div onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
+      <SortableContainer>
+        <Sortable
+          items={mcpServers}
+          itemKey="id"
+          onSortEnd={({ oldIndex, newIndex }) => {
+            const newList = [...mcpServers]
+            const [removed] = newList.splice(oldIndex, 1)
+            newList.splice(newIndex, 0, removed)
+            updateMcpServers(newList)
+          }}
+          layout="grid"
+          className="mcp-servers-grid"
+          renderItem={(server) => (
             <McpServerCard
               server={server}
               version={serverVersions[server.id]}
@@ -222,9 +232,9 @@ const McpServersList: FC = () => {
               onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
               onOpenUrl={(url) => window.open(url, '_blank')}
             />
-          </div>
-        )}
-      </DraggableList>
+          )}
+        />
+      </SortableContainer>
       {mcpServers.length === 0 && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -258,6 +268,21 @@ const Container = styled(Scrollbar)`
   padding-top: 15px;
   gap: 15px;
   overflow-y: auto;
+`
+
+const SortableContainer = styled.div`
+  width: 100%;
+
+  .mcp-servers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    width: 100%;
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
 `
 
 const ListHeader = styled.div`
