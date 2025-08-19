@@ -2123,7 +2123,7 @@ const migrateConfig = {
   },
   '133': (state: RootState) => {
     try {
-      state.llm.summaryModel = state.llm.topicNamingModel
+      state.llm.quickModel = state.llm.topicNamingModel
       return state
     } catch (error) {
       logger.error('migrate 133 error', error as Error)

@@ -197,7 +197,7 @@ vi.mock('@renderer/store/llm.ts', () => {
       provider: 'gemini',
       supported_text_delta: true
     },
-    summaryModel: {
+    quickModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',

@@ -99,8 +99,8 @@ export function getDefaultModel() {
   return store.getState().llm.defaultModel
 }
 
-export function getSummaryModel() {
-  return store.getState().llm.summaryModel
+export function getQuickModel() {
+  return store.getState().llm.quickModel
 }
 
 export function getTranslateModel() {

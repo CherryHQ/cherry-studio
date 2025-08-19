@@ -24,7 +24,7 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, summaryModel, translateModel, setDefaultModel, setSummaryModel, setTranslateModel } =
+  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
@@ -44,10 +44,7 @@ const ModelSettings: FC = () => {
     [defaultModel]
   )
 
-  const defaultSummaryModel = useMemo(
-    () => (hasModel(summaryModel) ? getModelUniqId(summaryModel) : undefined),
-    [summaryModel]
-  )
+  const defaultQuickModel = useMemo(() => (hasModel(quickModel) ? getModelUniqId(quickModel) : undefined), [quickModel])
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -93,10 +90,10 @@ const ModelSettings: FC = () => {
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
-            value={defaultSummaryModel}
-            defaultValue={defaultSummaryModel}
+            value={defaultQuickModel}
+            defaultValue={defaultQuickModel}
             style={{ width: 360 }}
-            onChange={(value) => setSummaryModel(find(allModels, JSON.parse(value)) as Model)}
+            onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
