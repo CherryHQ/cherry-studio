@@ -2976,7 +2976,6 @@
         "label": "Disparador de detalhes da grade"
       },
       "input": {
-        "enable_delete_model": "Ativar tecla de exclusão para remover modelos/anexos inseridos",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
         "paste_long_text_as_file": "Colar texto longo como arquivo",
         "paste_long_text_threshold": "Limite de texto longo",

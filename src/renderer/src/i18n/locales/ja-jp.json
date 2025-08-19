@@ -654,6 +654,8 @@
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
+    "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
@@ -2976,7 +2978,6 @@
         "label": "グリッド詳細トリガー"
       },
       "input": {
-        "enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
         "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
         "paste_long_text_threshold": "長いテキストの長さ",

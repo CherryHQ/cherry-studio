@@ -1320,7 +1320,6 @@ const migrateConfig = {
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
-      state.settings.enableBackspaceDeleteModel = true
       return state
     } catch (error) {
       return state
@@ -2123,7 +2122,24 @@ const migrateConfig = {
   },
   '133': (state: RootState) => {
     try {
+      state.settings.sidebarIcons.visible.push('code_tools')
+      if (state.codeTools) {
+        state.codeTools.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 133 error', error as Error)
+      return state
+    }
+  },
+  '134': (state: RootState) => {
+    try {
       state.llm.quickModel = state.llm.topicNamingModel
+
       return state
     } catch (error) {
       logger.error('migrate 133 error', error as Error)

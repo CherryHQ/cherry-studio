@@ -21,7 +21,15 @@ import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'code_tools'
 
 export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'assistants',
@@ -176,7 +184,6 @@ export interface SettingsState {
   enableSpellCheck: boolean
   spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
-  enableBackspaceDeleteModel: boolean
   // 硬件加速设置
   disableHardwareAcceleration: boolean
   exportMenuOptions: {
@@ -352,7 +359,6 @@ export const initialState: SettingsState = {
   enableSpellCheck: false,
   spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
-  enableBackspaceDeleteModel: true,
   // 硬件加速设置
   disableHardwareAcceleration: false,
   exportMenuOptions: {
@@ -776,9 +782,6 @@ const settingsSlice = createSlice({
     setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
       state.enableQuickPanelTriggers = action.payload
     },
-    setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
-      state.enableBackspaceDeleteModel = action.payload
-    },
     setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
       state.disableHardwareAcceleration = action.payload
     },
@@ -953,7 +956,6 @@ export const {
   setSpellCheckLanguages,
   setExportMenuOptions,
   setEnableQuickPanelTriggers,
-  setEnableBackspaceDeleteModel,
   setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIVerbosity,

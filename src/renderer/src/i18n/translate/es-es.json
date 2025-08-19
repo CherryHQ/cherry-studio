@@ -2976,7 +2976,6 @@
         "label": "Desencadenante de detalles de cuadrícula"
       },
       "input": {
-        "enable_delete_model": "Habilitar la eliminación con la tecla de borrado para modelos/archivos adjuntos introducidos",
         "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
         "paste_long_text_as_file": "Pegar texto largo como archivo",
         "paste_long_text_threshold": "Límite de longitud de texto largo",

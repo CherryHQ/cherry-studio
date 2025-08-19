@@ -2976,7 +2976,6 @@
         "label": "Déclencheur de popover de la grille"
       },
       "input": {
-        "enable_delete_model": "Activer la touche Supprimer pour effacer le modèle/pièce jointe saisie",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
         "paste_long_text_threshold": "Seuil de longueur de texte",
