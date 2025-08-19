@@ -1578,6 +1578,7 @@
       "style_type_tip": "Estilo da imagem editada, disponível apenas para a versão V_2 ou superior"
     },
     "generate": {
+      "height": "[to be translated]:高度",
       "magic_prompt_option_tip": "Otimização inteligente do prompt para melhorar os resultados da geração",
       "model_tip": "Versão do modelo: V2 é o modelo mais recente da interface, V2A é o modelo rápido, V_1 é o modelo de primeira geração e _TURBO é a versão acelerada",
       "negative_prompt_tip": "Descreve elementos que você não deseja ver nas imagens; suportado apenas nas versões V_1, V_1_TURBO, V_2 e V_2_TURBO",
@@ -1585,8 +1586,11 @@
       "person_generation": "Gerar Personagem",
       "person_generation_tip": "Permite que o modelo gere imagens de personagens",
       "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
+      "safety_tolerance": "[to be translated]:安全容忍度",
+      "safety_tolerance_tip": "[to be translated]:控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
       "seed_tip": "Controla a aleatoriedade na geração das imagens, usado para reproduzir resultados idênticos",
-      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores"
+      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
+      "width": "[to be translated]:宽度"
     },
     "generated_image": "Imagem gerada",
     "go_to_settings": "Ir para configurações",

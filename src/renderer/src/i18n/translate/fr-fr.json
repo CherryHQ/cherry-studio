@@ -1578,6 +1578,7 @@
       "style_type_tip": "Style de l'image après édition, uniquement applicable aux versions V_2 et ultérieures"
     },
     "generate": {
+      "height": "[to be translated]:高度",
       "magic_prompt_option_tip": "Интеллектуальная оптимизация подсказок для улучшения результатов генерации",
       "model_tip": "Версия модели: V2 — это последняя модель API, V2A — быстрая модель, V_1 — первое поколение модели, _TURBO — ускоренная версия",
       "negative_prompt_tip": "Описывает элементы, которые вы не хотите видеть на изображении. Поддерживается только версиями V_1, V_1_TURBO, V_2 и V_2_TURBO",
@@ -1585,8 +1586,11 @@
       "person_generation": "Générer un personnage",
       "person_generation_tip": "Autoriser le modèle à générer des images de personnages",
       "rendering_speed_tip": "Contrôler l'équilibre entre la vitesse et la qualité du rendu, uniquement applicable à la version V_3",
+      "safety_tolerance": "[to be translated]:安全容忍度",
+      "safety_tolerance_tip": "[to be translated]:控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
       "seed_tip": "Контролирует случайность генерации изображения, используется для воспроизведения одинаковых результатов",
-      "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше"
+      "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
+      "width": "[to be translated]:宽度"
     },
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
