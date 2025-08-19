@@ -283,12 +283,11 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand: string
+    let baseCommand = `${bunPath} "${executablePath}"`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
-      baseCommand = `"${executablePath}"`
       if (updateMessage) {
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
@@ -301,7 +300,7 @@ class CodeToolsService {
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
       const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${executablePath}"`
+      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${baseCommand}"`
     }
 
     switch (platform) {

@@ -10,7 +10,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { Alert, Button, Checkbox, Select, Space } from 'antd'
+import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,11 +35,13 @@ const CodeToolsPage: FC = () => {
   const {
     selectedCliTool,
     selectedModel,
+    environmentVariables,
     directories,
     currentDirectory,
     canLaunch,
     setCliTool,
     setModel,
+    setEnvVars,
     setCurrentDir,
     removeDir,
     selectFolder
@@ -98,6 +100,11 @@ const CodeToolsPage: FC = () => {
         break
       }
     }
+  }
+
+  // 处理环境变量更改
+  const handleEnvVarsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEnvVars(e.target.value)
   }
 
   // 处理文件夹选择
@@ -211,6 +218,22 @@ const CodeToolsPage: FC = () => {
         OPENAI_API_KEY: apiKey,
         OPENAI_BASE_URL: baseUrl,
         OPENAI_MODEL: selectedModel.id
+      }
+    }
+
+    // 解析用户自定义的环境变量
+    if (environmentVariables) {
+      const lines = environmentVariables.split('\n')
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (trimmedLine && trimmedLine.includes('=')) {
+          const [key, ...valueParts] = trimmedLine.split('=')
+          const trimmedKey = key.trim()
+          const value = valueParts.join('=').trim()
+          if (trimmedKey) {
+            env[trimmedKey] = value
+          }
+        }
       }
     }
 
@@ -338,6 +361,18 @@ const CodeToolsPage: FC = () => {
                   {t('code.select_folder')}
                 </Button>
               </Space.Compact>
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.environment_variables')}</div>
+              <Input.TextArea
+                placeholder={`KEY1=value1\nKEY2=value2`}
+                value={environmentVariables}
+                onChange={handleEnvVarsChange}
+                rows={2}
+                style={{ fontFamily: 'monospace' }}
+              />
+              <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>{t('code.env_vars_help')}</div>
             </SettingsItem>
 
             <SettingsItem>

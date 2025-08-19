@@ -6,6 +6,7 @@ import {
   removeDirectory,
   resetCodeTools,
   setCurrentDirectory,
+  setEnvironmentVariables,
   setSelectedCliTool,
   setSelectedModel
 } from '@renderer/store/codeTools'
@@ -29,6 +30,14 @@ export const useCodeTools = () => {
   const setModel = useCallback(
     (model: Model | null) => {
       dispatch(setSelectedModel(model))
+    },
+    [dispatch]
+  )
+
+  // 设置环境变量
+  const setEnvVars = useCallback(
+    (envVars: string) => {
+      dispatch(setEnvironmentVariables(envVars))
     },
     [dispatch]
   )
@@ -85,6 +94,9 @@ export const useCodeTools = () => {
   // 获取当前CLI工具选择的模型
   const selectedModel = codeToolsState.selectedModels[codeToolsState.selectedCliTool] || null
 
+  // 获取当前CLI工具的环境变量
+  const environmentVariables = codeToolsState?.environmentVariables?.[codeToolsState.selectedCliTool] || ''
+
   // 检查是否可以启动（所有必需字段都已填写）
   const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
 
@@ -92,6 +104,7 @@ export const useCodeTools = () => {
     // 状态
     selectedCliTool: codeToolsState.selectedCliTool,
     selectedModel: selectedModel,
+    environmentVariables: environmentVariables,
     directories: codeToolsState.directories,
     currentDirectory: codeToolsState.currentDirectory,
     canLaunch,
@@ -99,6 +112,7 @@ export const useCodeTools = () => {
     // 操作函数
     setCliTool,
     setModel,
+    setEnvVars,
     addDir,
     removeDir,
     setCurrentDir,
