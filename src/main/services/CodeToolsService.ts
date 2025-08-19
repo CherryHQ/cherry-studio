@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -295,7 +296,7 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand = `${bunPath} ${executablePath}`
+    let baseCommand = isWin ? `${executablePath}` : `${bunPath} ${executablePath}`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
@@ -312,7 +313,7 @@ class CodeToolsService {
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
       const installCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${baseCommand}"`
+      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
     switch (platform) {
@@ -334,8 +335,7 @@ end tell`
       case 'win32': {
         // Windows - Use temp bat file for debugging
         const envPrefix = buildEnvPrefix(true)
-        let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-        command = command.replace(bunPath, '')
+        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = path.join(os.tmpdir(), 'cherrystudio')
