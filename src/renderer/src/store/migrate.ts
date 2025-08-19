@@ -2152,10 +2152,7 @@ const migrateConfig = {
           customParameters: []
         }
       } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
-        state.assistants.defaultAssistant.settings = {
-          ...state.assistants.defaultAssistant.settings,
-          toolUseMode: 'prompt'
-        }
+        state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
       }
       return state
     } catch (error) {
