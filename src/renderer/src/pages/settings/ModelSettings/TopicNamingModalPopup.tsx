@@ -42,12 +42,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const TopicNamingSettings = useCallback(() => {
     return (
       <>
-        <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} alignItems="center">
+        <HStack style={{ gap: 10, marginBottom: 20 }} alignItems="center">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
         </HStack>
         <Divider style={{ margin: '10px 0' }} />
-        <div style={{ marginBottom: 20 }}>
+        <div>
           <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
@@ -55,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             </Popover>
           </Flex>
           <Input.TextArea
-            rows={4}
+            autoSize={{ minRows: 3, maxRows: 10 }}
             value={topicNamingPrompt || t('prompts.title')}
             onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value.trim()))}
             placeholder={t('prompts.title')}
