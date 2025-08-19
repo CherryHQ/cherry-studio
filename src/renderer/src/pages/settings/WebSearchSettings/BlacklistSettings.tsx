@@ -8,7 +8,7 @@ import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blackl
 import { Alert, Button, Table, TableProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import AddSubscribePopup from './AddSubscribePopup'
@@ -47,6 +47,14 @@ const BlacklistSettings: FC = () => {
       name: source.name
     })) || []
   )
+  const subscribeValidTimerRef = useRef<NodeJS.Timeout>(undefined)
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(subscribeValidTimerRef.current)
+    }
+  }, [])
 
   const dispatch = useAppDispatch()
 
@@ -148,7 +156,8 @@ const BlacklistSettings: FC = () => {
           content: t('settings.tool.websearch.subscribe_update_success'),
           duration: 2
         })
-        setTimeout(() => setSubscribeValid(false), 3000)
+        clearTimeout(subscribeValidTimerRef.current)
+        subscribeValidTimerRef.current = setTimeout(() => setSubscribeValid(false), 3000)
       } else {
         setSubscribeValid(false)
         throw new Error('No valid sources updated')
@@ -190,7 +199,8 @@ const BlacklistSettings: FC = () => {
           content: t('settings.tool.websearch.subscribe_add_success'),
           duration: 2
         })
-        setTimeout(() => setSubscribeValid(false), 3000)
+        clearTimeout(subscribeValidTimerRef.current)
+        subscribeValidTimerRef.current = setTimeout(() => setSubscribeValid(false), 3000)
       } catch (error) {
         setSubscribeValid(false)
         window.message.error({
