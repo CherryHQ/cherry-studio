@@ -111,7 +111,7 @@ export const getProgressLabel = (key: string): string => {
 const titleKeyMap = {
   agents: 'title.agents',
   apps: 'title.apps',
-  code: 'title.code',
+  code_tools: 'title.code',
   files: 'title.files',
   home: 'title.home',
   knowledge: 'title.knowledge',
@@ -145,7 +145,7 @@ const sidebarIconKeyMap = {
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
-  code: 'code.title'
+  code_tools: 'code.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
