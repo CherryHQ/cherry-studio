@@ -654,6 +654,8 @@
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "env_vars_help": "輸入自定義環境變數（每行一個，格式：KEY=value）",
+    "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",

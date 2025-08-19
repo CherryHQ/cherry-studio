@@ -2121,13 +2121,20 @@ const migrateConfig = {
     }
   },
   '133': (state: RootState) => {
-    if (state.settings && state.settings.sidebarIcons) {
-      // Check if 'code' is not already in visible icons
-      if (!state.settings.sidebarIcons.visible.includes('code')) {
-        state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'code']
+    try {
+      state.settings.sidebarIcons.visible.push('code')
+      if (state.codeTools) {
+        state.codeTools.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
       }
+      return state
+    } catch (error) {
+      logger.error('migrate 133 error', error as Error)
+      return state
     }
-    return state
   }
 }
 

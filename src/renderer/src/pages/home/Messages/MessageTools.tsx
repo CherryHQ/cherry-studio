@@ -605,6 +605,11 @@ const CollapseContainer = styled(Collapse)`
 const ToolContainer = styled.div`
   margin-top: 10px;
   margin-bottom: 10px;
+
+  &:first-child {
+    margin-top: 0;
+    padding-top: 0;
+  }
 `
 
 const MarkdownContainer = styled.div`

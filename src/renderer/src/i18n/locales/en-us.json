@@ -654,6 +654,8 @@
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
+    "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
     "install_bun": "Install Bun",
     "installing_bun": "Installing...",
