@@ -71,8 +71,8 @@ export interface InputbarToolsProps {
   couldMentionNotVisionModel: boolean
   couldAddImageFile: boolean
   onEnableGenerateImage: () => void
-  isExpended: boolean
-  onToggleExpended: () => void
+  isExpanded: boolean
+  onToggleExpanded: () => void
 
   addNewTopic: () => void
   clearTopic: () => void
@@ -113,8 +113,8 @@ const InputbarTools = ({
   couldMentionNotVisionModel,
   couldAddImageFile,
   onEnableGenerateImage,
-  isExpended,
-  onToggleExpended,
+  isExpanded: isExpended,
+  onToggleExpanded: onToggleExpended,
   addNewTopic,
   clearTopic,
   onNewContext,
