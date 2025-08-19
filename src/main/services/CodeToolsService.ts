@@ -114,9 +114,21 @@ class CodeToolsService {
     } else {
       logger.info(`Fetching latest version for ${packageName} from npm`)
       try {
-        const bunPath = await this.getBunPath()
-        const { stdout } = await execAsync(`"${bunPath}" info ${packageName} version`, { timeout: 15000 })
-        latestVersion = stdout.trim().replace(/["']/g, '')
+        // Get registry URL
+        const registryUrl = await this.getNpmRegistryUrl()
+
+        // Fetch package info directly from npm registry API
+        const packageUrl = `${registryUrl}/${packageName}/latest`
+        const response = await fetch(packageUrl, {
+          signal: AbortSignal.timeout(15000)
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch package info: ${response.statusText}`)
+        }
+
+        const packageInfo = await response.json()
+        latestVersion = packageInfo.version
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
@@ -179,7 +191,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      const updateCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -283,7 +295,7 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand = `${bunPath} "${executablePath}"`
+    let baseCommand = `${bunPath} ${executablePath}`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
@@ -299,7 +311,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      const installCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${baseCommand}"`
     }
 
@@ -322,7 +334,8 @@ end tell`
       case 'win32': {
         // Windows - Use temp bat file for debugging
         const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        command = command.replace(bunPath, '')
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = path.join(os.tmpdir(), 'cherrystudio')
