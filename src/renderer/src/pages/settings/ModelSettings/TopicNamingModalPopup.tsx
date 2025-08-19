@@ -4,7 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
 import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../../../components/TopView'
@@ -31,13 +31,44 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     dispatch(setTopicNamingPrompt(''))
-  }
+  }, [dispatch])
 
   TopicNamingModalPopup.hide = onCancel
 
-  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+  const promptVarsContent = useMemo(() => <pre>{t('agents.add.prompt.variables.tip.content')}</pre>, [t])
+
+  const TopicNamingSettings = useCallback(() => {
+    return (
+      <>
+        <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} alignItems="center">
+          <div>{t('settings.models.enable_topic_naming')}</div>
+          <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
+        </HStack>
+        <Divider style={{ margin: '10px 0' }} />
+        <div style={{ marginBottom: 20 }}>
+          <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
+            <div>{t('settings.models.topic_naming_prompt')}</div>
+            <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
+            </Popover>
+          </Flex>
+          <Input.TextArea
+            rows={4}
+            value={topicNamingPrompt || t('prompts.title')}
+            onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value.trim()))}
+            placeholder={t('prompts.title')}
+          />
+          {topicNamingPrompt && (
+            <Button style={{ marginTop: 10 }} onClick={handleReset}>
+              {t('common.reset')}
+            </Button>
+          )}
+        </div>
+      </>
+    )
+  }, [dispatch, enableTopicNaming, handleReset, promptVarsContent, t, topicNamingPrompt])
 
   return (
     <Modal
@@ -51,30 +82,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       footer={null}
       centered>
       <Divider style={{ margin: '10px 0' }} />
-      <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} alignItems="center">
-        <div>{t('settings.models.enable_topic_naming')}</div>
-        <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
-      </HStack>
-      <Divider style={{ margin: '10px 0' }} />
-      <div style={{ marginBottom: 20 }}>
-        <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
-          <div>{t('settings.models.topic_naming_prompt')}</div>
-          <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-            <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
-          </Popover>
-        </Flex>
-        <Input.TextArea
-          rows={4}
-          value={topicNamingPrompt || t('prompts.title')}
-          onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value.trim()))}
-          placeholder={t('prompts.title')}
-        />
-        {topicNamingPrompt && (
-          <Button style={{ marginTop: 10 }} onClick={handleReset}>
-            {t('common.reset')}
-          </Button>
-        )}
-      </div>
+      <TopicNamingSettings />
     </Modal>
   )
 }
