@@ -654,6 +654,8 @@
     "cli_tool": "Ferramenta de linha de comando",
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
+    "env_vars_help": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
+    "environment_variables": "variáveis de ambiente",
     "folder_placeholder": "Selecionar diretório de trabalho",
     "install_bun": "Instalar o Bun",
     "installing_bun": "Instalando...",
@@ -3688,7 +3690,7 @@
         },
         "label": "Método de detecção automática",
         "llm": {
-          "tip": "Usar o modelo de tradução para detecção de idioma consome uma pequena quantidade de tokens. (O QwenMT não suporta detecção de idioma e reverterá automaticamente para o modelo assistente padrão)"
+          "tip": "Usar modelo rápido para detecção de idioma, consumindo poucos tokens."
         },
         "placeholder": "Escolha o método de detecção automática",
         "tip": "Método utilizado para detecção automática do idioma de entrada"
