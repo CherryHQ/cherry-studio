@@ -3139,9 +3139,12 @@
       "quick_assistant_default_tag": "Padrão",
       "quick_assistant_model": "Modelo do Assistente Rápido",
       "quick_assistant_selection": "Selecionar Assistente",
-      "summary_model": "Modelo de resumo",
-      "summary_model_description": "Modelo usado para tarefas de resumo, como nomeação de tópicos, extração de palavras-chave de busca, etc.",
-      "summary_model_setting_title": "Configurações do modelo de resumo",
+      "quick_model": {
+        "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
+        "label": "Modelo rápido",
+        "setting_title": "Configuração rápida do modelo",
+        "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",

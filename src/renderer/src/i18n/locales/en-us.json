@@ -3139,9 +3139,12 @@
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
-      "summary_model": "Summary model",
-      "summary_model_description": "Model used for summary tasks such as topic naming and keyword extraction",
-      "summary_model_setting_title": "Model settings summary",
+      "quick_model": {
+        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "label": "Quick Model",
+        "setting_title": "Quick model setup",
+        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+      },
       "topic_naming": {
         "auto": "Topic Auto Naming",
         "label": "Topic naming",

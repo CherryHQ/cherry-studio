@@ -3139,9 +3139,12 @@
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
-      "summary_model": "摘要模型",
-      "summary_model_description": "用於執行話題命名、搜尋關鍵字提煉等總結性任務時所使用的模型",
-      "summary_model_setting_title": "摘要模型設置",
+      "quick_model": {
+        "description": "用於執行話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型設定",
+        "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
       "topic_naming": {
         "auto": "話題自動重新命名",
         "label": "話題命名",

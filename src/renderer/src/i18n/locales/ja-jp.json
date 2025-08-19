@@ -3139,9 +3139,12 @@
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
-      "summary_model": "摘要モデル",
-      "summary_model_description": "トピックの命名や検索キーワードの抽出など、要約的なタスクを実行する際に使用されるモデル",
-      "summary_model_setting_title": "摘要モデル設定",
+      "quick_model": {
+        "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
+        "label": "高速モデル",
+        "setting_title": "迅速なモデル設定",
+        "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
       "topic_naming": {
         "auto": "トピックの自動命名",
         "label": "トピック名",

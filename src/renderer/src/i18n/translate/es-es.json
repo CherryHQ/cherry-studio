@@ -3139,9 +3139,12 @@
       "quick_assistant_default_tag": "Predeterminado",
       "quick_assistant_model": "Modelo del asistente rápido",
       "quick_assistant_selection": "Seleccionar asistente",
-      "summary_model": "Modelo de resumen",
-      "summary_model_description": "Modelo utilizado para tareas de resumen, como nombrar temas y extraer palabras clave de búsqueda",
-      "summary_model_setting_title": "Configuración del modelo de resumen",
+      "quick_model": {
+        "description": "Modelo utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
+        "label": "Modelo rápido",
+        "setting_title": "Configuración rápida del modelo",
+        "tooltip": "Se recomienda elegir un modelo ligero y no se recomienda elegir un modelo de razonamiento"
+      },
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",
