@@ -26,7 +26,8 @@ import {
   Palette,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  Terminal
 } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -153,7 +154,8 @@ const MainMenus: FC = () => {
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />
+    files: <Folder size={17} className="icon" />,
+    code: <Terminal size={18} className="icon" />
   }
 
   const pathMap = {
@@ -163,7 +165,8 @@ const MainMenus: FC = () => {
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    code: '/code'
   }
 
   return sidebarIcons.visible.map((icon) => {

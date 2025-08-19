@@ -2119,6 +2119,15 @@ const migrateConfig = {
       logger.error('migrate 132 error', error as Error)
       return state
     }
+  },
+  '133': (state: RootState) => {
+    if (state.settings && state.settings.sidebarIcons) {
+      // Check if 'code' is not already in visible icons
+      if (!state.settings.sidebarIcons.visible.includes('code')) {
+        state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'code']
+      }
+    }
+    return state
   }
 }
 
