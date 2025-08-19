@@ -103,7 +103,7 @@
   }
 
   span {
-    white-space: pre;
+    white-space: pre-wrap;
   }
 
   p code,
@@ -259,10 +259,6 @@
     &:hover {
       text-decoration: underline;
     }
-  }
-
-  > *:last-child {
-    margin-bottom: 0 !important;
   }
 }
 

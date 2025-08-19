@@ -314,6 +314,18 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             headers = {
               Authorization: `Bearer ${aihubmixProvider.apiKey}`
             }
+          } else if (painting.model === 'FLUX.1-Kontext-pro') {
+            requestData = {
+              prompt,
+              model: painting.model,
+              // width: painting.width,
+              // height: painting.height,
+              safety_tolerance: painting.safetyTolerance || 6
+            }
+            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            headers = {
+              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+            }
           } else {
             // Existing V1/V2 API
             requestData = {
@@ -470,6 +482,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const data = await response.json()
         logger.silly(`通用API响应: ${data}`)
+        if (data.output) {
+          const base64s = data.output.b64_json.map((item) => item.bytesBase64)
+          const validFiles = await Promise.all(
+            base64s.map(async (base64) => {
+              return await window.api.file.saveBase64Image(base64)
+            })
+          )
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          return
+        }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
         const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
@@ -859,7 +882,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={
                 isTranslating
                   ? t('paintings.translating')
-                  : painting.model?.startsWith('imagen-')
+                  : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
                     ? t('paintings.prompt_placeholder_en')
                     : t('paintings.prompt_placeholder_edit')
               }

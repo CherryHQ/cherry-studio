@@ -267,7 +267,7 @@ const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plai
   justify-content: space-between;
   gap: 10px;
   margin-left: 46px;
-  margin-top: 8px;
+  margin-top: 3px;
 `
 
 const NewContextMessage = styled.div<{ isMultiSelectMode: boolean }>`

@@ -6,7 +6,7 @@ import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, net } from 'electron'
 import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
@@ -75,7 +75,7 @@ export default class AppUpdater {
     }
     try {
       logger.info(`get release version from github: ${channel}`)
-      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
+      const responses = await net.fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
         headers
       })
       const data = (await responses.json()) as GithubReleaseInfo[]
@@ -99,7 +99,7 @@ export default class AppUpdater {
 
       if (mightHaveLatest) {
         logger.info(`might have latest release, get latest release`)
-        const latestReleaseResponse = await fetch(
+        const latestReleaseResponse = await net.fetch(
           'https://api.github.com/repos/CherryHQ/cherry-studio/releases/latest',
           {
             headers

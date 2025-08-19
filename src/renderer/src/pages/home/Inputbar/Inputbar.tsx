@@ -20,6 +20,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -43,7 +44,6 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -58,8 +58,6 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
 import InputbarTools, { InputbarToolsRef } from './InputbarTools'
-import KnowledgeBaseInput from './KnowledgeBaseInput'
-import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -87,7 +85,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel,
     enableSpellCheck
   } = useSettings()
   const [expanded, setExpand] = useState(false)
@@ -96,6 +93,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { pauseMessages } = useMessageOperations(topic)
@@ -280,7 +278,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, targetLanguage, resizeTextArea])
+  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, resizeTextArea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -439,12 +437,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionedModels.length > 0) {
-      setMentionedModels((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
-
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -531,7 +524,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-        inputbarToolsRef.current?.openMentionModelsPanel()
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position: cursorPosition - 1,
+          originalText: newText
+        })
       }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
@@ -762,19 +759,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const handleRemoveModel = (model: Model) => {
-    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
-  }
-
-  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-    updateAssistant({
-      ...assistant,
-      knowledge_bases: newKnowledgeBases
-    })
-    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
@@ -809,6 +793,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     },
     [couldMentionNotVisionModel]
   )
+
+  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
   const onToggleExpanded = () => {
     const currentlyExpanded = expanded || !!textareaHeight
@@ -854,15 +840,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
-          {selectedKnowledgeBases.length > 0 && (
-            <KnowledgeBaseInput
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
-            />
-          )}
-          {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
-          )}
           <Textarea
             value={text}
             onChange={onChange}
@@ -919,6 +896,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               resizeTextArea={resizeTextArea}
               mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
+              onClearMentionModels={onClearMentionModels}
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}

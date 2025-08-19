@@ -19,17 +19,12 @@ This is **bold** text.
       data-testid="has-code-component"
     >
       <div
-        data-id="code-block-1"
+        data-block-id="test-block-1"
         data-testid="code-block"
       >
         <code>
           test code
         </code>
-        <button
-          type="button"
-        >
-          Save
-        </button>
       </div>
     </div>
     <div

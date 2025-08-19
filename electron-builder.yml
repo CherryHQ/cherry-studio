@@ -116,9 +116,11 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    支持 GPT-5 模型
-    新增代码工具，支持快速启动 Qwen Code, Gemini Cli, Claude Code
-    翻译页面改版，支持更多设置
-    支持保存整个话题到知识库
-    坚果云备份支持设置最大备份数量
+    输入框快捷菜单增加清除按钮
+    侧边栏增加代码工具入口，代码工具增加环境变量设置
+    小程序增加多语言显示
+    优化 MCP 服务器列表
+    新增 Web 搜索图标
+    优化 SVG 预览，优化 HTML 内容样式
+    修复知识库文档预处理失败问题
     稳定性改进和错误修复

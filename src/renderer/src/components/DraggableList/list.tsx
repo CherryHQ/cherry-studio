@@ -9,7 +9,7 @@ import {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
-import VirtualList from 'rc-virtual-list'
+import { List } from 'antd'
 import { FC } from 'react'
 
 interface Props<T> {
@@ -38,8 +38,10 @@ const DraggableList: FC<Props<any>> = ({
     if (result.destination) {
       const sourceIndex = result.source.index
       const destIndex = result.destination.index
-      const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
-      onUpdate(reorderAgents)
+      if (sourceIndex !== destIndex) {
+        const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
+        onUpdate(reorderAgents)
+      }
     }
   }
 
@@ -48,8 +50,9 @@ const DraggableList: FC<Props<any>> = ({
       <Droppable droppableId="droppable" {...droppableProps}>
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
-            <VirtualList data={list} itemKey="id">
-              {(item, index) => {
+            <List
+              dataSource={list}
+              renderItem={(item, index) => {
                 const id = item.id || item
                 return (
                   <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index}>
@@ -69,7 +72,7 @@ const DraggableList: FC<Props<any>> = ({
                   </Draggable>
                 )
               }}
-            </VirtualList>
+            />
             {provided.placeholder}
           </div>
         )}

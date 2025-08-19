@@ -12,7 +12,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, ReactElement, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
+import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ThinkingButtonRef {
@@ -24,16 +24,6 @@ interface Props {
   model: Model
   assistant: Assistant
   ToolbarButton: any
-}
-
-// 选项转换映射表：当选项不支持时使用的替代选项
-const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
-  off: 'low', // off -> low (for Gemini Pro models)
-  minimal: 'low', // minimal -> low (for gpt-5 and after)
-  low: 'high',
-  medium: 'high', // medium -> high (for Grok models)
-  high: 'high',
-  auto: 'high' // auto -> high (for non-Gemini models)
 }
 
 const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): ReactElement => {
@@ -58,19 +48,6 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     }
     return MODEL_SUPPORTED_OPTIONS[modelType]
   }, [model, modelType])
-
-  // 检查当前设置是否与当前模型兼容
-  useEffect(() => {
-    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-      // 使用表中定义的替代选项
-      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
-
-      updateAssistantSettings({
-        reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-        qwenThinkMode: fallbackOption === 'off'
-      })
-    }
-  }, [currentReasoningEffort, supportedOptions, updateAssistantSettings, model.id])
 
   const createThinkingIcon = useCallback((option?: ThinkingOption, isActive: boolean = false) => {
     const iconColor = isActive ? 'var(--color-primary)' : 'var(--color-icon)'
@@ -154,13 +131,9 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   // 获取当前应显示的图标
   const getThinkingIcon = useCallback(() => {
-    // 如果当前选项不支持，显示回退选项的图标
-    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
-      return createThinkingIcon(fallbackOption, true)
-    }
+    // 不再判断选项是否支持，依赖 useAssistant 更新选项为支持选项的行为
     return createThinkingIcon(currentReasoningEffort, currentReasoningEffort !== 'off')
-  }, [createThinkingIcon, currentReasoningEffort, supportedOptions])
+  }, [createThinkingIcon, currentReasoningEffort])
 
   useImperativeHandle(ref, () => ({
     openQuickPanel

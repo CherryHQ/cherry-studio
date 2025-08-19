@@ -1,4 +1,5 @@
 import AiProvider from '@renderer/aiCore'
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
@@ -9,7 +10,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { Alert, Button, Checkbox, Select, Space } from 'antd'
+import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,8 @@ const CLI_TOOLS = [
   { value: 'gemini-cli', label: 'Gemini CLI' }
 ]
 
+const SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
+
 const logger = loggerService.withContext('CodeToolsPage')
 
 const CodeToolsPage: FC = () => {
@@ -32,11 +35,13 @@ const CodeToolsPage: FC = () => {
   const {
     selectedCliTool,
     selectedModel,
+    environmentVariables,
     directories,
     currentDirectory,
     canLaunch,
     setCliTool,
     setModel,
+    setEnvVars,
     setCurrentDir,
     removeDir,
     selectFolder
@@ -54,12 +59,23 @@ const CodeToolsPage: FC = () => {
   }
 
   const openAiProviders = providers.filter((p) => p.type.includes('openai'))
-  const geminiProviders = providers.filter((p) => p.type === 'gemini')
-  const claudeProviders = providers.filter((p) => p.type === 'anthropic')
+  const geminiProviders = providers.filter((p) => p.type === 'gemini' || SUPPORTED_PROVIDERS.includes(p.id))
+  const claudeProviders = providers.filter((p) => p.type === 'anthropic' || SUPPORTED_PROVIDERS.includes(p.id))
 
   const modelPredicate = useCallback(
-    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
-    []
+    (m: Model) => {
+      if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
+        return false
+      }
+      if (selectedCliTool === 'claude-code') {
+        return m.id.includes('claude')
+      }
+      if (selectedCliTool === 'gemini-cli') {
+        return m.id.includes('gemini')
+      }
+      return true
+    },
+    [selectedCliTool]
   )
 
   const availableProviders =
@@ -84,6 +100,11 @@ const CodeToolsPage: FC = () => {
         break
       }
     }
+  }
+
+  // 处理环境变量更改
+  const handleEnvVarsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEnvVars(e.target.value)
   }
 
   // 处理文件夹选择
@@ -176,13 +197,19 @@ const CodeToolsPage: FC = () => {
     if (selectedCliTool === 'claude-code') {
       env = {
         ANTHROPIC_API_KEY: apiKey,
+        ANTHROPIC_BASE_URL: modelProvider.apiHost,
         ANTHROPIC_MODEL: selectedModel.id
       }
     }
 
     if (selectedCliTool === 'gemini-cli') {
+      const apiSuffix = modelProvider.id === 'aihubmix' ? '/gemini' : ''
+      const apiBaseUrl = modelProvider.apiHost + apiSuffix
       env = {
-        GEMINI_API_KEY: apiKey
+        GEMINI_API_KEY: apiKey,
+        GEMINI_BASE_URL: apiBaseUrl,
+        GOOGLE_GEMINI_BASE_URL: apiBaseUrl,
+        GEMINI_MODEL: selectedModel.id
       }
     }
 
@@ -191,6 +218,22 @@ const CodeToolsPage: FC = () => {
         OPENAI_API_KEY: apiKey,
         OPENAI_BASE_URL: baseUrl,
         OPENAI_MODEL: selectedModel.id
+      }
+    }
+
+    // 解析用户自定义的环境变量
+    if (environmentVariables) {
+      const lines = environmentVariables.split('\n')
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (trimmedLine && trimmedLine.includes('=')) {
+          const [key, ...valueParts] = trimmedLine.split('=')
+          const trimmedKey = key.trim()
+          const value = valueParts.join('=').trim()
+          if (trimmedKey) {
+            env[trimmedKey] = value
+          }
+        }
       }
     }
 
@@ -228,117 +271,146 @@ const CodeToolsPage: FC = () => {
 
   return (
     <Container>
-      <Title>{t('code.title')}</Title>
-      <Description>{t('code.description')}</Description>
+      <Navbar>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('code.title')}</NavbarCenter>
+      </Navbar>
+      <ContentContainer id="content-container">
+        <MainContent>
+          <Title>{t('code.title')}</Title>
+          <Description>{t('code.description')}</Description>
 
-      {/* Bun 安装状态提示 */}
-      {!isBunInstalled && (
-        <BunInstallAlert>
-          <Alert
-            type="warning"
-            banner
-            style={{ borderRadius: 'var(--list-item-border-radius)' }}
-            message={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{t('code.bun_required_message')}</span>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Download size={14} />}
-                  onClick={handleInstallBun}
-                  loading={isInstallingBun}
-                  disabled={isInstallingBun}>
-                  {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
-                </Button>
-              </div>
-            }
-          />
-        </BunInstallAlert>
-      )}
-
-      <SettingsPanel>
-        <SettingsItem>
-          <div className="settings-label">{t('code.cli_tool')}</div>
-          <Select
-            style={{ width: '100%' }}
-            placeholder={t('code.cli_tool_placeholder')}
-            value={selectedCliTool}
-            onChange={handleCliToolChange}
-            options={CLI_TOOLS}
-          />
-        </SettingsItem>
-
-        <SettingsItem>
-          <div className="settings-label">{t('code.model')}</div>
-          <ModelSelector
-            providers={availableProviders}
-            predicate={modelPredicate}
-            style={{ width: '100%' }}
-            placeholder={t('code.model_placeholder')}
-            value={selectedModel ? getModelUniqId(selectedModel) : undefined}
-            onChange={handleModelChange}
-            allowClear
-          />
-        </SettingsItem>
-
-        <SettingsItem>
-          <div className="settings-label">{t('code.working_directory')}</div>
-          <Space.Compact style={{ width: '100%', display: 'flex' }}>
-            <Select
-              style={{ flex: 1, width: 480 }}
-              placeholder={t('code.folder_placeholder')}
-              value={currentDirectory || undefined}
-              onChange={handleDirectoryChange}
-              allowClear
-              showSearch
-              filterOption={(input, option) => {
-                const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
-                return label.toLowerCase().includes(input.toLowerCase())
-              }}
-              options={directories.map((dir) => ({
-                value: dir,
-                label: (
+          {/* Bun 安装状态提示 */}
+          {!isBunInstalled && (
+            <BunInstallAlert>
+              <Alert
+                type="warning"
+                banner
+                style={{ borderRadius: 'var(--list-item-border-radius)' }}
+                message={
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dir}</span>
-                    <X
-                      size={14}
-                      style={{ marginLeft: 8, cursor: 'pointer', color: '#999' }}
-                      onClick={(e) => handleRemoveDirectory(dir, e)}
-                    />
+                    <span>{t('code.bun_required_message')}</span>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Download size={14} />}
+                      onClick={handleInstallBun}
+                      loading={isInstallingBun}
+                      disabled={isInstallingBun}>
+                      {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
+                    </Button>
                   </div>
-                )
-              }))}
-            />
-            <Button onClick={handleFolderSelect} style={{ width: 120 }}>
-              {t('code.select_folder')}
-            </Button>
-          </Space.Compact>
-        </SettingsItem>
+                }
+              />
+            </BunInstallAlert>
+          )}
 
-        <SettingsItem>
-          <div className="settings-label">{t('code.update_options')}</div>
-          <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
-            {t('code.auto_update_to_latest')}
-          </Checkbox>
-        </SettingsItem>
-      </SettingsPanel>
+          <SettingsPanel>
+            <SettingsItem>
+              <div className="settings-label">{t('code.cli_tool')}</div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder={t('code.cli_tool_placeholder')}
+                value={selectedCliTool}
+                onChange={handleCliToolChange}
+                options={CLI_TOOLS}
+              />
+            </SettingsItem>
 
-      <Button
-        type="primary"
-        icon={<Terminal size={16} />}
-        size="large"
-        onClick={handleLaunch}
-        loading={isLaunching}
-        disabled={!canLaunch || !isBunInstalled}
-        block>
-        {isLaunching ? t('code.launching') : t('code.launch.label')}
-      </Button>
+            <SettingsItem>
+              <div className="settings-label">{t('code.model')}</div>
+              <ModelSelector
+                providers={availableProviders}
+                predicate={modelPredicate}
+                style={{ width: '100%' }}
+                placeholder={t('code.model_placeholder')}
+                value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+                onChange={handleModelChange}
+                allowClear
+              />
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.working_directory')}</div>
+              <Space.Compact style={{ width: '100%', display: 'flex' }}>
+                <Select
+                  style={{ flex: 1, width: 480 }}
+                  placeholder={t('code.folder_placeholder')}
+                  value={currentDirectory || undefined}
+                  onChange={handleDirectoryChange}
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
+                    return label.toLowerCase().includes(input.toLowerCase())
+                  }}
+                  options={directories.map((dir) => ({
+                    value: dir,
+                    label: (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dir}</span>
+                        <X
+                          size={14}
+                          style={{ marginLeft: 8, cursor: 'pointer', color: '#999' }}
+                          onClick={(e) => handleRemoveDirectory(dir, e)}
+                        />
+                      </div>
+                    )
+                  }))}
+                />
+                <Button onClick={handleFolderSelect} style={{ width: 120 }}>
+                  {t('code.select_folder')}
+                </Button>
+              </Space.Compact>
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.environment_variables')}</div>
+              <Input.TextArea
+                placeholder={`KEY1=value1\nKEY2=value2`}
+                value={environmentVariables}
+                onChange={handleEnvVarsChange}
+                rows={2}
+                style={{ fontFamily: 'monospace' }}
+              />
+              <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>{t('code.env_vars_help')}</div>
+            </SettingsItem>
+
+            <SettingsItem>
+              <div className="settings-label">{t('code.update_options')}</div>
+              <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
+                {t('code.auto_update_to_latest')}
+              </Checkbox>
+            </SettingsItem>
+          </SettingsPanel>
+
+          <Button
+            type="primary"
+            icon={<Terminal size={16} />}
+            size="large"
+            onClick={handleLaunch}
+            loading={isLaunching}
+            disabled={!canLaunch || !isBunInstalled}
+            block>
+            {isLaunching ? t('code.launching') : t('code.launch.label')}
+          </Button>
+        </MainContent>
+      </ContentContainer>
     </Container>
   )
 }
 
-// 样式组件
 const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+`
+
+const MainContent = styled.div`
   width: 600px;
   margin: auto;
 `
@@ -347,7 +419,6 @@ const Title = styled.h1`
   font-size: 24px;
   font-weight: 600;
   margin-bottom: 8px;
-  margin-top: -50px;
   color: var(--color-text-1);
 `
 
