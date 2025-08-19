@@ -2253,8 +2253,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "[to be translated]:开启后，使用总结模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "[to be translated]:使用总结模型为导出的消息命名标题"
+          "help": "When enabled, use the summary model to name the title for exported messages. This setting also affects all export methods via Markdown.",
+          "title": "Using summary models to name titles for exported messages"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -3113,12 +3113,12 @@
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
-      "summary_model": "[to be translated]:摘要模型",
-      "summary_model_description": "[to be translated]:执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
-      "summary_model_setting_title": "[to be translated]:摘要模型设置",
+      "summary_model": "Summary model",
+      "summary_model_description": "Model used for summary tasks such as topic naming and keyword extraction",
+      "summary_model_setting_title": "Model settings summary",
       "topic_naming": {
         "auto": "Topic Auto Naming",
-        "label": "[to be translated]:话题命名",
+        "label": "Topic naming",
         "prompt": "Topic Naming Prompt"
       },
       "translate_model": "Translate Model",

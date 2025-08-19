@@ -1578,7 +1578,7 @@
       "style_type_tip": "Style de l'image après édition, uniquement applicable aux versions V_2 et ultérieures"
     },
     "generate": {
-      "height": "[to be translated]:高度",
+      "height": "Hauteur",
       "magic_prompt_option_tip": "Интеллектуальная оптимизация подсказок для улучшения результатов генерации",
       "model_tip": "Версия модели: V2 — это последняя модель API, V2A — быстрая модель, V_1 — первое поколение модели, _TURBO — ускоренная версия",
       "negative_prompt_tip": "Описывает элементы, которые вы не хотите видеть на изображении. Поддерживается только версиями V_1, V_1_TURBO, V_2 и V_2_TURBO",
@@ -1586,11 +1586,11 @@
       "person_generation": "Générer un personnage",
       "person_generation_tip": "Autoriser le modèle à générer des images de personnages",
       "rendering_speed_tip": "Contrôler l'équilibre entre la vitesse et la qualité du rendu, uniquement applicable à la version V_3",
-      "safety_tolerance": "[to be translated]:安全容忍度",
-      "safety_tolerance_tip": "[to be translated]:控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
+      "safety_tolerance": "Tolérance en matière de sécurité",
+      "safety_tolerance_tip": "Contrôle la tolérance de sécurité pour la génération d'images, applicable uniquement à la version FLUX.1-Kontext-pro",
       "seed_tip": "Контролирует случайность генерации изображения, используется для воспроизведения одинаковых результатов",
       "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
-      "width": "[to be translated]:宽度"
+      "width": "largeur"
     },
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
@@ -2253,8 +2253,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "[to be translated]:开启后，使用总结模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "[to be translated]:使用总结模型为导出的消息命名标题"
+          "help": "Activé, utilise le modèle de résumé pour nommer les titres des messages exportés. Cette option affecte également toutes les méthodes d'exportation via Markdown.",
+          "title": "Utiliser le modèle de résumé pour nommer le titre des messages exportés"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -3113,12 +3113,12 @@
       "quick_assistant_default_tag": "Par défaut",
       "quick_assistant_model": "Modèle de l'assistant rapide",
       "quick_assistant_selection": "Sélectionner l'assistant",
-      "summary_model": "[to be translated]:摘要模型",
-      "summary_model_description": "[to be translated]:执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
-      "summary_model_setting_title": "[to be translated]:摘要模型设置",
+      "summary_model": "modèles de résumé",
+      "summary_model_description": "modèle utilisé pour des tâches de synthèse telles que la nomination de sujets, l'extraction de mots-clés de recherche, etc.",
+      "summary_model_setting_title": "Réglages du modèle de résumé",
       "topic_naming": {
         "auto": "Renommage automatique des sujets",
-        "label": "[to be translated]:话题命名",
+        "label": "Nom de sujet",
         "prompt": "Mot-clé de renommage des sujets"
       },
       "translate_model": "Modèle de traduction",

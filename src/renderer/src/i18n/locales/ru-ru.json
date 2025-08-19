@@ -2253,8 +2253,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "[to be translated]:开启后，使用总结模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "[to be translated]:使用总结模型为导出的消息命名标题"
+          "help": "После включения заголовки экспортируемых сообщений будут называться с использованием модели резюмирования. Этот параметр также влияет на все способы экспорта через Markdown.",
+          "title": "Использование модели резюмирования для создания заголовков экспортированных сообщений"
         }
       },
       "minute_interval_one": "{{count}} минута",
@@ -3113,12 +3113,12 @@
       "quick_assistant_default_tag": "умолчанию",
       "quick_assistant_model": "Модель быстрого помощника",
       "quick_assistant_selection": "Выберите помощника",
-      "summary_model": "[to be translated]:摘要模型",
-      "summary_model_description": "[to be translated]:执行话题命名、搜索关键字提炼等总结性质的任务时使用的模型",
-      "summary_model_setting_title": "[to be translated]:摘要模型设置",
+      "summary_model": "Модель аннотации",
+      "summary_model_description": "модель, используемая для задач обобщения, таких как именование тем и извлечение ключевых слов для поиска",
+      "summary_model_setting_title": "Настройки модели резюмирования",
       "topic_naming": {
         "auto": "Автоматическое переименование топика",
-        "label": "[to be translated]:话题命名",
+        "label": "Название темы",
         "prompt": "Подсказка для именования топика"
       },
       "translate_model": "Модель перевода",
