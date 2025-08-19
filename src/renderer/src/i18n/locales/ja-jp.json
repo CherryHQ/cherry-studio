@@ -2277,8 +2277,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
-          "title": "トピック命名モデルを使用してメッセージのタイトルを作成"
+          "help": "有効にすると、エクスポートされたメッセージのタイトル名に高速モデルを使用します。この設定はMarkdownによるエクスポート方法全般にも影響します。",
+          "title": "高速モデルを使用してエクスポートされたメッセージのタイトルを命名"
         }
       },
       "minute_interval_one": "{{count}} 分",
@@ -3116,7 +3116,6 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
-      "enable_topic_naming": "トピックの自動命名",
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
@@ -3142,10 +3141,17 @@
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
-      "topic_naming_model": "トピック命名モデル",
-      "topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
-      "topic_naming_model_setting_title": "トピック命名モデルの設定",
-      "topic_naming_prompt": "トピック命名プロンプト",
+      "quick_model": {
+        "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
+        "label": "高速モデル",
+        "setting_title": "高速モデル設定",
+        "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "topic_naming": {
+        "auto": "トピックの自動命名",
+        "label": "トピック名",
+        "prompt": "トピック命名プロンプト"
+      },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",

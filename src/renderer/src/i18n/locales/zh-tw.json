@@ -2277,8 +2277,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等",
-          "title": "使用話題命名模型為導出的消息創建標題"
+          "help": "開啟後，使用快速模型為導出的消息命名標題。該項也會影響所有透過 Markdown 導出的方式",
+          "title": "使用快速模型為導出的消息命名標題"
         }
       },
       "minute_interval_one": "{{count}} 分鐘",
@@ -3116,7 +3116,6 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
-      "enable_topic_naming": "話題自動重新命名",
       "manage": {
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
@@ -3142,10 +3141,17 @@
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
-      "topic_naming_model": "話題命名模型",
-      "topic_naming_model_description": "自動命名新話題時使用的模型",
-      "topic_naming_model_setting_title": "話題命名模型設定",
-      "topic_naming_prompt": "話題命名提示詞",
+      "quick_model": {
+        "description": "用於執行話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型設定",
+        "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
+      "topic_naming": {
+        "auto": "話題自動重新命名",
+        "label": "話題命名",
+        "prompt": "話題命名提示詞"
+      },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
       "translate_model_prompt_message": "請輸入翻譯模型提示詞",

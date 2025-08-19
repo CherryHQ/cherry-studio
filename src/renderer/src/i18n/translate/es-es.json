@@ -2275,8 +2275,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Al activarlo, se utilizará el modelo de nombramiento temático para generar títulos de mensajes exportados. Esta opción también afectará a todos los métodos de exportación mediante Markdown.",
-          "title": "Usar el modelo de nombramiento temático para crear títulos de mensajes exportados"
+          "help": "Activado, utiliza el modelo rápido para nombrar el título de los mensajes exportados. Esta opción también afecta a todas las formas de exportación mediante Markdown.",
+          "title": "Usar el modelo rápido para nombrar el título de los mensajes exportados"
         }
       },
       "minute_interval_one": "{{count}} minuto",
@@ -3114,7 +3114,6 @@
       "default_assistant_model": "Modelo predeterminado del asistente",
       "default_assistant_model_description": "Modelo utilizado al crear nuevos asistentes, si el asistente no tiene un modelo asignado, se utiliza este modelo",
       "empty": "Sin modelos",
-      "enable_topic_naming": "Renombrar temas automáticamente",
       "manage": {
         "add_listed": {
           "confirm": "¿Está seguro de que desea agregar todos los modelos a la lista?",
@@ -3140,10 +3139,17 @@
       "quick_assistant_default_tag": "Predeterminado",
       "quick_assistant_model": "Modelo del asistente rápido",
       "quick_assistant_selection": "Seleccionar asistente",
-      "topic_naming_model": "Modelo de nombramiento de temas",
-      "topic_naming_model_description": "Modelo utilizado para nombrar temas automáticamente",
-      "topic_naming_model_setting_title": "Configuración del modelo de nombramiento de temas",
-      "topic_naming_prompt": "Sugerencias para nombramiento de temas",
+      "quick_model": {
+        "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
+        "label": "Modelo rápido",
+        "setting_title": "Configuración del modelo rápido",
+        "tooltip": "Se recomienda elegir un modelo ligero y no se recomienda elegir un modelo de razonamiento"
+      },
+      "topic_naming": {
+        "auto": "Renombrar temas automáticamente",
+        "label": "Nombramiento del tema",
+        "prompt": "Sugerencias para nombramiento de temas"
+      },
       "translate_model": "Modelo de traducción",
       "translate_model_description": "Modelo utilizado para el servicio de traducción",
       "translate_model_prompt_message": "Ingrese las sugerencias del modelo de traducción",
