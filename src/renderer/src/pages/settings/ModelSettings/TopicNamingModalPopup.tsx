@@ -3,7 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
-import { Button, Collapse, CollapseProps, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -70,17 +70,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     )
   }, [dispatch, enableTopicNaming, handleReset, promptVarsContent, t, topicNamingPrompt])
 
-  const collapseItems: CollapseProps['items'] = useMemo(
-    () => [
-      {
-        key: 'topic_naming',
-        label: t('settings.models.topic_naming.label'),
-        children: <TopicNamingSettings />
-      }
-    ],
-    [TopicNamingSettings, t]
-  )
-
   return (
     <Modal
       title={t('settings.models.quick_model.setting_title')}
@@ -92,7 +81,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       footer={null}
       centered>
-      <Collapse items={collapseItems} defaultActiveKey={['topic_naming']} />
+      <Divider style={{ margin: '10px 0' }} />
+      <TopicNamingSettings />
     </Modal>
   )
 }
