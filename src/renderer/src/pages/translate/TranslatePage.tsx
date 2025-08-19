@@ -346,6 +346,12 @@ const TranslatePage: FC = () => {
     })
   }, [getLanguageByLangcode])
 
+  // 控制设置同步
+  const updateAutoDetectionMethod = (method: AutoDetectionMethod) => {
+    setAutoDetectionMethod(method)
+    db.settings.put({ id: 'translate:detect:method', value: method })
+  }
+
   // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
@@ -530,7 +536,7 @@ const TranslatePage: FC = () => {
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
         autoDetectionMethod={autoDetectionMethod}
-        setAutoDetectionMethod={setAutoDetectionMethod}
+        setAutoDetectionMethod={updateAutoDetectionMethod}
       />
     </Container>
   )
