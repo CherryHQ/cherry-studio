@@ -45,7 +45,7 @@ import styled from 'styled-components'
 import SelectModelSearchBar from './searchbar'
 import { FlatListItem, FlatListModel } from './types'
 
-const PAGE_SIZE = 11
+const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 
 type ModelPredict = (m: Model) => boolean
@@ -150,44 +150,37 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     })
   }, [])
 
-  const onCloseTag = useCallback((type: ModelTag) => {
-    startTransition(() => {
-      setFilterTags((prev) => ({ ...prev, [type]: false }))
-    })
-  }, [])
-
   // 筛选项列表
   const tagsItems: Record<ModelTag, ReactNode> = useMemo(
     () => ({
-      vision: <VisionTag showLabel onClick={() => onClickTag('vision')} />,
-      embedding: <EmbeddingTag onClick={() => onClickTag('embedding')} />,
-      reasoning: <ReasoningTag showLabel onClick={() => onClickTag('reasoning')} />,
-      function_calling: <ToolsCallingTag showLabel onClick={() => onClickTag('function_calling')} />,
-      web_search: <WebSearchTag showLabel onClick={() => onClickTag('web_search')} />,
-      rerank: <RerankerTag onClick={() => onClickTag('rerank')} />,
-      free: <FreeTag onClick={() => onClickTag('free')} />
+      vision: <VisionTag showLabel inactive={!filterTags.vision} onClick={() => onClickTag('vision')} />,
+      embedding: <EmbeddingTag inactive={!filterTags.embedding} onClick={() => onClickTag('embedding')} />,
+      reasoning: <ReasoningTag showLabel inactive={!filterTags.reasoning} onClick={() => onClickTag('reasoning')} />,
+      function_calling: (
+        <ToolsCallingTag
+          showLabel
+          inactive={!filterTags.function_calling}
+          onClick={() => onClickTag('function_calling')}
+        />
+      ),
+      web_search: <WebSearchTag showLabel inactive={!filterTags.web_search} onClick={() => onClickTag('web_search')} />,
+      rerank: <RerankerTag inactive={!filterTags.rerank} onClick={() => onClickTag('rerank')} />,
+      free: <FreeTag inactive={!filterTags.free} onClick={() => onClickTag('free')} />
     }),
-    [onClickTag]
-  )
-  const selectedTagItems: Record<ModelTag, ReactNode> = useMemo(
-    () => ({
-      vision: <VisionTag showLabel closable onClose={() => onCloseTag('vision')} />,
-      embedding: <EmbeddingTag closable onClose={() => onCloseTag('embedding')} />,
-      reasoning: <ReasoningTag showLabel closable onClose={() => onCloseTag('reasoning')} />,
-      function_calling: <ToolsCallingTag showLabel closable onClose={() => onCloseTag('function_calling')} />,
-      web_search: <WebSearchTag showLabel closable onClose={() => onCloseTag('web_search')} />,
-      rerank: <RerankerTag closable onClose={() => onCloseTag('rerank')} />,
-      free: <FreeTag closable onClose={() => onCloseTag('free')} />
-    }),
-    [onCloseTag]
+    [
+      filterTags.embedding,
+      filterTags.free,
+      filterTags.function_calling,
+      filterTags.reasoning,
+      filterTags.rerank,
+      filterTags.vision,
+      filterTags.web_search,
+      onClickTag
+    ]
   )
 
   // 要显示的筛选项
   const displayedTags = useMemo(() => availableTags.map((tag) => tagsItems[tag]), [availableTags, tagsItems])
-  const selectedTags = useMemo(
-    () => selectedFilterTags.map((tag) => selectedTagItems[tag]),
-    [selectedFilterTags, selectedTagItems]
-  )
   // 根据输入的文本筛选模型
   const searchFilter = useCallback(
     (provider: Provider) => {
@@ -493,7 +486,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
           overflow: 'hidden',
           paddingBottom: 16,
           // 需要稳定高度避免布局偏移
-          minHeight: userFilterDisabled ? undefined : 530
+          height: userFilterDisabled ? undefined : 530
         },
         body: {
           maxHeight: 'inherit',
@@ -508,23 +501,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
       {!userFilterDisabled && (
         <>
           <FilterContainer>
-            <FilterText>{t('models.filter.by_tag')}</FilterText>
             <Flex wrap="wrap" gap={4}>
+              <FilterText>{t('models.filter.by_tag')}</FilterText>
               {displayedTags.map((item) => item)}
             </Flex>
           </FilterContainer>
-          <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-          {selectedFilterTags.length > 0 && (
-            <>
-              <FilterContainer>
-                <FilterText>{t('models.filter.selected')}</FilterText>
-                <Flex wrap="wrap" gap={4}>
-                  {selectedTags.map((item) => item)}
-                </Flex>
-              </FilterContainer>
-              <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-            </>
-          )}
+          <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
         </>
       )}
 
@@ -557,10 +539,9 @@ const FilterContainer = styled.div`
   padding-left: 18px;
 `
 
-const FilterText = styled.div`
+const FilterText = styled.span`
   color: var(--color-text-3);
   font-size: 12px;
-  padding: 4px 0;
 `
 
 const ListContainer = styled.div`
