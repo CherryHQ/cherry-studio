@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
-import TopicNamingModalPopup from './TopicNamingModalPopup'
+import TopicNamingModalPopup from './QuickModelPopup'
 
 const ModelSettings: FC = () => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
