@@ -2276,8 +2276,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "开启后，使用总结模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "使用总结模型为导出的消息命名标题"
+          "help": "开启后，使用快速模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
+          "title": "使用快速模型为导出的消息命名标题"
         }
       },
       "minute_interval_one": "{{count}} 分钟",

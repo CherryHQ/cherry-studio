@@ -2274,8 +2274,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Activado, utiliza el modelo de resumen para asignar títulos a los mensajes exportados. Esta opción también afecta a todas las formas de exportación mediante Markdown.",
-          "title": "Usar el modelo de resumen para nombrar el título de los mensajes exportados"
+          "help": "Activado, utiliza el modelo rápido para nombrar el título de los mensajes exportados. Esta opción también afecta a todas las formas de exportación mediante Markdown.",
+          "title": "Usar el modelo rápido para nombrar el título de los mensajes exportados"
         }
       },
       "minute_interval_one": "{{count}} minuto",
@@ -3139,9 +3139,9 @@
       "quick_assistant_model": "Modelo del asistente rápido",
       "quick_assistant_selection": "Seleccionar asistente",
       "quick_model": {
-        "description": "Modelo utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
+        "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
         "label": "Modelo rápido",
-        "setting_title": "Configuración rápida del modelo",
+        "setting_title": "Configuración del modelo rápido",
         "tooltip": "Se recomienda elegir un modelo ligero y no se recomienda elegir un modelo de razonamiento"
       },
       "topic_naming": {

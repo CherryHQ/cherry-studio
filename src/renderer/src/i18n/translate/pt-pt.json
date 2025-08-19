@@ -2274,8 +2274,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Ativado, utiliza o modelo de resumo para nomear títulos das mensagens exportadas. Esta opção também afeta todas as formas de exportação por Markdown.",
-          "title": "Usar o modelo de resumo para nomear o título das mensagens exportadas"
+          "help": "Ativado, usa um modelo rápido para nomear o título das mensagens exportadas. Esta opção também afeta todas as formas de exportação por Markdown.",
+          "title": "Usar modelo rápido para nomear o título das mensagens exportadas"
         }
       },
       "minute_interval_one": "{{count}} minuto",
