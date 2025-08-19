@@ -2,9 +2,9 @@
 
 exports[`SvgPreview > basic rendering > should match snapshot 1`] = `
 .c0 {
-  --shadow-host-background-color: white;
-  --shadow-host-border: 0.5px solid var(--color-code-background);
-  --shadow-host-border-radius: 8px;
+  --shadow-host-background-color: transparent;
+  --shadow-host-border: unset;
+  --shadow-host-border-radius: unset;
 }
 
 <div>
