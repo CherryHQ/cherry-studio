@@ -73,6 +73,18 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     [assistant, updateAssistant]
   )
 
+  const updateQuickPanelItem = useCallback(
+    async (providerId?: WebSearchProvider['id']) => {
+      // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
+      if (providerId === assistant.webSearchProviderId) {
+        updateWebSearchProvider(undefined)
+      } else {
+        updateWebSearchProvider(providerId)
+      }
+    },
+    [assistant.webSearchProviderId, updateWebSearchProvider]
+  )
+
   const updateToModelBuiltinWebSearch = useCallback(async () => {
     // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
     startTransition(() => {
@@ -94,7 +106,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         icon: <WebSearchIcon color="" size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
-        action: () => updateWebSearchProvider(p.id)
+        action: () => updateQuickPanelItem(p.id)
       }))
       .filter((o) => !o.disabled)
 
@@ -140,6 +152,14 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     }
   }, [openQuickPanel, quickPanel])
 
+  const onClick = useCallback(() => {
+    if (enableWebSearch) {
+      updateWebSearchProvider(undefined)
+    } else {
+      handleOpenQuickPanel()
+    }
+  }, [enableWebSearch, handleOpenQuickPanel, updateWebSearchProvider])
+
   useImperativeHandle(ref, () => ({
     openQuickPanel
   }))
@@ -150,7 +170,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+      <ToolbarButton type="text" onClick={onClick}>
         <WebSearchIcon pid={assistant.webSearchProviderId} />
       </ToolbarButton>
     </Tooltip>
