@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../../../components/TopView'
+import { SettingSubtitle } from '..'
 
 interface Props {
   resolve: (data: any) => void
@@ -39,37 +40,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const promptVarsContent = useMemo(() => <pre>{t('agents.add.prompt.variables.tip.content')}</pre>, [t])
 
-  const TopicNamingSettings = useCallback(() => {
-    return (
-      <>
-        <HStack style={{ gap: 10, marginBottom: 20 }} alignItems="center">
-          <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
-        </HStack>
-        <Divider style={{ margin: '10px 0' }} />
-        <div>
-          <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
-            <div>{t('settings.models.topic_naming.prompt')}</div>
-            <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
-            </Popover>
-          </Flex>
-          <Input.TextArea
-            autoSize={{ minRows: 3, maxRows: 10 }}
-            value={topicNamingPrompt || t('prompts.title')}
-            onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value.trim()))}
-            placeholder={t('prompts.title')}
-          />
-          {topicNamingPrompt && (
-            <Button style={{ marginTop: 10 }} onClick={handleReset}>
-              {t('common.reset')}
-            </Button>
-          )}
-        </div>
-      </>
-    )
-  }, [dispatch, enableTopicNaming, handleReset, promptVarsContent, t, topicNamingPrompt])
-
   return (
     <Modal
       title={t('settings.models.quick_model.setting_title')}
@@ -79,10 +49,38 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       maskClosable={false}
       transitionName="animation-move-down"
-      footer={null}
-      centered>
-      <Divider style={{ margin: '10px 0' }} />
-      <TopicNamingSettings />
+      centered
+      style={{ padding: '24px' }}>
+      <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
+        {t('settings.models.topic_naming.label')}
+      </SettingSubtitle>
+      <Flex vertical align="stretch" gap={8}>
+        <HStack style={{ gap: 16 }} alignItems="center">
+          <div>{t('settings.models.topic_naming.auto')}</div>
+          <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
+        </HStack>
+        <Divider style={{ margin: 0 }} />
+        <div>
+          <Flex align="center" gap={4} style={{ marginBottom: 4 }}>
+            <div>{t('settings.models.topic_naming.prompt')}</div>
+            <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
+            </Popover>
+          </Flex>
+          <Input.TextArea
+            autoSize={{ minRows: 3, maxRows: 10 }}
+            value={topicNamingPrompt || t('prompts.title')}
+            onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value))}
+            placeholder={t('prompts.title')}
+            style={{ width: '100%' }}
+          />
+          {topicNamingPrompt && (
+            <Button style={{ marginTop: 16 }} onClick={handleReset}>
+              {t('common.reset')}
+            </Button>
+          )}
+        </div>
+      </Flex>
     </Modal>
   )
 }
