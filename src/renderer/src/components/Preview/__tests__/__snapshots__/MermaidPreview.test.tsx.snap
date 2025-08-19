@@ -2,10 +2,9 @@
 
 exports[`MermaidPreview > basic rendering > should match snapshot 1`] = `
 .c0 {
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
+  --shadow-host-background-color: transparent;
+  --shadow-host-border: unset;
+  --shadow-host-border-radius: unset;
 }
 
 <div>

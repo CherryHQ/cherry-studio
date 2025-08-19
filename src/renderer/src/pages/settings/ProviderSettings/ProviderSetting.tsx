@@ -128,7 +128,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      providerKind: 'llm',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
   }
@@ -285,8 +284,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
-              // FIXME：暂时用 prefix。因为 suffix 会被覆盖，实际上不起作用。
-              prefix={renderStatusIndicator()}
+              suffix={renderStatusIndicator()}
             />
             <Button
               type={isApiKeyConnectable ? 'primary' : 'default'}

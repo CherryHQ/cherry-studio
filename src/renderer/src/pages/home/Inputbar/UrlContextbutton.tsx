@@ -33,7 +33,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
         <Link
           size={18}
           style={{
-            color: assistant.enableUrlContext ? 'var(--color-link)' : 'var(--color-icon)'
+            color: assistant.enableUrlContext ? 'var(--color-primary)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>

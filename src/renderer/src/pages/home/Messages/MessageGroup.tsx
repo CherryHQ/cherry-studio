@@ -241,7 +241,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return (
           <Popover
             key={message.id}
-            destroyTooltipOnHide
+            destroyOnHidden
             content={
               <MessageWrapper
                 className={classNames([
@@ -378,7 +378,7 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
-    padding-right: 1px;
+    padding: 1px;
     overflow-y: auto;
     .message {
       height: 100%;

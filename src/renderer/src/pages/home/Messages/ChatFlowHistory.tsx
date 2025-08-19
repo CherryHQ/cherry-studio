@@ -142,7 +142,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
       color="rgba(0, 0, 0, 0.85)"
       mouseEnterDelay={0.3}
       mouseLeaveDelay={0.1}
-      destroyTooltipOnHide>
+      destroyOnHidden>
       <CustomNodeContainer
         style={{
           borderColor,

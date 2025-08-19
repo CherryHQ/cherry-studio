@@ -105,6 +105,7 @@ export interface SettingsState {
   codeWrappable: boolean
   codeImageTools: boolean
   mathEngine: MathEngine
+  mathEnableSingleDollar: boolean
   messageStyle: 'plain' | 'bubble'
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
@@ -217,6 +218,7 @@ export interface SettingsState {
   navbarPosition: 'left' | 'top'
   // API Server
   apiServer: ApiServerConfig
+  showMessageOutline?: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -286,6 +288,7 @@ export const initialState: SettingsState = {
   codeWrappable: false,
   codeImageTools: false,
   mathEngine: 'KaTeX',
+  mathEnableSingleDollar: true,
   messageStyle: 'plain',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
@@ -404,7 +407,8 @@ export const initialState: SettingsState = {
     host: 'localhost',
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
-  }
+  },
+  showMessageOutline: undefined
 }
 
 const settingsSlice = createSlice({
@@ -613,6 +617,9 @@ const settingsSlice = createSlice({
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
+    },
+    setMathEnableSingleDollar: (state, action: PayloadAction<boolean>) => {
+      state.mathEnableSingleDollar = action.payload
     },
     setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
       state.foldDisplayMode = action.payload
@@ -833,6 +840,9 @@ const settingsSlice = createSlice({
         ...state.apiServer,
         apiKey: action.payload
       }
+    },
+    setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
+      state.showMessageOutline = action.payload
     }
   }
 })
@@ -893,6 +903,7 @@ export const {
   setCodeWrappable,
   setCodeImageTools,
   setMathEngine,
+  setMathEnableSingleDollar,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
@@ -958,6 +969,7 @@ export const {
   setS3Partial,
   setEnableDeveloperMode,
   setNavbarPosition,
+  setShowMessageOutline,
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,

@@ -23,6 +23,7 @@ import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
+import MessageOutline from './MessageOutline'
 
 interface Props {
   message: Message
@@ -66,7 +67,7 @@ const MessageItem: FC<Props> = ({
   const { assistant, setModel } = useAssistant(message.assistantId)
   const { isMultiSelectMode } = useChatContext(topic)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
-  const { messageFont, fontSize, messageStyle } = useSettings()
+  const { messageFont, fontSize, messageStyle, showMessageOutline } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -183,6 +184,9 @@ const MessageItem: FC<Props> = ({
         )}
         {!isEditing && (
           <>
+            {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
+              <MessageOutline message={message} />
+            )}
             <MessageContentContainer
               className="message-content-container"
               style={{

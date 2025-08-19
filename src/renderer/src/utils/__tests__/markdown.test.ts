@@ -706,11 +706,12 @@ $$
       expect(isHtmlCode('<!doctype html>')).toBe(true)
     })
 
-    it('should detect HTML with html/head/body tags', () => {
+    it('should detect HTML with valid tags', () => {
       expect(isHtmlCode('<html>')).toBe(true)
       expect(isHtmlCode('</html>')).toBe(true)
       expect(isHtmlCode('<head>')).toBe(true)
       expect(isHtmlCode('<body>')).toBe(true)
+      expect(isHtmlCode('<div>')).toBe(true)
     })
 
     it('should detect complete HTML structure', () => {
@@ -723,7 +724,6 @@ $$
       expect(isHtmlCode('')).toBe(false)
       expect(isHtmlCode('Hello world')).toBe(false)
       expect(isHtmlCode('a < b')).toBe(false)
-      expect(isHtmlCode('<div>')).toBe(false)
     })
   })
 })

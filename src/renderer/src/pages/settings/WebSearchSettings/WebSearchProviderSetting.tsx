@@ -1,9 +1,14 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import BochaLogo from '@renderer/assets/images/search/bocha.webp'
+import ExaLogo from '@renderer/assets/images/search/exa.png'
+import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
+import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
+import { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -16,7 +21,7 @@ import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, S
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
-  providerId: string
+  providerId: WebSearchProviderId
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
@@ -74,7 +79,6 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      providerKind: 'websearch',
       title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
     })
   }
@@ -131,6 +135,21 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     setBasicAuthUsername(provider.basicAuthUsername ?? '')
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
   }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
+
+  const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
+    switch (providerId) {
+      case 'tavily':
+        return TavilyLogo
+      case 'searxng':
+        return SearxngLogo
+      case 'exa':
+        return ExaLogo
+      case 'bocha':
+        return BochaLogo
+      default:
+        return undefined
+    }
+  }
 
   return (
     <>

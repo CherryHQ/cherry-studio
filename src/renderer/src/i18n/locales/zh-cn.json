@@ -820,7 +820,8 @@
     },
     "missing_user_message": "无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
@@ -840,6 +841,9 @@
     "created": "创建时间",
     "last_updated": "最后更新",
     "messages": "消息数",
+    "notion": {
+      "reasoning_truncated": "思维链无法分块，已截断"
+    },
     "user": "用户"
   },
   "files": {
@@ -1257,7 +1261,8 @@
       },
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
-        "no_api_key": "未配置 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
+        "no_content": "无可导出到 Notion 的内容"
       },
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
@@ -1383,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "正在导出到 Notion, 请勿重复请求导出！"
-      },
-      "siyuan": {
-        "exporting": "正在导出到思源笔记，请勿重复请求导出！"
-      },
-      "yuque": {
-        "exporting": "正在导出语雀，请勿重复请求导出！"
+      "export": {
+        "exporting": "正在进行其他导出，请等待上一导出完成后重试"
       }
     },
     "warning": {
@@ -1438,6 +1437,27 @@
       }
     },
     "title": "小程序"
+  },
+  "minapps": {
+    "baichuan": "百小应",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智谱清言",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "metaso": "秘塔AI搜索",
+    "nami-ai": "纳米AI",
+    "nami-ai-search": "纳米AI搜索",
+    "qwen": "通义千问",
+    "sensechat": "商量",
+    "tencent-yuanbao": "腾讯元宝",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "万知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS灵犀",
+    "xiaoyi": "小艺",
+    "yuewen": "跃问",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -1583,6 +1603,7 @@
       "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本"
     },
     "generate": {
+      "height": "高度",
       "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
       "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
       "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
@@ -1590,8 +1611,11 @@
       "person_generation": "生成人物",
       "person_generation_tip": "允许模型生成人物图像",
       "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+      "safety_tolerance": "安全容忍度",
+      "safety_tolerance_tip": "控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
       "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
-      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本"
+      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
+      "width": "宽度"
     },
     "generated_image": "生成图片",
     "go_to_settings": "去设置",
@@ -1646,7 +1670,7 @@
     "prompt_enhancement_tip": "开启后将提示重写为详细的、适合模型的版本",
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-    "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前 Imagen 仅支持英文提示词",
+    "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
     "quality_options": {
@@ -2704,6 +2728,11 @@
     },
     "input": {
       "auto_translate_with_space": "3 个空格快速翻译",
+      "clear": {
+        "all": "清除",
+        "knowledge_base": "清除选中的知识库",
+        "models": "清除@的所有模型"
+      },
       "show_translate_confirm": "显示翻译确认对话框",
       "target_language": {
         "chinese": "简体中文",
@@ -2718,6 +2747,17 @@
       "onboot": "开机自动启动",
       "title": "启动",
       "totray": "启动时最小化到托盘"
+    },
+    "math": {
+      "engine": {
+        "label": "数学公式引擎",
+        "none": "无"
+      },
+      "single_dollar": {
+        "label": "启用 $...$",
+        "tip": "渲染单个美元符号 $...$ 包裹的数学公式，默认启用。"
+      },
+      "title": "数学公式设置"
     },
     "mcp": {
       "actions": "操作",
@@ -2949,10 +2989,6 @@
         "title": "输入设置"
       },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
-      "math_engine": {
-        "label": "数学公式引擎",
-        "none": "无"
-      },
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
         "title": "模型设置"
@@ -2964,6 +3000,7 @@
         "none": "不显示"
       },
       "prompt": "显示提示词",
+      "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
@@ -3637,12 +3674,33 @@
     "custom": {
       "label": "自定义语言"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "算法",
+          "tip": "使用franc进行语言检测"
+        },
+        "auto": {
+          "label": "自动",
+          "tip": "自动选择合适的检测方法"
+        },
+        "label": "自动检测方法",
+        "llm": {
+          "tip": "使用翻译模型进行语言检测，消耗少量token。（QwenMT不支持进行语言检测，会自动回退到默认助手模型）"
+        },
+        "placeholder": "选择自动检测方法",
+        "tip": "自动检测输入语言时使用的方法"
+      }
+    },
     "detected": {
       "language": "自动检测"
     },
     "empty": "翻译内容为空",
     "error": {
-      "detected_unknown": "未知语言不可交换",
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用于语言检测",
+        "unknown": "检测到未知语言"
+      },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",

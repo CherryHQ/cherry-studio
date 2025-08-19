@@ -60,7 +60,7 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
   }
 
   if (targetLanguage.langCode === UNKNOWN.langCode) {
-    logger.error('Unknown target language')
+    logger.error('Unknown target language', targetLanguage)
     throw new Error('Unknown target language')
   }
 

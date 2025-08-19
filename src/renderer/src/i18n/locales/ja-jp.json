@@ -820,7 +820,8 @@
     },
     "missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
     "model": {
-      "exists": "モデルが既に存在します"
+      "exists": "モデルが既に存在します",
+      "not_exists": "モデルが存在しません"
     },
     "no_api_key": "APIキーが設定されていません",
     "pause_placeholder": "応答を一時停止しました",
@@ -840,6 +841,9 @@
     "created": "作成日",
     "last_updated": "最終更新日",
     "messages": "メッセージ",
+    "notion": {
+      "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
+    },
     "user": "ユーザー"
   },
   "files": {
@@ -1257,7 +1261,8 @@
       },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
-        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
+        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+        "no_content": "Notionにエクスポートできる内容がありません。"
       },
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
@@ -1383,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
-      },
-      "siyuan": {
-        "exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!"
-      },
-      "yuque": {
-        "exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!"
+      "export": {
+        "exporting": "他のエクスポートが実行中です。前のエクスポートが完了するまでお待ちください。"
       }
     },
     "warning": {
@@ -1438,6 +1437,27 @@
       }
     },
     "title": "ミニアプリ"
+  },
+  "minapps": {
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度AI検索",
+    "chatglm": "ChatGLM",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "通義千問",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "騰訊元宝",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "万知",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "小藝",
+    "yuewen": "躍問",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -1583,6 +1603,7 @@
       "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用"
     },
     "generate": {
+      "height": "高さ",
       "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
       "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
       "negative_prompt_tip": "画像に含めたくない内容を説明します",
@@ -1590,8 +1611,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "人物画像を生成する",
       "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "画像生成の安全耐性を制御します。FLUX.1-Kontext-pro のみ利用可能です",
       "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
-      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+      "width": "幅"
     },
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
@@ -1646,7 +1670,7 @@
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-    "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+    "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2704,6 +2728,11 @@
     },
     "input": {
       "auto_translate_with_space": "スペースを3回押して翻訳",
+      "clear": {
+        "all": "クリア",
+        "knowledge_base": "選択された知識ベースをクリア",
+        "models": "すべてのモデルをクリア"
+      },
       "show_translate_confirm": "翻訳確認ダイアログを表示",
       "target_language": {
         "chinese": "簡体字中国語",
@@ -2718,6 +2747,17 @@
       "onboot": "起動時に自動で開始",
       "title": "起動",
       "totray": "起動時にトレイに最小化"
+    },
+    "math": {
+      "engine": {
+        "label": "数式エンジン",
+        "none": "なし"
+      },
+      "single_dollar": {
+        "label": "$...$ を有効にする",
+        "tip": "単一のドル記号 $...$ で囲まれた数式をレンダリングします。デフォルトで有効です。"
+      },
+      "title": "数式設定"
     },
     "mcp": {
       "actions": "操作",
@@ -2949,10 +2989,6 @@
         "title": "入力設定"
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
-      "math_engine": {
-        "label": "数式エンジン",
-        "none": "なし"
-      },
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "model": {
         "title": "モデル設定"
@@ -2964,6 +3000,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
@@ -3637,12 +3674,33 @@
     "custom": {
       "label": "カスタム言語"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "アルゴリズム",
+          "tip": "francを使用して言語検出を行う"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "適切な検出方法を自動的に選択します"
+        },
+        "label": "自動検出方法",
+        "llm": {
+          "tip": "翻訳モデルを使用して言語検出を行うと、少量のトークンを消費します。（QwenMTは言語検出をサポートしておらず、自動的にデフォルトのアシスタントモデルにフォールバックします）"
+        },
+        "placeholder": "自動検出方法を選択してください",
+        "tip": "入力言語を自動検出する際に使用する方法"
+      }
+    },
     "detected": {
       "language": "自動検出"
     },
     "empty": "翻訳内容が空です",
     "error": {
-      "detected_unknown": "未知の言語は交換できません",
+      "detect": {
+        "qwen_mt": "QwenMTモデルは言語検出に使用できません",
+        "unknown": "検出された言語は不明です"
+      },
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
       "invalid_source": "無効なソース言語",

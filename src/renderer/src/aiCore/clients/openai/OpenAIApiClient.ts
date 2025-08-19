@@ -5,10 +5,13 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   getThinkModelType,
+  isClaudeReasoningModel,
   isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenMTModel,
   isQwenReasoningModel,
@@ -45,6 +48,7 @@ import {
   Model,
   OpenAIServiceTier,
   Provider,
+  SystemProviderIds,
   ToolCallResponse,
   TranslateAssistant,
   WebSearchSource
@@ -146,7 +150,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           return {}
         }
         // Don't disable reasoning for models that require it
-        if (isGrokReasoningModel(model)) {
+        if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -524,12 +528,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         // 1. 处理系统消息
-        let systemMessage = { role: 'system', content: assistant.prompt || '' }
+        const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
         if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessage = {
-            role: isSupportDeveloperRoleProvider(this.provider) ? 'developer' : 'system',
-            content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+          if (isSupportDeveloperRoleProvider(this.provider)) {
+            systemMessage.role = 'developer'
+          } else {
+            systemMessage.role = 'system'
           }
         }
 
@@ -555,17 +560,28 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
         }
 
-        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (
-          lastUserMsg &&
-          isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportEnableThinkingProvider(this.provider)
-        ) {
-          const postsuffix = '/no_think'
-          const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-          const currentContent = lastUserMsg.content
+        // poe 需要通过用户消息传递 reasoningEffort
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
-          lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+        if (lastUserMsg) {
+          if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
+            const postsuffix = '/no_think'
+            const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+            const currentContent = lastUserMsg.content
+
+            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+          }
+          if (this.provider.id === SystemProviderIds.poe) {
+            // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
+            if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
+              lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
+            } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
+            } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+            }
+          }
         }
 
         // 4. 最终请求消息
@@ -582,8 +598,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // Create the appropriate parameters object based on whether streaming is enabled
         // Note: Some providers like Mistral don't support stream_options
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
-        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
         // minimal cannot be used with web_search tool
         if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort === 'minimal' && enableWebSearch) {

@@ -649,29 +649,29 @@
     "translate": "Traduzir"
   },
   "code": {
-    "auto_update_to_latest": "Verifique atualizações e instale a versão mais recente",
-    "bun_required_message": "A execução da ferramenta CLI requer a instalação do ambiente Bun",
-    "cli_tool": "Ferramentas CLI",
-    "cli_tool_placeholder": "Escolha a ferramenta CLI a ser usada",
-    "description": "Inicie rapidamente várias ferramentas CLI de código para aumentar a eficiência no desenvolvimento",
-    "folder_placeholder": "Selecione o diretório de trabalho",
+    "auto_update_to_latest": "Verificar atualizações e instalar a versão mais recente",
+    "bun_required_message": "Executar a ferramenta CLI requer a instalação do ambiente Bun",
+    "cli_tool": "Ferramenta de linha de comando",
+    "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
+    "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
+    "folder_placeholder": "Selecionar diretório de trabalho",
     "install_bun": "Instalar o Bun",
     "installing_bun": "Instalando...",
     "launch": {
-      "bun_required": "Por favor, instale o ambiente Bun antes de iniciar a ferramenta CLI",
+      "bun_required": "Instale o ambiente Bun antes de iniciar a ferramenta de linha de comando",
       "error": "Falha ao iniciar, tente novamente",
-      "label": "Iniciar",
-      "success": "Iniciado com sucesso",
-      "validation_error": "Por favor, preencha todos os campos obrigatórios: ferramenta CLI, modelo e diretório de trabalho"
+      "label": "iniciar",
+      "success": "Início bem-sucedido",
+      "validation_error": "Preencha todos os campos obrigatórios: ferramenta CLI, modelo e diretório de trabalho"
     },
     "launching": "Iniciando...",
     "model": "modelo",
-    "model_placeholder": "Escolha o modelo a ser usado",
-    "model_required": "Por favor, selecione o modelo",
+    "model_placeholder": "Selecione o modelo a ser utilizado",
+    "model_required": "Selecione o modelo",
     "select_folder": "Selecionar pasta",
-    "title": "Ferramentas de código",
+    "title": "Ferramenta de código",
     "update_options": "Opções de atualização",
-    "working_directory": "Diretório de trabalho"
+    "working_directory": "diretório de trabalho"
   },
   "code_block": {
     "collapse": "Recolher",
@@ -820,7 +820,8 @@
     },
     "missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do usuário foi excluída. Envie uma nova mensagem para obter a resposta deste modelo",
     "model": {
-      "exists": "O modelo já existe"
+      "exists": "O modelo já existe",
+      "not_exists": "O modelo não existe"
     },
     "no_api_key": "A chave da API não foi configurada",
     "pause_placeholder": "Interrompido",
@@ -840,6 +841,9 @@
     "created": "Criado em",
     "last_updated": "Última Atualização",
     "messages": "Mensagens",
+    "notion": {
+      "reasoning_truncated": "A cadeia de pensamento não pode ser dividida em partes, foi interrompida"
+    },
     "user": "Usuário"
   },
   "files": {
@@ -1257,7 +1261,8 @@
       },
       "notion": {
         "export": "Erro ao exportar Notion, verifique o status da conexão e a configuração de acordo com a documentação",
-        "no_api_key": "API Key ou Notion Database ID não configurados"
+        "no_api_key": "API Key ou Notion Database ID não configurados",
+        "no_content": "Nenhum conteúdo para exportar para o Notion"
       },
       "siyuan": {
         "export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
@@ -1383,14 +1388,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exportando para Notion, não solicite novamente a exportação!"
-      },
-      "siyuan": {
-        "exporting": "Exportando para o Siyuan, por favor não solicite a exportação novamente!"
-      },
-      "yuque": {
-        "exporting": "Exportando para Yuque, por favor não solicite a exportação novamente!"
+      "export": {
+        "exporting": "A exportação de outros arquivos está em andamento, aguarde a conclusão da exportação anterior e tente novamente."
       }
     },
     "warning": {
@@ -1438,6 +1437,27 @@
       }
     },
     "title": "Pequeno aplicativo"
+  },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
   },
   "miniwindow": {
     "alert": {
@@ -1583,6 +1603,7 @@
       "style_type_tip": "Estilo da imagem editada, disponível apenas para a versão V_2 ou superior"
     },
     "generate": {
+      "height": "Altura",
       "magic_prompt_option_tip": "Otimização inteligente do prompt para melhorar os resultados da geração",
       "model_tip": "Versão do modelo: V2 é o modelo mais recente da interface, V2A é o modelo rápido, V_1 é o modelo de primeira geração e _TURBO é a versão acelerada",
       "negative_prompt_tip": "Descreve elementos que você não deseja ver nas imagens; suportado apenas nas versões V_1, V_1_TURBO, V_2 e V_2_TURBO",
@@ -1590,8 +1611,11 @@
       "person_generation": "Gerar Personagem",
       "person_generation_tip": "Permite que o modelo gere imagens de personagens",
       "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
+      "safety_tolerance": "Tolerância de segurança",
+      "safety_tolerance_tip": "Controle a tolerância de segurança para a geração de imagens, aplicável apenas à versão FLUX.1-Kontext-pro",
       "seed_tip": "Controla a aleatoriedade na geração das imagens, usado para reproduzir resultados idênticos",
-      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores"
+      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
+      "width": "Largura"
     },
     "generated_image": "Imagem gerada",
     "go_to_settings": "Ir para configurações",
@@ -2704,6 +2728,11 @@
     },
     "input": {
       "auto_translate_with_space": "Traduzir com três espaços rápidos",
+      "clear": {
+        "all": "Limpar",
+        "knowledge_base": "Limpar base de conhecimento selecionada",
+        "models": "Limpar todos os modelos"
+      },
       "show_translate_confirm": "Mostrar diálogo de confirmação de tradução",
       "target_language": {
         "chinese": "Chinês simplificado",
@@ -2718,6 +2747,17 @@
       "onboot": "Iniciar automaticamente ao ligar",
       "title": "Inicialização",
       "totray": "Minimizar para bandeja ao iniciar"
+    },
+    "math": {
+      "engine": {
+        "label": "Motor de fórmulas matemáticas",
+        "none": "sem conteúdo"
+      },
+      "single_dollar": {
+        "label": "ativar $...$",
+        "tip": "Renderiza fórmulas matemáticas delimitadas por um único sinal de dólar $...$, habilitado por padrão."
+      },
+      "title": "Configuração de fórmulas matemáticas"
     },
     "mcp": {
       "actions": "Ações",
@@ -2949,10 +2989,6 @@
         "title": "Configurações de entrada"
       },
       "markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
-      "math_engine": {
-        "label": "Motor de fórmulas matemáticas",
-        "none": "Nenhum"
-      },
       "metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
       "model": {
         "title": "Configurações de modelo"
@@ -2964,6 +3000,7 @@
         "none": "Não mostrar"
       },
       "prompt": "Exibir palavra-chave",
+      "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
@@ -3637,12 +3674,33 @@
     "custom": {
       "label": "idioma personalizado"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algoritmo",
+          "tip": "Usar o algoritmo franc para detecção de idioma"
+        },
+        "auto": {
+          "label": "automático",
+          "tip": "Selecionar automaticamente o método de detecção adequado"
+        },
+        "label": "Método de detecção automática",
+        "llm": {
+          "tip": "Usar o modelo de tradução para detecção de idioma consome uma pequena quantidade de tokens. (O QwenMT não suporta detecção de idioma e reverterá automaticamente para o modelo assistente padrão)"
+        },
+        "placeholder": "Escolha o método de detecção automática",
+        "tip": "Método utilizado para detecção automática do idioma de entrada"
+      }
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
-      "detected_unknown": "Idioma desconhecido não pode ser trocado",
+      "detect": {
+        "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
+        "unknown": "Idioma desconhecido detectado"
+      },
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "invalid_source": "Idioma de origem inválido",

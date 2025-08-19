@@ -263,31 +263,49 @@ export function isHtmlCode(code: string | null): boolean {
     return false
   }
 
-  const trimmedCode = code.trim()
+  const trimmedCode = code.trim().toLowerCase()
 
-  // 检查是否包含HTML文档类型声明
-  if (trimmedCode.includes('<!DOCTYPE html>') || trimmedCode.includes('<!doctype html>')) {
+  // 1. 检查是否包含完整的HTML文档结构
+  if (
+    trimmedCode.includes('<!doctype html>') ||
+    trimmedCode.includes('<html') ||
+    trimmedCode.includes('</html>') ||
+    trimmedCode.includes('<head') ||
+    trimmedCode.includes('</head>') ||
+    trimmedCode.includes('<body') ||
+    trimmedCode.includes('</body>')
+  ) {
     return true
   }
 
-  // 检查是否包含html标签
-  if (trimmedCode.includes('<html') || trimmedCode.includes('</html>')) {
+  // 2. 检查是否包含常见的HTML/SVG标签
+  const commonTags = [
+    '<div',
+    '<span',
+    '<p',
+    '<a',
+    '<img',
+    '<svg',
+    '<table',
+    '<ul',
+    '<ol',
+    '<section',
+    '<header',
+    '<footer',
+    '<nav',
+    '<article',
+    '<button',
+    '<form',
+    '<input'
+  ]
+  if (commonTags.some((tag) => trimmedCode.includes(tag))) {
     return true
   }
 
-  // 检查是否包含head标签
-  if (trimmedCode.includes('<head>') || trimmedCode.includes('</head>')) {
-    return true
-  }
-
-  // 检查是否包含body标签
-  if (trimmedCode.includes('<body') || trimmedCode.includes('</body>')) {
-    return true
-  }
-
-  // 检查是否以HTML标签开头和结尾的完整HTML结构
-  const htmlTagPattern = /^\s*<html[^>]*>[\s\S]*<\/html>\s*$/i
-  if (htmlTagPattern.test(trimmedCode)) {
+  // 3. 检查是否存在至少一个闭合的HTML标签
+  // 这个正则表达式查找 <tag>...</tag> 或 <tag .../> 结构
+  const pairedTagPattern = /<([a-z0-9]+)([^>]*?)>(.*?)<\/\1>|<([a-z0-9]+)([^>]*?)\/>/
+  if (pairedTagPattern.test(trimmedCode)) {
     return true
   }
 

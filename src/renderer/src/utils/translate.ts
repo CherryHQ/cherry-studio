@@ -1,125 +1,87 @@
 import { loggerService } from '@logger'
 import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import db from '@renderer/databases'
+import { fetchLanguageDetection } from '@renderer/services/ApiService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
-import React, { MutableRefObject, RefObject } from 'react'
+import React, { RefObject } from 'react'
+import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('Utils:translate')
-
-/**
- * 使用Unicode字符范围检测语言
- * 适用于较短文本的语言检测
- * @param text 需要检测语言的文本
- * @returns 检测到的语言
- */
-export const detectLanguageByUnicode = (text: string): TranslateLanguage => {
-  const counts = {
-    zh: 0,
-    ja: 0,
-    ko: 0,
-    ru: 0,
-    ar: 0,
-    latin: 0
-  }
-
-  let totalChars = 0
-
-  for (const char of text) {
-    const code = char.codePointAt(0) || 0
-    totalChars++
-
-    if (code >= 0x4e00 && code <= 0x9fff) {
-      counts.zh++
-    } else if ((code >= 0x3040 && code <= 0x309f) || (code >= 0x30a0 && code <= 0x30ff)) {
-      counts.ja++
-    } else if ((code >= 0xac00 && code <= 0xd7a3) || (code >= 0x1100 && code <= 0x11ff)) {
-      counts.ko++
-    } else if (code >= 0x0400 && code <= 0x04ff) {
-      counts.ru++
-    } else if (code >= 0x0600 && code <= 0x06ff) {
-      counts.ar++
-    } else if ((code >= 0x0020 && code <= 0x007f) || (code >= 0x0080 && code <= 0x00ff)) {
-      counts.latin++
-    } else {
-      totalChars--
-    }
-  }
-
-  if (totalChars === 0) return LanguagesEnum.enUS
-  let maxLang = ''
-  let maxCount = 0
-
-  for (const [lang, count] of Object.entries(counts)) {
-    if (count > maxCount) {
-      maxCount = count
-      maxLang = lang === 'latin' ? 'en' : lang
-    }
-  }
-
-  if (maxCount / totalChars < 0.3) {
-    return LanguagesEnum.enUS
-  }
-
-  switch (maxLang) {
-    case 'zh':
-      return LanguagesEnum.zhCN
-    case 'ja':
-      return LanguagesEnum.jaJP
-    case 'ko':
-      return LanguagesEnum.koKR
-    case 'ru':
-      return LanguagesEnum.ruRU
-    case 'ar':
-      return LanguagesEnum.arAR
-    case 'en':
-      return LanguagesEnum.enUS
-    default:
-      logger.error(`Unknown language: ${maxLang}`)
-      return LanguagesEnum.enUS
-  }
-}
 
 /**
  * 检测输入文本的语言
  * @param inputText 需要检测语言的文本
  * @returns 检测到的语言
+ * @throws {Error}
  */
-export const detectLanguage = async (inputText: string): Promise<TranslateLanguage> => {
+export const detectLanguage = async (inputText: string): Promise<TranslateLanguageCode> => {
   const text = inputText.trim()
-  if (!text) return LanguagesEnum.zhCN
-  let lang: TranslateLanguage
+  if (!text) return LanguagesEnum.zhCN.langCode
 
-  // 如果文本长度小于20个字符，使用Unicode范围检测
-  if (text.length < 20) {
-    lang = detectLanguageByUnicode(text)
-  } else {
-    // franc 返回 ISO 639-3 代码
-    const iso3 = franc(text)
-    const isoMap: Record<string, TranslateLanguage> = {
-      cmn: LanguagesEnum.zhCN,
-      jpn: LanguagesEnum.jaJP,
-      kor: LanguagesEnum.koKR,
-      rus: LanguagesEnum.ruRU,
-      ara: LanguagesEnum.arAR,
-      spa: LanguagesEnum.esES,
-      fra: LanguagesEnum.frFR,
-      deu: LanguagesEnum.deDE,
-      ita: LanguagesEnum.itIT,
-      por: LanguagesEnum.ptPT,
-      eng: LanguagesEnum.enUS,
-      pol: LanguagesEnum.plPL,
-      tur: LanguagesEnum.trTR,
-      tha: LanguagesEnum.thTH,
-      vie: LanguagesEnum.viVN,
-      ind: LanguagesEnum.idID,
-      urd: LanguagesEnum.urPK,
-      zsm: LanguagesEnum.msMY
+  let method = (await db.settings.get({ id: 'translate:detect:method' }))?.value
+  if (!method) method = 'auto'
+  logger.info(`auto detection method: ${method}`)
+
+  let result: TranslateLanguageCode
+  switch (method) {
+    case 'auto':
+      // hard encoded threshold
+      result = estimateTextTokens(text) < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
+      break
+    case 'franc':
+      result = detectLanguageByFranc(text)
+      break
+    case 'llm':
+      result = await detectLanguageByLLM(text)
+      break
+    default:
+      throw new Error('Invalid detection method.')
+  }
+  logger.info(`Detected Language: ${result}`)
+  return result
+}
+
+const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
+  logger.info('Detect langugage by llm')
+  let detectedLang = ''
+  await fetchLanguageDetection({
+    text: sliceByTokens(inputText, 0, 50),
+    onResponse: (text) => {
+      detectedLang = text.replace(/^\s*\n+/g, '')
     }
-    lang = isoMap[iso3] || LanguagesEnum.enUS
+  })
+  return detectedLang
+}
+
+const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
+  logger.info('Detect langugage by franc')
+  const iso3 = franc(inputText)
+
+  const isoMap: Record<string, TranslateLanguage> = {
+    cmn: LanguagesEnum.zhCN,
+    jpn: LanguagesEnum.jaJP,
+    kor: LanguagesEnum.koKR,
+    rus: LanguagesEnum.ruRU,
+    ara: LanguagesEnum.arAR,
+    spa: LanguagesEnum.esES,
+    fra: LanguagesEnum.frFR,
+    deu: LanguagesEnum.deDE,
+    ita: LanguagesEnum.itIT,
+    por: LanguagesEnum.ptPT,
+    eng: LanguagesEnum.enUS,
+    pol: LanguagesEnum.plPL,
+    tur: LanguagesEnum.trTR,
+    tha: LanguagesEnum.thTH,
+    vie: LanguagesEnum.viVN,
+    ind: LanguagesEnum.idID,
+    urd: LanguagesEnum.urPK,
+    zsm: LanguagesEnum.msMY
   }
 
-  return lang
+  return isoMap[iso3]?.langCode ?? UNKNOWN.langCode
 }
 
 /**
@@ -192,7 +154,7 @@ export const determineTargetLanguage = (
 export const handleScrollSync = (
   sourceElement: HTMLElement,
   targetElement: HTMLElement,
-  isProgrammaticScrollRef: MutableRefObject<boolean>
+  isProgrammaticScrollRef: RefObject<boolean>
 ): void => {
   if (isProgrammaticScrollRef.current) return
 
@@ -225,8 +187,8 @@ export const createInputScrollHandler = (
  * 创建输出区域滚动处理函数
  */
 export const createOutputScrollHandler = (
-  textAreaRef: MutableRefObject<any>,
-  isProgrammaticScrollRef: MutableRefObject<boolean>,
+  textAreaRef: RefObject<any>,
+  isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLDivElement>) => {
@@ -234,25 +196,6 @@ export const createOutputScrollHandler = (
     if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
     handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
   }
-}
-
-/**
- * 根据语言代码获取对应的语言对象
- * @deprecated
- * @param langcode - 语言代码
- * @returns 返回对应的语言对象，如果找不到则返回未知语言
- * @example
- * ```typescript
- * const language = getLanguageByLangcode('zh-cn') // 返回中文语言对象
- * ```
- */
-export const getLanguageByLangcode = (langcode: TranslateLanguageCode): TranslateLanguage => {
-  const result = Object.values(LanguagesEnum).find((item) => item.langCode === langcode)
-  if (!result) {
-    logger.error(`Language not found for langcode: ${langcode}`)
-    return UNKNOWN
-  }
-  return result
 }
 
 /**

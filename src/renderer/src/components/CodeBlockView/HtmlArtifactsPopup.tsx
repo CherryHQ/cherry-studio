@@ -1,8 +1,8 @@
-import CodeEditor from '@renderer/components/CodeEditor'
+import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
-import { Button, Modal } from 'antd'
-import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, X } from 'lucide-react'
+import { Button, Modal, Splitter, Tooltip } from 'antd'
+import { Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -11,60 +11,17 @@ interface HtmlArtifactsPopupProps {
   open: boolean
   title: string
   html: string
+  onSave?: (html: string) => void
   onClose: () => void
 }
 
 type ViewMode = 'split' | 'code' | 'preview'
 
-const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onClose }) => {
+const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [currentHtml, setCurrentHtml] = useState(html)
   const [isFullscreen, setIsFullscreen] = useState(false)
-
-  // Preview refresh related state
-  const [previewHtml, setPreviewHtml] = useState(html)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const latestHtmlRef = useRef(html)
-  const currentPreviewHtmlRef = useRef(html)
-
-  // Sync internal state when external html updates
-  useEffect(() => {
-    setCurrentHtml(html)
-    latestHtmlRef.current = html
-  }, [html])
-
-  // Update reference when internally edited html changes
-  useEffect(() => {
-    latestHtmlRef.current = currentHtml
-  }, [currentHtml])
-
-  // Update reference when preview content changes
-  useEffect(() => {
-    currentPreviewHtmlRef.current = previewHtml
-  }, [previewHtml])
-
-  // Check and refresh preview every 2 seconds (only when content changes)
-  useEffect(() => {
-    if (!open) return
-
-    // Set initial preview content immediately
-    setPreviewHtml(latestHtmlRef.current)
-
-    // Set timer to check for content changes every 2 seconds
-    intervalRef.current = setInterval(() => {
-      if (latestHtmlRef.current !== currentPreviewHtmlRef.current) {
-        setPreviewHtml(latestHtmlRef.current)
-      }
-    }, 2000)
-
-    // Cleanup function
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [open])
+  const codeEditorRef = useRef<CodeEditorHandles>(null)
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -79,8 +36,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     }
   }, [isFullscreen, open])
 
-  const showCode = viewMode === 'split' || viewMode === 'code'
-  const showPreview = viewMode === 'split' || viewMode === 'preview'
+  const handleSave = () => {
+    codeEditorRef.current?.save?.()
+  }
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
@@ -93,7 +51,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
-            icon={<MonitorSpeaker size={14} />}
+            icon={<SquareSplitHorizontal size={14} />}
             onClick={() => setViewMode('split')}>
             {t('html_artifacts.split')}
           </ViewButton>
@@ -107,7 +65,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <ViewButton
             size="small"
             type={viewMode === 'preview' ? 'primary' : 'default'}
-            icon={<Monitor size={14} />}
+            icon={<Eye size={14} />}
             onClick={() => setViewMode('preview')}>
             {t('html_artifacts.preview')}
           </ViewButton>
@@ -125,6 +83,75 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderRight>
     </ModalHeader>
   )
+
+  const renderContent = () => {
+    const codePanel = (
+      <CodeSection>
+        <CodeEditor
+          ref={codeEditorRef}
+          value={html}
+          language="html"
+          editable={true}
+          onSave={onSave}
+          style={{ height: '100%' }}
+          expanded
+          unwrapped={false}
+          options={{
+            stream: true, // FIXME: 避免多余空行
+            lineNumbers: true,
+            keymap: true
+          }}
+        />
+        <ToolbarWrapper>
+          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
+            <Button
+              shape="circle"
+              size="large"
+              icon={<SaveIcon size={16} className="custom-lucide" />}
+              onClick={handleSave}
+            />
+          </Tooltip>
+        </ToolbarWrapper>
+      </CodeSection>
+    )
+
+    const previewPanel = (
+      <PreviewSection>
+        {html.trim() ? (
+          <PreviewFrame
+            key={html} // Force recreate iframe when preview content changes
+            srcDoc={html}
+            title="HTML Preview"
+            sandbox="allow-scripts allow-same-origin allow-forms"
+          />
+        ) : (
+          <EmptyPreview>
+            <p>{t('html_artifacts.empty_preview', 'No content to preview')}</p>
+          </EmptyPreview>
+        )}
+      </PreviewSection>
+    )
+
+    switch (viewMode) {
+      case 'split':
+        return (
+          <Splitter>
+            <Splitter.Panel defaultSize="50%" min="25%">
+              {codePanel}
+            </Splitter.Panel>
+            <Splitter.Panel defaultSize="50%" min="25%">
+              {previewPanel}
+            </Splitter.Panel>
+          </Splitter>
+        )
+      case 'code':
+        return codePanel
+      case 'preview':
+        return previewPanel
+      default:
+        return null
+    }
+  }
 
   return (
     <StyledModal
@@ -144,41 +171,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       zIndex={isFullscreen ? 10000 : 1000}
       footer={null}
       closable={false}>
-      <Container>
-        {showCode && (
-          <CodeSection>
-            <CodeEditor
-              value={currentHtml}
-              language="html"
-              editable={true}
-              onSave={setCurrentHtml}
-              style={{ height: '100%' }}
-              expanded
-              unwrapped={false}
-              options={{
-                stream: false
-              }}
-            />
-          </CodeSection>
-        )}
-
-        {showPreview && (
-          <PreviewSection>
-            {previewHtml.trim() ? (
-              <PreviewFrame
-                key={previewHtml} // Force recreate iframe when preview content changes
-                srcDoc={previewHtml}
-                title="HTML Preview"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-              />
-            ) : (
-              <EmptyPreview>
-                <p>{t('html_artifacts.empty_preview', 'No content to preview')}</p>
-              </EmptyPreview>
-            )}
-          </PreviewSection>
-        )}
-      </Container>
+      <Container>{renderContent()}</Container>
     </StyledModal>
   )
 }
@@ -213,7 +206,6 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
       : `
     .ant-modal-body {
       height: 80vh !important;
-      min-height: 600px !important;
     }
   `}
 
@@ -237,6 +229,10 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
     background: var(--color-background);
     margin-bottom: 0 !important;
     border-radius: 0 !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
   }
 `
 
@@ -315,13 +311,24 @@ const Container = styled.div`
   width: 100%;
   flex: 1;
   background: var(--color-background);
+  overflow: hidden;
+
+  .ant-splitter {
+    width: 100%;
+    height: 100%;
+    border: none;
+
+    .ant-splitter-pane {
+      overflow: hidden;
+    }
+  }
 `
 
 const CodeSection = styled.div`
-  flex: 1;
-  min-width: 300px;
-  border-right: 1px solid var(--color-border);
+  height: 100%;
+  width: 100%;
   overflow: hidden;
+  position: relative;
 
   .monaco-editor,
   .cm-editor,
@@ -331,8 +338,8 @@ const CodeSection = styled.div`
 `
 
 const PreviewSection = styled.div`
-  flex: 1;
-  min-width: 300px;
+  height: 100%;
+  width: 100%;
   background: white;
   overflow: hidden;
 `
@@ -353,6 +360,17 @@ const EmptyPreview = styled.div`
   background: var(--color-background-soft);
   color: var(--color-text-secondary);
   font-size: 14px;
+`
+
+const ToolbarWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  gap: 4px;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1;
 `
 
 export default HtmlArtifactsPopup
