@@ -93,6 +93,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
+      assistant.settings?.toolUseMode === 'function' &&
       update.enableWebSearch &&
       assistant.mcpServers &&
       assistant.mcpServers.length > 0
