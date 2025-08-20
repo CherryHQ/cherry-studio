@@ -9,6 +9,7 @@ import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
@@ -51,7 +52,7 @@ const TranslatePage: FC = () => {
   // states
   const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
@@ -222,8 +223,7 @@ const TranslatePage: FC = () => {
   // 控制复制按钮
   const onCopy = () => {
     navigator.clipboard.writeText(translatedContent)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopied(false)
   }
 
   // 控制历史记录点击

@@ -6,6 +6,7 @@ import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
@@ -42,6 +43,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   customParametersRef.current = customParameters
 
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
@@ -191,13 +193,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       // TODO: 需要根据配置来设置默认值
       if (selectedModel.name.includes('kimi-k2')) {
         setTemperature(0.6)
-        setTimeout(() => updateAssistantSettings({ temperature: 0.6 }), 500)
+        setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
       } else if (selectedModel.name.includes('moonshot')) {
         setTemperature(0.3)
-        setTimeout(() => updateAssistantSettings({ temperature: 0.3 }), 500)
+        setTimeoutTimer('onSelectModel_2', () => updateAssistantSettings({ temperature: 0.3 }), 500)
       }
     }
-  }, [assistant, defaultModel, updateAssistant, updateAssistantSettings])
+  }, [assistant, defaultModel, setTimeoutTimer, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -275,7 +277,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setTemperature(value)
-                  setTimeout(() => updateAssistantSettings({ temperature: value }), 500)
+                  setTimeoutTimer('temperature_onChange', () => updateAssistantSettings({ temperature: value }), 500)
                 }
               }}
               style={{ width: '100%' }}
@@ -323,7 +325,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setTopP(value)
-                  setTimeout(() => updateAssistantSettings({ topP: value }), 500)
+                  setTimeoutTimer('topP_onChange', () => updateAssistantSettings({ topP: value }), 500)
                 }
               }}
               style={{ width: '100%' }}
@@ -352,7 +354,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChange={(value) => {
               if (!isNull(value)) {
                 setContextCount(value)
-                setTimeout(() => updateAssistantSettings({ contextCount: value }), 500)
+                setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: value }), 500)
               }
             }}
             style={{ width: '100%' }}
@@ -413,7 +415,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={(value) => {
                 if (!isNull(value)) {
                   setMaxTokens(value)
-                  setTimeout(() => updateAssistantSettings({ maxTokens: value }), 1000)
+                  setTimeoutTimer('maxTokens_onChange', () => updateAssistantSettings({ maxTokens: value }), 1000)
                 }
               }}
               style={{ width: '100%' }}

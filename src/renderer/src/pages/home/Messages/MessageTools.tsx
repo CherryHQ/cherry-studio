@@ -3,6 +3,7 @@ import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
@@ -52,6 +53,7 @@ const MessageTools: FC<Props> = ({ block }) => {
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const [progress, setProgress] = useState<number>(0)
+  const { setTimeoutTimer } = useTimer()
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -130,7 +132,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     navigator.clipboard.writeText(content)
     antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
     setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
-    setTimeout(() => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
   }
 
   const handleCollapseChange = (keys: string | string[]) => {
