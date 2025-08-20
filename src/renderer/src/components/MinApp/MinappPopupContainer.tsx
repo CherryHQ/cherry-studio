@@ -19,6 +19,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
@@ -170,7 +171,7 @@ const MinappPopupContainer: React.FC = () => {
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
-  const loadedTimerRef = useRef<NodeJS.Timeout>(undefined)
+  const { setTimeoutTimer } = useTimer()
 
   useBridge()
 
@@ -297,16 +298,9 @@ const MinappPopupContainer: React.FC = () => {
       window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
     }
     if (appid == currentMinappId) {
-      clearTimeout(loadedTimerRef.current)
-      loadedTimerRef.current = setTimeout(() => setIsReady(true), 200)
+      setTimeoutTimer('handleWebviewLoaded', () => setIsReady(true), 200)
     }
   }
-
-  useEffect(() => {
-    return () => {
-      clearTimeout(loadedTimerRef.current)
-    }
-  }, [])
 
   /** the callback function to handle webview navigation */
   const handleWebviewNavigate = (appid: string, url: string) => {
