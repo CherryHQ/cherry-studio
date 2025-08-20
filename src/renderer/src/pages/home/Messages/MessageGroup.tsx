@@ -4,6 +4,7 @@ import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
@@ -32,6 +33,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
   const maxWidth = useChatMaxWidth()
+  const { setTimeoutTimer } = useTimer()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
 
@@ -68,14 +70,18 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       // 当前选中的消息
       editMessage(message.id, { foldSelected: true })
 
-      setTimeout(() => {
-        const messageElement = document.getElementById(`message-${message.id}`)
-        if (messageElement) {
-          messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-      }, 200)
+      setTimeoutTimer(
+        'setSelectedMessage',
+        () => {
+          const messageElement = document.getElementById(`message-${message.id}`)
+          if (messageElement) {
+            messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        },
+        200
+      )
     },
-    [editMessage, selectedMessageId]
+    [editMessage, selectedMessageId, setTimeoutTimer]
   )
 
   useEffect(() => {

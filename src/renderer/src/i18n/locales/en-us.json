@@ -3689,7 +3689,7 @@
         },
         "label": "Automatic detection method",
         "llm": {
-          "tip": "Using a translation model for language detection consumes a small number of tokens. (QwenMT does not support language detection and will automatically fall back to the default assistant model.)"
+          "tip": "Using the quick model for language detection consumes fewer tokens."
         },
         "placeholder": "Select automatic detection method",
         "tip": "Method used when automatically detecting the input language"
@@ -3702,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMT model cannot be used for language detection",
-        "unknown": "Unknown language detected"
+        "unknown": "Unknown language detected",
+        "update_setting": "Setting failed"
       },
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
