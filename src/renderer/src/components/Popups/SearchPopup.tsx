@@ -42,6 +42,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           paddingBottom: 16
         },
         body: {
+          minHeight: '200px',
           padding: 0
         }
       }}
