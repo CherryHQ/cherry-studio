@@ -47,15 +47,15 @@ export function ItemRenderer<T>({
   } as React.CSSProperties
 
   return (
-    <Wrapper ref={ref} className={classNames({ dragOverlay: dragOverlay })} style={{ ...wrapperStyle }}>
-      <ItemContent className={classNames({ dragging: dragging, dragOverlay: dragOverlay })} {...listeners} {...props}>
+    <ItemWrapper ref={ref} className={classNames({ dragOverlay: dragOverlay })} style={{ ...wrapperStyle }}>
+      <DraggableItem className={classNames({ dragging: dragging, dragOverlay: dragOverlay })} {...listeners} {...props}>
         {renderItem(item, { dragging: !!dragging })}
-      </ItemContent>
-    </Wrapper>
+      </DraggableItem>
+    </ItemWrapper>
   )
 }
 
-const Wrapper = styled.div`
+const ItemWrapper = styled.div`
   box-sizing: border-box;
   transform: translate3d(var(--translate-x, 0), var(--translate-y, 0), 0) scaleX(var(--scale-x, 1))
     scaleY(var(--scale-y, 1));
@@ -68,7 +68,7 @@ const Wrapper = styled.div`
   }
 `
 
-const ItemContent = styled.div`
+const DraggableItem = styled.div`
   position: relative;
   box-sizing: border-box;
   cursor: pointer;

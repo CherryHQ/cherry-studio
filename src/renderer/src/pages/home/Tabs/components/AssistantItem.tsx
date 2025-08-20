@@ -137,7 +137,10 @@ const AssistantItem: FC<AssistantItemProps> = ({
   )
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
+    <Dropdown
+      menu={{ items: menuItems }}
+      trigger={['contextMenu']}
+      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
