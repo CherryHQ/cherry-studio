@@ -123,6 +123,8 @@ export function useAssistant(id: string) {
             reasoning_effort_cache: fallbackOption === 'off' ? undefined : fallbackOption,
             qwenThinkMode: fallbackOption === 'off' ? undefined : true
           })
+        } else {
+          // 对于支持的选项, 不再更新 cache.
         }
       } else {
         // 切换到非思考模型时保留cache

@@ -77,12 +77,14 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
       if (!isEnabled) {
         updateAssistantSettings({
           reasoning_effort: undefined,
+          reasoning_effort_cache: undefined,
           qwenThinkMode: false
         })
         return
       }
       updateAssistantSettings({
         reasoning_effort: option,
+        reasoning_effort_cache: option,
         qwenThinkMode: true
       })
       return
