@@ -26,7 +26,8 @@ import {
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
   isVisionModel,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  MODEL_SUPPORTED_REASONING_EFFORT,
+  ZHIPU_SPECIAL_TOKENS_TO_FILTER
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
@@ -896,10 +897,19 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 accumulatingText = true
               }
               // logger.silly('enqueue TEXT_DELTA')
-              controller.enqueue({
-                type: ChunkType.TEXT_DELTA,
-                text: contentSource.content
-              })
+              // 过滤掉不需要的特殊token
+              // 智谱会把特殊token在一个chunk中整个输出
+              if (
+                context.provider.id === SystemProviderIds.zhipu &&
+                ZHIPU_SPECIAL_TOKENS_TO_FILTER.some((pattern) => contentSource.content === pattern)
+              ) {
+                // do nothing
+              } else {
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: contentSource.content
+                })
+              }
             } else {
               accumulatingText = false
             }

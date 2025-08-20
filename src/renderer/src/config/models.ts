@@ -3238,3 +3238,6 @@ export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5')
 }
+
+// 不另外特别处理的特殊token
+export const ZHIPU_SPECIAL_TOKENS_TO_FILTER = ['<|begin_of_box|>', '<|end_of_box|>'] as const
