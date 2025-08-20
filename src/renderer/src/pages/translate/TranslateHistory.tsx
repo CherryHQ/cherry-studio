@@ -5,12 +5,12 @@ import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory } from '@renderer/services/TranslateService'
 import { TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { Button, Drawer, Dropdown, Empty, Flex, Input, InputRef, Popconfirm } from 'antd'
+import { Button, Drawer, Dropdown, Empty, Flex, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
 import { SearchIcon } from 'lucide-react'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,7 +34,6 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const { t } = useTranslation()
   const { getLanguageByLangcode } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
-  const inputRef = useRef<InputRef>(null)
   const [search, setSearch] = useState('')
   const [displayedHistory, setDisplayedHistory] = useState<DisplayedTranslateHistoryItem[]>([])
 
@@ -102,7 +101,6 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 <SearchIcon size={18} />
               </IconWrapper>
             }
-            ref={inputRef}
             placeholder={t('translate.history.search.placeholder')}
             value={search}
             onChange={(e) => {
