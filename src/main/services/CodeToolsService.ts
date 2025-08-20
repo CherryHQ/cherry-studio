@@ -49,8 +49,10 @@ class CodeToolsService {
         return '@google/gemini-cli'
       case codeTools.openaiCodex:
         return '@openai/codex'
-      default:
+      case codeTools.qwenCode:
         return '@qwen-code/qwen-code'
+      default:
+        throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
   }
 
@@ -62,8 +64,10 @@ class CodeToolsService {
         return 'gemini'
       case codeTools.openaiCodex:
         return 'codex'
-      default:
+      case codeTools.qwenCode:
         return 'qwen'
+      default:
+        throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
   }
 

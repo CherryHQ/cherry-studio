@@ -215,15 +215,7 @@ const CodeToolsPage: FC = () => {
       }
     }
 
-    if (selectedCliTool === codeTools.qwenCode) {
-      env = {
-        OPENAI_API_KEY: apiKey,
-        OPENAI_BASE_URL: baseUrl,
-        OPENAI_MODEL: selectedModel.id
-      }
-    }
-
-    if (selectedCliTool === codeTools.openaiCodex) {
+    if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.openaiCodex) {
       env = {
         OPENAI_API_KEY: apiKey,
         OPENAI_BASE_URL: baseUrl,
