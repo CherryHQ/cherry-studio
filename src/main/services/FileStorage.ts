@@ -23,6 +23,7 @@ import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
+import { KB } from '@shared/config/constant'
 
 const logger = loggerService.withContext('FileStorage')
 
@@ -640,9 +641,10 @@ class FileStorage {
         return false
       }
 
+      const length = 8 * KB
       const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(8192)
-      const { bytesRead } = await fileHandle.read(buffer, 0, 8192, 0)
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
       await fileHandle.close()
 
       const sampleBuffer = buffer.subarray(0, bytesRead)
