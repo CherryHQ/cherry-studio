@@ -55,7 +55,7 @@ const CodeToolsPage: FC = () => {
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
 
   // 处理 CLI 工具选择
-  const handleCliToolChange = (value: string) => {
+  const handleCliToolChange = (value: codeTools) => {
     setCliTool(value)
     // 不再清空模型选择，因为每个工具都会记住自己的模型
   }
