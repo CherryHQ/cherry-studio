@@ -38,7 +38,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'translate',
   'minapp',
   'knowledge',
-  'files'
+  'files',
+  'code_tools'
 ]
 
 export interface NutstoreSyncRuntime extends RemoteSyncState {}

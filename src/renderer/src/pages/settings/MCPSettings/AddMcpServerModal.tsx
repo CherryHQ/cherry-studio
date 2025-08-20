@@ -2,6 +2,7 @@ import { UploadOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
@@ -72,6 +73,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
   const [dxtFile, setDxtFile] = useState<File | null>(null)
   const dispatch = useAppDispatch()
+  const { setTimeoutTimer } = useTimer()
 
   // Update import method when initialImportMethod changes
   useEffect(() => {
@@ -159,21 +161,25 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           onClose()
 
           // Check server connectivity in background (with timeout)
-          setTimeout(() => {
-            window.api.mcp
-              .checkMcpConnectivity(newServer)
-              .then((isConnected) => {
-                logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
-                dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
-              })
-              .catch((connError: any) => {
-                logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
-                // Don't show error for DXT servers as they might need additional setup
-                logger.warn(
-                  `DXT server ${newServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
-                )
-              })
-          }, 1000) // Delay to ensure server is properly added to store
+          setTimeoutTimer(
+            'handleOk',
+            () => {
+              window.api.mcp
+                .checkMcpConnectivity(newServer)
+                .then((isConnected) => {
+                  logger.debug(`Connectivity check for ${newServer.name}: ${isConnected}`)
+                  dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
+                })
+                .catch((connError: any) => {
+                  logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
+                  // Don't show error for DXT servers as they might need additional setup
+                  logger.warn(
+                    `DXT server ${newServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
+                  )
+                })
+            },
+            1000
+          ) // Delay to ensure server is properly added to store
         } catch (error) {
           logger.error('DXT processing error:', error as Error)
           window.message.error({
