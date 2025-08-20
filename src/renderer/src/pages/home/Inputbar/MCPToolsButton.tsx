@@ -147,13 +147,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       }
 
       // only for gemini
-      if (update.mcpServers.length > 0 && isGeminiModel(model)) {
+      if (update.mcpServers.length > 0 && isGeminiModel(model) && assistant.settings?.toolUseMode === 'function') {
         const provider = getProviderByModel(model)
-        if (
-          isSupportUrlContextProvider(provider) &&
-          assistant.enableUrlContext &&
-          assistant.settings?.toolUseMode === 'function'
-        ) {
+        if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
           window.message.warning(t('chat.mcp.warning.url_context'))
           update.enableUrlContext = false
         }
@@ -161,8 +157,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           // 非官方 API (openrouter etc.) 可能支持同时启用内置搜索和函数调用
           // 这里先假设 gemini type 和 vertexai type 不支持
           isGeminiWebSearchProvider(provider) &&
-          assistant.enableWebSearch &&
-          assistant.settings?.toolUseMode === 'function'
+          assistant.enableWebSearch
         ) {
           window.message.warning(t('chat.mcp.warning.gemini_web_search'))
           update.enableWebSearch = false
