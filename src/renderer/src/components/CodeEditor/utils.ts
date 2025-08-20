@@ -1,9 +1,12 @@
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
 
-const _customLanguageExtensions: Record<string, string[]> = {
-  svg: ['xml'],
-  vab: ['vb'],
-  graphviz: ['dot']
+// 自定义语言文件扩展名映射
+// key: 语言名小写
+// value: 扩展名
+const _customLanguageExtensions: Record<string, string> = {
+  svg: 'xml',
+  vab: 'vb',
+  graphviz: 'dot'
 }
 
 /**
@@ -15,14 +18,15 @@ const _customLanguageExtensions: Record<string, string[]> = {
  */
 export async function getNormalizedExtension(language: string) {
   const lowerLanguage = language.toLowerCase()
-  const found = Object.keys(_customLanguageExtensions).find((lang) => lang.toLowerCase() === lowerLanguage)
-  if (found) {
-    return _customLanguageExtensions[found][0]
+
+  const customExt = _customLanguageExtensions[lowerLanguage]
+  if (customExt) {
+    return customExt
   }
 
-  const extension = getExtensionByLanguage(language)
-  if (extension) {
-    return extension.slice(1)
+  const linguistExt = getExtensionByLanguage(language)
+  if (linguistExt) {
+    return linguistExt.slice(1)
   }
 
   // 回退到语言名称
