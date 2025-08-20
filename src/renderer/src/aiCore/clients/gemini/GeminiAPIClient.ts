@@ -476,16 +476,20 @@ export class GeminiAPIClient extends BaseApiClient<
           }
         }
 
-        if (enableWebSearch) {
-          tools.push({
-            googleSearch: {}
-          })
-        }
+        if (tools.length === 0) {
+          if (enableWebSearch) {
+            tools.push({
+              googleSearch: {}
+            })
+          }
 
-        if (enableUrlContext) {
-          tools.push({
-            urlContext: {}
-          })
+          if (enableUrlContext) {
+            tools.push({
+              urlContext: {}
+            })
+          }
+        } else if (enableWebSearch || enableUrlContext) {
+          logger.warn('Native tools cannot be used with function calling for now.')
         }
 
         if (isGemmaModel(model) && assistant.prompt) {
