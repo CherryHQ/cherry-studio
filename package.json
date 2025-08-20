@@ -204,6 +204,7 @@
     "husky": "^9.1.7",
     "i18next": "^23.11.5",
     "iconv-lite": "^0.6.3",
+    "isbinaryfile": "5.0.4",
     "jaison": "^2.0.2",
     "jest-styled-components": "^7.2.0",
     "linguist-languages": "^8.0.0",
