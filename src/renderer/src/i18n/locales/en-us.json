@@ -1828,6 +1828,204 @@
     },
     "title": "Data Restore"
   },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "Delete columns",
+        "deleteRow": "Delete rows",
+        "insertColumnAfter": "Insert After",
+        "insertColumnBefore": "Insert Before",
+        "insertRowAfter": "Insert Below",
+        "insertRowBefore": "Insert Above"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "Insert mathematical formula",
+        "title": "Math Formula"
+      },
+      "blockquote": {
+        "description": "Capture a quote",
+        "title": "Quote"
+      },
+      "bold": {
+        "description": "Marked in bold",
+        "title": "Bold"
+      },
+      "bulletList": {
+        "description": "Create a simple bulleted list",
+        "title": "Bulleted list"
+      },
+      "calloutInfo": {
+        "description": "Add an info callout box",
+        "title": "Info Callout"
+      },
+      "calloutWarning": {
+        "description": "Add a warning callout box",
+        "title": "Warning Callout"
+      },
+      "code": {
+        "description": "Insert code snippet",
+        "title": "Code"
+      },
+      "codeBlock": {
+        "description": "Capture a code snippet",
+        "title": "Code"
+      },
+      "columns": {
+        "description": "Create column layout",
+        "title": "Columns"
+      },
+      "date": {
+        "description": "Insert current date",
+        "title": "Date"
+      },
+      "divider": {
+        "description": "Add a horizontal line",
+        "title": "Divider"
+      },
+      "hardBreak": {
+        "description": "Insert a line break",
+        "title": "Line Break"
+      },
+      "heading1": {
+        "description": "Big section heading",
+        "title": "Heading 1"
+      },
+      "heading2": {
+        "description": "Medium section heading",
+        "title": "Heading 2"
+      },
+      "heading3": {
+        "description": "Small section heading",
+        "title": "Heading 3"
+      },
+      "heading4": {
+        "description": "Smaller section heading",
+        "title": "Heading 4"
+      },
+      "heading5": {
+        "description": "Even smaller section heading",
+        "title": "Heading 5"
+      },
+      "heading6": {
+        "description": "Smallest section heading",
+        "title": "Heading 6"
+      },
+      "image": {
+        "description": "Insert an image",
+        "title": "Image"
+      },
+      "inlineCode": {
+        "description": "Add inline code",
+        "title": "Inline Code"
+      },
+      "inlineMath": {
+        "description": "Insert inline mathematical formulas",
+        "title": "Inline Math"
+      },
+      "italic": {
+        "description": "Marked as italic",
+        "title": "Italic"
+      },
+      "link": {
+        "description": "Add a link",
+        "title": "Link"
+      },
+      "noCommandsFound": "No commands found",
+      "orderedList": {
+        "description": "Create a list with numbering",
+        "title": "Numbered list"
+      },
+      "paragraph": {
+        "description": "Start writing with plain text",
+        "title": "Text"
+      },
+      "redo": {
+        "description": "Redo the last action",
+        "title": "Redo"
+      },
+      "strike": {
+        "description": "Mark as a delete line",
+        "title": "Delete line"
+      },
+      "table": {
+        "description": "Insert a table",
+        "title": "Table"
+      },
+      "taskList": {
+        "description": "Create a checklist",
+        "title": "Task List"
+      },
+      "underline": {
+        "description": "Mark as underlined",
+        "title": "Underline"
+      },
+      "undo": {
+        "description": "Undo the last action",
+        "title": "Undo"
+      }
+    },
+    "image": {
+      "placeholder": "Add a picture"
+    },
+    "imageUploader": {
+      "embedImage": "Embed image",
+      "embedLink": "Embed link",
+      "embedSuccess": "Image embedded successfully",
+      "invalidType": "Please select an image file",
+      "invalidUrl": "Invalid image URL",
+      "processing": "Processing image...",
+      "title": "Add an image",
+      "tooLarge": "Image size cannot exceed 10MB",
+      "upload": "Upload",
+      "uploadError": "Image upload failed",
+      "uploadFile": "Upload file",
+      "uploadHint": "Supports JPG, PNG, GIF and other formats, max 10MB",
+      "uploadSuccess": "Image uploaded successfully",
+      "uploadText": "Click or drag image here to upload",
+      "uploading": "Uploading image",
+      "urlPlaceholder": "Paste image link",
+      "urlRequired": "Please enter image URL"
+    },
+    "link": {
+      "remove": "Remove link",
+      "text": "Link Title",
+      "textPlaceholder": "Please enter the link title",
+      "url": "Link URL"
+    },
+    "math": {
+      "placeholder": "Enter LaTeX formula"
+    },
+    "placeholder": "Write '/' for commands",
+    "toolbar": {
+      "blockMath": "Block Math",
+      "blockquote": "Quote",
+      "bold": "Bold",
+      "bulletList": "Bullet List",
+      "clearMarks": "Clear Formatting",
+      "code": "Inline Code",
+      "codeBlock": "Code Block",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "heading4": "Heading 4",
+      "heading5": "Heading 5",
+      "heading6": "Heading 6",
+      "image": "Image",
+      "inlineMath": "Inline Equation",
+      "italic": "Italic",
+      "link": "Link",
+      "orderedList": "Ordered List",
+      "paragraph": "Paragraph",
+      "redo": "Redo",
+      "strike": "Strikethrough",
+      "table": "Table",
+      "taskList": "Task List",
+      "underline": "Underline",
+      "undo": "Undo"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -3285,7 +3483,7 @@
         "label": "HTTP authentication",
         "password": {
           "label": "Password",
-          "tip": ""
+          "tip": "Enter your password"
         },
         "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
         "user_name": {

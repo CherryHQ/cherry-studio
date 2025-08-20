@@ -1,0 +1,93 @@
+{
+  "name": "@cherrystudio/extension-table-plus",
+  "description": "table extension for tiptap forked from tiptap/extension-table",
+  "version": "3.0.11",
+  "homepage": "https://cherry-ai.com",
+  "keywords": [
+    "tiptap",
+    "tiptap extension"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.ts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./table": {
+      "types": {
+        "import": "./dist/table/index.d.ts",
+        "require": "./dist/table/index.d.cts"
+      },
+      "import": "./dist/table/index.js",
+      "require": "./dist/table/index.cjs"
+    },
+    "./cell": {
+      "types": {
+        "import": "./dist/cell/index.d.ts",
+        "require": "./dist/cell/index.d.cts"
+      },
+      "import": "./dist/cell/index.js",
+      "require": "./dist/cell/index.cjs"
+    },
+    "./header": {
+      "types": {
+        "import": "./dist/header/index.d.ts",
+        "require": "./dist/header/index.d.cts"
+      },
+      "import": "./dist/header/index.js",
+      "require": "./dist/header/index.cjs"
+    },
+    "./kit": {
+      "types": {
+        "import": "./dist/kit/index.d.ts",
+        "require": "./dist/kit/index.d.cts"
+      },
+      "import": "./dist/kit/index.js",
+      "require": "./dist/kit/index.cjs"
+    },
+    "./row": {
+      "types": {
+        "import": "./dist/row/index.d.ts",
+        "require": "./dist/row/index.d.cts"
+      },
+      "import": "./dist/row/index.js",
+      "require": "./dist/row/index.cjs"
+    }
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "devDependencies": {
+    "@tiptap/core": "^3.0.9",
+    "@tiptap/pm": "^3.0.9",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "prettier": "^3.5.3",
+    "tsdown": "^0.13.3"
+  },
+  "peerDependencies": {
+    "@tiptap/core": "^3.0.9",
+    "@tiptap/pm": "^3.0.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CherryHQ/cherry-studio",
+    "directory": "packages/extension-table-plus"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "prettier ./src/ --write && eslint --fix ./src/"
+  },
+  "packageManager": "yarn@4.9.1"
+}

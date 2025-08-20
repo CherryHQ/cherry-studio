@@ -1,10 +1,11 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
 import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
@@ -46,7 +47,12 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       return
     }
 
-    const note = await TextEditPopup.show({ text: '', textareaProps: { rows: 20 } })
+    const note = await RichEditPopup.show({
+      content: '',
+      modalProps: {
+        title: t('knowledge.add_note')
+      }
+    })
     note && addNote(note)
   }
 
@@ -55,7 +61,12 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       return
     }
 
-    const editedText = await TextEditPopup.show({ text: note.content as string, textareaProps: { rows: 20 } })
+    const editedText = await RichEditPopup.show({
+      content: note.content as string,
+      modalProps: {
+        title: t('common.edit')
+      }
+    })
     editedText && updateNoteContent(note.id, editedText)
   }
 
@@ -86,8 +97,12 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             <FileItem
               key={note.id}
               fileInfo={{
-                name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
-                ext: '.txt',
+                name: (
+                  <NotePreview onClick={() => handleEditNote(note)}>
+                    {markdownToPreviewText(note.content as string, 50)}
+                  </NotePreview>
+                ),
+                ext: isMarkdownContent(note.content as string) ? '.md' : '.txt',
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
@@ -120,6 +135,16 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 const ItemFlexColumn = styled.div`
   padding: 20px 16px;
   height: calc(100vh - 135px);
+`
+
+const NotePreview = styled.span`
+  cursor: pointer;
+  color: var(--color-text-1);
+
+  &:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
 `
 
 export default KnowledgeNotes
