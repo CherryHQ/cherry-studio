@@ -697,7 +697,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
           const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
           if (fileContent) {
             parts.push({
-              text: `file: ${file.origin_name}\n\n${fileContent}`
+              text: `${file.origin_name}\n${fileContent}`
             })
           }
         } catch (error) {

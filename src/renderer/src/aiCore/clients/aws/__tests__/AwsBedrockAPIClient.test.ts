@@ -96,7 +96,7 @@ describe('AwsBedrockAPIClient', () => {
 
       // Check file content
       expect(result.content[1]).toEqual({
-        text: 'file: test-document.txt\n\nThis is the content of the test document.\nIt has multiple lines.\nWith important information.'
+        text: 'test-document.txt\nThis is the content of the test document.\nIt has multiple lines.\nWith important information.'
       })
 
       // Verify file was read correctly
@@ -162,11 +162,11 @@ describe('AwsBedrockAPIClient', () => {
       expect(result.content).toHaveLength(3) // text + 2 text files (image file ignored)
       
       expect(result.content[1]).toEqual({
-        text: 'file: notes.txt\n\nContent of notes.txt'
+        text: 'notes.txt\nContent of notes.txt'
       })
       
       expect(result.content[2]).toEqual({
-        text: 'file: readme.md\n\n# README\nThis is markdown content'
+        text: 'readme.md\n# README\nThis is markdown content'
       })
 
       // Should only read TEXT and DOCUMENT files
