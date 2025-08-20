@@ -11,7 +11,7 @@ import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import { message } from 'antd'
-import { FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -116,7 +116,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
-      files: <Folder size={15} />
+      files: <Folder size={15} />,
+      code_tools: <Code size={16} />
     }),
     []
   )
@@ -206,15 +207,14 @@ const IconColumn = styled.div`
 `
 
 const IconList = styled.div`
-  height: 365px;
-  min-height: 365px;
+  height: 400px;
+  min-height: 400px;
   padding: 10px;
   background: var(--color-background-soft);
   border-radius: 8px;
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  overflow-y: hidden;
 `
 
 const IconItem = styled.div`
