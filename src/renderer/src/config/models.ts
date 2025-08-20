@@ -3239,5 +3239,5 @@ export const isGPT5SeriesModel = (model: Model) => {
   return modelId.includes('gpt-5')
 }
 
-// 不另外特别处理的特殊token
-export const ZHIPU_SPECIAL_TOKENS_TO_FILTER = ['<|begin_of_box|>', '<|end_of_box|>'] as const
+// zhipu 视觉推理模型用这组 special token 标记推理结果
+export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const

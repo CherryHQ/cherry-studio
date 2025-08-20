@@ -27,7 +27,7 @@ import {
   isSupportedThinkingTokenZhipuModel,
   isVisionModel,
   MODEL_SUPPORTED_REASONING_EFFORT,
-  ZHIPU_SPECIAL_TOKENS_TO_FILTER
+  ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
@@ -897,13 +897,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 accumulatingText = true
               }
               // logger.silly('enqueue TEXT_DELTA')
-              // 过滤掉不需要的特殊token
-              // 智谱会把特殊token在一个chunk中整个输出，因而使用 ===，同时一定程度上避免正常内容被过滤掉
+              // 处理特殊token
+              // 智谱api的一个chunk中只会输出一个token，因而使用 ===，避免正常内容被误判
               if (
                 context.provider.id === SystemProviderIds.zhipu &&
-                ZHIPU_SPECIAL_TOKENS_TO_FILTER.some((pattern) => contentSource.content === pattern)
+                ZHIPU_RESULT_TOKENS.some((pattern) => contentSource.content === pattern)
               ) {
-                // do nothing
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: '**' // strong
+                })
               } else {
                 controller.enqueue({
                   type: ChunkType.TEXT_DELTA,
