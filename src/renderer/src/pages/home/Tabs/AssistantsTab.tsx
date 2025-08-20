@@ -1,6 +1,5 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
-import { Sortable } from '@renderer/components/dnd'
-import { useDndState } from '@renderer/components/dnd/useDndState'
+import { Sortable, useDndState } from '@renderer/components/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
