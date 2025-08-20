@@ -2,6 +2,7 @@ import {
   defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
+  DropAnimation,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
@@ -32,6 +33,17 @@ interface SortableProps<T> {
   horizontal?: boolean
   className?: string
   useDragOverlay?: boolean
+  dropAnimation?: DropAnimation
+}
+
+const dropAnimationConfig: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0.25'
+      }
+    }
+  })
 }
 
 function Sortable<T>({
@@ -42,7 +54,8 @@ function Sortable<T>({
   layout = 'list',
   horizontal = false,
   className,
-  useDragOverlay = true
+  useDragOverlay = true,
+  dropAnimation = dropAnimationConfig
 }: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -104,16 +117,6 @@ function Sortable<T>({
     setActiveId(null)
   }
 
-  const dropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: {
-        active: {
-          opacity: '0.5'
-        }
-      }
-    })
-  }
-
   const strategy =
     layout === 'list' ? (horizontal ? horizontalListSortingStrategy : verticalListSortingStrategy) : rectSortingStrategy
   const modifiers = layout === 'list' ? (horizontal ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]) : []
@@ -139,14 +142,14 @@ function Sortable<T>({
         </div>
       </SortableContext>
 
-      {useDragOverlay &&
-        activeItem &&
-        createPortal(
-          <DragOverlay adjustScale dropAnimation={dropAnimation}>
-            <ItemRenderer item={activeItem} renderItem={renderItem} dragOverlay />
-          </DragOverlay>,
-          document.body
-        )}
+      {useDragOverlay
+        ? createPortal(
+            <DragOverlay adjustScale dropAnimation={dropAnimation}>
+              {activeItem ? <ItemRenderer item={activeItem} renderItem={renderItem} dragOverlay /> : null}
+            </DragOverlay>,
+            document.body
+          )
+        : null}
     </DndContext>
   )
 }
