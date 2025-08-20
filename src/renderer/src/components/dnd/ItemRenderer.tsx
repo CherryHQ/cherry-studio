@@ -65,6 +65,7 @@ const ItemWrapper = styled.div`
   &.dragOverlay {
     --scale: 1.02;
     z-index: 999;
+    position: relative;
   }
 `
 
