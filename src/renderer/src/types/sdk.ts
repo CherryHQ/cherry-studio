@@ -23,6 +23,7 @@ import {
 } from '@google/genai'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
+import * as z from 'zod'
 
 import { EndpointType } from './index'
 
@@ -286,3 +287,19 @@ export interface AwsBedrockSdkToolCall {
   input: any
   toolUseId: string
 }
+
+export const MistralDeltaTextSchema = z.object({
+  type: z.literal('text'),
+  text: z.string()
+})
+
+export const MistralDeltaThinkingSchema = z.object({
+  type: z.literal('thinking'),
+  thinking: z.array(MistralDeltaTextSchema)
+})
+
+export const MistralDeltaSchema = z.array(
+  z.discriminatedUnion('type', [MistralDeltaTextSchema, MistralDeltaThinkingSchema])
+)
+
+export type MistralDelta = z.infer<typeof MistralDeltaSchema>

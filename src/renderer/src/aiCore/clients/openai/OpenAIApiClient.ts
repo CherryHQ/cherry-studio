@@ -56,6 +56,7 @@ import {
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
+  MistralDeltaSchema,
   OpenAISdkMessageParam,
   OpenAISdkParams,
   OpenAISdkRawChunk,
@@ -818,7 +819,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 (typeof choice.delta.content === 'string' && choice.delta.content !== '') ||
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
-                (typeof (choice.delta as any).reasoning === 'string' && (choice.delta as any).reasoning !== ''))
+                (typeof (choice.delta as any).reasoning === 'string' && (choice.delta as any).reasoning !== '') ||
+                Array.isArray(choice.delta.content))
             ) {
               contentSource = choice.delta
             } else if ('message' in choice) {
@@ -829,8 +831,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             if (!contentSource?.content) {
               accumulatingText = false
             }
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-            if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
+            const mistralDelta = MistralDeltaSchema.safeParse(contentSource?.content)
+
+            if (
+              // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+              !contentSource?.reasoning_content &&
+              // @ts-ignore - reasoning is not in standard OpenAI types but some providers use it
+              !contentSource?.reasoning &&
+              (mistralDelta.data?.[0]?.type !== 'thinking' || !mistralDelta.success)
+            ) {
               isThinking = false
             }
 
@@ -864,12 +873,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             }
 
             // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-            const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+            const reasoningText =
+              // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+              contentSource.reasoning_content ||
+              // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+              contentSource.reasoning ||
+              (mistralDelta.data?.[0]?.type === 'thinking' ? mistralDelta.data?.[0]?.thinking[0]?.text : undefined)
             if (reasoningText) {
-              // logger.silly('since reasoningText is trusy, try to enqueue THINKING_START AND THINKING_DELTA')
               if (!isThinking) {
-                // logger.silly('since isThinking is falsy, try to enqueue THINKING_START')
                 controller.enqueue({
                   type: ChunkType.THINKING_START
                 } as ThinkingStartChunk)
@@ -886,22 +897,35 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             }
 
             // 处理文本内容
-            if (contentSource.content) {
-              // logger.silly('since contentSource.content is trusy, try to enqueue TEXT_START and TEXT_DELTA')
+            if (mistralDelta.success && mistralDelta.data?.[0]?.type === 'text') {
               if (!accumulatingText) {
-                // logger.silly('enqueue TEXT_START')
                 controller.enqueue({
                   type: ChunkType.TEXT_START
                 } as TextStartChunk)
                 accumulatingText = true
               }
-              // logger.silly('enqueue TEXT_DELTA')
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
-                text: contentSource.content
+                text: mistralDelta.data?.[0]?.text
               })
-            } else {
-              accumulatingText = false
+            } else if (!mistralDelta.success) {
+              if (contentSource.content) {
+                // logger.silly('since contentSource.content is trusy, try to enqueue TEXT_START and TEXT_DELTA')
+                if (!accumulatingText) {
+                  // logger.silly('enqueue TEXT_START')
+                  controller.enqueue({
+                    type: ChunkType.TEXT_START
+                  } as TextStartChunk)
+                  accumulatingText = true
+                }
+                // logger.silly('enqueue TEXT_DELTA')
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: contentSource.content
+                })
+              } else {
+                accumulatingText = false
+              }
             }
 
             // 处理工具调用
