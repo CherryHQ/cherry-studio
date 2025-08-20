@@ -5,6 +5,39 @@ import { useEffect, useRef } from 'react'
  *
  * - 在设置定时器时以前会自动清理相同key的定时器
  * - 组件卸载时会自动清理所有定时器，避免内存泄漏
+ *
+ * 通常在 `useEffect` 中使用的定时器，可以通过清理函数处理。但是，在函数中使用的定时器则相对难以管理。
+ * 这个 Hook 主要解决需要在函数中设置定时器的场景。然而，`setTimeoutTimer` 和 `setIntervalTimer` 同样也返回清理函数，因此可以用于 `useEffect` 中。
+ *
+ * @example
+ * ```ts
+ * function MyComponent() {
+ *   const {
+ *     setTimeoutTimer,
+ *     setIntervalTimer,
+ *     clearTimeoutTimer,
+ *     clearAllTimers
+ *   } = useTimer();
+ *
+ *   useEffect(() => {
+ *     // 设置一个3秒后执行的定时器
+ *     setTimeoutTimer('notify', () => {
+ *       console.log('3秒后执行');
+ *     }, 3000);
+ *
+ *     // 设置一个每5秒执行一次的定时器
+ *     const cleanup = setIntervalTimer('poll', () => {
+ *       console.log('每5秒执行一次');
+ *     }, 5000);
+ *
+ *     // 手动清理指定的定时器
+ *     clearTimeoutTimer('notify');
+ *
+ *     // 返回清理函数来停止轮询
+ *     return cleanup;
+ *   }, []);
+ * }
+ * ```
  */
 export const useTimer = () => {
   const timeoutMapRef = useRef(new Map<string, NodeJS.Timeout>())
