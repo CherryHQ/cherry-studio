@@ -106,6 +106,10 @@
     white-space: pre-wrap;
   }
 
+  .katex span {
+    white-space: pre;
+  }
+
   p code,
   li code {
     background: var(--color-background-mute);
