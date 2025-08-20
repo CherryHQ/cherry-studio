@@ -75,6 +75,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
         saveEdit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         cancelEdit()
       }
     },
