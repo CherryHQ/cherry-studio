@@ -898,7 +898,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               }
               // logger.silly('enqueue TEXT_DELTA')
               // 过滤掉不需要的特殊token
-              // 智谱会把特殊token在一个chunk中整个输出
+              // 智谱会把特殊token在一个chunk中整个输出，因而使用 ===，同时一定程度上避免正常内容被过滤掉
               if (
                 context.provider.id === SystemProviderIds.zhipu &&
                 ZHIPU_SPECIAL_TOKENS_TO_FILTER.some((pattern) => contentSource.content === pattern)
