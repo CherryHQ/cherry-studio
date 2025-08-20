@@ -33,6 +33,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const loadingRef = useRef(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const onCreateAssistantTimerRef = useRef<NodeJS.Timeout>(undefined)
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(onCreateAssistantTimerRef.current)
+    }
+  }, [])
 
   const agents = useMemo(() => {
     const allAgents = [...userAgents, ...systemAgents] as Agent[]
@@ -80,7 +88,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         assistant = await createAssistantFromAgent(agent)
       }
 
-      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+      clearTimeout(onCreateAssistantTimerRef.current)
+      onCreateAssistantTimerRef.current = setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       resolve(assistant)
       setOpen(false)
     },
