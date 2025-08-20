@@ -7284,6 +7284,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/is-text-path@npm:^2.0.2":
+  version: 2.0.2
+  resolution: "@types/is-text-path@npm:2.0.2"
+  dependencies:
+    is-text-path: "npm:*"
+  checksum: 10c0/3e76573db8a14e97a59320ef75304768d755910f5cf87195843603e6bf04683056d4801065597aee019b4d32a128197934f3d9592b24fd926e35cf070a03048a
+  languageName: node
+  linkType: hard
+
 "@types/json-schema@npm:^7.0.15":
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
@@ -8515,6 +8524,7 @@ __metadata:
     "@types/cli-progress": "npm:^3"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
+    "@types/is-text-path": "npm:^2.0.2"
     "@types/lodash": "npm:^4.17.5"
     "@types/markdown-it": "npm:^14"
     "@types/md5": "npm:^2.3.5"
@@ -8578,8 +8588,10 @@ __metadata:
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
     iconv-lite: "npm:^0.6.3"
+    is-text-path: "npm:^3.0.0"
     jaison: "npm:^2.0.2"
     jest-styled-components: "npm:^7.2.0"
+    jschardet: "npm:^3.1.4"
     jsdom: "npm:26.1.0"
     linguist-languages: "npm:^8.0.0"
     lint-staged: "npm:^15.5.0"
@@ -14434,6 +14446,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"is-text-path@npm:*, is-text-path@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "is-text-path@npm:3.0.0"
+  dependencies:
+    text-extensions: "npm:^3.0.0"
+  checksum: 10c0/6c548d18db7d9c671e1c12a8c39dc09185bdcafdf0450b6a4b18447ff73034f4d40d84baa19869d283e7eb9cd0aec91e683fac9f9f188f3a18e1feee026111e8
+  languageName: node
+  linkType: hard
+
 "is-unicode-supported@npm:^0.1.0":
   version: 0.1.0
   resolution: "is-unicode-supported@npm:0.1.0"
@@ -14614,6 +14635,13 @@ __metadata:
   version: 1.1.0
   resolution: "jsbn@npm:1.1.0"
   checksum: 10c0/4f907fb78d7b712e11dea8c165fe0921f81a657d3443dde75359ed52eb2b5d33ce6773d97985a089f09a65edd80b11cb75c767b57ba47391fee4c969f7215c96
+  languageName: node
+  linkType: hard
+
+"jschardet@npm:^3.1.4":
+  version: 3.1.4
+  resolution: "jschardet@npm:3.1.4"
+  checksum: 10c0/d72c724ff60bc185d3962617ffda6849c6d632a935820841078c656a5247d73617a5df3b233e1fb1064de8683f7dae1b422b68186d1d6db22117b59edb5433dc
   languageName: node
   linkType: hard
 
@@ -21014,6 +21042,13 @@ __metadata:
   version: 0.7.0
   resolution: "text-encoding@npm:0.7.0"
   checksum: 10c0/6c20f5d19f996501677cc60b79bc4af550f840b426eacc5f67bd2bd5a7a7a058ab58679f851e0afee879aaaaf7fdb95cfe4de35ab29f9b34f9ce2a7b8de9bacb
+  languageName: node
+  linkType: hard
+
+"text-extensions@npm:^3.0.0":
+  version: 3.1.0
+  resolution: "text-extensions@npm:3.1.0"
+  checksum: 10c0/cf10cddb7da9c7daf48f1f466838376133a1a239f1ae87f2fab790c874faf6ccce3e9e80178e53ae27bb631ab5a9b79ef443e066efae44285acfb12497ef83e7
   languageName: node
   linkType: hard
 

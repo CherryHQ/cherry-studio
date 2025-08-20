@@ -322,6 +322,7 @@
       "expand": "Επεκτάση",
       "file_error": "Σφάλμα κατά την επεξεργασία του αρχείου",
       "file_not_supported": "Το μοντέλο δεν υποστηρίζει αυτό το είδος αρχείων",
+      "file_not_supported_count": "{{count}} αρχεία δεν υποστηρίζονται",
       "generate_image": "Δημιουργία εικόνας",
       "generate_image_not_supported": "Το μοντέλο δεν υποστηρίζει τη δημιουργία εικόνων",
       "knowledge_base": "Βάση γνώσεων",

@@ -322,6 +322,7 @@
       "expand": "Expandir",
       "file_error": "Erro ao processar o arquivo",
       "file_not_supported": "O modelo não suporta este tipo de arquivo",
+      "file_not_supported_count": "{{count}} arquivos não suportados",
       "generate_image": "Gerar imagem",
       "generate_image_not_supported": "Modelo não suporta geração de imagem",
       "knowledge_base": "Base de conhecimento",

@@ -322,6 +322,7 @@
       "expand": "Развернуть",
       "file_error": "Ошибка обработки файла",
       "file_not_supported": "Модель не поддерживает этот тип файла",
+      "file_not_supported_count": "{{count}} файлов не поддерживаются",
       "generate_image": "Сгенерировать изображение",
       "generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "knowledge_base": "База знаний",

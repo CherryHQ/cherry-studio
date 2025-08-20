@@ -322,6 +322,7 @@
       "expand": "展開",
       "file_error": "檔案處理錯誤",
       "file_not_supported": "模型不支援此檔案類型",
+      "file_not_supported_count": "{{count}} 個檔案不被支援",
       "generate_image": "生成圖片",
       "generate_image_not_supported": "模型不支援生成圖片",
       "knowledge_base": "知識庫",
