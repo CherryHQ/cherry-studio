@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -121,9 +122,21 @@ class CodeToolsService {
     } else {
       logger.info(`Fetching latest version for ${packageName} from npm`)
       try {
-        const bunPath = await this.getBunPath()
-        const { stdout } = await execAsync(`"${bunPath}" info ${packageName} version`, { timeout: 15000 })
-        latestVersion = stdout.trim().replace(/["']/g, '')
+        // Get registry URL
+        const registryUrl = await this.getNpmRegistryUrl()
+
+        // Fetch package info directly from npm registry API
+        const packageUrl = `${registryUrl}/${packageName}/latest`
+        const response = await fetch(packageUrl, {
+          signal: AbortSignal.timeout(15000)
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch package info: ${response.statusText}`)
+        }
+
+        const packageInfo = await response.json()
+        latestVersion = packageInfo.version
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
@@ -186,7 +199,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      const updateCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -290,12 +303,11 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand: string
+    let baseCommand = isWin ? `${executablePath}` : `${bunPath} ${executablePath}`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
-      baseCommand = `"${executablePath}"`
       if (updateMessage) {
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
@@ -307,8 +319,8 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${executablePath}"`
+      const installCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
+      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
     switch (platform) {

@@ -10,6 +10,8 @@ export interface CodeToolsState {
   selectedCliTool: codeTools
   // 为每个 CLI 工具单独保存选择的模型
   selectedModels: Record<string, Model | null>
+  // 为每个 CLI 工具单独保存环境变量
+  environmentVariables: Record<string, string>
   // 记录用户选择过的所有目录，支持增删
   directories: string[]
   // 当前选择的目录
@@ -23,6 +25,11 @@ export const initialState: CodeToolsState = {
     [codeTools.claudeCode]: null,
     [codeTools.geminiCli]: null,
     [codeTools.openaiCodex]: null
+  },
+  environmentVariables: {
+    'qwen-code': '',
+    'claude-code': '',
+    'gemini-cli': ''
   },
   directories: [],
   currentDirectory: ''
@@ -40,6 +47,18 @@ const codeToolsSlice = createSlice({
     // 设置选择的模型（为当前 CLI 工具设置）
     setSelectedModel: (state, action: PayloadAction<Model | null>) => {
       state.selectedModels[state.selectedCliTool] = action.payload
+    },
+
+    // 设置环境变量（为当前 CLI 工具设置）
+    setEnvironmentVariables: (state, action: PayloadAction<string>) => {
+      if (!state.environmentVariables) {
+        state.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
+      }
+      state.environmentVariables[state.selectedCliTool] = action.payload
     },
 
     // 添加目录到列表中
@@ -89,15 +108,11 @@ const codeToolsSlice = createSlice({
 
     // 重置所有设置
     resetCodeTools: (state) => {
-      state.selectedCliTool = codeTools.qwenCode
-      state.selectedModels = {
-        [codeTools.qwenCode]: null,
-        [codeTools.claudeCode]: null,
-        [codeTools.geminiCli]: null,
-        [codeTools.openaiCodex]: null
-      }
-      state.directories = []
-      state.currentDirectory = ''
+      state.selectedCliTool = initialState.selectedCliTool
+      state.selectedModels = initialState.selectedModels
+      state.environmentVariables = initialState.environmentVariables
+      state.directories = initialState.directories
+      state.currentDirectory = initialState.currentDirectory
     }
   }
 })
@@ -105,6 +120,7 @@ const codeToolsSlice = createSlice({
 export const {
   setSelectedCliTool,
   setSelectedModel,
+  setEnvironmentVariables,
   addDirectory,
   removeDirectory,
   setCurrentDirectory,

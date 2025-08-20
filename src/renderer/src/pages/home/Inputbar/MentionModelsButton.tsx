@@ -10,37 +10,44 @@ import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign, Plus } from 'lucide-react'
+import { AtSign, CircleX, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 export interface MentionModelsButtonRef {
-  openQuickPanel: () => void
+  openQuickPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
 }
 
 interface Props {
   ref?: React.RefObject<MentionModelsButtonRef | null>
   mentionedModels: Model[]
   onMentionModel: (model: Model) => void
+  onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   files: FileType[]
   ToolbarButton: any
+  setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 const MentionModelsButton: FC<Props> = ({
   ref,
   mentionedModels,
   onMentionModel,
+  onClearMentionModels,
   couldMentionNotVisionModel,
   files,
-  ToolbarButton
+  ToolbarButton,
+  setText
 }) => {
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
+
+  // 记录是否有模型被选择的动作发生
+  const hasModelActionRef = useRef<boolean>(false)
 
   const pinnedModels = useLiveQuery(
     async () => {
@@ -74,7 +81,10 @@ const MentionModelsButton: FC<Props> = ({
               </Avatar>
             ),
             filterText: getFancyProviderName(p) + m.name,
-            action: () => onMentionModel(m),
+            action: () => {
+              hasModelActionRef.current = true // 标记有模型动作发生
+              onMentionModel(m)
+            },
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
       )
@@ -107,7 +117,10 @@ const MentionModelsButton: FC<Props> = ({
           </Avatar>
         ),
         filterText: getFancyProviderName(p) + m.name,
-        action: () => onMentionModel(m),
+        action: () => {
+          hasModelActionRef.current = true // 标记有模型动作发生
+          onMentionModel(m)
+        },
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
       }))
 
@@ -123,26 +136,91 @@ const MentionModelsButton: FC<Props> = ({
       isSelected: false
     })
 
-    return items
-  }, [pinnedModels, providers, t, couldMentionNotVisionModel, mentionedModels, onMentionModel, navigate])
-
-  const openQuickPanel = useCallback(() => {
-    quickPanel.open({
-      title: t('agents.edit.model.select.title'),
-      list: modelItems,
-      symbol: '@',
-      multiple: true,
-      afterAction({ item }) {
-        item.isSelected = !item.isSelected
+    items.unshift({
+      label: t('settings.input.clear.all'),
+      description: t('settings.input.clear.models'),
+      icon: <CircleX />,
+      isSelected: false,
+      action: () => {
+        onClearMentionModels()
+        quickPanel.close()
       }
     })
-  }, [modelItems, quickPanel, t])
+
+    return items
+  }, [
+    pinnedModels,
+    providers,
+    t,
+    couldMentionNotVisionModel,
+    mentionedModels,
+    onMentionModel,
+    navigate,
+    quickPanel,
+    onClearMentionModels
+  ])
+
+  const openQuickPanel = useCallback(
+    (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {
+      // 重置模型动作标记
+      hasModelActionRef.current = false
+
+      quickPanel.open({
+        title: t('agents.edit.model.select.title'),
+        list: modelItems,
+        symbol: '@',
+        multiple: true,
+        triggerInfo: triggerInfo || { type: 'button' },
+        afterAction({ item }) {
+          item.isSelected = !item.isSelected
+        },
+        onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
+          // ESC关闭时的处理：删除 @ 和搜索文本
+          if (action === 'esc') {
+            // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
+            if (
+              hasModelActionRef.current &&
+              closeTriggerInfo?.type === 'input' &&
+              closeTriggerInfo?.position !== undefined
+            ) {
+              // 使用React的setText来更新状态
+              setText((currentText) => {
+                const position = closeTriggerInfo.position!
+                // 验证位置的字符是否仍是 @
+                if (currentText[position] !== '@') {
+                  return currentText
+                }
+
+                // 计算删除范围：@ + searchText
+                const deleteLength = 1 + (searchText?.length || 0)
+
+                // 验证要删除的内容是否匹配预期
+                const expectedText = '@' + (searchText || '')
+                const actualText = currentText.slice(position, position + deleteLength)
+
+                if (actualText !== expectedText) {
+                  // 如果实际文本不匹配，只删除 @ 字符
+                  return currentText.slice(0, position) + currentText.slice(position + 1)
+                }
+
+                // 删除 @ 和搜索文本
+                return currentText.slice(0, position) + currentText.slice(position + deleteLength)
+              })
+            }
+          }
+          // Backspace删除@的情况（delete-symbol）：
+          // @ 已经被Backspace自然删除，面板关闭，不需要额外操作
+        }
+      })
+    },
+    [modelItems, quickPanel, t, setText]
+  )
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '@') {
       quickPanel.close()
     } else {
-      openQuickPanel()
+      openQuickPanel({ type: 'button' })
     }
   }, [openQuickPanel, quickPanel])
 
@@ -165,7 +243,7 @@ const MentionModelsButton: FC<Props> = ({
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <AtSign size={18} />
+        <AtSign size={18} color={mentionedModels.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'} />
       </ToolbarButton>
     </Tooltip>
   )

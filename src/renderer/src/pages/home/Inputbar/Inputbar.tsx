@@ -20,6 +20,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -43,7 +44,6 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -58,8 +58,6 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
 import InputbarTools, { InputbarToolsRef } from './InputbarTools'
-import KnowledgeBaseInput from './KnowledgeBaseInput'
-import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -87,15 +85,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel,
     enableSpellCheck
   } = useSettings()
-  const [expended, setExpend] = useState(false)
+  const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { pauseMessages } = useMessageOperations(topic)
@@ -258,7 +256,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setFiles([])
       setTimeout(() => setText(''), 500)
       setTimeout(() => resizeTextArea(true), 0)
-      setExpend(false)
+      setExpand(false)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
@@ -280,7 +278,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, targetLanguage, resizeTextArea])
+  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, resizeTextArea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -398,9 +396,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (expended) {
+    if (expanded) {
       if (event.key === 'Escape') {
-        return onToggleExpended()
+        event.stopPropagation()
+        return onToggleExpanded()
       }
     }
 
@@ -438,12 +437,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionedModels.length > 0) {
-      setMentionedModels((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
-
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -500,7 +494,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
-  const onInput = () => !expended && resizeTextArea()
+  const onInput = () => !expanded && resizeTextArea()
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -530,7 +524,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-        inputbarToolsRef.current?.openMentionModelsPanel()
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position: cursorPosition - 1,
+          originalText: newText
+        })
       }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
@@ -636,7 +634,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (textArea) {
         textArea.style.height = `${newHeight}px`
-        setExpend(newHeight == maxHeightInPixels)
+        setExpand(newHeight == maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
@@ -761,19 +759,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const handleRemoveModel = (model: Model) => {
-    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
-  }
-
-  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-    updateAssistant({
-      ...assistant,
-      knowledge_bases: newKnowledgeBases
-    })
-    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
@@ -809,10 +794,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [couldMentionNotVisionModel]
   )
 
-  const onToggleExpended = () => {
-    const currentlyExpanded = expended || !!textareaHeight
+  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
+
+  const onToggleExpanded = () => {
+    const currentlyExpanded = expanded || !!textareaHeight
     const shouldExpand = !currentlyExpanded
-    setExpend(shouldExpand)
+    setExpand(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (!textArea) return
     if (shouldExpand) {
@@ -832,7 +819,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     focusTextarea()
   }
 
-  const isExpended = expended || !!textareaHeight
+  const isExpanded = expanded || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   if (isMultiSelectMode) {
@@ -853,15 +840,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
-          {selectedKnowledgeBases.length > 0 && (
-            <KnowledgeBaseInput
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
-            />
-          )}
-          {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
-          )}
           <Textarea
             value={text}
             onChange={onChange}
@@ -918,11 +896,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               resizeTextArea={resizeTextArea}
               mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
+              onClearMentionModels={onClearMentionModels}
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
-              isExpended={isExpended}
-              onToggleExpended={onToggleExpended}
+              isExpanded={isExpanded}
+              onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}

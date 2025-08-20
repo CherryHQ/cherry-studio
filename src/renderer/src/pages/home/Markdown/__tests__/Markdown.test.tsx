@@ -58,19 +58,16 @@ vi.mock('@renderer/utils/markdown', () => ({
 // Mock components with more realistic behavior
 vi.mock('../CodeBlock', () => ({
   __esModule: true,
-  default: ({ id, onSave, children }: any) => (
-    <div data-testid="code-block" data-id={id}>
+  default: ({ children, blockId }: any) => (
+    <div data-testid="code-block" data-block-id={blockId}>
       <code>{children}</code>
-      <button type="button" onClick={() => onSave(id, 'new content')}>
-        Save
-      </button>
     </div>
   )
 }))
 
-vi.mock('../ImagePreview', () => ({
+vi.mock('@renderer/components/ImageViewer', () => ({
   __esModule: true,
-  default: (props: any) => <img data-testid="image-preview" {...props} />
+  default: (props: any) => <img data-testid="image-viewer" {...props} />
 }))
 
 vi.mock('../Link', () => ({
@@ -94,12 +91,18 @@ vi.mock('../Table', () => ({
   )
 }))
 
+vi.mock('../MarkdownSvgRenderer', () => ({
+  __esModule: true,
+  default: ({ children }: any) => <div data-testid="svg-renderer">{children}</div>
+}))
+
 vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="shadow-dom">{children}</div>
 }))
 
 // Mock plugins
+vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
@@ -109,6 +112,16 @@ vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
 
 // Mock custom plugins
 vi.mock('../plugins/remarkDisableConstructs', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeHeadingIds', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
+vi.mock('../plugins/rehypeScalableSvg', () => ({
   __esModule: true,
   default: vi.fn()
 }))
@@ -138,8 +151,6 @@ vi.mock('react-markdown', () => ({
 }))
 
 describe('Markdown', () => {
-  let mockEventEmitter: any
-
   beforeEach(async () => {
     vi.clearAllMocks()
 
@@ -148,10 +159,6 @@ describe('Markdown', () => {
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
-
-    // Get mocked EventEmitter
-    const { EventEmitter } = await import('@renderer/services/EventService')
-    mockEventEmitter = EventEmitter
   })
 
   afterEach(() => {
@@ -304,21 +311,9 @@ describe('Markdown', () => {
       expect(screen.getByTestId('has-link-component')).toBeInTheDocument()
     })
 
-    it('should integrate CodeBlock component with edit functionality', () => {
-      const block = createMainTextBlock({ id: 'test-block-123' })
-      render(<Markdown block={block} />)
-
+    it('should integrate CodeBlock component', () => {
+      render(<Markdown block={createMainTextBlock()} />)
       expect(screen.getByTestId('has-code-component')).toBeInTheDocument()
-
-      // Test code block edit event
-      const saveButton = screen.getByText('Save')
-      saveButton.click()
-
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('EDIT_CODE_BLOCK', {
-        msgBlockId: 'test-block-123',
-        codeBlockId: 'code-block-1',
-        newContent: 'new content'
-      })
     })
 
     it('should integrate Table component with copy functionality', () => {
@@ -331,7 +326,7 @@ describe('Markdown', () => {
       expect(tableComponent).toHaveAttribute('data-block-id', 'test-block-456')
     })
 
-    it('should integrate ImagePreview component', () => {
+    it('should integrate ImageViewer component', () => {
       render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('has-img-component')).toBeInTheDocument()

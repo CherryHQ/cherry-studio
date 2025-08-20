@@ -19,14 +19,13 @@ import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
-import { getExtensionByLanguage, isHtmlCode } from '@renderer/utils/markdown'
+import { getExtensionByLanguage } from '@renderer/utils/markdown'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
-import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
 
@@ -300,11 +299,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       </SplitViewWrapper>
     )
   }, [specialView, sourceView, viewMode])
-
-  // HTML 代码块特殊处理 - 在所有 hooks 调用之后
-  if (language === 'html' && isHtmlCode(children)) {
-    return <HtmlArtifactsCard html={children} />
-  }
 
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>

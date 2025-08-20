@@ -1320,7 +1320,6 @@ const migrateConfig = {
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
-      state.settings.enableBackspaceDeleteModel = true
       return state
     } catch (error) {
       return state
@@ -2103,10 +2102,54 @@ const migrateConfig = {
       logger.error('migrate 131 error', error as Error)
       return state
     }
+  },
+  '132': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((p) => {
+        // 如果原本是undefined则不做改动，静默从默认支持改为默认不支持
+        if (p.apiOptions?.isNotSupportDeveloperRole) {
+          p.apiOptions.isSupportDeveloperRole = !p.apiOptions.isNotSupportDeveloperRole
+        }
+        if (p.apiOptions?.isNotSupportServiceTier) {
+          p.apiOptions.isSupportServiceTier = !p.apiOptions.isNotSupportServiceTier
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 132 error', error as Error)
+      return state
+    }
+  },
+  '133': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible.push('code_tools')
+      if (state.codeTools) {
+        state.codeTools.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 133 error', error as Error)
+      return state
+    }
+  },
+  '134': (state: RootState) => {
+    try {
+      state.llm.quickModel = state.llm.topicNamingModel
+
+      return state
+    } catch (error) {
+      logger.error('migrate 134 error', error as Error)
+      return state
+    }
   }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
+// file://./index.ts
 
 const migrate = createMigrate(migrateConfig as any)
 

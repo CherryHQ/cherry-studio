@@ -654,6 +654,8 @@
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "env_vars_help": "輸入自定義環境變數（每行一個，格式：KEY=value）",
+    "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",
@@ -820,7 +822,8 @@
     },
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
     "no_api_key": "API 金鑰未設定",
     "pause_placeholder": "回應已暫停",
@@ -840,6 +843,9 @@
     "created": "建立時間",
     "last_updated": "最後更新",
     "messages": "訊息數",
+    "notion": {
+      "reasoning_truncated": "思維鏈無法分塊，已截斷"
+    },
     "user": "使用者"
   },
   "files": {
@@ -1257,7 +1263,8 @@
       },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
-        "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
+        "no_content": "沒有可匯出至 Notion 的內容"
       },
       "siyuan": {
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
@@ -1383,14 +1390,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "正在匯出到 Notion，請勿重複請求匯出！"
-      },
-      "siyuan": {
-        "exporting": "正在導出到思源筆記，請勿重複請求導出！"
-      },
-      "yuque": {
-        "exporting": "正在導出語雀，請勿重複請求導出！"
+      "export": {
+        "exporting": "正在進行其他匯出，請等待上一次匯出完成後再試"
       }
     },
     "warning": {
@@ -1438,6 +1439,27 @@
       }
     },
     "title": "小工具"
+  },
+  "minapps": {
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智譜清言",
+    "dangbei": "當貝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "metaso": "秘塔AI搜索",
+    "nami-ai": "納米AI",
+    "nami-ai-search": "納米AI搜索",
+    "qwen": "通義千問",
+    "sensechat": "商量",
+    "tencent-yuanbao": "騰訊元寶",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "萬知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS靈犀",
+    "xiaoyi": "小藝",
+    "yuewen": "躍問",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -1579,6 +1601,7 @@
       "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本"
     },
     "generate": {
+      "height": "高度",
       "magic_prompt_option_tip": "智能優化生成效果的提示詞",
       "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
       "negative_prompt_tip": "描述不想在圖像中出現的內容",
@@ -1586,8 +1609,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "允許模型生成人物圖像",
       "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "控制圖像生成的安全耐性，僅適用於 FLUX.1-Kontext-pro 版本",
       "seed_tip": "控制圖像生成的隨機性，以重現相同的生成結果",
-      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+      "width": "寬度"
     },
     "generated_image": "生成圖片",
     "go_to_settings": "去設置",
@@ -1642,7 +1668,7 @@
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入英文圖片描述，目前 Imagen 僅支持英文提示詞",
+    "prompt_placeholder_en": "輸入英文圖片描述，目前僅支持英文提示詞",
     "proxy_required": "打開代理並開啟”TUN 模式 “查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2250,8 +2276,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等",
-          "title": "使用話題命名模型為導出的消息創建標題"
+          "help": "開啟後，使用快速模型為導出的消息命名標題。該項也會影響所有透過 Markdown 導出的方式",
+          "title": "使用快速模型為導出的消息命名標題"
         }
       },
       "minute_interval_one": "{{count}} 分鐘",
@@ -2700,6 +2726,11 @@
     },
     "input": {
       "auto_translate_with_space": "快速敲擊 3 次空格翻譯",
+      "clear": {
+        "all": "清除",
+        "knowledge_base": "清除選中的知識庫",
+        "models": "清除@的所有模型"
+      },
       "show_translate_confirm": "顯示翻譯確認對話框",
       "target_language": {
         "chinese": "簡體中文",
@@ -2947,7 +2978,6 @@
         "label": "網格詳細資訊觸發"
       },
       "input": {
-        "enable_delete_model": "啟用刪除鍵刪除模型 / 附件",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
         "paste_long_text_as_file": "將長文字貼上為檔案",
         "paste_long_text_threshold": "長文字長度",
@@ -3085,7 +3115,6 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
-      "enable_topic_naming": "話題自動重新命名",
       "manage": {
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
@@ -3111,10 +3140,17 @@
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
-      "topic_naming_model": "話題命名模型",
-      "topic_naming_model_description": "自動命名新話題時使用的模型",
-      "topic_naming_model_setting_title": "話題命名模型設定",
-      "topic_naming_prompt": "話題命名提示詞",
+      "quick_model": {
+        "description": "用於執行話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型設定",
+        "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
+      "topic_naming": {
+        "auto": "話題自動重新命名",
+        "label": "話題命名",
+        "prompt": "話題命名提示詞"
+      },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
       "translate_model_prompt_message": "請輸入翻譯模型提示詞",
@@ -3641,12 +3677,33 @@
     "custom": {
       "label": "自定義語言"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "演算法",
+          "tip": "使用franc進行語言檢測"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "自動選擇合適的檢測方法"
+        },
+        "label": "自動檢測方法",
+        "llm": {
+          "tip": "使用快速模型進行語言檢測，消耗少量token。"
+        },
+        "placeholder": "選擇自動偵測方法",
+        "tip": "自動檢測輸入語言時使用的方法"
+      }
+    },
     "detected": {
       "language": "自動檢測"
     },
     "empty": "翻譯內容為空",
     "error": {
-      "detected_unknown": "未知語言不可交換",
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用於語言檢測",
+        "unknown": "檢測到未知語言"
+      },
       "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
       "invalid_source": "無效的源語言",

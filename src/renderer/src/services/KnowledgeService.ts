@@ -21,6 +21,17 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   const aiProvider = new AiProvider(provider)
   const rerankAiProvider = new AiProvider(rerankProvider)
 
+  // get preprocess provider from store instead of base.preprocessProvider
+  const preprocessProvider = store
+    .getState()
+    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
+  const updatedPreprocessProvider = preprocessProvider
+    ? {
+        type: 'preprocess' as const,
+        provider: preprocessProvider
+      }
+    : base.preprocessProvider
+
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
   if (provider.type === 'gemini') {
@@ -57,7 +68,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    preprocessProvider: base.preprocessProvider,
+    preprocessProvider: updatedPreprocessProvider,
     documentCount: base.documentCount
   }
 }

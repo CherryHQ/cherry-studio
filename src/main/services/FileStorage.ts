@@ -5,6 +5,7 @@ import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
+  net,
   OpenDialogOptions,
   OpenDialogReturnValue,
   SaveDialogOptions,
@@ -509,7 +510,7 @@ class FileStorage {
     isUseContentType?: boolean
   ): Promise<FileMetadata> => {
     try {
-      const response = await fetch(url)
+      const response = await net.fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }

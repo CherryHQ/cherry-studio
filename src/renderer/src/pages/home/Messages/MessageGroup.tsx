@@ -241,7 +241,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return (
           <Popover
             key={message.id}
-            destroyTooltipOnHide
+            destroyOnHidden
             content={
               <MessageWrapper
                 className={classNames([

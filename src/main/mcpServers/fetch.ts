@@ -2,6 +2,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import { z } from 'zod'
@@ -16,7 +17,7 @@ export type RequestPayload = z.infer<typeof RequestPayloadSchema>
 export class Fetcher {
   private static async _fetch({ url, headers }: RequestPayload): Promise<Response> {
     try {
-      const response = await fetch(url, {
+      const response = await net.fetch(url, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

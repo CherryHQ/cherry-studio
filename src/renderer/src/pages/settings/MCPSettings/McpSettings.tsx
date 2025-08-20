@@ -5,7 +5,7 @@ import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs, TabsProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -492,7 +492,7 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
-  const tabs = [
+  const tabs: TabsProps['items'] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
@@ -705,7 +705,7 @@ const McpSettings: React.FC = () => {
     tabs.push(
       {
         key: 'tools',
-        label: t('settings.mcp.tabs.tools'),
+        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
         children: (
           <MCPToolsSection
             tools={tools}
@@ -717,12 +717,12 @@ const McpSettings: React.FC = () => {
       },
       {
         key: 'prompts',
-        label: t('settings.mcp.tabs.prompts'),
+        label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
         children: <MCPPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
-        label: t('settings.mcp.tabs.resources'),
+        label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
         children: <MCPResourcesSection resources={resources} />
       }
     )

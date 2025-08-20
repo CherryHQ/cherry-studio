@@ -13,9 +13,9 @@ import {
   CircleChevronRight,
   FileSearch,
   Globe,
+  Hammer,
   Languages,
   Link,
-  LucideSquareTerminal,
   Maximize,
   MessageSquareDiff,
   Minimize,
@@ -49,7 +49,7 @@ export interface InputbarToolsRef {
     openSelectFileMenu: () => void
     translate: () => void
   }) => QuickPanelListItem[]
-  openMentionModelsPanel: () => void
+  openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
   openAttachmentQuickPanel: () => void
 }
 
@@ -67,11 +67,12 @@ export interface InputbarToolsProps {
   resizeTextArea: () => void
   mentionModels: Model[]
   onMentionModel: (model: Model) => void
+  onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   couldAddImageFile: boolean
   onEnableGenerateImage: () => void
-  isExpended: boolean
-  onToggleExpended: () => void
+  isExpanded: boolean
+  onToggleExpanded: () => void
 
   addNewTopic: () => void
   clearTopic: () => void
@@ -108,11 +109,12 @@ const InputbarTools = ({
   resizeTextArea,
   mentionModels,
   onMentionModel,
+  onClearMentionModels,
   couldMentionNotVisionModel,
   couldAddImageFile,
   onEnableGenerateImage,
-  isExpended,
-  onToggleExpended,
+  isExpanded: isExpended,
+  onToggleExpanded: onToggleExpended,
   addNewTopic,
   clearTopic,
   onNewContext,
@@ -200,7 +202,7 @@ const InputbarTools = ({
       {
         label: t('settings.mcp.title'),
         description: t('settings.mcp.not_support'),
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
@@ -209,7 +211,7 @@ const InputbarTools = ({
       {
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openPromptList()
@@ -218,7 +220,7 @@ const InputbarTools = ({
       {
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openResourcesList()
@@ -292,7 +294,7 @@ const InputbarTools = ({
 
   useImperativeHandle(ref, () => ({
     getQuickPanelMenu: getQuickPanelMenuImpl,
-    openMentionModelsPanel: () => mentionModelsButtonRef.current?.openQuickPanel(),
+    openMentionModelsPanel: (triggerInfo) => mentionModelsButtonRef.current?.openQuickPanel(triggerInfo),
     openAttachmentQuickPanel: () => attachmentButtonRef.current?.openQuickPanel()
   }))
 
@@ -394,9 +396,11 @@ const InputbarTools = ({
             ref={mentionModelsButtonRef}
             mentionedModels={mentionModels}
             onMentionModel={onMentionModel}
+            onClearMentionModels={onClearMentionModels}
             ToolbarButton={ToolbarButton}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
+            setText={setText}
           />
         )
       },
@@ -463,6 +467,7 @@ const InputbarTools = ({
     mentionModels,
     model,
     newTopicShortcut,
+    onClearMentionModels,
     onEnableGenerateImage,
     onMentionModel,
     onNewContext,

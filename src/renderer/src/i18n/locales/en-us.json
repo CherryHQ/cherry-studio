@@ -654,6 +654,8 @@
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
+    "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
     "install_bun": "Install Bun",
     "installing_bun": "Installing...",
@@ -820,7 +822,8 @@
     },
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
-      "exists": "Model already exists"
+      "exists": "Model already exists",
+      "not_exists": "Model does not exist"
     },
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
@@ -840,6 +843,9 @@
     "created": "Created",
     "last_updated": "Last Updated",
     "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
+    },
     "user": "User"
   },
   "files": {
@@ -1257,7 +1263,8 @@
       },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured"
+        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+        "no_content": "There is nothing to export to Notion."
       },
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
@@ -1383,14 +1390,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Exporting to Notion, please do not request export repeatedly!"
-      },
-      "siyuan": {
-        "exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
-      },
-      "yuque": {
-        "exporting": "Exporting to Yuque, please do not request export repeatedly!"
+      "export": {
+        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
       }
     },
     "warning": {
@@ -1438,6 +1439,27 @@
       }
     },
     "title": "MinApp"
+  },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
   },
   "miniwindow": {
     "alert": {
@@ -1579,6 +1601,7 @@
       "style_type_tip": "Style for edited image, only for V_2 and above"
     },
     "generate": {
+      "height": "Height",
       "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
       "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
       "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
@@ -1586,8 +1609,11 @@
       "person_generation": "Generate person",
       "person_generation_tip": "Allow model to generate person images",
       "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "safety_tolerance": "Safety Tolerance",
+      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
       "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above"
+      "style_type_tip": "Image generation style for V_2 and above",
+      "width": "Width"
     },
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
@@ -1642,7 +1668,7 @@
     "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-    "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+    "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {
@@ -2250,8 +2276,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods.",
-          "title": "Use topic naming model to create titles for exported messages"
+          "help": "When enabled, use the quick model to name the title for exported messages. This setting also affects all export methods through Markdown.",
+          "title": "Use the quick model to name the title for the exported message"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -2700,6 +2726,11 @@
     },
     "input": {
       "auto_translate_with_space": "Quickly translate with 3 spaces",
+      "clear": {
+        "all": "Clear",
+        "knowledge_base": "Clear selected knowledge bases",
+        "models": "Clear all models"
+      },
       "show_translate_confirm": "Show translation confirmation dialog",
       "target_language": {
         "chinese": "Simplified Chinese",
@@ -2947,7 +2978,6 @@
         "label": "Grid detail trigger"
       },
       "input": {
-        "enable_delete_model": "Enable the backspace key to delete models/attachments.",
         "enable_quick_triggers": "Enable / and @ triggers",
         "paste_long_text_as_file": "Paste long text as file",
         "paste_long_text_threshold": "Paste long text length",
@@ -3085,7 +3115,6 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
-      "enable_topic_naming": "Topic Auto Naming",
       "manage": {
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
@@ -3111,10 +3140,17 @@
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
-      "topic_naming_model": "Topic Naming Model",
-      "topic_naming_model_description": "Model used when automatically naming a new topic",
-      "topic_naming_model_setting_title": "Topic Naming Model Settings",
-      "topic_naming_prompt": "Topic Naming Prompt",
+      "quick_model": {
+        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "label": "Quick Model",
+        "setting_title": "Quick model setup",
+        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+      },
+      "topic_naming": {
+        "auto": "Topic Auto Naming",
+        "label": "Topic naming",
+        "prompt": "Topic Naming Prompt"
+      },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
       "translate_model_prompt_message": "Please enter the translate model prompt",
@@ -3641,12 +3677,33 @@
     "custom": {
       "label": "Custom language"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algorithm",
+          "tip": "Using the franc library for language detection"
+        },
+        "auto": {
+          "label": "Automatic",
+          "tip": "Automatically select the appropriate detection method"
+        },
+        "label": "Automatic detection method",
+        "llm": {
+          "tip": "Using the quick model for language detection consumes fewer tokens."
+        },
+        "placeholder": "Select automatic detection method",
+        "tip": "Method used when automatically detecting the input language"
+      }
+    },
     "detected": {
       "language": "Auto Detect"
     },
     "empty": "Translation content is empty",
     "error": {
-      "detected_unknown": "Unknown language cannot be exchanged",
+      "detect": {
+        "qwen_mt": "QwenMT model cannot be used for language detection",
+        "unknown": "Unknown language detected"
+      },
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
       "invalid_source": "Invalid source language",

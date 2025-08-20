@@ -1,10 +1,11 @@
 import { omit } from 'lodash'
 import React from 'react'
+import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: any
+  node?: Omit<Node, 'type'>
   citationData?: {
     url: string
     title?: string

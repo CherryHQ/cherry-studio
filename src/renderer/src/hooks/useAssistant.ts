@@ -1,4 +1,10 @@
 import { loggerService } from '@logger'
+import {
+  getThinkModelType,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  MODEL_SUPPORTED_OPTIONS
+} from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -12,15 +18,15 @@ import {
   setModel,
   updateAssistant,
   updateAssistants,
-  updateAssistantSettings,
+  updateAssistantSettings as _updateAssistantSettings,
   updateDefaultAssistant,
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicManager } from './useTopic'
@@ -78,6 +84,38 @@ export function useAssistant(id: string) {
 
   const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
+  const updateAssistantSettings = useCallback(
+    (settings: Partial<AssistantSettings>) => {
+      assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
+    },
+    [assistant?.id, dispatch]
+  )
+
+  // 当model变化时，同步reasoning effort为模型支持的合法值
+  useEffect(() => {
+    if (assistant?.settings) {
+      if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
+        const currentReasoningEffort = assistant?.settings?.reasoning_effort
+        const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
+        if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
+          // 选项不支持时，回退到第一个支持的值
+          // 注意：这里假设可用的options不会为空
+          const fallbackOption = supportedOptions[0]
+
+          updateAssistantSettings({
+            reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'off'
+          })
+        }
+      } else {
+        updateAssistantSettings({
+          reasoning_effort: undefined,
+          qwenThinkMode: undefined
+        })
+      }
+    }
+  }, [assistant?.settings, model, updateAssistantSettings])
+
   return {
     assistant: assistantWithModel,
     model,
@@ -110,9 +148,7 @@ export function useAssistant(id: string) {
       [assistant, dispatch]
     ),
     updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
-    updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
-      assistant?.id && dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
-    }
+    updateAssistantSettings
   }
 }
 
@@ -131,15 +167,15 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, topicNamingModel, translateModel } = useAppSelector((state) => state.llm)
+  const { defaultModel, quickModel, translateModel } = useAppSelector((state) => state.llm)
   const dispatch = useAppDispatch()
 
   return {
     defaultModel,
-    topicNamingModel,
+    quickModel,
     translateModel,
     setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
-    setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
+    setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
     setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
   }
 }

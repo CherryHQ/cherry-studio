@@ -66,6 +66,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
 
+  // 无匹配项自动关闭的定时器
+  const noMatchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // 处理搜索，过滤列表
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
@@ -128,11 +131,43 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSymbolRef.current = ctx.symbol
 
     return newList
-  }, [ctx.isVisible, ctx.list, ctx.symbol, searchText])
+  }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
   }, [list, historyPanel])
+
+  // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
+  useEffect(() => {
+    const _searchText = searchText.replace(/^[/@]/, '')
+
+    // 清除之前的定时器（无论面板是否可见都要清理）
+    if (noMatchTimeoutRef.current) {
+      clearTimeout(noMatchTimeoutRef.current)
+      noMatchTimeoutRef.current = null
+    }
+
+    // 面板不可见时不设置新定时器
+    if (!ctx.isVisible) {
+      return
+    }
+
+    // 只有在有搜索文本但无匹配项时才设置延迟关闭
+    if (_searchText && _searchText.length > 0 && list.length === 0) {
+      noMatchTimeoutRef.current = setTimeout(() => {
+        ctx.close('no-matches')
+      }, 300)
+    }
+
+    // 清理函数
+    return () => {
+      if (noMatchTimeoutRef.current) {
+        clearTimeout(noMatchTimeoutRef.current)
+        noMatchTimeoutRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx对象引用不稳定，使用具体属性避免过度重渲染
+  }, [ctx.isVisible, searchText, list.length, ctx.close])
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
@@ -169,7 +204,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      ctx.close(action)
+      // 传递 searchText 给 close 函数，去掉第一个字符（@ 或 /）
+      const cleanSearchText = searchText.length > 1 ? searchText.slice(1) : ''
+      ctx.close(action, cleanSearchText)
       setHistoryPanel([])
       scrollTriggerRef.current = 'initial'
 
@@ -182,7 +219,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         clearSearchText(true)
       }
     },
-    [ctx, clearSearchText, setInputText]
+    [ctx, clearSearchText, setInputText, searchText]
   )
 
   const handleItemAction = useCallback(
@@ -275,7 +312,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchText(newSearchText)
       } else {
-        handleClose('delete-symbol')
+        ctx.close('delete-symbol')
       }
     }
 
@@ -421,6 +458,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           }
           break
         case 'Escape':
+          e.stopPropagation()
           handleClose('esc')
           break
       }
@@ -440,14 +478,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
+    window.addEventListener('click', handleClickOutside, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      window.removeEventListener('click', handleClickOutside, true)
     }
   }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
 
