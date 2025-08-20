@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * 定时器管理 Hook
+ * 定时器管理 Hook，用于管理 setTimeout 和 setInterval 定时器，支持通过 key 来标识不同的定时器
  *
- * 用于管理 setTimeout 和 setInterval 定时器，支持通过 key 来标识不同的定时器
- * 在设置定时器时以前会自动清理相同key的定时器
- * 组件卸载时会自动清理所有定时器，避免内存泄漏
+ * - 在设置定时器时以前会自动清理相同key的定时器
+ * - 组件卸载时会自动清理所有定时器，避免内存泄漏
  */
 export const useTimer = () => {
   const timeoutMapRef = useRef(new Map<string, NodeJS.Timeout>())
