@@ -3723,6 +3723,9 @@
       "error": {
         "save": "保存翻譯歷史失敗"
       },
+      "search": {
+        "placeholder": "搜索翻譯歷史"
+      },
       "title": "翻譯歷史"
     },
     "input": {

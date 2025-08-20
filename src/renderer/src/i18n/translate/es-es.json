@@ -3723,6 +3723,9 @@
       "error": {
         "save": "Error al guardar el historial de traducciones"
       },
+      "search": {
+        "placeholder": "Historial de búsqueda de traducción"
+      },
       "title": "Historial de traducciones"
     },
     "input": {

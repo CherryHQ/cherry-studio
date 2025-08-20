@@ -3723,6 +3723,9 @@
       "error": {
         "save": "保存翻訳履歴に失敗しました"
       },
+      "search": {
+        "placeholder": "翻訳履歴を検索する"
+      },
       "title": "翻訳履歴"
     },
     "input": {
