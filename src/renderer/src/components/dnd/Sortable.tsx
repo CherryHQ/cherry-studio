@@ -17,7 +17,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { ItemRenderer } from './ItemRenderer'
@@ -61,10 +61,14 @@ function Sortable<T>({
     })
   )
 
+  const getId = useCallback(
+    (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number)),
+    [itemKey]
+  )
+
   const itemIds = useMemo(() => {
-    const getId = (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number))
     return items.map(getId)
-  }, [items, itemKey])
+  }, [items, getId])
 
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
 
@@ -127,7 +131,7 @@ function Sortable<T>({
             <SortableItem
               key={itemIds[index]}
               item={item}
-              itemKey={itemKey}
+              getId={getId}
               renderItem={renderItem}
               useDragOverlay={useDragOverlay}
             />

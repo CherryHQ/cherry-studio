@@ -5,14 +5,13 @@ import { ItemRenderer } from './ItemRenderer'
 
 interface SortableItemProps<T> {
   item: T
-  itemKey: keyof T | ((item: T) => string | number)
+  getId: (item: T) => string | number
   renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
   useDragOverlay?: boolean
 }
 
-export function SortableItem<T>({ item, itemKey, renderItem, useDragOverlay = true }: SortableItemProps<T>) {
-  const getId = () => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number))
-  const id = getId()
+export function SortableItem<T>({ item, getId, renderItem, useDragOverlay = true }: SortableItemProps<T>) {
+  const id = getId(item)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id

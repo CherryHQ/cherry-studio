@@ -1,4 +1,3 @@
-import { useDndState } from '@renderer/components/dnd/useDndState'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
@@ -26,8 +25,6 @@ const McpServerCard: FC<McpServerCardProps> = ({
   onEdit,
   onOpenUrl
 }) => {
-  const { isDragging } = useDndState()
-
   const handleOpenUrl = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (server.providerUrl) {
@@ -36,7 +33,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   }
 
   return (
-    <CardContainer $isActive={server.isActive} $isDragging={isDragging}>
+    <CardContainer $isActive={server.isActive}>
       <ServerHeader>
         <ServerNameWrapper>
           {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
@@ -87,7 +84,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
 }
 
 // Styled components
-const CardContainer = styled.div<{ $isActive: boolean; $isDragging: boolean }>`
+const CardContainer = styled.div<{ $isActive: boolean }>`
   display: flex;
   flex-direction: column;
   border: 0.5px solid var(--color-border);
@@ -97,7 +94,6 @@ const CardContainer = styled.div<{ $isActive: boolean; $isDragging: boolean }>`
   background-color: var(--color-background);
   margin-bottom: 5px;
   height: 125px;
-  cursor: ${(props) => (props.$isDragging ? 'grabbing' : 'pointer')};
   opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
 
   &:hover {

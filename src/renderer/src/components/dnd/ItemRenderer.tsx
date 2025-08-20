@@ -71,7 +71,7 @@ const Wrapper = styled.div`
 const ItemContent = styled.div`
   position: relative;
   box-sizing: border-box;
-  cursor: grab;
+  cursor: pointer;
   touch-action: manipulation;
   transform-origin: 50% 50%;
   transform: scale(var(--scale, 1));
