@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { FileMetadata } from '@renderer/types'
-import { getFileExtension, isTextFile } from '@renderer/utils'
+import { getFileExtension, isSupportedFile } from '@renderer/utils'
 
 const logger = loggerService.withContext('PasteService')
 
@@ -91,7 +91,7 @@ export const handlePaste = async (
           }
 
           // 有路径的情况
-          if (await isTextFile(filePath, extensionSet)) {
+          if (await isSupportedFile(filePath, extensionSet)) {
             const selectedFile = await window.api.file.get(filePath)
             if (selectedFile) {
               setFiles((prevFiles) => [...prevFiles, selectedFile])

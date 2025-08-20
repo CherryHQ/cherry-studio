@@ -57,7 +57,7 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .trim()
 }
 
-export async function isTextFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
+export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
   try {
     const fileExt = getFileExtension(filePath)
     if (supportExts.has(fileExt)) {
@@ -74,12 +74,12 @@ export async function isTextFile(filePath: string, supportExts: Set<string>): Pr
   }
 }
 
-export async function filterTextFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
+export async function filterSupportedFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
   const extensionSet = new Set(supportExts)
   const validationResults = await Promise.all(
     files.map(async (file) => ({
       file,
-      isValid: await isTextFile(file.path, extensionSet)
+      isValid: await isSupportedFile(file.path, extensionSet)
     }))
   )
   return validationResults.filter((result) => result.isValid).map((result) => result.file)

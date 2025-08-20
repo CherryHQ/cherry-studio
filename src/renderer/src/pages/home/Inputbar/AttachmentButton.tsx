@@ -1,5 +1,5 @@
 import { FileMetadata, FileType } from '@renderer/types'
-import { filterTextFiles } from '@renderer/utils/file'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle } from 'react'
@@ -49,7 +49,7 @@ const AttachmentButton: FC<Props> = ({
         setFiles([...files, ..._files])
         return
       }
-      const validFiles = await filterTextFiles(_files, extensions)
+      const validFiles = await filterSupportedFiles(_files, extensions)
       if (validFiles.length > 0) {
         setFiles([...files, ...validFiles])
       }
