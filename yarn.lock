@@ -2539,7 +2539,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/language@npm:^6.11.3":
+"@codemirror/language@npm:6.11.3":
   version: 6.11.3
   resolution: "@codemirror/language@npm:6.11.3"
   dependencies:
@@ -2562,7 +2562,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/lint@npm:^6.8.5":
+"@codemirror/lint@npm:6.8.5":
   version: 6.8.5
   resolution: "@codemirror/lint@npm:6.8.5"
   dependencies:
@@ -2605,7 +2605,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/view@npm:^6.38.1":
+"@codemirror/view@npm:6.38.1":
   version: 6.38.1
   resolution: "@codemirror/view@npm:6.38.1"
   dependencies:
