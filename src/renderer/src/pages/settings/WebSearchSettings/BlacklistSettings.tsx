@@ -1,6 +1,7 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
@@ -8,7 +9,7 @@ import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blackl
 import { Alert, Button, Table, TableProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import AddSubscribePopup from './AddSubscribePopup'
@@ -47,14 +48,7 @@ const BlacklistSettings: FC = () => {
       name: source.name
     })) || []
   )
-  const subscribeValidTimerRef = useRef<NodeJS.Timeout>(undefined)
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      clearTimeout(subscribeValidTimerRef.current)
-    }
-  }, [])
+  const { setTimeoutTimer } = useTimer()
 
   const dispatch = useAppDispatch()
 
@@ -156,8 +150,7 @@ const BlacklistSettings: FC = () => {
           content: t('settings.tool.websearch.subscribe_update_success'),
           duration: 2
         })
-        clearTimeout(subscribeValidTimerRef.current)
-        subscribeValidTimerRef.current = setTimeout(() => setSubscribeValid(false), 3000)
+        setTimeoutTimer('updateSubscribe', () => setSubscribeValid(false), 3000)
       } else {
         setSubscribeValid(false)
         throw new Error('No valid sources updated')
@@ -199,8 +192,7 @@ const BlacklistSettings: FC = () => {
           content: t('settings.tool.websearch.subscribe_add_success'),
           duration: 2
         })
-        clearTimeout(subscribeValidTimerRef.current)
-        subscribeValidTimerRef.current = setTimeout(() => setSubscribeValid(false), 3000)
+        setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
       } catch (error) {
         setSubscribeValid(false)
         window.message.error({
