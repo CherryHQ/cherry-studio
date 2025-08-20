@@ -17,24 +17,50 @@ export const useTimer = () => {
 
   /**
    * 设置一个 setTimeout 定时器
-   * @param key - 定时器标识符
-   * @param args - setTimeout 的参数列表
+   * @param key - 定时器标识符，用于标识和管理不同的定时器实例
+   * @param args - setTimeout 的参数列表，包含回调函数和延迟时间（毫秒）
+   * @returns 返回一个清理函数，可以用来手动清除该定时器
+   * @example
+   * ```ts
+   * const { setTimeoutTimer } = useTimer();
+   * // 设置一个3秒后执行的定时器
+   * const cleanup = setTimeoutTimer('myTimer', () => {
+   *   console.log('Timer executed');
+   * }, 3000);
+   *
+   * // 需要时可以提前清理定时器
+   * cleanup();
+   * ```
    */
   const setTimeoutTimer = (key: string, ...args: Parameters<typeof setTimeout>) => {
     clearTimeout(timeoutMapRef.current.get(key))
     const timer = setTimeout(...args)
     timeoutMapRef.current.set(key, timer)
+    return () => clearTimeoutTimer(key)
   }
 
   /**
    * 设置一个 setInterval 定时器
-   * @param key - 定时器标识符
-   * @param args - setInterval 的参数列表
+   * @param key - 定时器标识符，用于标识和管理不同的定时器实例
+   * @param args - setInterval 的参数列表，包含回调函数和时间间隔（毫秒）
+   * @returns 返回一个清理函数，可以用来手动清除该定时器
+   * @example
+   * ```ts
+   * const { setIntervalTimer } = useTimer();
+   * // 设置一个每3秒执行一次的定时器
+   * const cleanup = setIntervalTimer('myTimer', () => {
+   *   console.log('Timer executed');
+   * }, 3000);
+   *
+   * // 需要时可以停止定时器
+   * cleanup();
+   * ```
    */
   const setIntervalTimer = (key: string, ...args: Parameters<typeof setInterval>) => {
     clearInterval(intervalMapRef.current.get(key))
     const timer = setInterval(...args)
     intervalMapRef.current.set(key, timer)
+    return () => clearIntervalTimer(key)
   }
 
   /**
