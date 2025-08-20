@@ -87,7 +87,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     enableQuickPanelTriggers,
     enableSpellCheck
   } = useSettings()
-  const [expended, setExpend] = useState(false)
+  const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
@@ -256,7 +256,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setFiles([])
       setTimeout(() => setText(''), 500)
       setTimeout(() => resizeTextArea(true), 0)
-      setExpend(false)
+      setExpand(false)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
@@ -396,9 +396,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (expended) {
+    if (expanded) {
       if (event.key === 'Escape') {
-        return onToggleExpended()
+        event.stopPropagation()
+        return onToggleExpanded()
       }
     }
 
@@ -493,7 +494,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
-  const onInput = () => !expended && resizeTextArea()
+  const onInput = () => !expanded && resizeTextArea()
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -633,7 +634,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (textArea) {
         textArea.style.height = `${newHeight}px`
-        setExpend(newHeight == maxHeightInPixels)
+        setExpand(newHeight == maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
@@ -795,10 +796,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
-  const onToggleExpended = () => {
-    const currentlyExpanded = expended || !!textareaHeight
+  const onToggleExpanded = () => {
+    const currentlyExpanded = expanded || !!textareaHeight
     const shouldExpand = !currentlyExpanded
-    setExpend(shouldExpand)
+    setExpand(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (!textArea) return
     if (shouldExpand) {
@@ -818,7 +819,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     focusTextarea()
   }
 
-  const isExpended = expended || !!textareaHeight
+  const isExpanded = expanded || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   if (isMultiSelectMode) {
@@ -899,8 +900,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
-              isExpended={isExpended}
-              onToggleExpended={onToggleExpended}
+              isExpanded={isExpanded}
+              onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}
