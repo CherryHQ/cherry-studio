@@ -3,7 +3,8 @@ import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS
+  MODEL_SUPPORTED_OPTIONS,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -113,9 +114,12 @@ export function useAssistant(id: string) {
           if (cache && supportedOptions.includes(cache)) {
             fallbackOption = cache
           } else {
-            // 回退到第一个支持的值
+            // 灵活回退到支持的值
             // 注意：这里假设可用的options不会为空
-            fallbackOption = MODEL_SUPPORTED_OPTIONS[modelType][0]
+            const enableThinking = currentReasoningEffort !== undefined
+            fallbackOption = enableThinking
+              ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
+              : MODEL_SUPPORTED_OPTIONS[modelType][0]
           }
 
           updateAssistantSettings({
