@@ -3,8 +3,7 @@ import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -25,7 +24,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -102,23 +101,34 @@ export function useAssistant(id: string) {
   useEffect(() => {
     const settings = settingsRef.current
     if (settings) {
+      const currentReasoningEffort = settings.reasoning_effort
       if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
-        const currentReasoningEffort = settings.reasoning_effort
         const modelType = getThinkModelType(model)
         const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
         if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
-          // 选项不支持时，回退到第一个支持的值，但不包括 off 和 undefined，这意味着切换到思考模型会默认打开思考开关
-          // 注意：这里假设可用的options不会为空
-          const fallbackOption = MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
+          const cache = settings.reasoning_effort_cache
+          let fallbackOption: ThinkingOption
+
+          // 选项不支持时，首先尝试恢复到上次使用的值
+          if (cache && supportedOptions.includes(cache)) {
+            fallbackOption = cache
+          } else {
+            // 回退到第一个支持的值
+            // 注意：这里假设可用的options不会为空
+            fallbackOption = MODEL_SUPPORTED_OPTIONS[modelType][0]
+          }
 
           updateAssistantSettings({
-            reasoning_effort: fallbackOption,
-            qwenThinkMode: true
+            reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
+            reasoning_effort_cache: fallbackOption === 'off' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'off' ? undefined : true
           })
         }
       } else {
+        // 切换到非思考模型时保留cache
         updateAssistantSettings({
           reasoning_effort: undefined,
+          reasoning_effort_cache: currentReasoningEffort,
           qwenThinkMode: undefined
         })
       }

@@ -99,6 +99,8 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOption
+  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复. */
+  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
 }
